@@ -13,8 +13,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Check auth on mount
   useEffect(() => {
-    // Synchronously check auth before first render
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
     
