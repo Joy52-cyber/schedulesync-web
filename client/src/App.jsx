@@ -14,20 +14,16 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check authentication immediately on mount
+    // Synchronously check auth before first render
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
     
     if (token && storedUser) {
       try {
-        // Set auth header for all API requests
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        
-        // Parse user data
         const userData = JSON.parse(storedUser);
         setUser(userData);
         setIsAuthenticated(true);
-        
         console.log('✅ Auto-login successful for:', userData.email);
       } catch (error) {
         console.error('Invalid stored user data, clearing...');
@@ -36,41 +32,28 @@ function App() {
       }
     }
     
-    // Set loading to false after auth check completes
     setLoading(false);
   }, []);
 
   const handleLogin = (token, userData) => {
     console.log('🔐 Login successful:', userData.email);
-    
-    // Store credentials
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
-    
-    // Set auth header for all API requests
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    
-    // Update state
     setUser(userData);
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
     console.log('👋 Logging out...');
-    
-    // Clear credentials
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    
-    // Remove auth header
     delete api.defaults.headers.common['Authorization'];
-    
-    // Clear state
     setUser(null);
     setIsAuthenticated(false);
   };
 
-  // Show loading spinner until auth check completes
+  // Show loading screen while checking auth
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">

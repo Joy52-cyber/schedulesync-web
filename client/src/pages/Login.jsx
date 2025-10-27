@@ -1,28 +1,64 @@
 ﻿import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Loader2, Calendar } from 'lucide-react';
 import { auth } from '../utils/api';
 
 export default function Login({ onLogin }) {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-  const microsoftClientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID || '';
   const redirectUri = `${window.location.origin}/login`;
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    
+    if (code) {
+      // Prevent reprocessing
+      if (sessionStorage.getItem('processing-oauth')) {
+        return;
+      }
+      
+      sessionStorage.setItem('processing-oauth', 'true');
+      setLoading(true);
+      
+      // Clean URL immediately
+      window.history.replaceState({}, document.title, '/login');
+      
+      const handleOAuth = async () => {
+        try {
+          console.log('🔄 Processing OAuth code...');
+          const response = await auth.googleLogin(code);
+          console.log('✅ OAuth successful!');
+          
+          // Call onLogin to store credentials
+          onLogin(response.data.token, response.data.user);
+          
+          // Clear processing flag
+          sessionStorage.removeItem('processing-oauth');
+          
+          // Navigate to dashboard
+          navigate('/dashboard', { replace: true });
+          
+        } catch (err) {
+          console.error('❌ OAuth failed:', err);
+          setError('Authentication failed. Please try again.');
+          setLoading(false);
+          sessionStorage.removeItem('processing-oauth');
+        }
+      };
+      
+      handleOAuth();
+    }
+  }, [onLogin, navigate]);
 
   const handleEmailLogin = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-    
-    // TODO: Implement email/password login
-    // For now, just show a message
-    setTimeout(() => {
-      setError('Email login not yet implemented. Please use Google or Microsoft.');
-      setLoading(false);
-    }, 1000);
+    setError('Email login not yet implemented. Please use Google.');
   };
 
   const handleGoogleLogin = () => {
@@ -31,7 +67,7 @@ export default function Login({ onLogin }) {
     
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${googleClientId}` +
-      `&redirect_uri=${redirectUri}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&response_type=code` +
       `&scope=openid email profile https://www.googleapis.com/auth/calendar.readonly` +
       `&access_type=offline` +
@@ -40,67 +76,11 @@ export default function Login({ onLogin }) {
     window.location.href = authUrl;
   };
 
-  const handleMicrosoftLogin = () => {
-    setLoading(true);
-    setError('');
-    
-    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
-      `client_id=${microsoftClientId}` +
-      `&redirect_uri=${redirectUri}` +
-      `&response_type=code` +
-      `&scope=openid email profile Calendars.Read offline_access` +
-      `&response_mode=query`;
-    
-    window.location.href = authUrl;
-  };
-
-  useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code');
-  
-  if (code) {
-    setLoading(true);
-    
-    const handleOAuthCallback = async () => {
-      try {
-        // Try Google first
-        const response = await auth.googleLogin(code);
-        console.log('✅ OAuth successful:', response.data.user.email);
-        
-        // Call onLogin to store credentials
-        onLogin(response.data.token, response.data.user);
-        
-        // Clean URL and redirect will happen automatically via App.jsx
-        window.history.replaceState({}, document.title, '/dashboard');
-        
-      } catch (googleErr) {
-        console.log('Trying Microsoft OAuth...');
-        try {
-          // Try Microsoft if Google fails
-          const response = await auth.microsoftLogin(code);
-          console.log('✅ OAuth successful:', response.data.user.email);
-          
-          onLogin(response.data.token, response.data.user);
-          window.history.replaceState({}, document.title, '/dashboard');
-          
-        } catch (msErr) {
-          console.error('OAuth failed:', msErr);
-          setError('Authentication failed. Please try again.');
-          setLoading(false);
-          window.history.replaceState({}, document.title, '/login');
-        }
-      }
-    };
-    
-    handleOAuthCallback();
-  }
-}, [onLogin]);
-
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
       <div className="w-full max-w-md animate-fadeIn">
         <div className="bg-white rounded-3xl shadow-2xl px-10 py-12">
-          {/* Header with Icon */}
+          {/* Header */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl mb-4 shadow-lg">
               <Calendar className="h-10 w-10 text-white" />
@@ -109,8 +89,8 @@ export default function Login({ onLogin }) {
             <p className="text-gray-500 text-lg">Welcome back!</p>
           </div>
 
-          {/* OAuth Buttons */}
-          <div className="space-y-3 mb-6">
+          {/* OAuth Button */}
+          <div className="mb-6">
             <button
               onClick={handleGoogleLogin}
               disabled={loading}
@@ -123,20 +103,6 @@ export default function Login({ onLogin }) {
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
               <span className="text-sm font-semibold text-gray-700">Continue with Google</span>
-            </button>
-
-            <button
-              onClick={handleMicrosoftLogin}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-white border-2 border-gray-300 rounded-xl hover:border-blue-500 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <svg className="h-5 w-5" viewBox="0 0 23 23">
-                <path fill="#f35325" d="M1 1h10v10H1z"/>
-                <path fill="#81bc06" d="M12 1h10v10H12z"/>
-                <path fill="#05a6f0" d="M1 12h10v10H1z"/>
-                <path fill="#ffba08" d="M12 12h10v10H12z"/>
-              </svg>
-              <span className="text-sm font-semibold text-gray-700">Continue with Microsoft</span>
             </button>
           </div>
 
@@ -157,7 +123,17 @@ export default function Login({ onLogin }) {
             </div>
           )}
 
-          {/* Email/Password Form */}
+          {/* Loading State */}
+          {loading && (
+            <div className="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              <div className="flex items-center justify-center gap-3">
+                <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+                <p className="text-sm text-blue-600 font-medium">Signing you in...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Email Form */}
           <form onSubmit={handleEmailLogin} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -171,7 +147,7 @@ export default function Login({ onLogin }) {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
-                  required
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -188,7 +164,7 @@ export default function Login({ onLogin }) {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
-                  required
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -204,14 +180,7 @@ export default function Login({ onLogin }) {
               disabled={loading}
               className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Signing in...
-                </span>
-              ) : (
-                'Sign In'
-              )}
+              Sign In
             </button>
           </form>
         </div>
