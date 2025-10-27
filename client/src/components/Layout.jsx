@@ -1,110 +1,126 @@
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, Calendar, LogOut, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
-export default function Layout({ onLogout }) {
-  const location = useLocation();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+export default function Layout({ user, onLogout }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const isActive = (path) => location.pathname === path;
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const navigation = [
-  { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-  { name: 'Teams', path: '/teams', icon: Users },
-  { name: 'Your Calendar', path: '/bookings', icon: Calendar }, // Changed!
-];
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Teams', path: '/teams', icon: Users },
+    { name: 'Bookings', path: '/bookings', icon: Calendar },
+  ];
+
+  const handleLogout = () => {
+    onLogout();
+    navigate('/login');
+  };
+
+  // Get user initials for avatar
+  const getUserInitials = () => {
+    if (user?.name) {
+      return user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    }
+    if (user?.email) {
+      return user.email[0].toUpperCase();
+    }
+    return 'U';
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
-      <nav className="bg-white shadow-sm border-b border-gray-200">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              {/* Logo */}
-              <Link to="/dashboard" className="flex items-center">
-                <div className="bg-blue-600 p-2 rounded-lg">
-                  <Calendar className="h-6 w-6 text-white" />
-                </div>
-                <span className="ml-3 text-xl font-bold text-gray-900">
-                  ScheduleSync
-                </span>
-              </Link>
-
-              {/* Desktop Navigation */}
-              <div className="hidden md:ml-8 md:flex md:space-x-2">
-                {navigation.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      className={`inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                        isActive(item.path)
-                          ? 'bg-blue-600 text-white shadow-md'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Icon className="h-4 w-4 mr-2" />
-                      {item.name}
-                    </Link>
-                  );
-                })}
+          <div className="flex justify-between items-center h-16">
+            {/* Logo */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                <Calendar className="h-6 w-6 text-white" />
               </div>
+              <span className="text-xl font-bold text-blue-600">ScheduleSync</span>
             </div>
 
-            {/* Right side */}
-            <div className="flex items-center space-x-4">
-              {/* User info */}
-              <div className="hidden sm:flex items-center space-x-3">
-                <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">{user.name || 'User'}</p>
-                  <p className="text-xs text-gray-500">{user.email}</p>
-                </div>
-                <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
-                  {(user.name || user.email || 'U')[0].toUpperCase()}
-                </div>
+            {/* Desktop Navigation */}
+            <nav className="hidden md:flex items-center gap-1">
+              {navigation.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                      isActive
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* User Menu */}
+            <div className="flex items-center gap-3">
+              {/* User Info */}
+              <div className="hidden sm:block text-right">
+                <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
+                <p className="text-xs text-gray-500">{user?.email}</p>
+              </div>
+              
+              {/* Avatar */}
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                <span className="text-white font-semibold text-sm">{getUserInitials()}</span>
               </div>
 
-              {/* Logout button */}
+              {/* Logout Button */}
               <button
-                onClick={onLogout}
-                className="hidden md:inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                onClick={handleLogout}
+                className="hidden md:flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
               >
-                <LogOut className="h-4 w-4 mr-2" />
+                <LogOut className="h-5 w-5" />
                 Logout
               </button>
 
-              {/* Mobile menu button */}
+              {/* Mobile Menu Button */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-lg text-gray-700 hover:bg-gray-100"
+                className="md:hidden p-2 rounded-lg hover:bg-gray-100"
               >
-                {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                {mobileMenuOpen ? (
+                  <X className="h-6 w-6 text-gray-600" />
+                ) : (
+                  <Menu className="h-6 w-6 text-gray-600" />
+                )}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Mobile menu */}
+        {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-gray-200 bg-white">
-            <div className="px-4 py-4 space-y-2">
+            <div className="px-4 py-3 space-y-1">
               {navigation.map((item) => {
                 const Icon = item.icon;
+                const isActive = location.pathname === item.path;
                 return (
                   <Link
-                    key={item.path}
+                    key={item.name}
                     to={item.path}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all ${
-                      isActive(item.path)
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-700 hover:bg-gray-100'
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+                      isActive
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    <Icon className="h-5 w-5 mr-3" />
+                    <Icon className="h-5 w-5" />
                     {item.name}
                   </Link>
                 );
@@ -112,17 +128,17 @@ export default function Layout({ onLogout }) {
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  onLogout();
+                  handleLogout();
                 }}
-                className="w-full flex items-center px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
               >
-                <LogOut className="h-5 w-5 mr-3" />
+                <LogOut className="h-5 w-5" />
                 Logout
               </button>
             </div>
           </div>
         )}
-      </nav>
+      </header>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

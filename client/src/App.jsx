@@ -1,43 +1,81 @@
-import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+﻿import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Teams from './pages/Teams';
 import Bookings from './pages/Bookings';
 import BookingPage from './pages/BookingPage';
 import Layout from './components/Layout';
+import { api } from './utils/api';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
+    // Check if user is already logged in and validate token
     const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
+    const storedUser = localStorage.getItem('user');
     
-    if (token && user) {
-      setIsAuthenticated(true);
+    if (token && storedUser) {
+      try {
+        // Set auth header for all API requests
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        
+        // Parse user data
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
+        setIsAuthenticated(true);
+        
+        console.log('✅ Auto-login successful for:', userData.email);
+      } catch (error) {
+        console.error('Invalid stored user data, clearing...');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
     }
+    
     setLoading(false);
   }, []);
 
-  const handleLogin = (token, user) => {
+  const handleLogin = (token, userData) => {
+    console.log('🔐 Login successful:', userData.email);
+    
+    // Store credentials
     localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
+    localStorage.setItem('user', JSON.stringify(userData));
+    
+    // Set auth header for all API requests
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    
+    // Update state
+    setUser(userData);
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
+    console.log('👋 Logging out...');
+    
+    // Clear credentials
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    
+    // Remove auth header
+    delete api.defaults.headers.common['Authorization'];
+    
+    // Clear state
+    setUser(null);
     setIsAuthenticated(false);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-blue-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-white border-t-transparent mx-auto mb-4"></div>
+          <p className="text-white text-lg font-medium">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -63,7 +101,7 @@ function App() {
           path="/"
           element={
             isAuthenticated ? (
-              <Layout onLogout={handleLogout} />
+              <Layout user={user} onLogout={handleLogout} />
             ) : (
               <Navigate to="/login" replace />
             )

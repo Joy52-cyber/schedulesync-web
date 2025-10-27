@@ -55,33 +55,46 @@ export default function Login({ onLogin }) {
   };
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  
+  if (code) {
+    setLoading(true);
     
-    if (code) {
-      setLoading(true);
-      
-      const tryGoogleAuth = async () => {
+    const handleOAuthCallback = async () => {
+      try {
+        // Try Google first
+        const response = await auth.googleLogin(code);
+        console.log('✅ OAuth successful:', response.data.user.email);
+        
+        // Call onLogin to store credentials
+        onLogin(response.data.token, response.data.user);
+        
+        // Clean URL and redirect will happen automatically via App.jsx
+        window.history.replaceState({}, document.title, '/dashboard');
+        
+      } catch (googleErr) {
+        console.log('Trying Microsoft OAuth...');
         try {
-          const response = await auth.googleLogin(code);
+          // Try Microsoft if Google fails
+          const response = await auth.microsoftLogin(code);
+          console.log('✅ OAuth successful:', response.data.user.email);
+          
           onLogin(response.data.token, response.data.user);
+          window.history.replaceState({}, document.title, '/dashboard');
+          
+        } catch (msErr) {
+          console.error('OAuth failed:', msErr);
+          setError('Authentication failed. Please try again.');
+          setLoading(false);
           window.history.replaceState({}, document.title, '/login');
-        } catch (err) {
-          try {
-            const response = await auth.microsoftLogin(code);
-            onLogin(response.data.token, response.data.user);
-            window.history.replaceState({}, document.title, '/login');
-          } catch (msErr) {
-            setError('Authentication failed. Please try again.');
-            setLoading(false);
-            window.history.replaceState({}, document.title, '/login');
-          }
         }
-      };
-      
-      tryGoogleAuth();
-    }
-  }, [onLogin]);
+      }
+    };
+    
+    handleOAuthCallback();
+  }
+}, [onLogin]);
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
