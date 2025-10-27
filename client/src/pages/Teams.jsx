@@ -313,133 +313,132 @@ export default function Teams() {
         </div>
       )}
 
-      {/* Manage Team Modal - FIXED: Made smaller (max-w-2xl) and better X positioning */}
+      {/* Manage Team Modal - ULTRA COMPACT VERSION */}
       {showManageModal && selectedTeam && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          {/* Reduced from max-w-3xl to max-w-2xl for smaller modal */}
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden relative">
-            {/* Close button with better positioning */}
-            <div className="absolute top-4 right-4 z-20">
+          {/* Much smaller modal: max-w-lg (32rem) instead of max-w-2xl (42rem) */}
+          <div className="bg-white rounded-xl w-full max-w-lg mx-auto relative">
+            {/* X Button - Moved inside with better positioning */}
+            <div className="flex justify-between items-center p-4 border-b">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Manage Team</h2>
+                <p className="text-sm text-gray-600">{selectedTeam.name}</p>
+              </div>
               <button
                 onClick={() => setShowManageModal(false)}
-                className="p-2 bg-white hover:bg-gray-100 rounded-lg shadow-md transition-all"
-                aria-label="Close modal"
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Close"
               >
-                <X className="h-5 w-5 text-gray-600" />
+                <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
             
-            {/* Scrollable content area */}
-            <div className="overflow-y-auto max-h-[90vh]">
-              {/* Header with padding that accounts for close button */}
-              <div className="p-6 pr-16 border-b bg-white sticky top-0 z-10">
-                <h2 className="text-xl font-bold text-gray-900">Manage Team</h2>
-                <p className="text-gray-600 text-sm mt-1">{selectedTeam.name}</p>
+            {/* Content with max height and scroll */}
+            <div className="max-h-[70vh] overflow-y-auto p-4">
+              {/* Team Booking URL - Compact */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <h3 className="text-xs font-semibold text-blue-900 mb-2">Team Booking URL</h3>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={getTeamBookingUrl(selectedTeam.id)}
+                    readOnly
+                    className="w-full px-2 py-1.5 bg-white border border-blue-300 rounded text-xs text-gray-700"
+                  />
+                  <button
+                    onClick={() => copyToClipboard(getTeamBookingUrl(selectedTeam.id))}
+                    className="w-full px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5 text-sm"
+                  >
+                    {copiedUrl === getTeamBookingUrl(selectedTeam.id) ? (
+                      <>
+                        <Check className="h-3.5 w-3.5" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        Copy
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
-              {/* Content area */}
-              <div className="p-6">
-                {/* Team Booking URL */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                  <h3 className="text-sm font-semibold text-blue-900 mb-2">Team Booking URL</h3>
-                  <div className="flex flex-col sm:flex-row gap-2">
+              {/* Add Member Section - Compact */}
+              <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">Add New Member</h3>
+                <form onSubmit={handleAddMember} className="space-y-2">
+                  <div className="relative">
+                    <Mail className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
-                      type="text"
-                      value={getTeamBookingUrl(selectedTeam.id)}
-                      readOnly
-                      className="flex-1 px-3 py-2 bg-white border border-blue-300 rounded text-sm text-gray-700"
+                      type="email"
+                      value={newMemberEmail}
+                      onChange={(e) => setNewMemberEmail(e.target.value)}
+                      placeholder="member@example.com"
+                      className="w-full pl-9 pr-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                      required
                     />
-                    <button
-                      onClick={() => copyToClipboard(getTeamBookingUrl(selectedTeam.id))}
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm"
-                    >
-                      {copiedUrl === getTeamBookingUrl(selectedTeam.id) ? (
-                        <>
-                          <Check className="h-4 w-4" />
-                          Copied!
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-4 w-4" />
-                          Copy
-                        </>
-                      )}
-                    </button>
                   </div>
-                </div>
+                  <button
+                    type="submit"
+                    className="w-full px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-lg hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Send className="h-4 w-4" />
+                    Send Invite
+                  </button>
+                </form>
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 An invitation email with booking URL will be sent
+                </p>
+              </div>
 
-                {/* Add Member Section */}
-                <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                  <h3 className="text-base font-semibold text-gray-900 mb-3">Add New Member</h3>
-                  <form onSubmit={handleAddMember} className="flex flex-col sm:flex-row gap-3">
-                    <div className="flex-1 relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <input
-                        type="email"
-                        value={newMemberEmail}
-                        onChange={(e) => setNewMemberEmail(e.target.value)}
-                        placeholder="member@example.com"
-                        className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
-                        required
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-lg hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm"
-                    >
-                      <Send className="h-4 w-4" />
-                      Send Invite
-                    </button>
-                  </form>
-                  <p className="text-xs text-gray-500 mt-2">
-                    💡 An invitation email with booking URL will be sent to this address
-                  </p>
-                </div>
-
-                {/* Members List */}
-                <div>
-                  <h3 className="text-base font-semibold text-gray-900 mb-3">
-                    Team Members ({selectedTeam.members?.length || 0})
-                  </h3>
-                  
-                  {!selectedTeam.members || selectedTeam.members.length === 0 ? (
-                    <div className="text-center py-6 bg-gray-50 rounded-lg">
-                      <Users className="h-10 w-10 text-gray-300 mx-auto mb-2" />
-                      <p className="text-gray-600 text-sm">No members yet. Add your first member above!</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-80 overflow-y-auto">
-                      {selectedTeam.members.map((member) => (
-                        <div
-                          key={member.id}
-                          className="bg-white border border-gray-200 rounded-lg p-3 hover:border-blue-300 transition-colors"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-start gap-3 flex-1">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
-                                <span className="text-white font-bold text-sm">
-                                  {(member.user_email?.[0] || 'U').toUpperCase()}
-                                </span>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-gray-900 text-sm">
-                                  {member.user_name || member.user_email}
-                                </p>
-                                <p className="text-xs text-gray-600">{member.user_email}</p>
-                                {member.booking_token && (
-                                  <div className="mt-2 bg-gray-50 rounded p-2">
-                                    <p className="text-xs text-gray-500 mb-1">Personal Booking URL:</p>
+              {/* Members List - Compact */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                  Team Members ({selectedTeam.members?.length || 0})
+                </h3>
+                
+                {!selectedTeam.members || selectedTeam.members.length === 0 ? (
+                  <div className="text-center py-4 bg-gray-50 rounded-lg">
+                    <Users className="h-8 w-8 text-gray-300 mx-auto mb-1.5" />
+                    <p className="text-gray-600 text-xs">No members yet. Add your first member above!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {selectedTeam.members.map((member) => (
+                      <div
+                        key={member.id}
+                        className="bg-white border border-gray-200 rounded-lg p-2.5 hover:border-blue-300 transition-colors"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-2 flex-1">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                              <span className="text-white font-bold text-xs">
+                                {(member.user_email?.[0] || 'U').toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-gray-900 text-xs">
+                                {member.user_name || member.user_email}
+                              </p>
+                              <p className="text-xs text-gray-600 truncate">{member.user_email}</p>
+                              {member.booking_token && (
+                                <details className="mt-1">
+                                  <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-700">
+                                    Show booking URL
+                                  </summary>
+                                  <div className="mt-1 bg-gray-50 rounded p-1.5">
                                     <div className="flex items-center gap-1">
                                       <input
                                         type="text"
                                         value={`${window.location.origin}/book/${member.booking_token}`}
                                         readOnly
-                                        className="flex-1 px-2 py-1 bg-white border border-gray-300 rounded text-xs text-gray-700"
+                                        className="flex-1 px-1.5 py-0.5 bg-white border border-gray-300 rounded text-xs text-gray-700"
                                       />
                                       <button
                                         onClick={() => copyToClipboard(`${window.location.origin}/book/${member.booking_token}`)}
-                                        className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                        title="Copy URL"
+                                        className="p-0.5 text-blue-600 hover:bg-blue-50 rounded"
+                                        title="Copy"
                                       >
                                         {copiedUrl === `${window.location.origin}/book/${member.booking_token}` ? (
                                           <Check className="h-3 w-3 text-green-600" />
@@ -449,28 +448,28 @@ export default function Teams() {
                                       </button>
                                     </div>
                                   </div>
-                                )}
-                                <div className="mt-1 text-xs text-gray-500">
-                                  <span className="inline-flex items-center gap-1">
-                                    <span className={`w-2 h-2 rounded-full ${member.user_id ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
-                                    {member.user_id ? 'Active Account' : 'Invitation Sent'}
-                                  </span>
-                                </div>
+                                </details>
+                              )}
+                              <div className="mt-1 text-xs text-gray-500">
+                                <span className="inline-flex items-center gap-0.5">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${member.user_id ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                                  {member.user_id ? 'Active' : 'Invited'}
+                                </span>
                               </div>
                             </div>
-                            <button
-                              onClick={() => handleRemoveMember(member.id)}
-                              className="ml-3 p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
-                              title="Remove Member"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
                           </div>
+                          <button
+                            onClick={() => handleRemoveMember(member.id)}
+                            className="ml-2 p-1 text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                            title="Remove"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
