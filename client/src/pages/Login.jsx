@@ -15,7 +15,7 @@ export default function Login({ onLogin }) {
   const params = new URLSearchParams(window.location.search);
 const code = params.get('code');
 
-if (code && sessionStorage.getItem('processing-oauth')) {
+if (code) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
       <div className="text-center">
