@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
@@ -371,37 +371,74 @@ app.post('/api/teams/:id/members', authenticate, async (req, res) => {
     const bookingToken = generateBookingToken();
 
     // Add member to team
-    await pool.query(
-      `INSERT INTO team_members (team_id, user_id, booking_token)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (team_id, user_id) DO NOTHING`,
-      [id, userId, bookingToken]
+   
+    const { sendTeamInvitation } = require('./utils/email');
+
+// ... other code ...
+
+// Add team member
+app.post('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
+  const { teamId } = req.params;
+  const { email, sendEmail = true } = req.body;
+
+  try {
+    // Verify team ownership
+    const teamCheck = await pool.query(
+      'SELECT * FROM teams WHERE id = $1 AND user_id = $2',
+      [teamId, req.user.id]
     );
 
-    const bookingUrl = `${process.env.APP_URL || 'http://localhost:5173'}/book/${bookingToken}`;
+    if (teamCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized to manage this team' });
+    }
 
-    // TODO: Send email if sendEmail is true
-    // This would use Resend API
+    const team = teamCheck.rows[0];
 
-    res.json({ success: true, bookingUrl });
+    // Check if user exists
+    let userId = null;
+    const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    
+    if (userCheck.rows.length > 0) {
+      userId = userCheck.rows[0].id;
+    }
+
+    // Generate unique booking token
+    const bookingToken = require('crypto').randomBytes(16).toString('hex');
+
+    // Add team member
+    const result = await pool.query(
+      `INSERT INTO team_members (team_id, user_id, email, booking_token, invited_by) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING *`,
+      [teamId, userId, email, bookingToken, req.user.id]
+    );
+
+    const member = result.rows[0];
+    const bookingUrl = `${process.env.APP_URL || 'http://localhost:3000'}/book/${bookingToken}`;
+
+    // Send invitation email
+    if (sendEmail) {
+      try {
+        const inviterName = req.user.name || req.user.email;
+        await sendTeamInvitation(email, team.name, bookingUrl, inviterName);
+        console.log(`✅ Invitation email sent to ${email}`);
+      } catch (emailError) {
+        console.error('Failed to send invitation email:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
+
+    res.json({ 
+      member,
+      bookingUrl,
+      message: sendEmail ? 'Member added and invitation email sent' : 'Member added'
+    });
+    
   } catch (error) {
-    console.error('Add team member error:', error);
+    console.error('Error adding team member:', error);
     res.status(500).json({ error: 'Failed to add team member' });
   }
 });
-
-// Remove team member
-app.delete('/api/teams/:teamId/members/:memberId', authenticate, async (req, res) => {
-  try {
-    const { teamId, memberId } = req.params;
-    await pool.query('DELETE FROM team_members WHERE id = $1 AND team_id = $2', [memberId, teamId]);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Remove team member error:', error);
-    res.status(500).json({ error: 'Failed to remove team member' });
-  }
-});
-
 // ============ BOOKING ROUTES ============
 
 // Get all bookings
@@ -576,7 +613,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Start server
+
 // Start server
 const port = process.env.PORT || 3000;
 const host = '0.0.0.0'; // IMPORTANT: Must bind to 0.0.0.0 in Railway
