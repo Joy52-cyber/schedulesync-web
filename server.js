@@ -56,7 +56,7 @@ const initDB = async () => {
         team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         booking_token VARCHAR(255) UNIQUE,
-        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
       CREATE TABLE IF NOT EXISTS bookings (
@@ -310,7 +310,7 @@ app.delete('/api/teams/:id', authenticate, async (req, res) => {
 
 // ============ TEAM MEMBER ROUTES ============
 
-// Get team members
+// Get team members - FIXED: Changed added_at to created_at
 app.get('/api/teams/:id/members', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
@@ -325,12 +325,13 @@ app.get('/api/teams/:id/members', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
     
+    // FIXED: Changed tm.added_at to tm.created_at
     const result = await pool.query(
       `SELECT tm.*, u.email as user_email, u.name as user_name
        FROM team_members tm
        LEFT JOIN users u ON tm.user_id = u.id
        WHERE tm.team_id = $1
-       ORDER BY tm.added_at DESC`,
+       ORDER BY tm.created_at DESC`,
       [id]
     );
     
@@ -341,7 +342,7 @@ app.get('/api/teams/:id/members', authenticate, async (req, res) => {
   }
 });
 
-// Add team member
+// Add team member - FIXED: Added FRONTEND_URL check
 app.post('/api/teams/:id/members', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
@@ -391,7 +392,9 @@ app.post('/api/teams/:id/members', authenticate, async (req, res) => {
       [id, userId, bookingToken]
     );
 
-    const bookingUrl = `${process.env.FRONTEND_URL}/book/${bookingToken}`;
+    // FIXED: Use FRONTEND_URL or fallback to request origin
+    const baseUrl = process.env.FRONTEND_URL || `${req.protocol}://${req.get('host')}`;
+    const bookingUrl = `${baseUrl}/book/${bookingToken}`;
 
     // Send invitation email if requested
     if (sendEmail) {
