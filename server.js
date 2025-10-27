@@ -618,7 +618,7 @@ if (process.env.NODE_ENV === 'production') {
 const port = process.env.PORT || 3000;
 const host = '0.0.0.0'; // IMPORTANT: Must bind to 0.0.0.0 in Railway
 
-app.listen(port, host, () => {
+const server = app.listen(port, host, () => {  // ← ADD 'const server ='
   console.log(`Server running on port ${port}`);
   console.log(`Host: ${host}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
