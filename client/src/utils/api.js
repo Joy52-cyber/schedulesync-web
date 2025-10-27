@@ -1,6 +1,9 @@
 ﻿import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Use VITE_API_URL from env, fallback to empty string for production (same origin)
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3000');
+
+console.log('🔗 API URL:', API_URL);
 
 // Create axios instance
 export const api = axios.create({
