@@ -12,37 +12,32 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    // Immediately check auth before rendering
-    const initAuth = () => {
-      const token = localStorage.getItem('token');
-      const storedUser = localStorage.getItem('user');
-      
-      if (token && storedUser) {
-        try {
-          // Set auth header for all API requests
-          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-          
-          // Parse user data
-          const userData = JSON.parse(storedUser);
-          setUser(userData);
-          setIsAuthenticated(true);
-          
-          console.log('✅ Auto-login successful for:', userData.email);
-        } catch (error) {
-          console.error('Invalid stored user data, clearing...');
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-        }
+    // Check authentication immediately on mount
+    const token = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+    
+    if (token && storedUser) {
+      try {
+        // Set auth header for all API requests
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        
+        // Parse user data
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
+        setIsAuthenticated(true);
+        
+        console.log('✅ Auto-login successful for:', userData.email);
+      } catch (error) {
+        console.error('Invalid stored user data, clearing...');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
       }
-      
-      setLoading(false);
-      setInitialized(true);
-    };
-
-    initAuth();
+    }
+    
+    // Set loading to false after auth check completes
+    setLoading(false);
   }, []);
 
   const handleLogin = (token, userData) => {
@@ -75,8 +70,8 @@ function App() {
     setIsAuthenticated(false);
   };
 
-  // Don't render anything until auth check is complete
-  if (!initialized || loading) {
+  // Show loading spinner until auth check completes
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
         <div className="text-center">
