@@ -10,10 +10,10 @@ export default function Layout({ onLogout }) {
   const isActive = (path) => location.pathname === path;
 
   const navigation = [
-    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'Teams', path: '/teams', icon: Users },
-    { name: 'Bookings', path: '/bookings', icon: Calendar },
-  ];
+  { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+  { name: 'Teams', path: '/teams', icon: Users },
+  { name: 'Your Calendar', path: '/bookings', icon: Calendar }, // Changed!
+];
 
   return (
     <div className="min-h-screen bg-gray-50">
