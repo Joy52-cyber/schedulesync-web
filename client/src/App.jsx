@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Teams from './pages/Teams';
@@ -12,31 +12,37 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    // Check if user is already logged in and validate token
-    const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    
-    if (token && storedUser) {
-      try {
-        // Set auth header for all API requests
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        
-        // Parse user data
-        const userData = JSON.parse(storedUser);
-        setUser(userData);
-        setIsAuthenticated(true);
-        
-        console.log('✅ Auto-login successful for:', userData.email);
-      } catch (error) {
-        console.error('Invalid stored user data, clearing...');
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+    // Immediately check auth before rendering
+    const initAuth = () => {
+      const token = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
+      
+      if (token && storedUser) {
+        try {
+          // Set auth header for all API requests
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          
+          // Parse user data
+          const userData = JSON.parse(storedUser);
+          setUser(userData);
+          setIsAuthenticated(true);
+          
+          console.log('✅ Auto-login successful for:', userData.email);
+        } catch (error) {
+          console.error('Invalid stored user data, clearing...');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
       }
-    }
-    
-    setLoading(false);
+      
+      setLoading(false);
+      setInitialized(true);
+    };
+
+    initAuth();
   }, []);
 
   const handleLogin = (token, userData) => {
@@ -69,12 +75,13 @@ function App() {
     setIsAuthenticated(false);
   };
 
-  if (loading) {
+  // Don't render anything until auth check is complete
+  if (!initialized || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-white border-t-transparent mx-auto mb-4"></div>
-          <p className="text-white text-lg font-medium">Loading...</p>
+          <p className="text-white text-lg font-medium">Loading ScheduleSync...</p>
         </div>
       </div>
     );
