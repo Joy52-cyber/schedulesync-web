@@ -7,7 +7,6 @@ const axios = require('axios');
 const path = require('path');
 
 const app = express();
-const { sendTeamInvitation, sendBookingConfirmation } = require('./utils/email');
 
 // Middleware
 app.use(cors());
@@ -120,6 +119,17 @@ const generateToken = (userId) => {
 const generateBookingToken = () => {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
 };
+
+// Conditional email utilities import
+let sendTeamInvitation, sendBookingConfirmation;
+try {
+  const emailUtils = require('./utils/email');
+  sendTeamInvitation = emailUtils.sendTeamInvitation;
+  sendBookingConfirmation = emailUtils.sendBookingConfirmation;
+  console.log('Email utilities loaded successfully');
+} catch (error) {
+  console.log('Email utilities not available - emails will not be sent');
+}
 
 // ============ AUTH ROUTES ============
 
@@ -311,7 +321,7 @@ app.delete('/api/teams/:id', authenticate, async (req, res) => {
 
 // ============ TEAM MEMBER ROUTES ============
 
-// Get team members - FIXED: Changed added_at to created_at
+// Get team members
 app.get('/api/teams/:id/members', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
@@ -326,7 +336,7 @@ app.get('/api/teams/:id/members', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
     
-    // FIXED: Changed tm.added_at to tm.created_at
+    // Get members with correct column name: created_at
     const result = await pool.query(
       `SELECT tm.*, u.email as user_email, u.name as user_name
        FROM team_members tm
@@ -343,58 +353,7 @@ app.get('/api/teams/:id/members', authenticate, async (req, res) => {
   }
 });
 
-// Add team member - FIXED: Added FRONTEND_URL check
-app.post('/api/teams/:id/members', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { email, sendEmail } = req.body;
-    
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
-    }
-
-    // Verify team ownership
-    const teamCheck = await pool.query(
-      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
-      [id, req.user.id]
-    );
-    
-    if (teamCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-
-    // Check if user exists
-    let user = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    
-    // If user doesn't exist, create a placeholder
-    if (user.rows.length === 0) {
-      user = await pool.query(
-        'INSERT INTO users (email, provider, name) VALUES ($1, $2, $3) RETURNING *',
-        [email, 'pending', email.split('@')[0]]
-      );
-    }
-
-    const userId = user.rows[0].id;
-    const bookingToken = generateBookingToken();
-
-    // Check if member already exists
-    const existingMember = await pool.query(
-      'SELECT * FROM team_members WHERE team_id = $1 AND user_id = $2',
-      [id, userId]
-    );
-    
-    if (existingMember.rows.length > 0) {
-      return res.status(400).json({ error: 'Member already exists in team' });
-    }
-
-   // ============ EMAIL INTEGRATION FIX ============
-
-// At the top of server.js, add this after other requires:
-const { sendTeamInvitation, sendBookingConfirmation } = require('./utils/email');
-
-// Then update the Add Team Member route (around line 350-400):
-
-// Add team member - WITH EMAIL INTEGRATION
+// Add team member
 app.post('/api/teams/:id/members', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
@@ -450,31 +409,28 @@ app.post('/api/teams/:id/members', authenticate, async (req, res) => {
     const baseUrl = process.env.FRONTEND_URL || `${req.protocol}://${req.get('host')}`;
     const bookingUrl = `${baseUrl}/book/${bookingToken}`;
 
-    // Send invitation email if requested
-    if (sendEmail && process.env.RESEND_API_KEY) {
+    // Send invitation email if requested and email utilities are available
+    if (sendEmail && sendTeamInvitation && process.env.RESEND_API_KEY) {
       try {
         await sendTeamInvitation(
-          email, 
-          team.name, 
-          bookingUrl, 
+          email,
+          team.name,
+          bookingUrl,
           req.user.name || req.user.email
         );
-        console.log(`✅ Invitation email sent to ${email}`);
+        console.log(`Invitation email sent to ${email}`);
       } catch (emailError) {
         console.error('Failed to send invitation email:', emailError);
         // Don't fail the whole operation if email fails
-        // Member is already added to the team
       }
     } else if (sendEmail && !process.env.RESEND_API_KEY) {
-      console.warn('⚠️ Email requested but RESEND_API_KEY not configured');
+      console.log(`Would send invitation email to ${email} with booking URL: ${bookingUrl}`);
     }
 
     res.json({ 
       member: result.rows[0], 
       bookingUrl,
-      message: sendEmail && process.env.RESEND_API_KEY 
-        ? 'Member added and invitation email sent!' 
-        : 'Member added successfully (email not sent)'
+      message: 'Member added successfully'
     });
   } catch (error) {
     console.error('Add team member error:', error);
@@ -482,69 +438,26 @@ app.post('/api/teams/:id/members', authenticate, async (req, res) => {
   }
 });
 
-// Also update the Create Booking route to send confirmation emails:
-
-// Create booking (public endpoint for guests) - WITH EMAIL CONFIRMATION
-app.post('/api/bookings', async (req, res) => {
+// Remove team member
+app.delete('/api/teams/:teamId/members/:memberId', authenticate, async (req, res) => {
   try {
-    const { bookingToken, guestName, guestEmail, eventTitle, eventDate, eventTime, notes } = req.body;
+    const { teamId, memberId } = req.params;
     
-    if (!bookingToken || !guestName || !guestEmail || !eventTitle || !eventDate || !eventTime) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    
-    // Find team member and team info by booking token
-    const memberResult = await pool.query(
-      `SELECT tm.*, t.name as team_name, u.name as member_name, u.email as member_email
-       FROM team_members tm
-       JOIN teams t ON tm.team_id = t.id
-       JOIN users u ON tm.user_id = u.id
-       WHERE tm.booking_token = $1`,
-      [bookingToken]
+    // Verify team ownership
+    const teamCheck = await pool.query(
+      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
+      [teamId, req.user.id]
     );
     
-    if (memberResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Invalid booking token' });
+    if (teamCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
     }
     
-    const { team_id: teamId, team_name: teamName, member_name: memberName } = memberResult.rows[0];
-    
-    // Create booking
-    const result = await pool.query(
-      `INSERT INTO bookings (team_id, guest_name, guest_email, event_title, event_date, event_time, notes, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [teamId, guestName, guestEmail, eventTitle, eventDate, eventTime, notes, 'confirmed']
-    );
-    
-    // Send confirmation email if Resend is configured
-    if (process.env.RESEND_API_KEY) {
-      try {
-        await sendBookingConfirmation(guestEmail, {
-          teamName,
-          memberName: memberName || 'Team Member',
-          date: new Date(eventDate).toLocaleDateString('en-US', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          }),
-          time: eventTime
-        });
-        console.log(`✅ Booking confirmation email sent to ${guestEmail}`);
-      } catch (emailError) {
-        console.error('Failed to send confirmation email:', emailError);
-        // Don't fail the booking if email fails
-      }
-    }
-    
-    res.json({ 
-      booking: result.rows[0], 
-      message: 'Booking created successfully' + 
-        (process.env.RESEND_API_KEY ? ' and confirmation email sent!' : '')
-    });
+    await pool.query('DELETE FROM team_members WHERE id = $1 AND team_id = $2', [memberId, teamId]);
+    res.json({ success: true });
   } catch (error) {
-    console.error('Create booking error:', error);
-    res.status(500).json({ error: 'Failed to create booking' });
+    console.error('Remove team member error:', error);
+    res.status(500).json({ error: 'Failed to remove team member' });
   }
 });
 
@@ -605,9 +518,13 @@ app.post('/api/bookings', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
-    // Find team member by booking token
+    // Find team member and team info by booking token
     const memberResult = await pool.query(
-      'SELECT * FROM team_members WHERE booking_token = $1',
+      `SELECT tm.*, t.name as team_name, u.name as member_name, u.email as member_email
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       JOIN users u ON tm.user_id = u.id
+       WHERE tm.booking_token = $1`,
       [bookingToken]
     );
     
@@ -615,7 +532,7 @@ app.post('/api/bookings', async (req, res) => {
       return res.status(404).json({ error: 'Invalid booking token' });
     }
     
-    const teamId = memberResult.rows[0].team_id;
+    const { team_id: teamId, team_name: teamName, member_name: memberName } = memberResult.rows[0];
     
     // Create booking
     const result = await pool.query(
@@ -624,7 +541,31 @@ app.post('/api/bookings', async (req, res) => {
       [teamId, guestName, guestEmail, eventTitle, eventDate, eventTime, notes, 'confirmed']
     );
     
-    res.json({ booking: result.rows[0], message: 'Booking created successfully' });
+    // Send confirmation email if available
+    if (sendBookingConfirmation && process.env.RESEND_API_KEY) {
+      try {
+        await sendBookingConfirmation(guestEmail, {
+          teamName,
+          memberName: memberName || 'Team Member',
+          date: new Date(eventDate).toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          }),
+          time: eventTime
+        });
+        console.log(`Booking confirmation email sent to ${guestEmail}`);
+      } catch (emailError) {
+        console.error('Failed to send confirmation email:', emailError);
+        // Don't fail the booking if email fails
+      }
+    }
+    
+    res.json({ 
+      booking: result.rows[0], 
+      message: 'Booking created successfully'
+    });
   } catch (error) {
     console.error('Create booking error:', error);
     res.status(500).json({ error: 'Failed to create booking' });
