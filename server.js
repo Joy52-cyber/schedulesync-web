@@ -3,16 +3,20 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
-const axios = require('axios');
-const { google } = require('googleapis');
 const path = require('path');
+const { google } = require('googleapis');
+const { sendTeamInvitation, sendBookingConfirmation } = require('./utils/email');
+const { getAvailableSlots, createCalendarEvent } = require('./utils/calendar');
+
 const app = express();
 
-// Middleware
+// ============ MIDDLEWARE ============
+
 app.use(cors());
 app.use(express.json());
 
-// Database connection
+// ============ DATABASE CONNECTION ============
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
@@ -21,121 +25,115 @@ const pool = new Pool({
 // Test database connection
 pool.connect((err, client, release) => {
   if (err) {
-    console.error('Error connecting to database:', err);
+    console.error('❌ Error connecting to database:', err.stack);
   } else {
-    console.log('Database connected successfully');
+    console.log('✅ Database connected successfully');
     release();
   }
 });
 
-// Initialize database tables
-const initDB = async () => {
+// ============ DATABASE INITIALIZATION ============
+
+async function initDB() {
   try {
+    console.log('Initializing database...');
+
+    // Create users table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
+        google_id VARCHAR(255) UNIQUE,
+        microsoft_id VARCHAR(255) UNIQUE,
         email VARCHAR(255) UNIQUE NOT NULL,
         name VARCHAR(255),
-        provider VARCHAR(50) NOT NULL,
-        provider_id VARCHAR(255),
-        access_token TEXT,
-        refresh_token TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
 
+    // Create teams table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS teams (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         description TEXT,
-        owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
 
+    // Create team_members table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS team_members (
         id SERIAL PRIMARY KEY,
         team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        booking_token VARCHAR(255) UNIQUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+        email VARCHAR(255) NOT NULL,
+        booking_token VARCHAR(255) UNIQUE NOT NULL,
+        invited_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
 
+    // Create bookings table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS bookings (
         id SERIAL PRIMARY KEY,
         team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
-        guest_name VARCHAR(255) NOT NULL,
-        guest_email VARCHAR(255) NOT NULL,
-        event_title VARCHAR(255) NOT NULL,
-        event_date DATE NOT NULL,
-        event_time TIME NOT NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        attendee_name VARCHAR(255) NOT NULL,
+        attendee_email VARCHAR(255) NOT NULL,
+        start_time TIMESTAMP NOT NULL,
+        end_time TIMESTAMP NOT NULL,
         notes TEXT,
-        status VARCHAR(50) DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+        booking_token VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'confirmed',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
     `);
-    console.log('Database tables initialized');
-  } catch (error) {
-    console.error('Database initialization error:', error);
-  }
-};
 
+    // Add calendar columns if they don't exist
+    console.log('Adding calendar integration columns...');
+    
+    await pool.query(`
+      ALTER TABLE users 
+      ADD COLUMN IF NOT EXISTS google_access_token TEXT,
+      ADD COLUMN IF NOT EXISTS google_refresh_token TEXT,
+      ADD COLUMN IF NOT EXISTS calendar_sync_enabled BOOLEAN DEFAULT false
+    `);
+    
+    console.log('✅ Calendar columns added successfully');
+    console.log('✅ Database initialized successfully');
+
+  } catch (error) {
+    console.error('❌ Error initializing database:', error);
+  }
+}
+
+// Initialize database
 initDB();
 
-// ============ MIDDLEWARE ============
+// ============ AUTHENTICATION MIDDLEWARE ============
 
-// Authentication middleware
-const authenticate = async (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    const result = await pool.query('SELECT * FROM users WHERE id = $1', [decoded.userId]);
-    
-    if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'User not found' });
-    }
-
-    req.user = result.rows[0];
-    next();
-  } catch (error) {
-    console.error('Authentication error:', error);
-    res.status(401).json({ error: 'Invalid token' });
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
   }
-};
 
-// ============ HELPER FUNCTIONS ============
-
-// Generate JWT token
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET || 'your-secret-key', {
-    expiresIn: '30d'
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    req.user = user;
+    next();
   });
 };
-
-// Generate random booking token
-const generateBookingToken = () => {
-  return Math.random().toString(36).substring(2) + Date.now().toString(36);
-};
-
-// Conditional email utilities import
-let sendTeamInvitation, sendBookingConfirmation;
-try {
-  const emailUtils = require('./utils/email');
-  sendTeamInvitation = emailUtils.sendTeamInvitation;
-  sendBookingConfirmation = emailUtils.sendBookingConfirmation;
-  console.log('Email utilities loaded successfully');
-} catch (error) {
-  console.log('Email utilities not available - emails will not be sent');
-}
 
 // ============ AUTH ROUTES ============
 
 // Google OAuth callback
-const { google } = require('googleapis');
-
 app.post('/api/auth/google', async (req, res) => {
   const { code } = req.body;
 
@@ -218,87 +216,23 @@ app.post('/api/auth/google', async (req, res) => {
   }
 });
 
-    const { email, name, id: provider_id } = userResponse.data;
-
-    // Upsert user
-    const result = await pool.query(
-      `INSERT INTO users (email, name, provider, provider_id, access_token, refresh_token)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (email) DO UPDATE SET
-       access_token = $5, refresh_token = $6, name = $2
-       RETURNING *`,
-      [email, name, 'google', provider_id, access_token, refresh_token]
-    );
-
-    const user = result.rows[0];
-    const token = generateToken(user.id);
-
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
-  } catch (error) {
-    console.error('Google auth error:', error);
-    res.status(500).json({ error: 'Authentication failed' });
-  }
-});
-
-// Microsoft OAuth callback
+// Microsoft OAuth callback (placeholder)
 app.post('/api/auth/microsoft', async (req, res) => {
-  try {
-    const { code } = req.body;
-
-    // Exchange code for tokens
-    const tokenResponse = await axios.post(
-      'https://login.microsoftonline.com/common/oauth2/v2.0/token',
-      new URLSearchParams({
-        code,
-        client_id: process.env.MICROSOFT_CLIENT_ID,
-        client_secret: process.env.MICROSOFT_CLIENT_SECRET,
-        redirect_uri: process.env.MICROSOFT_REDIRECT_URI,
-        grant_type: 'authorization_code'
-      }),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-    );
-
-    const { access_token, refresh_token } = tokenResponse.data;
-
-    // Get user info
-    const userResponse = await axios.get('https://graph.microsoft.com/v1.0/me', {
-      headers: { Authorization: `Bearer ${access_token}` }
-    });
-
-    const { mail, displayName, id: provider_id } = userResponse.data;
-
-    // Upsert user
-    const result = await pool.query(
-      `INSERT INTO users (email, name, provider, provider_id, access_token, refresh_token)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (email) DO UPDATE SET
-       access_token = $5, refresh_token = $6, name = $2
-       RETURNING *`,
-      [mail, displayName, 'microsoft', provider_id, access_token, refresh_token]
-    );
-
-    const user = result.rows[0];
-    const token = generateToken(user.id);
-
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
-  } catch (error) {
-    console.error('Microsoft auth error:', error);
-    res.status(500).json({ error: 'Authentication failed' });
-  }
+  res.status(501).json({ error: 'Microsoft OAuth not yet implemented' });
 });
 
-// Get current user
-app.get('/api/auth/me', authenticate, async (req, res) => {
-  res.json({ user: { id: req.user.id, email: req.user.email, name: req.user.name } });
+// Logout
+app.post('/api/auth/logout', authenticateToken, (req, res) => {
+  res.json({ message: 'Logged out successfully' });
 });
 
 // ============ TEAM ROUTES ============
 
 // Get all teams for user
-app.get('/api/teams', authenticate, async (req, res) => {
+app.get('/api/teams', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM teams WHERE owner_id = $1 ORDER BY created_at DESC',
+      'SELECT * FROM teams WHERE user_id = $1 ORDER BY created_at DESC',
       [req.user.id]
     );
     res.json({ teams: result.rows });
@@ -309,19 +243,14 @@ app.get('/api/teams', authenticate, async (req, res) => {
 });
 
 // Create team
-app.post('/api/teams', authenticate, async (req, res) => {
+app.post('/api/teams', authenticateToken, async (req, res) => {
+  const { name, description } = req.body;
+
   try {
-    const { name, description } = req.body;
-    
-    if (!name) {
-      return res.status(400).json({ error: 'Team name is required' });
-    }
-    
     const result = await pool.query(
-      'INSERT INTO teams (name, description, owner_id) VALUES ($1, $2, $3) RETURNING *',
+      'INSERT INTO teams (name, description, user_id) VALUES ($1, $2, $3) RETURNING *',
       [name, description, req.user.id]
     );
-    
     res.json({ team: result.rows[0] });
   } catch (error) {
     console.error('Create team error:', error);
@@ -329,41 +258,21 @@ app.post('/api/teams', authenticate, async (req, res) => {
   }
 });
 
-// Get single team
-app.get('/api/teams/:id', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query(
-      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
-      [id, req.user.id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Team not found' });
-    }
-    
-    res.json({ team: result.rows[0] });
-  } catch (error) {
-    console.error('Get team error:', error);
-    res.status(500).json({ error: 'Failed to fetch team' });
-  }
-});
-
 // Update team
-app.put('/api/teams/:id', authenticate, async (req, res) => {
+app.put('/api/teams/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { name, description } = req.body;
+
   try {
-    const { id } = req.params;
-    const { name, description } = req.body;
-    
     const result = await pool.query(
-      'UPDATE teams SET name = $1, description = $2 WHERE id = $3 AND owner_id = $4 RETURNING *',
+      'UPDATE teams SET name = $1, description = $2 WHERE id = $3 AND user_id = $4 RETURNING *',
       [name, description, id, req.user.id]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Team not found' });
     }
-    
+
     res.json({ team: result.rows[0] });
   } catch (error) {
     console.error('Update team error:', error);
@@ -372,11 +281,20 @@ app.put('/api/teams/:id', authenticate, async (req, res) => {
 });
 
 // Delete team
-app.delete('/api/teams/:id', authenticate, async (req, res) => {
+app.delete('/api/teams/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const { id } = req.params;
-    await pool.query('DELETE FROM teams WHERE id = $1 AND owner_id = $2', [id, req.user.id]);
-    res.json({ success: true });
+    const result = await pool.query(
+      'DELETE FROM teams WHERE id = $1 AND user_id = $2 RETURNING *',
+      [id, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    res.json({ message: 'Team deleted successfully' });
   } catch (error) {
     console.error('Delete team error:', error);
     res.status(500).json({ error: 'Failed to delete team' });
@@ -386,30 +304,28 @@ app.delete('/api/teams/:id', authenticate, async (req, res) => {
 // ============ TEAM MEMBER ROUTES ============
 
 // Get team members
-app.get('/api/teams/:id/members', authenticate, async (req, res) => {
+app.get('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
+  const { teamId } = req.params;
+
   try {
-    const { id } = req.params;
-    
-    // Verify team ownership
-    const teamCheck = await pool.query(
-      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
-      [id, req.user.id]
-    );
-    
-    if (teamCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-    
-    // Get members with correct column name: created_at
     const result = await pool.query(
-      `SELECT tm.*, u.email as user_email, u.name as user_name
+      `SELECT 
+        tm.id,
+        tm.team_id,
+        tm.user_id,
+        tm.email,
+        tm.booking_token,
+        tm.invited_by,
+        tm.created_at,
+        u.name as user_name,
+        u.email as user_email
        FROM team_members tm
        LEFT JOIN users u ON tm.user_id = u.id
        WHERE tm.team_id = $1
        ORDER BY tm.created_at DESC`,
-      [id]
+      [teamId]
     );
-    
+
     res.json({ members: result.rows });
   } catch (error) {
     console.error('Get team members error:', error);
@@ -418,354 +334,104 @@ app.get('/api/teams/:id/members', authenticate, async (req, res) => {
 });
 
 // Add team member
-app.post('/api/teams/:id/members', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { email, sendEmail } = req.body;
-    
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
-    }
+app.post('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
+  const { teamId } = req.params;
+  const { email, sendEmail = true } = req.body;
 
+  try {
     // Verify team ownership
     const teamCheck = await pool.query(
-      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
-      [id, req.user.id]
+      'SELECT * FROM teams WHERE id = $1 AND user_id = $2',
+      [teamId, req.user.id]
     );
-    
+
     if (teamCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized' });
+      return res.status(403).json({ error: 'Not authorized to manage this team' });
     }
 
     const team = teamCheck.rows[0];
 
     // Check if user exists
-    let user = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    let userId = null;
+    const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     
-    // If user doesn't exist, create a placeholder
-    if (user.rows.length === 0) {
-      user = await pool.query(
-        'INSERT INTO users (email, provider, name) VALUES ($1, $2, $3) RETURNING *',
-        [email, 'pending', email.split('@')[0]]
-      );
+    if (userCheck.rows.length > 0) {
+      userId = userCheck.rows[0].id;
     }
 
-    const userId = user.rows[0].id;
-    const bookingToken = generateBookingToken();
+    // Generate unique booking token
+    const crypto = require('crypto');
+    const bookingToken = crypto.randomBytes(16).toString('hex');
 
-    // Check if member already exists
-    const existingMember = await pool.query(
-      'SELECT * FROM team_members WHERE team_id = $1 AND user_id = $2',
-      [id, userId]
-    );
-    
-    if (existingMember.rows.length > 0) {
-      return res.status(400).json({ error: 'Member already exists in team' });
-    }
-
-    // Add member to team
+    // Add team member
     const result = await pool.query(
-      'INSERT INTO team_members (team_id, user_id, booking_token) VALUES ($1, $2, $3) RETURNING *',
-      [id, userId, bookingToken]
+      `INSERT INTO team_members (team_id, user_id, email, booking_token, invited_by) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING *`,
+      [teamId, userId, email, bookingToken, req.user.id]
     );
 
-    // Generate booking URL
-    const baseUrl = process.env.FRONTEND_URL || `${req.protocol}://${req.get('host')}`;
-    const bookingUrl = `${baseUrl}/book/${bookingToken}`;
+    const member = result.rows[0];
+    const bookingUrl = `${process.env.APP_URL || 'http://localhost:3000'}/book/${bookingToken}`;
 
-    // Send invitation email if requested and email utilities are available
-    if (sendEmail && sendTeamInvitation && process.env.RESEND_API_KEY) {
+    // Send invitation email
+    if (sendEmail) {
       try {
-        await sendTeamInvitation(
-          email,
-          team.name,
-          bookingUrl,
-          req.user.name || req.user.email
-        );
-        console.log(`Invitation email sent to ${email}`);
+        const inviterName = req.user.name || req.user.email;
+        await sendTeamInvitation(email, team.name, bookingUrl, inviterName);
+        console.log(`✅ Invitation email sent to ${email}`);
       } catch (emailError) {
         console.error('Failed to send invitation email:', emailError);
-        // Don't fail the whole operation if email fails
+        // Don't fail the request if email fails
       }
-    } else if (sendEmail && !process.env.RESEND_API_KEY) {
-      console.log(`Would send invitation email to ${email} with booking URL: ${bookingUrl}`);
     }
 
     res.json({ 
-      member: result.rows[0], 
+      member,
       bookingUrl,
-      message: 'Member added successfully'
+      message: sendEmail ? 'Member added and invitation email sent' : 'Member added'
     });
+    
   } catch (error) {
-    console.error('Add team member error:', error);
+    console.error('Error adding team member:', error);
     res.status(500).json({ error: 'Failed to add team member' });
   }
 });
 
 // Remove team member
-app.delete('/api/teams/:teamId/members/:memberId', authenticate, async (req, res) => {
+app.delete('/api/teams/:teamId/members/:memberId', authenticateToken, async (req, res) => {
+  const { teamId, memberId } = req.params;
+
   try {
-    const { teamId, memberId } = req.params;
-    
     // Verify team ownership
     const teamCheck = await pool.query(
-      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
+      'SELECT * FROM teams WHERE id = $1 AND user_id = $2',
       [teamId, req.user.id]
     );
-    
+
     if (teamCheck.rows.length === 0) {
       return res.status(403).json({ error: 'Not authorized' });
     }
-    
-    await pool.query('DELETE FROM team_members WHERE id = $1 AND team_id = $2', [memberId, teamId]);
-    res.json({ success: true });
+
+    await pool.query(
+      'DELETE FROM team_members WHERE id = $1 AND team_id = $2',
+      [memberId, teamId]
+    );
+
+    res.json({ message: 'Member removed successfully' });
   } catch (error) {
-    console.error('Remove team member error:', error);
-    res.status(500).json({ error: 'Failed to remove team member' });
-  }
-});
-
-// ============ BOOKING ROUTES ============
-
-// Get bookings for a team
-app.get('/api/teams/:id/bookings', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Verify team ownership
-    const teamCheck = await pool.query(
-      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
-      [id, req.user.id]
-    );
-    
-    if (teamCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-    
-    const result = await pool.query(
-      'SELECT * FROM bookings WHERE team_id = $1 ORDER BY event_date DESC, event_time DESC',
-      [id]
-    );
-    
-    res.json({ bookings: result.rows });
-  } catch (error) {
-    console.error('Get bookings error:', error);
-    res.status(500).json({ error: 'Failed to fetch bookings' });
-  }
-});
-
-// Get all bookings for authenticated user's teams
-app.get('/api/bookings', authenticate, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT b.*, t.name as team_name
-       FROM bookings b
-       JOIN teams t ON b.team_id = t.id
-       WHERE t.owner_id = $1
-       ORDER BY b.event_date DESC, b.event_time DESC`,
-      [req.user.id]
-    );
-    
-    res.json({ bookings: result.rows });
-  } catch (error) {
-    console.error('Get all bookings error:', error);
-    res.status(500).json({ error: 'Failed to fetch bookings' });
-  }
-});
-
-// Create booking (public endpoint for guests)
-app.post('/api/bookings', async (req, res) => {
-  try {
-    const { bookingToken, guestName, guestEmail, eventTitle, eventDate, eventTime, notes } = req.body;
-    
-    if (!bookingToken || !guestName || !guestEmail || !eventTitle || !eventDate || !eventTime) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    
-    // Find team member and team info by booking token
-    const memberResult = await pool.query(
-      `SELECT tm.*, t.name as team_name, u.name as member_name, u.email as member_email
-       FROM team_members tm
-       JOIN teams t ON tm.team_id = t.id
-       JOIN users u ON tm.user_id = u.id
-       WHERE tm.booking_token = $1`,
-      [bookingToken]
-    );
-    
-    if (memberResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Invalid booking token' });
-    }
-    
-    const { team_id: teamId, team_name: teamName, member_name: memberName } = memberResult.rows[0];
-    
-    // Create booking
-    const result = await pool.query(
-      `INSERT INTO bookings (team_id, guest_name, guest_email, event_title, event_date, event_time, notes, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [teamId, guestName, guestEmail, eventTitle, eventDate, eventTime, notes, 'confirmed']
-    );
-    
-    // Send confirmation email if available
-    if (sendBookingConfirmation && process.env.RESEND_API_KEY) {
-      try {
-        await sendBookingConfirmation(guestEmail, {
-          teamName,
-          memberName: memberName || 'Team Member',
-          date: new Date(eventDate).toLocaleDateString('en-US', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          }),
-          time: eventTime
-        });
-        console.log(`Booking confirmation email sent to ${guestEmail}`);
-      } catch (emailError) {
-        console.error('Failed to send confirmation email:', emailError);
-        // Don't fail the booking if email fails
-      }
-    }
-    
-    res.json({ 
-      booking: result.rows[0], 
-      message: 'Booking created successfully'
-    });
-  } catch (error) {
-    console.error('Create booking error:', error);
-    res.status(500).json({ error: 'Failed to create booking' });
-  }
-});
-
-// Update booking status
-app.put('/api/bookings/:id/status', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-    
-    if (!['pending', 'confirmed', 'cancelled'].includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
-    }
-    
-    // Verify ownership through team
-    const ownershipCheck = await pool.query(
-      `SELECT b.* FROM bookings b
-       JOIN teams t ON b.team_id = t.id
-       WHERE b.id = $1 AND t.owner_id = $2`,
-      [id, req.user.id]
-    );
-    
-    if (ownershipCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-    
-    const result = await pool.query(
-      'UPDATE bookings SET status = $1 WHERE id = $2 RETURNING *',
-      [status, id]
-    );
-    
-    res.json({ booking: result.rows[0] });
-  } catch (error) {
-    console.error('Update booking status error:', error);
-    res.status(500).json({ error: 'Failed to update booking' });
-  }
-});
-
-// Delete booking
-app.delete('/api/bookings/:id', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Verify ownership through team
-    const ownershipCheck = await pool.query(
-      `SELECT b.* FROM bookings b
-       JOIN teams t ON b.team_id = t.id
-       WHERE b.id = $1 AND t.owner_id = $2`,
-      [id, req.user.id]
-    );
-    
-    if (ownershipCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-    
-    await pool.query('DELETE FROM bookings WHERE id = $1', [id]);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Delete booking error:', error);
-    res.status(500).json({ error: 'Failed to delete booking' });
-  }
-});
-
-// ============ PUBLIC BOOKING PAGE ROUTES ============
-
-// Get team member info by booking token (for public booking page)
-app.get('/api/booking/:token', async (req, res) => {
-  try {
-    const { token } = req.params;
-    
-    const result = await pool.query(
-      `SELECT tm.booking_token, u.name as member_name, u.email as member_email, t.name as team_name
-       FROM team_members tm
-       JOIN users u ON tm.user_id = u.id
-       JOIN teams t ON tm.team_id = t.id
-       WHERE tm.booking_token = $1`,
-      [token]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Invalid booking link' });
-    }
-    
-    res.json({ bookingInfo: result.rows[0] });
-  } catch (error) {
-    console.error('Get booking info error:', error);
-    res.status(500).json({ error: 'Failed to fetch booking information' });
-  }
-});
-
-// ============ CALENDAR ROUTES ============
-
-// Get user's Google Calendar events
-app.get('/api/calendar/events', authenticate, async (req, res) => {
-  try {
-    const { startDate, endDate } = req.query;
-    
-    if (!req.user.access_token) {
-      return res.status(400).json({ error: 'No calendar access token available' });
-    }
-    
-    // Fetch events from Google Calendar
-    const response = await axios.get('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-      headers: { Authorization: `Bearer ${req.user.access_token}` },
-      params: {
-        timeMin: startDate || new Date().toISOString(),
-        timeMax: endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        singleEvents: true,
-        orderBy: 'startTime'
-      }
-    });
-    
-    res.json({ events: response.data.items });
-  } catch (error) {
-    console.error('Get calendar events error:', error);
-    
-    // If token is expired, suggest re-authentication
-    if (error.response?.status === 401) {
-      return res.status(401).json({ error: 'Calendar access token expired. Please re-authenticate.' });
-    }
-    
-    res.status(500).json({ error: 'Failed to fetch calendar events' });
+    console.error('Remove member error:', error);
+    res.status(500).json({ error: 'Failed to remove member' });
   }
 });
 
 // ============ CALENDAR INTEGRATION ROUTES ============
 
-const { getAvailableSlots, createCalendarEvent, generateICSFile } = require('./utils/calendar');
-
 // Get available time slots for a member (PUBLIC)
 app.get('/api/book/:token/availability', async (req, res) => {
   try {
     const { token } = req.params;
-    const { date } = req.query; // Format: YYYY-MM-DD
+    const { date } = req.query;
 
     if (!date) {
       return res.status(400).json({ error: 'Date parameter required' });
@@ -777,7 +443,7 @@ app.get('/api/book/:token/availability', async (req, res) => {
     const memberResult = await pool.query(
       `SELECT tm.*, u.google_access_token, u.google_refresh_token, u.calendar_sync_enabled, u.name as member_name
        FROM team_members tm
-       JOIN users u ON tm.user_id = u.id
+       LEFT JOIN users u ON tm.user_id = u.id
        WHERE tm.booking_token = $1`,
       [token]
     );
@@ -792,7 +458,7 @@ app.get('/api/book/:token/availability', async (req, res) => {
     if (!member.calendar_sync_enabled || !member.google_refresh_token) {
       console.log('⚠️ Calendar sync not enabled, returning generic slots');
       
-      // Return generic time slots if no calendar access
+      // Return generic time slots
       const genericSlots = [];
       const requestedDate = new Date(date);
       
@@ -831,7 +497,7 @@ app.get('/api/book/:token/availability', async (req, res) => {
       member.google_access_token,
       member.google_refresh_token,
       date,
-      60 // 1 hour duration
+      60
     );
 
     res.json({ 
@@ -846,7 +512,57 @@ app.get('/api/book/:token/availability', async (req, res) => {
   }
 });
 
-// Update the existing POST /api/bookings endpoint to create calendar events
+// ============ BOOKING ROUTES ============
+
+// Get all bookings
+app.get('/api/bookings', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT b.*, t.name as team_name
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       WHERE t.user_id = $1 OR b.user_id = $1
+       ORDER BY b.start_time DESC`,
+      [req.user.id]
+    );
+    res.json({ bookings: result.rows });
+  } catch (error) {
+    console.error('Get bookings error:', error);
+    res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+});
+
+// Get booking by token (public)
+app.get('/api/book/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const result = await pool.query(
+      `SELECT tm.*, t.name as team_name, t.description as team_description
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       WHERE tm.booking_token = $1`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking link not found' });
+    }
+
+    const member = result.rows[0];
+    res.json({
+      team: {
+        id: member.team_id,
+        name: member.team_name,
+        description: member.team_description
+      }
+    });
+  } catch (error) {
+    console.error('Get booking by token error:', error);
+    res.status(500).json({ error: 'Failed to fetch booking details' });
+  }
+});
+
+// Create booking (public)
 app.post('/api/bookings', async (req, res) => {
   try {
     const { token, slot, attendee_name, attendee_email, notes } = req.body;
@@ -910,17 +626,13 @@ app.post('/api/bookings', async (req, res) => {
         console.log('✅ Calendar event created successfully');
       } catch (calError) {
         console.error('❌ Failed to create calendar event:', calError);
-        // Don't fail the booking if calendar creation fails
       }
     }
 
     // Send confirmation emails
-    const { sendBookingConfirmation } = require('./utils/email');
-    
     try {
       console.log('📧 Sending confirmation email...');
       
-      // Send to client
       await sendBookingConfirmation(attendee_email, {
         teamName: member.team_name,
         memberName: member.member_name || member.member_email,
@@ -953,81 +665,62 @@ app.post('/api/bookings', async (req, res) => {
   }
 });
 
-// ============ STATIC FILE SERVING (for production) ============
+// ============ ANALYTICS ROUTES ============
+
+// Get analytics
+app.get('/api/analytics', authenticateToken, async (req, res) => {
+  try {
+    const bookingsResult = await pool.query(
+      `SELECT COUNT(*) as total,
+       COUNT(*) FILTER (WHERE start_time > NOW()) as upcoming
+       FROM bookings b
+       JOIN teams t ON b.team_id = t.id
+       WHERE t.user_id = $1`,
+      [req.user.id]
+    );
+
+    const teamsResult = await pool.query(
+      'SELECT COUNT(*) as total FROM teams WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    res.json({
+      totalBookings: parseInt(bookingsResult.rows[0].total),
+      upcomingBookings: parseInt(bookingsResult.rows[0].upcoming),
+      totalTeams: parseInt(teamsResult.rows[0].total)
+    });
+  } catch (error) {
+    console.error('Analytics error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+// ============ SERVE STATIC FILES (PRODUCTION) ============
 
 if (process.env.NODE_ENV === 'production') {
-  // Serve static files from React build
   app.use(express.static(path.join(__dirname, 'client/dist')));
   
-  // Handle React routing, return all requests to React app
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client/dist', 'index.html'));
+    res.sendFile(path.join(__dirname, 'client/dist/index.html'));
   });
 }
 
-// ============ ERROR HANDLING ============
+// ============ START SERVER ============
 
-// 404 handler
-app.use((req, res, next) => {
-  res.status(404).json({ error: 'Route not found' });
-});
+const port = process.env.PORT || 3000;
+const host = '0.0.0.0';
 
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error('Global error handler:', err);
-  res.status(500).json({ 
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
-  });
-});
-
-// ============ SERVER STARTUP ============
-
-const PORT = process.env.PORT || 5000;
-const HOST = '0.0.0.0';
-
-const server = app.listen(PORT, HOST, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Host: ${HOST}`);
+const server = app.listen(port, host, () => {
+  console.log(`Server running on port ${port}`);
+  console.log(`Host: ${host}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Database: ${process.env.DATABASE_URL ? 'Connected' : 'Not configured'}`);
 });
 
-// ============ GRACEFUL SHUTDOWN ============
-
+// Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully...');
   server.close(() => {
     console.log('Server closed');
-    pool.end(() => {
-      console.log('Database pool closed');
-      process.exit(0);
-    });
+    process.exit(0);
   });
 });
-
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully...');
-  server.close(() => {
-    console.log('Server closed');
-    pool.end(() => {
-      console.log('Database pool closed');
-      process.exit(0);
-    });
-  });
-});
-
-// ============ UNHANDLED REJECTIONS ============
-
-process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Promise Rejection:', err);
-  // In production, you might want to gracefully shutdown
-  if (process.env.NODE_ENV === 'production') {
-    server.close(() => {
-      process.exit(1);
-    });
-  }
-});
-
-// Export for testing
-module.exports = app;
