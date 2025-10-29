@@ -12,6 +12,12 @@ const { getAvailableSlots, createCalendarEvent } = require('./utils/calendar');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Define the redirect URI consistently
+const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 
+  (process.env.NODE_ENV === 'production' 
+    ? 'https://schedulesync-web.onrender.com/api/auth/google/callback'
+    : 'http://localhost:3000/api/auth/google/callback');
+
 // CORS configuration
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production'
@@ -36,7 +42,7 @@ async function initializeDatabase() {
   try {
     console.log('Initializing database...');
     
-    // Create users table
+    // Create users table with additional fields for token management
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -44,8 +50,25 @@ async function initializeDatabase() {
         name VARCHAR(255),
         google_id VARCHAR(255) UNIQUE,
         refresh_token TEXT,
+        access_token TEXT,
+        token_expiry TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    // Add new columns if they don't exist
+    await pool.query(`
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                      WHERE table_name='users' AND column_name='access_token') THEN
+          ALTER TABLE users ADD COLUMN access_token TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                      WHERE table_name='users' AND column_name='token_expiry') THEN
+          ALTER TABLE users ADD COLUMN token_expiry TIMESTAMP;
+        END IF;
+      END $$;
     `);
 
     // Create teams table with owner_id
@@ -95,17 +118,6 @@ async function initializeDatabase() {
       )
     `);
 
-    // Add owner_id column if it doesn't exist (for migration)
-    await pool.query(`
-      DO $$ 
-      BEGIN 
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                      WHERE table_name='teams' AND column_name='owner_id') THEN
-          ALTER TABLE teams ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
-        END IF;
-      END $$;
-    `);
-
     console.log('Database initialized successfully');
   } catch (error) {
     console.error('Database initialization error:', error);
@@ -114,6 +126,57 @@ async function initializeDatabase() {
 
 // Initialize database on startup
 initializeDatabase();
+
+// Helper function to create OAuth2 client
+function createOAuth2Client(tokens = null) {
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    REDIRECT_URI
+  );
+  
+  if (tokens) {
+    oauth2Client.setCredentials(tokens);
+  }
+  
+  return oauth2Client;
+}
+
+// Helper function to refresh access token if needed
+async function refreshAccessToken(userId) {
+  try {
+    const user = await pool.query(
+      'SELECT refresh_token, access_token, token_expiry FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (!user.rows[0]?.refresh_token) {
+      throw new Error('No refresh token available');
+    }
+
+    const oauth2Client = createOAuth2Client();
+    
+    // Set the refresh token
+    oauth2Client.setCredentials({
+      refresh_token: user.rows[0].refresh_token
+    });
+
+    // Get new access token
+    const { credentials } = await oauth2Client.refreshAccessToken();
+    
+    // Update tokens in database
+    const expiry = credentials.expiry_date ? new Date(credentials.expiry_date) : null;
+    await pool.query(
+      'UPDATE users SET access_token = $1, token_expiry = $2 WHERE id = $3',
+      [credentials.access_token, expiry, userId]
+    );
+
+    return credentials;
+  } catch (error) {
+    console.error('Error refreshing access token:', error);
+    throw error;
+  }
+}
 
 // Authentication middleware
 const authenticateToken = (req, res, next) => {
@@ -142,10 +205,13 @@ app.post('/api/auth/google', async (req, res) => {
   }
 
   try {
+    // Use the consistent redirect URI, but allow override from client if needed
+    const effectiveRedirectUri = redirectUri || REDIRECT_URI;
+    
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      redirectUri
+      effectiveRedirectUri
     );
 
     // Exchange code for tokens
@@ -156,6 +222,9 @@ app.post('/api/auth/google', async (req, res) => {
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const { data } = await oauth2.userinfo.get();
 
+    // Calculate token expiry
+    const tokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
+
     // Store or update user in database
     let user;
     const existingUser = await pool.query(
@@ -164,17 +233,33 @@ app.post('/api/auth/google', async (req, res) => {
     );
 
     if (existingUser.rows.length > 0) {
-      // Update existing user
+      // Update existing user with all token information
       user = await pool.query(
-        'UPDATE users SET google_id = $1, refresh_token = $2, name = $3 WHERE email = $4 RETURNING *',
-        [data.id, tokens.refresh_token || existingUser.rows[0].refresh_token, data.name, data.email]
+        `UPDATE users 
+         SET google_id = $1, 
+             refresh_token = COALESCE($2, refresh_token), 
+             access_token = $3,
+             token_expiry = $4,
+             name = $5 
+         WHERE email = $6 
+         RETURNING *`,
+        [
+          data.id, 
+          tokens.refresh_token, // Only update if we got a new refresh token
+          tokens.access_token,
+          tokenExpiry,
+          data.name, 
+          data.email
+        ]
       );
       user = user.rows[0];
     } else {
       // Create new user
       const newUser = await pool.query(
-        'INSERT INTO users (email, name, google_id, refresh_token) VALUES ($1, $2, $3, $4) RETURNING *',
-        [data.email, data.name, data.id, tokens.refresh_token]
+        `INSERT INTO users (email, name, google_id, refresh_token, access_token, token_expiry) 
+         VALUES ($1, $2, $3, $4, $5, $6) 
+         RETURNING *`,
+        [data.email, data.name, data.id, tokens.refresh_token, tokens.access_token, tokenExpiry]
       );
       user = newUser.rows[0];
     }
@@ -202,7 +287,12 @@ app.post('/api/auth/google', async (req, res) => {
     console.error('Google auth error:', error);
     res.status(500).json({ 
       error: 'Authentication failed', 
-      details: error.message 
+      details: error.message,
+      // Include more specific error info in development
+      ...(process.env.NODE_ENV === 'development' && { 
+        errorCode: error.code,
+        errorDetails: error.response?.data 
+      })
     });
   }
 });
@@ -229,24 +319,34 @@ app.get('/api/user', authenticateToken, async (req, res) => {
 // Google Calendar routes
 app.get('/api/calendar/events', authenticateToken, async (req, res) => {
   try {
+    // Get user tokens
     const user = await pool.query(
-      'SELECT refresh_token FROM users WHERE id = $1',
+      'SELECT refresh_token, access_token, token_expiry FROM users WHERE id = $1',
       [req.user.id]
     );
 
     if (!user.rows[0]?.refresh_token) {
-      return res.status(401).json({ error: 'Calendar not connected' });
+      return res.status(401).json({ error: 'Calendar not connected. Please reconnect your Google account.' });
     }
 
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
+    // Check if access token is expired
+    const now = new Date();
+    const tokenExpiry = user.rows[0].token_expiry ? new Date(user.rows[0].token_expiry) : null;
+    
+    let credentials;
+    if (!tokenExpiry || tokenExpiry <= now) {
+      // Refresh the access token
+      credentials = await refreshAccessToken(req.user.id);
+    } else {
+      // Use existing tokens
+      credentials = {
+        access_token: user.rows[0].access_token,
+        refresh_token: user.rows[0].refresh_token
+      };
+    }
 
-    oauth2Client.setCredentials({
-      refresh_token: user.rows[0].refresh_token
-    });
+    // Create OAuth client with valid tokens
+    const oauth2Client = createOAuth2Client(credentials);
 
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
     
@@ -261,7 +361,33 @@ app.get('/api/calendar/events', authenticateToken, async (req, res) => {
     res.json(response.data.items || []);
   } catch (error) {
     console.error('Calendar fetch error:', error);
-    res.status(500).json({ error: 'Failed to fetch calendar events' });
+    
+    // If it's an auth error, suggest reconnecting
+    if (error.message?.includes('invalid_grant') || error.code === 401) {
+      return res.status(401).json({ 
+        error: 'Calendar authentication expired. Please reconnect your Google account.',
+        code: 'AUTH_EXPIRED'
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to fetch calendar events',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Add a route to disconnect/reconnect Google account
+app.post('/api/auth/google/disconnect', authenticateToken, async (req, res) => {
+  try {
+    await pool.query(
+      'UPDATE users SET refresh_token = NULL, access_token = NULL, token_expiry = NULL WHERE id = $1',
+      [req.user.id]
+    );
+    res.json({ message: 'Google account disconnected successfully' });
+  } catch (error) {
+    console.error('Error disconnecting Google account:', error);
+    res.status(500).json({ error: 'Failed to disconnect Google account' });
   }
 });
 
@@ -622,13 +748,24 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
+// Debug route for checking OAuth configuration (only in development)
+if (process.env.NODE_ENV === 'development') {
+  app.get('/api/debug/oauth-config', (req, res) => {
+    res.json({
+      clientIdSet: !!process.env.GOOGLE_CLIENT_ID,
+      clientSecretSet: !!process.env.GOOGLE_CLIENT_SECRET,
+      redirectUri: REDIRECT_URI,
+      environment: process.env.NODE_ENV || 'not set'
+    });
+  });
+}
+
 // ============ SERVE STATIC FILES (PRODUCTION) ============
 
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, 'client', 'dist');
   
   // Check if dist folder exists
-  const fs = require('fs');
   if (fs.existsSync(distPath)) {
     console.log('✅ Serving static files from:', distPath);
     app.use(express.static(distPath));
@@ -652,4 +789,5 @@ if (process.env.NODE_ENV === 'production') {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Redirect URI: ${REDIRECT_URI}`);
 });
