@@ -4,8 +4,8 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
+const { google } = require('googleapis');
 const path = require('path');
-
 const app = express();
 
 // Middleware
@@ -134,25 +134,89 @@ try {
 // ============ AUTH ROUTES ============
 
 // Google OAuth callback
+const { google } = require('googleapis');
+
 app.post('/api/auth/google', async (req, res) => {
+  const { code } = req.body;
+
   try {
-    const { code } = req.body;
+    // Create OAuth2 client
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
 
     // Exchange code for tokens
-    const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
-      code,
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
-      grant_type: 'authorization_code'
-    });
+    const { tokens } = await oauth2Client.getToken(code);
+    oauth2Client.setCredentials(tokens);
 
-    const { access_token, refresh_token } = tokenResponse.data;
+    console.log('🔑 Received tokens:', {
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token
+    });
 
     // Get user info
-    const userResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${access_token}` }
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+    const { data } = await oauth2.userinfo.get();
+
+    console.log('👤 User data:', data.email);
+
+    // Check if user exists
+    let userResult = await pool.query(
+      'SELECT * FROM users WHERE google_id = $1',
+      [data.id]
+    );
+
+    let user;
+    if (userResult.rows.length === 0) {
+      // Create new user with calendar tokens
+      const result = await pool.query(
+        `INSERT INTO users (google_id, email, name, google_access_token, google_refresh_token, calendar_sync_enabled)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [data.id, data.email, data.name, tokens.access_token, tokens.refresh_token, true]
+      );
+      user = result.rows[0];
+      console.log('✅ New user created with calendar access');
+    } else {
+      // Update existing user with new tokens
+      const result = await pool.query(
+        `UPDATE users 
+         SET google_access_token = $1, 
+             google_refresh_token = $2,
+             calendar_sync_enabled = $3,
+             name = $4
+         WHERE google_id = $5
+         RETURNING *`,
+        [tokens.access_token, tokens.refresh_token, true, data.name, data.id]
+      );
+      user = result.rows[0];
+      console.log('✅ Existing user updated with calendar access');
+    }
+
+    // Generate JWT
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        calendarSyncEnabled: user.calendar_sync_enabled
+      }
     });
+
+  } catch (error) {
+    console.error('❌ Google OAuth error:', error);
+    res.status(500).json({ error: 'Authentication failed' });
+  }
+});
 
     const { email, name, id: provider_id } = userResponse.data;
 

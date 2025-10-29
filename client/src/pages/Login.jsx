@@ -114,8 +114,19 @@ export default function Login({ onLogin }) {
   };
 
   const handleGoogleLogin = () => {
-    setLoading(true);
-    setError('');
+  setLoading(true);
+  setError('');
+  
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+    `client_id=${googleClientId}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&response_type=code` +
+    `&scope=openid email profile https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events` + // ✅ ADD .events
+    `&access_type=offline` +
+    `&prompt=consent`;
+  
+  window.location.href = authUrl;
+};
     
     // Build OAuth URL without prompt=consent (only show consent when needed)
     const authParams = new URLSearchParams({
