@@ -1,61 +1,29 @@
 {
   "name": "schedulesync-web",
   "version": "1.0.0",
-  "description": "Modern scheduling application",
+  "description": "Team scheduling and booking management application",
   "main": "server.js",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon server.js",
     "client": "cd client && npm run dev",
-    "install-client": "cd client && npm install",
-    "build-client": "cd client && npm run build",
-    "build": "npm run install-client && npm run build-client",
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "cd client && npm install && npm run build"
   },
-  "keywords": [],
+  "keywords": ["scheduling", "booking", "calendar"],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "axios": "^1.6.2",
-    "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "googleapis": "^164.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "openai": "^4.20.1",
-    "pg": "^8.11.3",
-    "redis": "^4.6.11",
-    "resend": "^3.5.0"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2",
-    "nodemon": "^3.0.2"
-  }
-}
-{
- {
-  "name": "schedulesync-web",
-  "version": "1.0.0",
-  "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "nodemon server.js",
-    "client": "cd client && npm run dev",
-    "build": "cd client && npm install && npm run build",
-    "start": "node server.js",
-    "postinstall": "cd client && npm install"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "pg": "^8.11.3",
-    "jsonwebtoken": "^9.0.2",
-    "dotenv": "^16.3.1",
     "googleapis": "^128.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.3",
     "resend": "^3.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1",
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.1"
   }
 }
