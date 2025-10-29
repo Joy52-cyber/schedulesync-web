@@ -4,6 +4,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const fs = require('fs');
 const { google } = require('googleapis');
 const { sendTeamInvitation, sendBookingConfirmation } = require('./utils/email');
 const { getAvailableSlots, createCalendarEvent } = require('./utils/calendar');
@@ -621,13 +622,30 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
-// Serve static files in production
+// ============ SERVE STATIC FILES (PRODUCTION) ============
+
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, 'dist')));
+  const distPath = path.join(__dirname, 'client', 'dist');
   
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-  });
+  // Check if dist folder exists
+  const fs = require('fs');
+  if (fs.existsSync(distPath)) {
+    console.log('✅ Serving static files from:', distPath);
+    app.use(express.static(distPath));
+    
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  } else {
+    console.log('⚠️ No dist folder found - API only mode');
+    app.get('*', (req, res) => {
+      res.json({ 
+        message: 'ScheduleSync API is running',
+        status: 'ok',
+        note: 'Frontend not built - deploy with build command'
+      });
+    });
+  }
 }
 
 // Start server
