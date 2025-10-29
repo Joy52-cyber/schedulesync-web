@@ -1,112 +1,113 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Calendar, Clock, User, Mail, MessageSquare, CheckCircle, Sparkles } from 'lucide-react';
+import { Calendar, Clock, User, Mail, MessageSquare, CheckCircle, Loader2 } from 'lucide-react';
 import { bookings } from '../utils/api';
 
 export default function BookingPage() {
   const { token } = useParams();
-  const [bookingData, setBookingData] = useState(null);
-  const [suggestedSlots, setSuggestedSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [teamInfo, setTeamInfo] = useState(null);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   
   const [formData, setFormData] = useState({
-    selectedSlot: null,
-    name: '',
-    email: '',
+    attendee_name: '',
+    attendee_email: '',
     notes: ''
   });
 
+  // Fetch team info
   useEffect(() => {
-    loadBookingData();
+    const fetchTeamInfo = async () => {
+      try {
+        const response = await bookings.getByToken(token);
+        setTeamInfo(response.data.team);
+        
+        // Set default date to tomorrow
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        setSelectedDate(tomorrow.toISOString().split('T')[0]);
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching team info:', error);
+        setError('Invalid booking link');
+        setLoading(false);
+      }
+    };
+
+    fetchTeamInfo();
   }, [token]);
 
-  const loadBookingData = async () => {
+  // Fetch available slots when date changes
+  useEffect(() => {
+    if (selectedDate) {
+      fetchAvailableSlots();
+    }
+  }, [selectedDate]);
+
+  const fetchAvailableSlots = async () => {
+    setLoadingSlots(true);
+    setSelectedSlot(null);
+    
     try {
-      setLoading(true);
-      const response = await bookings.getByToken(token);
-      setBookingData(response.data);
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || ''}/api/book/${token}/availability?date=${selectedDate}`
+      );
       
-      // Get AI-suggested slots
-      const slotsResponse = await bookings.suggestSlots({
-        teamId: response.data.team.id,
-        duration: 60 // Default 60 minutes
-      });
-      setSuggestedSlots(slotsResponse.data.slots || []);
+      if (!response.ok) throw new Error('Failed to fetch slots');
+      
+      const data = await response.json();
+      setAvailableSlots(data.slots || []);
+      
+      if (!data.calendarSyncEnabled) {
+        console.log('⚠️ Calendar sync not enabled for this member');
+      }
     } catch (error) {
-      console.error('Error loading booking data:', error);
-      setError('Invalid or expired booking link');
+      console.error('Error fetching slots:', error);
+      setError('Failed to load available times');
     } finally {
-      setLoading(false);
+      setLoadingSlots(false);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.selectedSlot) {
+    
+    if (!selectedSlot) {
       setError('Please select a time slot');
       return;
     }
 
+    setSubmitting(true);
+    setError('');
+
     try {
-      setSubmitting(true);
-      setError('');
-      
       await bookings.create({
         token,
-        slot: formData.selectedSlot,
-        attendee_name: formData.name,
-        attendee_email: formData.email,
-        notes: formData.notes
+        slot: selectedSlot,
+        ...formData
       });
-      
+
       setSuccess(true);
     } catch (error) {
-      console.error('Error creating booking:', error);
-      setError(error.response?.data?.error || 'Failed to create booking');
-    } finally {
+      console.error('Booking error:', error);
+      setError('Failed to create booking. Please try again.');
       setSubmitting(false);
     }
   };
 
-  const formatSlotTime = (slot) => {
-    const start = new Date(slot.start);
-    const end = new Date(slot.end);
-    return `${start.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric'
-    })} at ${start.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit'
-    })} - ${end.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit'
-    })}`;
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center">
-        <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-8 shadow-2xl">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="text-gray-600 mt-4 text-center">Loading booking details...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error && !bookingData) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center p-4">
-        <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-8 shadow-2xl max-w-md w-full text-center">
-          <div className="bg-red-100 rounded-full p-3 w-16 h-16 mx-auto mb-4">
-            <Calendar className="h-10 w-10 text-red-600" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Booking Not Found</h1>
-          <p className="text-gray-600">{error}</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 text-white animate-spin mx-auto mb-4" />
+          <p className="text-white text-lg">Loading booking page...</p>
         </div>
       </div>
     );
@@ -114,157 +115,192 @@ export default function BookingPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center p-4">
-        <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-8 shadow-2xl max-w-md w-full text-center animate-fadeIn">
-          <div className="bg-green-100 rounded-full p-3 w-16 h-16 mx-auto mb-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 px-4">
+        <div className="bg-white rounded-3xl shadow-2xl p-10 max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="h-10 w-10 text-green-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Booking Confirmed!</h1>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Booking Confirmed!</h2>
           <p className="text-gray-600 mb-6">
-            We've sent a confirmation email to {formData.email}
+            We've sent a confirmation email to <strong>{formData.attendee_email}</strong> with all the details and a calendar invite.
           </p>
-          <div className="bg-indigo-50 rounded-xl p-4 text-left">
-            <p className="text-sm text-gray-700 mb-1">
-              <span className="font-medium">Time:</span> {formatSlotTime(formData.selectedSlot)}
+          <div className="bg-blue-50 rounded-xl p-4 mb-6">
+            <p className="text-sm text-gray-700 mb-2">
+              <strong>Date:</strong> {new Date(selectedSlot.start).toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
             </p>
             <p className="text-sm text-gray-700">
-              <span className="font-medium">Team:</span> {bookingData.team.name}
+              <strong>Time:</strong> {selectedSlot.startTime}
             </p>
           </div>
+          <p className="text-gray-500 text-sm">
+            See you then! 🎉
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 py-12 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8 animate-fadeIn">
-          <div className="flex justify-center mb-4">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl blur opacity-75 animate-pulse"></div>
-              <div className="relative bg-gradient-to-br from-indigo-600 to-purple-700 p-4 rounded-2xl shadow-lg">
-                <Calendar className="h-12 w-12 text-white" />
-              </div>
+        <div className="bg-white rounded-3xl shadow-2xl p-8 mb-6">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+              <Calendar className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">{teamInfo?.name}</h1>
+              {teamInfo?.description && (
+                <p className="text-gray-600">{teamInfo.description}</p>
+              )}
             </div>
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">
-            Book a Meeting
-          </h1>
-          <p className="text-white/90 flex items-center justify-center gap-2">
-            <Sparkles className="h-4 w-4" />
-            with {bookingData.team.name}
-          </p>
         </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Time Slots */}
-          <div className="lg:col-span-2 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-white/20">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <Clock className="h-5 w-5 mr-2 text-indigo-600" />
-              Available Time Slots
-            </h2>
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Date & Time Selection */}
+          <div className="bg-white rounded-3xl shadow-2xl p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Select Date & Time</h2>
             
-            {suggestedSlots.length === 0 ? (
-              <div className="text-center py-8">
-                <Clock className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-600">No available slots at the moment</p>
-                <p className="text-sm text-gray-500 mt-1">Please check back later</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-                {suggestedSlots.map((slot, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setFormData({ ...formData, selectedSlot: slot })}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
-                      formData.selectedSlot === slot
-                        ? 'border-indigo-600 bg-indigo-50 shadow-md'
-                        : 'border-gray-200 hover:border-indigo-300 hover:shadow-sm'
-                    }`}
-                  >
-                    <p className="font-medium text-gray-900 text-sm">
-                      {new Date(slot.start).toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </p>
-                    <p className="text-indigo-600 font-semibold">
-                      {new Date(slot.start).toLocaleTimeString('en-US', {
-                        hour: 'numeric',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Date Picker */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Choose a Date
+              </label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+
+            {/* Time Slots */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Available Times
+              </label>
+              
+              {loadingSlots ? (
+                <div className="text-center py-8">
+                  <Loader2 className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-2" />
+                  <p className="text-sm text-gray-600">Loading available times...</p>
+                </div>
+              ) : availableSlots.length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-xl">
+                  <Clock className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-600">No available times on this date</p>
+                  <p className="text-sm text-gray-500 mt-1">Please choose another date</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
+                  {availableSlots.map((slot, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedSlot(slot)}
+                      className={`p-3 rounded-lg border-2 transition-all font-medium ${
+                        selectedSlot === slot
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-300 hover:border-blue-300 text-gray-700'
+                      }`}
+                    >
+                      {slot.startTime}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Booking Form */}
-          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-white/20">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <User className="h-5 w-5 mr-2 text-indigo-600" />
-              Your Details
-            </h2>
+          <div className="bg-white rounded-3xl shadow-2xl p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Your Information</h2>
             
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name *
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name *
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="John Doe"
-                />
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    required
+                    value={formData.attendee_name}
+                    onChange={(e) => setFormData({ ...formData, attendee_name: e.target.value })}
+                    placeholder="John Doe"
+                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
               </div>
 
+              {/* Email */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email *
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email Address *
                 </label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="john@example.com"
-                />
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="email"
+                    required
+                    value={formData.attendee_email}
+                    onChange={(e) => setFormData({ ...formData, attendee_email: e.target.value })}
+                    placeholder="john@example.com"
+                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
               </div>
 
+              {/* Notes */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Notes (optional)
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Additional Notes (Optional)
                 </label>
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  rows="3"
-                  placeholder="Any additional information..."
-                />
+                <div className="relative">
+                  <MessageSquare className="absolute left-4 top-4 h-5 w-5 text-gray-400" />
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Any specific topics or questions..."
+                    rows="4"
+                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none resize-none"
+                  />
+                </div>
               </div>
 
+              {/* Error Message */}
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
                   <p className="text-sm text-red-600">{error}</p>
                 </div>
               )}
 
+              {/* Submit Button */}
               <button
                 type="submit"
-                disabled={submitting || !formData.selectedSlot}
-                className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5"
+                disabled={submitting || !selectedSlot}
+                className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {submitting ? 'Booking...' : 'Confirm Booking'}
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Booking...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-5 w-5" />
+                    Confirm Booking
+                  </>
+                )}
               </button>
             </form>
           </div>

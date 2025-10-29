@@ -757,6 +757,202 @@ app.get('/api/calendar/events', authenticate, async (req, res) => {
   }
 });
 
+// ============ CALENDAR INTEGRATION ROUTES ============
+
+const { getAvailableSlots, createCalendarEvent, generateICSFile } = require('./utils/calendar');
+
+// Get available time slots for a member (PUBLIC)
+app.get('/api/book/:token/availability', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { date } = req.query; // Format: YYYY-MM-DD
+
+    if (!date) {
+      return res.status(400).json({ error: 'Date parameter required' });
+    }
+
+    console.log(`📅 Fetching availability for token: ${token}, date: ${date}`);
+
+    // Get team member info with calendar tokens
+    const memberResult = await pool.query(
+      `SELECT tm.*, u.google_access_token, u.google_refresh_token, u.calendar_sync_enabled, u.name as member_name
+       FROM team_members tm
+       JOIN users u ON tm.user_id = u.id
+       WHERE tm.booking_token = $1`,
+      [token]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    const member = memberResult.rows[0];
+
+    // Check if calendar sync is enabled
+    if (!member.calendar_sync_enabled || !member.google_refresh_token) {
+      console.log('⚠️ Calendar sync not enabled, returning generic slots');
+      
+      // Return generic time slots if no calendar access
+      const genericSlots = [];
+      const requestedDate = new Date(date);
+      
+      for (let hour = 9; hour < 17; hour++) {
+        for (let minute = 0; minute < 60; minute += 30) {
+          const start = new Date(requestedDate);
+          start.setHours(hour, minute, 0, 0);
+          
+          const end = new Date(start);
+          end.setMinutes(end.getMinutes() + 60);
+          
+          if (start > new Date()) {
+            genericSlots.push({
+              start: start.toISOString(),
+              end: end.toISOString(),
+              startTime: start.toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit',
+                hour12: true 
+              }),
+            });
+          }
+        }
+      }
+      
+      return res.json({ 
+        slots: genericSlots, 
+        calendarSyncEnabled: false,
+        memberName: member.member_name || member.email
+      });
+    }
+
+    // Fetch real availability from Google Calendar
+    console.log('✅ Fetching real availability from Google Calendar');
+    const slots = await getAvailableSlots(
+      member.google_access_token,
+      member.google_refresh_token,
+      date,
+      60 // 1 hour duration
+    );
+
+    res.json({ 
+      slots, 
+      calendarSyncEnabled: true,
+      memberName: member.member_name || member.email
+    });
+
+  } catch (error) {
+    console.error('❌ Get availability error:', error);
+    res.status(500).json({ error: 'Failed to fetch availability' });
+  }
+});
+
+// Update the existing POST /api/bookings endpoint to create calendar events
+app.post('/api/bookings', async (req, res) => {
+  try {
+    const { token, slot, attendee_name, attendee_email, notes } = req.body;
+
+    console.log('📝 Creating booking:', { token, attendee_name, attendee_email });
+
+    // Get team member info
+    const memberResult = await pool.query(
+      `SELECT tm.*, t.name as team_name, u.google_access_token, u.google_refresh_token, u.email as member_email, u.name as member_name
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       LEFT JOIN users u ON tm.user_id = u.id
+       WHERE tm.booking_token = $1`,
+      [token]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    const member = memberResult.rows[0];
+
+    // Create booking in database
+    const bookingResult = await pool.query(
+      `INSERT INTO bookings (team_id, user_id, attendee_name, attendee_email, start_time, end_time, notes, booking_token, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        member.team_id,
+        member.user_id,
+        attendee_name,
+        attendee_email,
+        slot.start,
+        slot.end,
+        notes,
+        token,
+        'confirmed'
+      ]
+    );
+
+    const booking = bookingResult.rows[0];
+    console.log('✅ Booking created in database:', booking.id);
+
+    // Create Google Calendar event
+    if (member.google_refresh_token) {
+      try {
+        console.log('📅 Creating Google Calendar event...');
+        await createCalendarEvent(
+          member.google_access_token,
+          member.google_refresh_token,
+          {
+            summary: `Meeting with ${attendee_name}`,
+            description: `Booked via ScheduleSync\n\nClient: ${attendee_name}\nEmail: ${attendee_email}\n\nNotes: ${notes || 'No notes provided'}`,
+            start: slot.start,
+            end: slot.end,
+            attendees: [
+              { email: attendee_email, displayName: attendee_name }
+            ],
+          }
+        );
+        console.log('✅ Calendar event created successfully');
+      } catch (calError) {
+        console.error('❌ Failed to create calendar event:', calError);
+        // Don't fail the booking if calendar creation fails
+      }
+    }
+
+    // Send confirmation emails
+    const { sendBookingConfirmation } = require('./utils/email');
+    
+    try {
+      console.log('📧 Sending confirmation email...');
+      
+      // Send to client
+      await sendBookingConfirmation(attendee_email, {
+        teamName: member.team_name,
+        memberName: member.member_name || member.member_email,
+        date: new Date(slot.start).toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        }),
+        time: new Date(slot.start).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        })
+      });
+      
+      console.log('✅ Confirmation email sent to client');
+    } catch (emailError) {
+      console.error('❌ Failed to send confirmation email:', emailError);
+    }
+
+    res.json({ 
+      booking,
+      message: 'Booking confirmed! Check your email for details.'
+    });
+
+  } catch (error) {
+    console.error('❌ Create booking error:', error);
+    res.status(500).json({ error: 'Failed to create booking' });
+  }
+});
+
 // ============ STATIC FILE SERVING (for production) ============
 
 if (process.env.NODE_ENV === 'production') {
