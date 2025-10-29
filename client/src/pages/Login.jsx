@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Loader2, Calendar } from 'lucide-react';
 import { auth } from '../utils/api';
@@ -6,94 +6,144 @@ import { auth } from '../utils/api';
 export default function Login({ onLogin }) {
   const navigate = useNavigate();
   
-  // FIX #3: Check for OAuth code IMMEDIATELY to prevent login form flash
+  // Check for OAuth code immediately to prevent flash
   const urlParams = new URLSearchParams(window.location.search);
   const hasOAuthCode = urlParams.has('code');
   
+  // State management
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  // Initialize processingOAuth based on OAuth code presence - prevents flash!
   const [processingOAuth, setProcessingOAuth] = useState(hasOAuthCode);
+  
+  // Ref to prevent double processing in development (React.StrictMode)
+  const isProcessingRef = useRef(false);
+  const hasProcessedRef = useRef(false);
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
   const redirectUri = `${window.location.origin}/login`;
 
-  // FIX #1: OAuth processing now works (no early return blocking this)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     
-    if (code) {
-      // Prevent reprocessing
-      if (sessionStorage.getItem('processing-oauth')) {
+    // Only process if we have a code and haven't processed it yet
+    if (code && !hasProcessedRef.current && !isProcessingRef.current) {
+      // Mark as processing immediately
+      isProcessingRef.current = true;
+      hasProcessedRef.current = true;
+      
+      // Check sessionStorage as additional safety
+      const alreadyProcessing = sessionStorage.getItem('oauth-processing');
+      if (alreadyProcessing === code) {
+        console.log('OAuth code already processed, skipping...');
         return;
       }
       
-      sessionStorage.setItem('processing-oauth', 'true');
-      setLoading(true);
+      // Store the code in sessionStorage to prevent reprocessing
+      sessionStorage.setItem('oauth-processing', code);
       
-      // Clean URL immediately to remove OAuth code
-      window.history.replaceState({}, document.title, '/login');
+      // Clean URL immediately to prevent browser refresh issues
+      window.history.replaceState({}, document.title, window.location.pathname);
       
       const handleOAuth = async () => {
         try {
-          console.log('🔄 Processing OAuth code...');
+          console.log('🔄 Processing OAuth code (single execution)...');
+          
+          // Call the backend to exchange code for tokens
           const response = await auth.googleLogin(code);
-          console.log('✅ OAuth successful!');
           
-          // Call onLogin to store credentials
-          onLogin(response.data.token, response.data.user);
-          
-          // Clear processing flag
-          sessionStorage.removeItem('processing-oauth');
-          
-          // Navigate to dashboard
-          navigate('/dashboard', { replace: true });
-          
+          if (response.data && response.data.token) {
+            console.log('✅ OAuth successful!');
+            
+            // Store credentials
+            onLogin(response.data.token, response.data.user);
+            
+            // Clean up
+            sessionStorage.removeItem('oauth-processing');
+            
+            // Navigate to dashboard
+            navigate('/dashboard', { replace: true });
+          } else {
+            throw new Error('Invalid response from server');
+          }
         } catch (err) {
-          console.error('❌ OAuth failed:', err);
-          setError('Authentication failed. Please try again.');
+          console.error('❌ OAuth failed:', {
+            error: err.response?.data?.error || err.message,
+            details: err.response?.data?.error_description,
+            status: err.response?.status
+          });
+          
+          // Determine user-friendly error message
+          let errorMessage = 'Authentication failed. Please try again.';
+          
+          if (err.response?.data?.error === 'invalid_grant') {
+            errorMessage = 'Login session expired. Please try again.';
+          } else if (err.response?.status === 500) {
+            errorMessage = 'Server error. Please try again later.';
+          } else if (err.response?.data?.message) {
+            errorMessage = err.response.data.message;
+          }
+          
+          setError(errorMessage);
           setLoading(false);
           setProcessingOAuth(false);
-          sessionStorage.removeItem('processing-oauth');
+          
+          // Clean up
+          sessionStorage.removeItem('oauth-processing');
+          isProcessingRef.current = false;
         }
       };
       
-      handleOAuth();
+      // Small delay to ensure state is set
+      setTimeout(handleOAuth, 100);
+    } else if (code && hasProcessedRef.current) {
+      console.log('OAuth code already processed in this session');
+      // Clean URL if code is still there
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [onLogin, navigate]);
+  }, []); // Empty dependency array - run only once
 
   const handleEmailLogin = async (e) => {
     e.preventDefault();
-    setError('Email login not yet implemented. Please use Google.');
+    setError('');
+    
+    // You can implement email login here later
+    setError('Email login coming soon. Please use Google Sign-In.');
   };
 
   const handleGoogleLogin = () => {
     setLoading(true);
     setError('');
     
-    // FIX #2: Removed prompt=consent to avoid repeated permission screens
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${googleClientId}` +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&response_type=code` +
-      `&scope=openid email profile https://www.googleapis.com/auth/calendar.readonly` +
-      `&access_type=offline`;
-      // NO prompt=consent - Google only shows consent when needed
+    // Build OAuth URL without prompt=consent (only show consent when needed)
+    const authParams = new URLSearchParams({
+      client_id: googleClientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'openid email profile https://www.googleapis.com/auth/calendar.readonly',
+      access_type: 'offline',
+      // Only use prompt=select_account if you want account chooser
+      // prompt: 'select_account'
+    });
     
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${authParams.toString()}`;
+    
+    // Redirect to Google OAuth
     window.location.href = authUrl;
   };
 
-  // Show loading screen immediately when processing OAuth (no flash!)
+  // Show loading screen immediately when processing OAuth (prevents flash)
   if (processingOAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
-        <div className="text-center animate-fadeIn">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-white border-t-transparent mx-auto mb-4"></div>
-          <p className="text-white text-lg font-medium">Completing sign in...</p>
-          <p className="text-white/80 text-sm mt-2">Please wait while we authenticate you</p>
+        <div className="text-center">
+          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8">
+            <div className="animate-spin rounded-full h-16 w-16 border-4 border-white border-t-transparent mx-auto mb-4"></div>
+            <p className="text-white text-lg font-medium">Completing sign in...</p>
+            <p className="text-white/80 text-sm mt-2">Please wait while we authenticate you</p>
+          </div>
         </div>
       </div>
     );
@@ -101,23 +151,30 @@ export default function Login({ onLogin }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
-      <div className="w-full max-w-md animate-fadeIn">
-        <div className="bg-white rounded-3xl shadow-2xl px-10 py-12">
+      <div className="w-full max-w-md">
+        <div className="bg-white rounded-3xl shadow-2xl px-10 py-12 animate-fadeIn">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl mb-4 shadow-lg">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl mb-4 shadow-lg transform hover:scale-105 transition-transform">
               <Calendar className="h-10 w-10 text-white" />
             </div>
             <h1 className="text-4xl font-bold text-blue-600 mb-2">ScheduleSync</h1>
             <p className="text-gray-500 text-lg">Welcome back!</p>
           </div>
 
-          {/* OAuth Button */}
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl animate-fadeIn">
+              <p className="text-sm text-red-600 text-center">{error}</p>
+            </div>
+          )}
+
+          {/* Google Sign-In Button */}
           <div className="mb-6">
             <button
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-white border-2 border-gray-300 rounded-xl hover:border-blue-500 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-white border-2 border-gray-300 rounded-xl hover:border-blue-500 hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed group"
             >
               {loading ? (
                 <Loader2 className="h-5 w-5 text-gray-600 animate-spin" />
@@ -129,7 +186,7 @@ export default function Login({ onLogin }) {
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
               )}
-              <span className="text-sm font-semibold text-gray-700">
+              <span className="text-base font-semibold text-gray-700 group-hover:text-gray-900">
                 {loading ? 'Redirecting...' : 'Continue with Google'}
               </span>
             </button>
@@ -144,13 +201,6 @@ export default function Login({ onLogin }) {
               <span className="px-4 bg-white text-gray-500">or sign in with email</span>
             </div>
           </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="mb-5 p-3 bg-red-50 border border-red-200 rounded-xl animate-fadeIn">
-              <p className="text-sm text-red-600 text-center">{error}</p>
-            </div>
-          )}
 
           {/* Email Form */}
           <form onSubmit={handleEmailLogin} className="space-y-5">
@@ -197,13 +247,41 @@ export default function Login({ onLogin }) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sign In
+              Sign In with Email
             </button>
           </form>
+
+          {/* Footer */}
+          <div className="mt-8 text-center">
+            <p className="text-sm text-gray-500">
+              By signing in, you agree to our{' '}
+              <a href="#" className="text-blue-600 hover:underline">Terms of Service</a>
+              {' and '}
+              <a href="#" className="text-blue-600 hover:underline">Privacy Policy</a>
+            </p>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+// Add this to your global CSS for smooth animations
+/*
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-in-out;
+}
+*/
