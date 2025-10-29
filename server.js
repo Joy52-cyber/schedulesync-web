@@ -5,7 +5,8 @@ const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const { google } = require('googleapis');
-const { sendTeamInvitation, sendBookingConfirmation } = require('./emailService');
+const { sendTeamInvitation, sendBookingConfirmation } = require('./utils/email');
+const { getAvailableSlots, createCalendarEvent } = require('./utils/calendar');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
