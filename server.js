@@ -229,10 +229,10 @@ app.post('/api/auth/logout', authenticateToken, (req, res) => {
 // ============ TEAM ROUTES ============
 
 // Get all teams for user
-app.get('/api/teams', authenticateToken, async (req, res) => {
+app.get('/api/teams', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM teams WHERE user_id = $1 ORDER BY created_at DESC',
+      'SELECT * FROM teams WHERE owner_id = $1 ORDER BY created_at DESC',  // ✅ owner_id
       [req.user.id]
     );
     res.json({ teams: result.rows });
