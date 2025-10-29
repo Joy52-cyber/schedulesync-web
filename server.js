@@ -113,7 +113,7 @@ async function initializeDatabase() {
 // Initialize database on startup
 initializeDatabase();
 
-// Authentication middleware - FIXED: Named consistently as authenticateToken
+// Authentication middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -263,7 +263,7 @@ app.get('/api/calendar/events', authenticateToken, async (req, res) => {
   }
 });
 
-// Team routes - FIXED: Using authenticateToken instead of authenticate
+// Team routes
 app.get('/api/teams', authenticateToken, async (req, res) => {
   try {
     const teams = await pool.query(`
@@ -404,8 +404,17 @@ app.post('/api/teams/:id/invite', authenticateToken, async (req, res) => {
       [id, invitedUser.rows[0].id, 'member']
     );
     
-    // Send invitation email
-    await sendTeamInvitation(email, team.rows[0].name, req.user.name);
+    // Generate booking URL for the team
+    const baseUrl = process.env.FRONTEND_URL || 'https://schedulesync-web.onrender.com';
+    const bookingUrl = `${baseUrl}/book/${team.rows[0].name.toLowerCase().replace(/\s+/g, '-')}`;
+    
+    // Send invitation email with correct parameters
+    await sendTeamInvitation(
+      email, 
+      team.rows[0].name, 
+      bookingUrl, 
+      req.user.name
+    );
     
     res.json({ message: 'Invitation sent successfully' });
   } catch (error) {
@@ -414,7 +423,7 @@ app.post('/api/teams/:id/invite', authenticateToken, async (req, res) => {
   }
 });
 
-// Booking routes - FIXED: Using authenticateToken
+// Booking routes
 app.get('/api/teams/:teamId/bookings', authenticateToken, async (req, res) => {
   const { teamId } = req.params;
   
@@ -470,6 +479,12 @@ app.post('/api/teams/:teamId/bookings', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
     
+    // Get team name for the booking confirmation
+    const teamData = await client.query(
+      'SELECT name FROM teams WHERE id = $1',
+      [teamId]
+    );
+    
     // Create booking
     const booking = await client.query(
       `INSERT INTO bookings (team_id, title, description, start_time, end_time, created_by)
@@ -492,14 +507,41 @@ app.post('/api/teams/:teamId/bookings', authenticateToken, async (req, res) => {
         [participants]
       );
       
+      // Format date and time for the email
+      const startDate = new Date(start_time);
+      const endDate = new Date(end_time);
+      
+      const formatDate = (date) => {
+        return date.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+      };
+      
+      const formatTime = (startDate, endDate) => {
+        const startTime = startDate.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        const endTime = endDate.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        return `${startTime} - ${endTime}`;
+      };
+      
+      // Send email to each participant with correct parameters
       for (const user of users.rows) {
-        await sendBookingConfirmation(
-          user.email,
-          user.name,
-          title,
-          new Date(start_time),
-          new Date(end_time)
-        );
+        const bookingDetails = {
+          teamName: teamData.rows[0].name,
+          memberName: req.user.name,
+          date: formatDate(startDate),
+          time: formatTime(startDate, endDate)
+        };
+        
+        await sendBookingConfirmation(user.email, bookingDetails);
       }
     }
     
