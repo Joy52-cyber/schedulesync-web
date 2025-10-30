@@ -3,18 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Loader2, Calendar } from 'lucide-react';
 import { auth } from '../utils/api';
 
-// Small helper to feature-detect crypto.getRandomValues in older browsers
-function randomState() {
-  if (window.crypto?.getRandomValues) {
-    return window.crypto.getRandomValues(new Uint32Array(4)).join('-');
-  }
-  return String(Date.now()) + '-' + Math.random().toString(36).slice(2);
-}
-
 export default function Login({ onLogin }) {
   const navigate = useNavigate();
 
-  // Use the same redirectUri the OAuth screen will use
+  // This must match what's registered in Google console
   const redirectUri = `${window.location.origin}/login`;
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -34,7 +26,7 @@ export default function Login({ onLogin }) {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
 
-    // No code present => ensure flags are cleared and spinner hidden
+    // No code → make sure spinner is off
     if (!code) {
       setProcessingOAuth(false);
       sessionStorage.removeItem('processing-oauth');
@@ -48,13 +40,14 @@ export default function Login({ onLogin }) {
     setProcessingOAuth(true);
     setLoading(true);
 
-    // Clean up the URL bar (no code visible)
+    // Clean URL
     window.history.replaceState({}, document.title, '/login');
 
     (async () => {
       try {
-        // IMPORTANT: send the SAME redirectUri used to obtain the code
-        const response = await auth.googleLogin({ code, redirectUri });
+        // IMPORTANT: send ONLY the code (original API shape)
+        const response = await auth.googleLogin(code);
+
         onLogin(response.data.token, response.data.user);
 
         if (response?.data?.user?.calendarSyncEnabled) {
@@ -66,7 +59,7 @@ export default function Login({ onLogin }) {
         setLoading(false);
         navigate('/dashboard', { replace: true });
       } catch (err) {
-        console.error('❌ OAuth failed:', err);
+        console.error('❌ OAuth failed:', err?.response?.data || err);
         setError('Authentication failed. Please try again.');
         sessionStorage.removeItem('processing-oauth');
         setProcessingOAuth(false);
@@ -85,10 +78,7 @@ export default function Login({ onLogin }) {
     setLoading(true);
     setError('');
 
-    // Only force consent on the first time to reliably get a refresh_token
     const firstTime = localStorage.getItem('hasGoogleRefreshToken') !== 'true';
-    const state = randomState();
-    sessionStorage.setItem('oauth-state', state);
 
     const params = new URLSearchParams({
       client_id: googleClientId,
@@ -96,11 +86,12 @@ export default function Login({ onLogin }) {
       response_type: 'code',
       scope: 'openid email profile https://www.googleapis.com/auth/calendar.readonly',
       access_type: 'offline',
-      include_granted_scopes: 'true',
-      state,
+      include_granted_scopes: 'true'
     });
 
-    if (firstTime) params.set('prompt', 'consent');
+    if (firstTime) {
+      params.set('prompt', 'consent');
+    }
 
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   };

@@ -146,62 +146,34 @@ const authenticateToken = (req, res, next) => {
 // ============ AUTH ROUTES ============
 
 // Google OAuth callback
-// Google OAuth callback (CLEAN)
+// Google OAuth callback (final, env-first)
 app.post('/api/auth/google', async (req, res) => {
+  const { code } = req.body || {};
+
+  if (!code) {
+    return res.status(400).json({ error: 'Missing authorization code' });
+  }
+
+  // MUST MATCH Google console
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  if (!redirectUri) {
+    return res.status(500).json({ error: 'Server misconfigured: GOOGLE_REDIRECT_URI not set' });
+  }
+
   try {
-    const { code, redirectUri } = req.body || {};
-    if (!code) return res.status(400).json({ error: 'Missing authorization code' });
-
-    // Determine redirect URI used during the auth request
-    // Priority: explicit env override → client-provided redirectUri
-    const configuredRedirect = process.env.GOOGLE_REDIRECT_URI || null;
-    const finalRedirectUri = configuredRedirect || redirectUri;
-
-    if (!finalRedirectUri) {
-      return res.status(400).json({ error: 'Missing redirectUri (server env or client payload)' });
-    }
-
-    // Optional: basic allowlist to prevent abuse (recommended)
-    const allowedOrigins = [
-      process.env.FRONTEND_URL,
-      process.env.APP_URL
-    ].filter(Boolean);
-
-    try {
-      const u = new URL(finalRedirectUri);
-      const isAllowed =
-        allowedOrigins.length === 0 ||
-        allowedOrigins.some(a => {
-          try {
-            const au = new URL(a);
-            return au.origin === u.origin; // same origin check
-          } catch {
-            return false;
-          }
-        });
-
-      if (!isAllowed) {
-        return res.status(400).json({ error: 'redirectUri not allowed' });
-      }
-    } catch {
-      return res.status(400).json({ error: 'Invalid redirectUri' });
-    }
-
-    // Create OAuth2 client with the SAME redirect URI used to obtain the code
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      finalRedirectUri
+      redirectUri
     );
 
-    // Exchange code for tokens (fails if redirect_uri mismatches)
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const { data } = await oauth2.userinfo.get();
 
-    // Upsert user
+    // Check if user exists
     let userResult = await pool.query(
       'SELECT * FROM users WHERE google_id = $1 OR email = $2',
       [data.id, data.email]
@@ -209,7 +181,7 @@ app.post('/api/auth/google', async (req, res) => {
 
     let user;
     if (userResult.rows.length === 0) {
-      const result = await pool.query(
+      const insert = await pool.query(
         `INSERT INTO users (google_id, email, name, google_access_token, google_refresh_token, calendar_sync_enabled)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *`,
@@ -222,17 +194,17 @@ app.post('/api/auth/google', async (req, res) => {
           Boolean(tokens.refresh_token)
         ]
       );
-      user = result.rows[0];
+      user = insert.rows[0];
     } else {
       user = userResult.rows[0];
       const hasRefresh = Boolean(tokens.refresh_token || user.google_refresh_token);
       const update = await pool.query(
         `UPDATE users 
-           SET google_id = COALESCE(google_id, $1),
-               google_access_token = $2,
-               google_refresh_token = COALESCE($3, google_refresh_token),
-               calendar_sync_enabled = $4,
-               name = COALESCE($5, name)
+         SET google_id = COALESCE(google_id, $1),
+             google_access_token = $2,
+             google_refresh_token = COALESCE($3, google_refresh_token),
+             calendar_sync_enabled = $4,
+             name = COALESCE($5, name)
          WHERE id = $6
          RETURNING *`,
         [
