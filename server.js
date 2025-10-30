@@ -146,33 +146,62 @@ const authenticateToken = (req, res, next) => {
 // ============ AUTH ROUTES ============
 
 // Google OAuth callback
+// Google OAuth callback (CLEAN)
 app.post('/api/auth/google', async (req, res) => {
-  const { code } = req.body;
-
   try {
-    // Create OAuth2 client
+    const { code, redirectUri } = req.body || {};
+    if (!code) return res.status(400).json({ error: 'Missing authorization code' });
+
+    // Determine redirect URI used during the auth request
+    // Priority: explicit env override → client-provided redirectUri
+    const configuredRedirect = process.env.GOOGLE_REDIRECT_URI || null;
+    const finalRedirectUri = configuredRedirect || redirectUri;
+
+    if (!finalRedirectUri) {
+      return res.status(400).json({ error: 'Missing redirectUri (server env or client payload)' });
+    }
+
+    // Optional: basic allowlist to prevent abuse (recommended)
+    const allowedOrigins = [
+      process.env.FRONTEND_URL,
+      process.env.APP_URL
+    ].filter(Boolean);
+
+    try {
+      const u = new URL(finalRedirectUri);
+      const isAllowed =
+        allowedOrigins.length === 0 ||
+        allowedOrigins.some(a => {
+          try {
+            const au = new URL(a);
+            return au.origin === u.origin; // same origin check
+          } catch {
+            return false;
+          }
+        });
+
+      if (!isAllowed) {
+        return res.status(400).json({ error: 'redirectUri not allowed' });
+      }
+    } catch {
+      return res.status(400).json({ error: 'Invalid redirectUri' });
+    }
+
+    // Create OAuth2 client with the SAME redirect URI used to obtain the code
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
+      finalRedirectUri
     );
 
-    // Exchange code for tokens
+    // Exchange code for tokens (fails if redirect_uri mismatches)
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
-    console.log('🔑 Received tokens:', {
-      hasAccessToken: !!tokens.access_token,
-      hasRefreshToken: !!tokens.refresh_token
-    });
-
-    // Get user info
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const { data } = await oauth2.userinfo.get();
 
-    console.log('👤 User data:', data.email);
-
-    // Check if user exists
+    // Upsert user
     let userResult = await pool.query(
       'SELECT * FROM users WHERE google_id = $1 OR email = $2',
       [data.id, data.email]
@@ -180,41 +209,56 @@ app.post('/api/auth/google', async (req, res) => {
 
     let user;
     if (userResult.rows.length === 0) {
-      // Create new user
       const result = await pool.query(
         `INSERT INTO users (google_id, email, name, google_access_token, google_refresh_token, calendar_sync_enabled)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *`,
-        [data.id, data.email, data.name, tokens.access_token, tokens.refresh_token, !!tokens.refresh_token]
+        [
+          data.id,
+          data.email,
+          data.name || '',
+          tokens.access_token || null,
+          tokens.refresh_token || null,
+          Boolean(tokens.refresh_token)
+        ]
       );
       user = result.rows[0];
-      console.log('✅ New user created');
     } else {
-      // Update existing user
       user = userResult.rows[0];
-      const result = await pool.query(
+      const hasRefresh = Boolean(tokens.refresh_token || user.google_refresh_token);
+      const update = await pool.query(
         `UPDATE users 
-         SET google_id = COALESCE(google_id, $1),
-             google_access_token = $2, 
-             google_refresh_token = COALESCE($3, google_refresh_token),
-             calendar_sync_enabled = COALESCE($4, calendar_sync_enabled),
-             name = COALESCE($5, name)
+           SET google_id = COALESCE(google_id, $1),
+               google_access_token = $2,
+               google_refresh_token = COALESCE($3, google_refresh_token),
+               calendar_sync_enabled = $4,
+               name = COALESCE($5, name)
          WHERE id = $6
          RETURNING *`,
-        [data.id, tokens.access_token, tokens.refresh_token, !!tokens.refresh_token, data.name, user.id]
+        [
+          data.id,
+          tokens.access_token || null,
+          tokens.refresh_token || null,
+          hasRefresh,
+          data.name || '',
+          user.id
+        ]
       );
-      user = result.rows[0];
-      console.log('✅ Existing user updated');
+      user = update.rows[0];
     }
 
-    // Generate JWT
+    const JWT_SECRET = process.env.JWT_SECRET;
+    if (!JWT_SECRET) {
+      return res.status(500).json({ error: 'Server misconfigured: JWT_SECRET missing' });
+    }
+
     const token = jwt.sign(
       { id: user.id, email: user.email, name: user.name },
-      process.env.JWT_SECRET || 'your-secret-key',
+      JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    res.json({
+    return res.json({
       token,
       user: {
         id: user.id,
@@ -223,35 +267,10 @@ app.post('/api/auth/google', async (req, res) => {
         calendarSyncEnabled: user.calendar_sync_enabled
       }
     });
-
   } catch (error) {
-    console.error('❌ Google OAuth error:', error);
-    res.status(500).json({ error: 'Authentication failed' });
+    console.error('❌ Google OAuth error:', error?.response?.data || error);
+    return res.status(500).json({ error: 'Authentication failed' });
   }
-});
-
-// Get current user
-app.get('/api/auth/me', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT id, email, name, calendar_sync_enabled FROM users WHERE id = $1',
-      [req.user.id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    res.json({ user: result.rows[0] });
-  } catch (error) {
-    console.error('Get user error:', error);
-    res.status(500).json({ error: 'Failed to fetch user' });
-  }
-});
-
-// Logout
-app.post('/api/auth/logout', authenticateToken, (req, res) => {
-  res.json({ message: 'Logged out successfully' });
 });
 
 // ============ TEAM ROUTES ============

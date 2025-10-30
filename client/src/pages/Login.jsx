@@ -1,71 +1,82 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Loader2, Calendar } from 'lucide-react';
 import { auth } from '../utils/api';
 
+// Small helper to feature-detect crypto.getRandomValues in older browsers
+function randomState() {
+  if (window.crypto?.getRandomValues) {
+    return window.crypto.getRandomValues(new Uint32Array(4)).join('-');
+  }
+  return String(Date.now()) + '-' + Math.random().toString(36).slice(2);
+}
+
 export default function Login({ onLogin }) {
   const navigate = useNavigate();
-  
-  // FIX #3: Check for OAuth code IMMEDIATELY to prevent login form flash
+
+  // Use the same redirectUri the OAuth screen will use
+  const redirectUri = `${window.location.origin}/login`;
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
   const urlParams = new URLSearchParams(window.location.search);
   const hasOAuthCode = urlParams.has('code');
-  
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const sessionFlag = sessionStorage.getItem('processing-oauth') === 'true';
+
+  const [processingOAuth, setProcessingOAuth] = useState(hasOAuthCode || sessionFlag);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  // Initialize processingOAuth based on OAuth code presence - prevents flash!
-  const [processingOAuth, setProcessingOAuth] = useState(hasOAuthCode);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-  const redirectUri = `${window.location.origin}/login`;
+  const didProcessRef = useRef(false);
 
-  // FIX #1: OAuth processing now works (no early return blocking this)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
-    
-    if (code) {
-      // Prevent reprocessing
-      if (sessionStorage.getItem('processing-oauth')) {
-        return;
-      }
-      
-      sessionStorage.setItem('processing-oauth', 'true');
-      setLoading(true);
-      
-      // Clean URL immediately to remove OAuth code
-      window.history.replaceState({}, document.title, '/login');
-      
-      const handleOAuth = async () => {
-        try {
-          console.log('🔄 Processing OAuth code...');
-          const response = await auth.googleLogin(code);
-          console.log('✅ OAuth successful!');
-          
-          // Call onLogin to store credentials
-          onLogin(response.data.token, response.data.user);
-          
-          // Clear processing flag
-          sessionStorage.removeItem('processing-oauth');
-          
-          // Navigate to dashboard
-          navigate('/dashboard', { replace: true });
-          
-        } catch (err) {
-          console.error('❌ OAuth failed:', err);
-          setError('Authentication failed. Please try again.');
-          setLoading(false);
-          setProcessingOAuth(false);
-          sessionStorage.removeItem('processing-oauth');
-        }
-      };
-      
-      handleOAuth();
+
+    // No code present => ensure flags are cleared and spinner hidden
+    if (!code) {
+      setProcessingOAuth(false);
+      sessionStorage.removeItem('processing-oauth');
+      return;
     }
+
+    if (didProcessRef.current) return;
+    didProcessRef.current = true;
+
+    sessionStorage.setItem('processing-oauth', 'true');
+    setProcessingOAuth(true);
+    setLoading(true);
+
+    // Clean up the URL bar (no code visible)
+    window.history.replaceState({}, document.title, '/login');
+
+    (async () => {
+      try {
+        // IMPORTANT: send the SAME redirectUri used to obtain the code
+        const response = await auth.googleLogin({ code, redirectUri });
+        onLogin(response.data.token, response.data.user);
+
+        if (response?.data?.user?.calendarSyncEnabled) {
+          localStorage.setItem('hasGoogleRefreshToken', 'true');
+        }
+
+        sessionStorage.removeItem('processing-oauth');
+        setProcessingOAuth(false);
+        setLoading(false);
+        navigate('/dashboard', { replace: true });
+      } catch (err) {
+        console.error('❌ OAuth failed:', err);
+        setError('Authentication failed. Please try again.');
+        sessionStorage.removeItem('processing-oauth');
+        setProcessingOAuth(false);
+        setLoading(false);
+        didProcessRef.current = false;
+      }
+    })();
   }, [onLogin, navigate]);
 
-  const handleEmailLogin = async (e) => {
+  const handleEmailLogin = (e) => {
     e.preventDefault();
     setError('Email login not yet implemented. Please use Google.');
   };
@@ -73,20 +84,27 @@ export default function Login({ onLogin }) {
   const handleGoogleLogin = () => {
     setLoading(true);
     setError('');
-    
-    // FIX #2: Removed prompt=consent to avoid repeated permission screens
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${googleClientId}` +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&response_type=code` +
-      `&scope=openid email profile https://www.googleapis.com/auth/calendar.readonly` +
-      `&access_type=offline`;
-      // NO prompt=consent - Google only shows consent when needed
-    
-    window.location.href = authUrl;
+
+    // Only force consent on the first time to reliably get a refresh_token
+    const firstTime = localStorage.getItem('hasGoogleRefreshToken') !== 'true';
+    const state = randomState();
+    sessionStorage.setItem('oauth-state', state);
+
+    const params = new URLSearchParams({
+      client_id: googleClientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'openid email profile https://www.googleapis.com/auth/calendar.readonly',
+      access_type: 'offline',
+      include_granted_scopes: 'true',
+      state,
+    });
+
+    if (firstTime) params.set('prompt', 'consent');
+
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   };
 
-  // Show loading screen immediately when processing OAuth (no flash!)
   if (processingOAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
@@ -103,7 +121,6 @@ export default function Login({ onLogin }) {
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
       <div className="w-full max-w-md animate-fadeIn">
         <div className="bg-white rounded-3xl shadow-2xl px-10 py-12">
-          {/* Header */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl mb-4 shadow-lg">
               <Calendar className="h-10 w-10 text-white" />
@@ -112,7 +129,6 @@ export default function Login({ onLogin }) {
             <p className="text-gray-500 text-lg">Welcome back!</p>
           </div>
 
-          {/* OAuth Button */}
           <div className="mb-6">
             <button
               onClick={handleGoogleLogin}
@@ -135,7 +151,6 @@ export default function Login({ onLogin }) {
             </button>
           </div>
 
-          {/* Divider */}
           <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300"></div>
@@ -145,19 +160,15 @@ export default function Login({ onLogin }) {
             </div>
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="mb-5 p-3 bg-red-50 border border-red-200 rounded-xl animate-fadeIn">
               <p className="text-sm text-red-600 text-center">{error}</p>
             </div>
           )}
 
-          {/* Email Form */}
           <form onSubmit={handleEmailLogin} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
@@ -172,9 +183,7 @@ export default function Login({ onLogin }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
@@ -189,9 +198,7 @@ export default function Login({ onLogin }) {
             </div>
 
             <div className="text-right">
-              <a href="#" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                Forgot password?
-              </a>
+              <a href="#" className="text-sm text-blue-600 hover:text-blue-700 font-medium">Forgot password?</a>
             </div>
 
             <button
