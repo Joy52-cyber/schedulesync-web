@@ -1,10 +1,8 @@
-﻿import axios from 'axios';
+import axios from 'axios';
 
-// Use VITE_API_URL from env, fallback to empty string for production (same origin)
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3000');
-console.log('🔗 API URL:', API_URL);
+console.log('Ð⊠ API URL:', API_URL);
 
-// Create axios instance
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -12,7 +10,6 @@ export const api = axios.create({
   },
 });
 
-// Add request interceptor to include token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -26,13 +23,11 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor to handle auth errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid
-      console.log('❌ Authentication failed, logging out...');
+      console.log('┌ Authentication failed, logging out...');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -41,7 +36,6 @@ api.interceptors.response.use(
   }
 );
 
-// API endpoints
 export const auth = {
   googleLogin: (code) => api.post('/api/auth/google', { code }),
   microsoftLogin: (code) => api.post('/api/auth/microsoft', { code }),
