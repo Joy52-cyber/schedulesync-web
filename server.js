@@ -146,8 +146,28 @@ const authenticateToken = (req, res, next) => {
 // ============ AUTH ROUTES ============
 
 // Google OAuth callback (final, env-first)
-app.post('/api/auth/google', async (req, res) => {
-  const { code } = req.body || {};
+app.post('/api/book/auth/google', async (req, res) => {
+  const { code, bookingToken } = req.body || {};
+
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  console.log('🔁 Using GOOGLE_REDIRECT_URI for booking:', redirectUri);
+
+  if (!code || !bookingToken) {
+    return res.status(400).json({ error: 'Missing code or booking token' });
+  }
+
+  if (!redirectUri) {
+    return res.status(500).json({ error: 'Server misconfigured: GOOGLE_REDIRECT_URI not set' });
+  }
+
+  try {
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      redirectUri
+    );
+    // ... rest of your code
+
 
   if (!code) {
     return res.status(400).json({ error: 'Missing authorization code' });
@@ -370,6 +390,8 @@ app.post('/api/book/auth/google', async (req, res) => {
     return res.status(500).json({ error: 'Failed to connect calendar for booking' });
   }
 });
+
+
 
 
 // ============ TEAM ROUTES ============
