@@ -97,6 +97,21 @@ async function initDB() {
       )
     `);
 
+    // Add external booking link columns (for Calendly, HubSpot, etc.)
+await pool.query(`
+  DO $$ 
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name='team_members' AND column_name='external_booking_link') THEN
+      ALTER TABLE team_members ADD COLUMN external_booking_link TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name='team_members' AND column_name='external_booking_platform') THEN
+      ALTER TABLE team_members ADD COLUMN external_booking_platform VARCHAR(50) DEFAULT 'calendly';
+    END IF;
+  END $$;
+`);
+
     // Create bookings table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS bookings (
@@ -445,13 +460,16 @@ app.post('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
     // Generate unique booking token
     const bookingToken = crypto.randomBytes(16).toString('hex');
 
-    // Add team member
-    const result = await pool.query(
-      `INSERT INTO team_members (team_id, user_id, email, booking_token, invited_by) 
-       VALUES ($1, $2, $3, $4, $5) 
-       RETURNING *`,
-      [teamId, userId, email, bookingToken, req.user.id]
-    );
+   // Extract optional external booking fields
+const { external_booking_link, external_booking_platform } = req.body;
+
+// Add team member
+const result = await pool.query(
+  `INSERT INTO team_members (team_id, user_id, email, booking_token, invited_by, external_booking_link, external_booking_platform) 
+   VALUES ($1, $2, $3, $4, $5, $6, $7) 
+   RETURNING *`,
+  [teamId, userId, email, bookingToken, req.user.id, external_booking_link || null, external_booking_platform || 'calendly']
+);
 
     const member = result.rows[0];
     const baseUrl = process.env.FRONTEND_URL || process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
@@ -486,6 +504,11 @@ app.post('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
 app.delete('/api/teams/:teamId/members/:memberId', authenticateToken, async (req, res) => {
   const { teamId, memberId } = req.params;
 
+  // Update team member external booking link
+app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken, async (req, res) => {
+  const { teamId, memberId } = req.params;
+  const { external_booking_link, external_booking_platform } = req.body;
+
   try {
     // Verify team ownership
     const teamCheck = await pool.query(
@@ -497,15 +520,26 @@ app.delete('/api/teams/:teamId/members/:memberId', authenticateToken, async (req
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    await pool.query(
-      'DELETE FROM team_members WHERE id = $1 AND team_id = $2',
-      [memberId, teamId]
+    // Update member
+    const result = await pool.query(
+      `UPDATE team_members 
+       SET external_booking_link = $1, 
+           external_booking_platform = $2
+       WHERE id = $3 AND team_id = $4
+       RETURNING *`,
+      [external_booking_link || null, external_booking_platform || 'calendly', memberId, teamId]
     );
 
-    res.json({ message: 'Member removed successfully' });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Member not found' });
+    }
+
+    console.log(`✅ External link updated for member ${memberId}`);
+    res.json({ member: result.rows[0] });
+
   } catch (error) {
-    console.error('Remove member error:', error);
-    res.status(500).json({ error: 'Failed to remove member' });
+    console.error('Update external link error:', error);
+    res.status(500).json({ error: 'Failed to update external link' });
   }
 });
 
@@ -547,7 +581,6 @@ app.get('/api/book/:token', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Booking link not found' });
     }
-
     const member = result.rows[0];
     res.json({
       team: {
@@ -557,9 +590,12 @@ app.get('/api/book/:token', async (req, res) => {
       },
       member: {
         name: member.member_name || member.email,
-        email: member.email
+        email: member.email,
+        external_booking_link: member.external_booking_link,        // ← ADD
+        external_booking_platform: member.external_booking_platform // ← ADD
       }
     });
+    
   } catch (error) {
     console.error('Get booking by token error:', error);
     res.status(500).json({ error: 'Failed to fetch booking details' });
