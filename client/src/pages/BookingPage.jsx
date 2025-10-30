@@ -34,11 +34,15 @@ export default function BookingPage() {
 
   // 1) Load booking context
   useEffect(() => {
+  console.log('🔍 BookingPage useEffect triggered');
+  console.log('🔍 Token:', token);
+  
   const load = async () => {
     try {
+      console.log('🔍 About to call bookings.getByToken...');
       const res = await bookings.getByToken(token);
-      console.log('🔍 Full API response:', res.data);
-      console.log('🔍 Member info:', res.data.member);
+      console.log('🔍 API Response:', res.data);
+      console.log('🔍 Member:', res.data.member);
       console.log('🔍 External link:', res.data.member?.external_booking_link);
       
       setTeamInfo(res.data.team);
@@ -46,14 +50,14 @@ export default function BookingPage() {
 
       // If has external link, show choice screen, else go to auth
       if (res.data.member?.external_booking_link) {
-        console.log('✅ Has external link, showing choice screen');
+        console.log('✅ HAS external link, setting step to CHOICE');
         setStep('choice');
       } else {
-        console.log('❌ No external link, showing auth screen');
+        console.log('❌ NO external link, setting step to AUTH');
         setStep('auth');
       }
     } catch (err) {
-      console.error('Error fetching team info:', err);
+      console.error('❌ Error fetching team info:', err);
       setError('Invalid or expired booking link.');
       setStep('error');
     }
