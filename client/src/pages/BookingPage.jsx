@@ -20,6 +20,7 @@ export default function BookingPage() {
   const [step, setStep] = useState('loading');
 
   const [teamInfo, setTeamInfo] = useState(null);
+  const [memberInfo, setMemberInfo] = useState(null);
   const [aiSlots, setAiSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState(null);
 
@@ -28,7 +29,6 @@ export default function BookingPage() {
     attendee_email: '',
     notes: '',
   });
-  const [memberInfo, setMemberInfo] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -223,6 +223,91 @@ export default function BookingPage() {
       </div>
     );
   }
+
+  // C. Choice screen (if external link exists)
+if (step === 'choice') {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 py-12 px-4">
+      <div className="max-w-2xl mx-auto">
+        {/* Header */}
+        <div className="bg-white rounded-3xl shadow-2xl p-8 mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+              <Calendar className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                {teamInfo?.name || 'Schedule a Meeting'}
+              </h1>
+              {teamInfo?.description && (
+                <p className="text-gray-600">{teamInfo.description}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Booking Method Options */}
+        <div className="bg-white rounded-3xl shadow-2xl p-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">
+            Choose Your Booking Method
+          </h2>
+          
+          <div className="space-y-4">
+            {/* External Platform Option */}
+            <button
+              onClick={() => window.open(memberInfo.external_booking_link, '_blank')}
+              className="w-full flex items-center justify-between p-6 border-2 border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group text-left"
+            >
+              <div className="flex items-center gap-4">
+                <Calendar className="h-10 w-10 text-blue-600" />
+                <div>
+                  <p className="font-semibold text-gray-900 text-lg">
+                    Book via {
+                      memberInfo.external_booking_platform === 'calendly' ? 'Calendly' :
+                      memberInfo.external_booking_platform === 'hubspot' ? 'HubSpot' :
+                      'External Calendar'
+                    }
+                  </p>
+                  <p className="text-sm text-gray-600">Opens in a new tab</p>
+                </div>
+              </div>
+              <svg className="h-6 w-6 text-gray-400 group-hover:text-blue-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </button>
+
+            {/* AI-Powered Booking Option */}
+            <button
+              onClick={() => setStep('auth')}
+              className="w-full flex items-center justify-between p-6 border-2 border-gray-300 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all group text-left"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                  <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900 text-lg">
+                    AI-Powered Smart Booking
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Get personalized time suggestions
+                  </p>
+                </div>
+              </div>
+              <svg className="h-6 w-6 text-gray-400 group-hover:text-purple-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// D. Main booking UI (auth/slots/confirm screens)
 
   // D. Choice screen (if external link exists)
 if (step === 'choice') {
