@@ -74,7 +74,8 @@ export const availability = {
 };
 
 export const bookings = {
-  getAll: () => api.get('/api/bookings'),
-  create: (data) => api.post('/api/bookings', data),
-  getByToken: (token) => api.get(`/api/bookings/member/${token}`),
+  getAll: () => api.get('/bookings'),
+  getByToken: (token) => api.get(`/book/${token}`),  // ← No /api/ prefix, no /bookings/member/
+  create: (data) => api.post('/bookings', data),
+  getAvailability: (token, date) => api.get(`/book/${token}/availability?date=${date}`),
 };
