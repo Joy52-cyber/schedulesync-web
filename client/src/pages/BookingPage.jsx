@@ -34,28 +34,34 @@ export default function BookingPage() {
 
   // 1) Load booking context
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await bookings.getByToken(token);
-        setTeamInfo(res.data.team);
-        setMemberInfo(res.data.member);
+  const load = async () => {
+    try {
+      const res = await bookings.getByToken(token);
+      console.log('🔍 Full API response:', res.data);
+      console.log('🔍 Member info:', res.data.member);
+      console.log('🔍 External link:', res.data.member?.external_booking_link);
+      
+      setTeamInfo(res.data.team);
+      setMemberInfo(res.data.member);
 
-        // If has external link, show choice screen, else go to auth
-        if (res.data.member?.external_booking_link) {
-          setStep('choice');
-        } else {
-          setStep('auth');
-        }
-      } catch (err) {
-        console.error('Error fetching team info:', err);
-        setError('Invalid or expired booking link.');
-        setStep('error');
+      // If has external link, show choice screen, else go to auth
+      if (res.data.member?.external_booking_link) {
+        console.log('✅ Has external link, showing choice screen');
+        setStep('choice');
+      } else {
+        console.log('❌ No external link, showing auth screen');
+        setStep('auth');
       }
-    };
-    if (token) {
-      load();
+    } catch (err) {
+      console.error('Error fetching team info:', err);
+      setError('Invalid or expired booking link.');
+      setStep('error');
     }
-  }, [token]);
+  };
+  if (token) {
+    load();
+  }
+}, [token]);
 
   // 2) Handle Google redirect (?code=...)
   useEffect(() => {
