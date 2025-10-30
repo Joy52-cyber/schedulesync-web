@@ -207,6 +207,38 @@ export default function BookingPage() {
       </div>
     );
   }
+  export default function BookingPage() {
+  const { token } = useParams();
+  const [loading, setLoading] = useState(true);
+  const [teamInfo, setTeamInfo] = useState(null);
+  const [selectedDate, setSelectedDate] = useState('');
+  // ... other hooks
+
+  // 👇 ADD THIS FUNCTION HERE (right after your hooks)
+  const handleGoogleConnect = () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const redirectUri = import.meta.env.VITE_GOOGLE_REDIRECT_URI; // must match backend env
+    const scope = encodeURIComponent(
+      'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid'
+    );
+    const state = encodeURIComponent(`booking:${token}`);
+
+    const authUrl =
+      `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&response_type=code&scope=${scope}&access_type=offline&prompt=consent&state=${state}`;
+
+    window.location.href = authUrl;
+  };
+  // 👆 END OF INSERTION
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br ...">
+      {/* rest of your booking UI */}
+    </div>
+  );
+}
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 py-12 px-4">

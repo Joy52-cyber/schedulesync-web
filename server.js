@@ -145,7 +145,6 @@ const authenticateToken = (req, res, next) => {
 
 // ============ AUTH ROUTES ============
 
-// Google OAuth callback
 // Google OAuth callback (final, env-first)
 app.post('/api/auth/google', async (req, res) => {
   const { code } = req.body || {};
@@ -244,6 +243,29 @@ app.post('/api/auth/google', async (req, res) => {
     return res.status(500).json({ error: 'Authentication failed' });
   }
 });
+
+// Google OAuth callback (browser redirect) – for login + booking flows
+app.get('/api/auth/google/callback', async (req, res) => {
+  const { code, state } = req.query;
+
+  if (!code) {
+    return res.status(400).send('Missing "code" from Google.');
+  }
+
+  // If this was a booking flow, we probably sent state like "booking:<token>"
+  // So we can bounce the user back to the booking page with the code.
+  if (state && state.startsWith('booking:')) {
+    const bookingToken = state.split(':')[1];
+    // send user to frontend booking route with the code so React can POST it
+    return res.redirect(
+      `/book/${bookingToken}?code=${encodeURIComponent(code)}`
+    );
+  }
+
+  // Otherwise, this is a normal login flow → send to /login with code
+  return res.redirect(`/login?code=${encodeURIComponent(code)}`);
+});
+
 
 // ============ TEAM ROUTES ============
 
