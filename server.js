@@ -504,7 +504,30 @@ const result = await pool.query(
 app.delete('/api/teams/:teamId/members/:memberId', authenticateToken, async (req, res) => {
   const { teamId, memberId } = req.params;
 
-  // Update team member external booking link
+  try {
+    // Verify team ownership
+    const teamCheck = await pool.query(
+      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
+      [teamId, req.user.id]
+    );
+
+    if (teamCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    await pool.query(
+      'DELETE FROM team_members WHERE id = $1 AND team_id = $2',
+      [memberId, teamId]
+    );
+
+    res.json({ message: 'Member removed successfully' });
+  } catch (error) {
+    console.error('Remove member error:', error);
+    res.status(500).json({ error: 'Failed to remove member' });
+  }
+});
+
+// Update team member external booking link
 app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken, async (req, res) => {
   const { teamId, memberId } = req.params;
   const { external_booking_link, external_booking_platform } = req.body;
