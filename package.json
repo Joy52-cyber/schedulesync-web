@@ -27,3 +27,5 @@
     "nodemon": "^3.0.1"
   }
 }
+"build": "echo \"build skipped on railway\""
+
