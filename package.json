@@ -8,9 +8,13 @@
     "server": "nodemon server.js",
     "client": "cd client && npm run dev",
     "start": "node server.js",
-    "build": "cd client && npm install && npm run build"
+    "build": "echo \"build skipped on railway (dist is committed)\""
   },
-  "keywords": ["scheduling", "booking", "calendar"],
+  "keywords": [
+    "scheduling",
+    "booking",
+    "calendar"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -27,5 +31,3 @@
     "nodemon": "^3.0.1"
   }
 }
-"build": "echo \"build skipped on railway\""
-
