@@ -759,6 +759,108 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
+// ============ AI SLOT SUGGESTIONS (public, for booking) ============
+app.post('/api/suggest-slots', async (req, res) => {
+  try {
+    const { bookingToken, duration = 60 } = req.body || {};
+
+    if (!bookingToken) {
+      return res.status(400).json({ error: 'bookingToken is required' });
+    }
+
+    // 1) find the team member + their connected user
+    const memberResult = await pool.query(
+      `SELECT tm.*, u.google_access_token, u.google_refresh_token, u.calendar_sync_enabled
+       FROM team_members tm
+       LEFT JOIN users u ON tm.user_id = u.id
+       WHERE tm.booking_token = $1`,
+      [bookingToken]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    const member = memberResult.rows[0];
+
+    // 2) if we have Google tokens, try to get real availability
+    let slots = [];
+    if (
+      getAvailableSlots &&
+      member.calendar_sync_enabled &&
+      (member.google_refresh_token || member.google_access_token)
+    ) {
+      // suggest for "today" and "tomorrow"
+      const today = new Date();
+      const day1 = today.toISOString().split('T')[0];
+
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const day2 = tomorrow.toISOString().split('T')[0];
+
+      const all = [];
+
+      // day 1
+      const d1 = await getAvailableSlots(
+        member.google_access_token,
+        member.google_refresh_token,
+        day1,
+        duration
+      );
+      all.push(...d1);
+
+      // day 2
+      const d2 = await getAvailableSlots(
+        member.google_access_token,
+        member.google_refresh_token,
+        day2,
+        duration
+      );
+      all.push(...d2);
+
+      // take first 10 and add fake match %
+      slots = all.slice(0, 10).map((s, idx) => ({
+        ...s,
+        match: 1 - idx * 0.05, // just descending confidence
+      }));
+    } else {
+      // 3) fallback: generic slots for tomorrow
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const generic = [];
+      for (let hour = 9; hour < 17; hour++) {
+        const start = new Date(tomorrow);
+        start.setHours(hour, 0, 0, 0);
+        const end = new Date(start);
+        end.setMinutes(end.getMinutes() + duration);
+
+        generic.push({
+          start: start.toISOString(),
+          end: end.toISOString(),
+          startTime: start.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          endTime: end.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          match: 0.6,
+        });
+      }
+
+      slots = generic.slice(0, 10);
+    }
+
+    return res.json({ slots });
+  } catch (err) {
+    console.error('❌ AI slot suggestion error:', err);
+    return res.status(500).json({ error: 'Failed to suggest slots' });
+  }
+});
+
+
 // ============ ERROR HANDLING ============
 
 app.use((req, res, next) => {
