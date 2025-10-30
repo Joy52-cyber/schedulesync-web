@@ -811,10 +811,20 @@ app.post('/api/bookings', async (req, res) => {
 // ============ SERVE STATIC FILES (PRODUCTION) ============
 
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, 'client/dist')));
+  const distPath = path.join(__dirname, 'client', 'dist');
   
+  // Serve static files
+  app.use(express.static(distPath));
+  
+  // Catch-all route - but skip API routes!
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client/dist', 'index.html'));
+    // Don't serve HTML for API routes
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    
+    // Serve React app for all other routes
+    res.sendFile(path.join(distPath, 'index.html'));
   });
 }
 
