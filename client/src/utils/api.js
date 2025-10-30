@@ -48,7 +48,6 @@ export const auth = {
   microsoftLogin: (code) => api.post('/api/auth/microsoft', { code }),
   logout: () => api.post('/api/auth/logout'),
 };
-
 export const teams = {
   getAll: () => api.get('/api/teams'),
   create: (data) => api.post('/api/teams', data),
@@ -74,8 +73,8 @@ export const availability = {
 };
 
 export const bookings = {
-  getAll: () => api.get('/bookings'),
-  getByToken: (token) => api.get(`/book/${token}`),       // ✅ CORRECT
-  create: (data) => api.post('/bookings', data),
-  getAvailability: (token, date) => api.get(`/book/${token}/availability?date=${date}`),  // ✅ CORRECT
+  getAll: () => api.get('/api/bookings'),
+  getByToken: (token) => api.get(`/api/book/${token}`),
+  create: (data) => api.post('/api/bookings', data),
+  getAvailability: (token, date) => api.get(`/api/book/${token}/availability?date=${date}`),
 };
