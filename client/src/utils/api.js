@@ -48,6 +48,7 @@ export const auth = {
   microsoftLogin: (code) => api.post('/api/auth/microsoft', { code }),
   logout: () => api.post('/api/auth/logout'),
 };
+
 export const teams = {
   getAll: () => api.get('/api/teams'),
   create: (data) => api.post('/api/teams', data),
