@@ -166,6 +166,8 @@ app.post('/api/auth/google', async (req, res) => {
       redirectUri
     );
 
+    console.log('🔁 GOOGLE_REDIRECT_URI in use:', process.env.GOOGLE_REDIRECT_URI);
+
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
