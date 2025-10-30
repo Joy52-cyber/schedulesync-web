@@ -51,12 +51,11 @@ export const auth = {
 export const teams = {
   getAll: () => api.get('/api/teams'),
   create: (data) => api.post('/api/teams', data),
-  update: (id, data) => api.put(`/api/teams/${id}`, data),
+ update: (id, data) => api.put(`/api/teams/${id}`, data),
   delete: (id) => api.delete(`/api/teams/${id}`),
   getMembers: (teamId) => api.get(`/api/teams/${teamId}/members`),
   addMember: (teamId, data) => api.post(`/api/teams/${teamId}/members`, data),
   removeMember: (teamId, memberId) => api.delete(`/api/teams/${teamId}/members/${memberId}`),
-};
 
 export const calendar = {
   getEvents: () => api.get('/api/calendar/events'),
