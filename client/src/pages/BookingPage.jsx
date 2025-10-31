@@ -16,7 +16,7 @@ export default function BookingPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // 'loading' | 'choice' | 'auth' | 'slots' | 'confirm' | 'success' | 'error'
+  // 'loading' | 'choice' | 'auth' | 'slots' | 'confirm' | 'success'
   const [step, setStep] = useState('loading');
 
   const [teamInfo, setTeamInfo] = useState(null);
@@ -34,38 +34,26 @@ export default function BookingPage() {
 
   // 1) Load booking context
   useEffect(() => {
-  console.log('🔍 BookingPage useEffect triggered');
-  console.log('🔍 Token:', token);
-  
-  const load = async () => {
-    try {
-      console.log('🔍 About to call bookings.getByToken...');
-      const res = await bookings.getByToken(token);
-      console.log('🔍 API Response:', res.data);
-      console.log('🔍 Member:', res.data.member);
-      console.log('🔍 External link:', res.data.member?.external_booking_link);
-      
-      setTeamInfo(res.data.team);
-      setMemberInfo(res.data.member);
-
-      // If has external link, show choice screen, else go to auth
-      if (res.data.member?.external_booking_link) {
-        console.log('✅ HAS external link, setting step to CHOICE');
-        setStep('choice');
-      } else {
-        console.log('❌ NO external link, setting step to AUTH');
+    const load = async () => {
+      try {
+        const res = await bookings.getByToken(token);
+        setTeamInfo(res.data.team);
+        setMemberInfo(res.data.member);
+        
+        // If has external link, show choice screen
+        if (res.data.member?.external_booking_link) {
+          setStep('choice');
+        } else {
+          setStep('auth');
+        }
+      } catch (err) {
+        console.error('Error fetching team info:', err);
+        setError('Invalid or expired booking link.');
         setStep('auth');
       }
-    } catch (err) {
-      console.error('❌ Error fetching team info:', err);
-      setError('Invalid or expired booking link.');
-      setStep('error');
-    }
-  };
-  if (token) {
+    };
     load();
-  }
-}, [token]);
+  }, [token]);
 
   // 2) Handle Google redirect (?code=...)
   useEffect(() => {
@@ -91,7 +79,6 @@ export default function BookingPage() {
         }
 
         await fetchAiSlots(token);
-        // clean URL
         navigate(`/book/${token}`, { replace: true });
       } catch (err) {
         console.error('Guest Google auth failed:', err);
@@ -99,8 +86,7 @@ export default function BookingPage() {
         setStep('auth');
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, token]);
+  }, [searchParams, token, navigate]);
 
   // 3) Fetch AI slots
   const fetchAiSlots = async (bookingToken) => {
@@ -196,23 +182,7 @@ export default function BookingPage() {
     );
   }
 
-  // B. Error screen
-  if (step === 'error') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
-        <div className="bg-white rounded-3xl shadow-2xl p-10 max-w-md w-full text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-3">
-            Booking link error
-          </h2>
-          <p className="text-gray-600 mb-4">
-            {error || 'Invalid or expired booking link.'}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // C. Success screen
+  // B. Success screen
   if (step === 'success') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 px-4">
@@ -220,9 +190,7 @@ export default function BookingPage() {
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="h-10 w-10 text-green-600" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            Booking Confirmed!
-          </h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Booking Confirmed!</h2>
           <p className="text-gray-600 mb-6">
             We've sent a confirmation email to{' '}
             <strong>{formData.attendee_email}</strong> with all the details.
@@ -254,7 +222,7 @@ export default function BookingPage() {
     );
   }
 
-  // D. Choice screen (single, clean version)
+  // C. Choice screen (if external link exists)
   if (step === 'choice') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 py-12 px-4">
@@ -281,42 +249,28 @@ export default function BookingPage() {
             <h2 className="text-2xl font-bold text-gray-900 mb-6">
               Choose Your Booking Method
             </h2>
-
+            
             <div className="space-y-4">
               {/* External Platform Option */}
               <button
-                onClick={() =>
-                  memberInfo?.external_booking_link &&
-                  window.open(memberInfo.external_booking_link, '_blank')
-                }
+                onClick={() => window.open(memberInfo.external_booking_link, '_blank')}
                 className="w-full flex items-center justify-between p-6 border-2 border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group text-left"
               >
                 <div className="flex items-center gap-4">
                   <Calendar className="h-10 w-10 text-blue-600" />
                   <div>
                     <p className="font-semibold text-gray-900 text-lg">
-                      Book via{' '}
-                      {memberInfo?.external_booking_platform === 'calendly'
-                        ? 'Calendly'
-                        : memberInfo?.external_booking_platform === 'hubspot'
-                        ? 'HubSpot'
-                        : 'External Calendar'}
+                      Book via {
+                        memberInfo.external_booking_platform === 'calendly' ? 'Calendly' :
+                        memberInfo.external_booking_platform === 'hubspot' ? 'HubSpot' :
+                        'External Calendar'
+                      }
                     </p>
                     <p className="text-sm text-gray-600">Opens in a new tab</p>
                   </div>
                 </div>
-                <svg
-                  className="h-6 w-6 text-gray-400 group-hover:text-blue-600 transition-colors"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                  />
+                <svg className="h-6 w-6 text-gray-400 group-hover:text-blue-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
               </button>
 
@@ -327,18 +281,8 @@ export default function BookingPage() {
               >
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                    <svg
-                      className="h-6 w-6 text-white"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 10V3L4 14h7v7l9-11h-7z"
-                      />
+                    <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                   </div>
                   <div>
@@ -350,18 +294,8 @@ export default function BookingPage() {
                     </p>
                   </div>
                 </div>
-                <svg
-                  className="h-6 w-6 text-gray-400 group-hover:text-purple-600 transition-colors"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
+                <svg className="h-6 w-6 text-gray-400 group-hover:text-purple-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
             </div>
@@ -371,7 +305,7 @@ export default function BookingPage() {
     );
   }
 
-  // E. Main booking UI (auth / slots / confirm)
+  // D. Main booking UI
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 py-12 px-4">
       <div className="max-w-4xl mx-auto">
@@ -406,7 +340,7 @@ export default function BookingPage() {
                   Connect your calendar
                 </h2>
                 <p className="text-gray-600 mb-6">
-                  We’ll check your availability and suggest the best times.
+                  We'll check your availability and suggest the best times.
                 </p>
                 <button
                   onClick={handleGoogleConnect}
@@ -429,7 +363,7 @@ export default function BookingPage() {
                   <span>Microsoft Calendar (soon)</span>
                 </button>
                 <p className="text-xs text-gray-400 mt-4">
-                  We’ll only read availability to suggest slots.
+                  We'll only read availability to suggest slots.
                 </p>
               </>
             )}
@@ -456,54 +390,53 @@ export default function BookingPage() {
               </>
             )}
 
-            {(step === 'confirm' || step === 'success') &&
-              aiSlots.length > 0 && (
-                <>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                    Suggested time slots
-                  </h2>
-                  <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
-                    {aiSlots.map((slot, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setSelectedSlot(slot)}
-                        className={`p-3 rounded-lg border-2 transition-all text-left ${
-                          selectedSlot === slot
-                            ? 'border-blue-500 bg-blue-50 text-blue-700'
-                            : 'border-gray-200 hover:border-blue-300 text-gray-700'
-                        }`}
-                      >
-                        <p className="font-semibold">
-                          {new Date(slot.start).toLocaleDateString('en-US', {
-                            weekday: 'short',
-                            month: 'short',
-                            day: 'numeric',
-                          })}
-                        </p>
-                        <p className="text-sm">
-                          {slot.startTime ||
-                            new Date(slot.start).toLocaleTimeString([], {
+            {(step === 'confirm' || step === 'success') && aiSlots.length > 0 && (
+              <>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                  Suggested time slots
+                </h2>
+                <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
+                  {aiSlots.map((slot, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedSlot(slot)}
+                      className={`p-3 rounded-lg border-2 transition-all text-left ${
+                        selectedSlot === slot
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-blue-300 text-gray-700'
+                      }`}
+                    >
+                      <p className="font-semibold">
+                        {new Date(slot.start).toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </p>
+                      <p className="text-sm">
+                        {slot.startTime ||
+                          new Date(slot.start).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}{' '}
+                        –{' '}
+                        {slot.endTime ||
+                          (slot.end &&
+                            new Date(slot.end).toLocaleTimeString([], {
                               hour: '2-digit',
                               minute: '2-digit',
-                            })}{' '}
-                          –{' '}
-                          {slot.endTime ||
-                            (slot.end &&
-                              new Date(slot.end).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              }))}
-                        </p>
-                        {slot.match && (
-                          <span className="inline-block mt-2 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
-                            {(slot.match * 100).toFixed(0)}% match
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+                            }))}
+                      </p>
+                      {slot.match && (
+                        <span className="inline-block mt-2 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
+                          {(slot.match * 100).toFixed(0)}% match
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Right column: form */}

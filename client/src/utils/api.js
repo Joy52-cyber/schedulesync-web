@@ -1,74 +1,46 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3000');
-console.log('Ð⊠ API URL:', API_URL);
+const API_URL = import.meta.env.VITE_API_URL || '';
 
-export const api = axios.create({
+const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+// Add token to requests if available
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
-
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      console.log('┌ Authentication failed, logging out...');
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
+  return config;
+});
 
 export const auth = {
-  googleLogin: (code) => api.post('/api/auth/google', { code }),
-  microsoftLogin: (code) => api.post('/api/auth/microsoft', { code }),
-  logout: () => api.post('/api/auth/logout'),
+  googleCallback: (code) => api.post('/auth/google', { code }),
+  getCurrentUser: () => api.get('/auth/me'),
+  logout: () => api.post('/auth/logout'),
 };
 
 export const teams = {
-  getAll: () => api.get('/api/teams'),
-  create: (data) => api.post('/api/teams', data),
-  update: (id, data) => api.put(`/api/teams/${id}`, data),
-  delete: (id) => api.delete(`/api/teams/${id}`),
-  getMembers: (teamId) => api.get(`/api/teams/${teamId}/members`),
-  addMember: (teamId, data) => api.post(`/api/teams/${teamId}/members`, data),
-  removeMember: (teamId, memberId) => api.delete(`/api/teams/${teamId}/members/${memberId}`),
-};
-
-export const calendar = {
-  getEvents: () => api.get('/api/calendar/events'),
-  syncCalendar: () => api.post('/api/calendar/sync'),
-};
-
-export const analytics = {
-  get: () => api.get('/api/analytics'),
-};
-
-export const availability = {
-  get: () => api.get('/api/availability'),
-  set: (data) => api.post('/api/availability', data),
+  getAll: () => api.get('/teams'),
+  create: (data) => api.post('/teams', data),
+  update: (id, data) => api.put(`/teams/${id}`, data),
+  delete: (id) => api.delete(`/teams/${id}`),
+  getMembers: (teamId) => api.get(`/teams/${teamId}/members`),
+  addMember: (teamId, data) => api.post(`/teams/${teamId}/members`, data),
+  removeMember: (teamId, memberId) => api.delete(`/teams/${teamId}/members/${memberId}`),
+  updateMemberExternalLink: (teamId, memberId, data) => 
+    api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
 };
 
 export const bookings = {
-  getAll: () => api.get('/api/bookings'),
-  getByToken: (token) => api.get(`/api/book/${token}`),
-  create: (data) => api.post('/api/bookings', data),
-  getAvailability: (token, date) => api.get(`/api/book/${token}/availability?date=${date}`),
+  getAll: () => api.get('/bookings'),
+  getByToken: (token) => api.get(`/book/${token}`),
+  create: (data) => api.post('/bookings', data),
+  getAvailability: (token, date) => api.get(`/book/${token}/availability?date=${date}`),
 };
+
+export default api;
