@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
@@ -13,9 +13,9 @@ try {
   const emailUtils = require('./utils/email');
   sendTeamInvitation = emailUtils.sendTeamInvitation;
   sendBookingConfirmation = emailUtils.sendBookingConfirmation;
-  console.log('✅ Email utilities loaded successfully');
+  console.log('? Email utilities loaded successfully');
 } catch (error) {
-  console.log('⚠️ Email utilities not available - emails will not be sent');
+  console.log('?? Email utilities not available - emails will not be sent');
 }
 
 let getAvailableSlots, createCalendarEvent;
@@ -23,9 +23,9 @@ try {
   const calendarUtils = require('./utils/calendar');
   getAvailableSlots = calendarUtils.getAvailableSlots;
   createCalendarEvent = calendarUtils.createCalendarEvent;
-  console.log('✅ Calendar utilities loaded successfully');
+  console.log('? Calendar utilities loaded successfully');
 } catch (error) {
-  console.log('⚠️ Calendar utilities not available - calendar sync disabled');
+  console.log('?? Calendar utilities not available - calendar sync disabled');
 }
 
 const app = express();
@@ -45,9 +45,9 @@ const pool = new Pool({
 // Test database connection
 pool.connect((err, client, release) => {
   if (err) {
-    console.error('❌ Error connecting to database:', err.stack);
+    console.error('? Error connecting to database:', err.stack);
   } else {
-    console.log('✅ Database connected successfully');
+    console.log('? Database connected successfully');
     release();
   }
 });
@@ -129,10 +129,10 @@ await pool.query(`
       )
     `);
 
-    console.log('✅ Database initialized successfully');
+    console.log('? Database initialized successfully');
 
   } catch (error) {
-    console.error('❌ Error initializing database:', error);
+    console.error('? Error initializing database:', error);
   }
 }
 
@@ -192,7 +192,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const { data } = await oauth2.userinfo.get();
 
-    // upsert user (this is just a simple example – keep your own upsert)
+    // upsert user (this is just a simple example � keep your own upsert)
     let userResult = await pool.query(
       'SELECT * FROM users WHERE google_id = $1 OR email = $2',
       [data.id, data.email]
@@ -249,18 +249,18 @@ app.get('/api/auth/google/callback', async (req, res) => {
     const frontend = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
     return res.redirect(`${frontend}/dashboard?token=${token}`);
   } catch (err) {
-    console.error('❌ Google OAuth callback error:', err?.response?.data || err);
+    console.error('? Google OAuth callback error:', err?.response?.data || err);
     return res.status(500).json({ error: 'Authentication failed' });
   }
 });
 
 
-// Google OAuth for GUEST (booking link) – exchange code + attach to team member
+// Google OAuth for GUEST (booking link) � exchange code + attach to team member
 app.post('/api/book/auth/google', async (req, res) => {
   const { code, bookingToken } = req.body || {};
 
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;
-  console.log('🔁 Using GOOGLE_REDIRECT_URI for booking:', redirectUri);
+  console.log('?? Using GOOGLE_REDIRECT_URI for booking:', redirectUri);
 
   if (!code || !bookingToken) {
     return res.status(400).json({ error: 'Missing code or booking token' });
@@ -278,7 +278,7 @@ app.post('/api/book/auth/google', async (req, res) => {
     );
 
     const { tokens } = await oauth2Client.getToken(code);
-    console.log('✅ Booking Google token exchange success:', {
+    console.log('? Booking Google token exchange success:', {
       hasAccess: !!tokens.access_token,
       hasRefresh: !!tokens.refresh_token,
     });
@@ -288,16 +288,16 @@ app.post('/api/book/auth/google', async (req, res) => {
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const { data } = await oauth2.userinfo.get();
 
-    console.log('👤 Google userinfo for booking:', {
+    console.log('?? Google userinfo for booking:', {
       id: data.id,
       email: data.email,
       name: data.name,
     });
 
-    // for now just say it's ok — you can add the DB link later
+    // for now just say it's ok � you can add the DB link later
     return res.json({ success: true });
   } catch (err) {
-    console.error('❌ Booking Google OAuth error:', err?.response?.data || err);
+    console.error('? Booking Google OAuth error:', err?.response?.data || err);
     return res.status(500).json({ error: 'Failed to connect calendar for booking' });
   }
 });
@@ -480,7 +480,7 @@ const result = await pool.query(
       try {
         const inviterName = req.user.name || req.user.email;
         await sendTeamInvitation(email, team.name, bookingUrl, inviterName);
-        console.log(`✅ Invitation email sent to ${email}`);
+        console.log(`? Invitation email sent to ${email}`);
       } catch (emailError) {
         console.error('Failed to send invitation email:', emailError);
       }
@@ -557,7 +557,7 @@ app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken,
       return res.status(404).json({ error: 'Member not found' });
     }
 
-    console.log(`✅ External link updated for member ${memberId}`);
+    console.log(`? External link updated for member ${memberId}`);
     res.json({ member: result.rows[0] });
 
   } catch (error) {
@@ -614,8 +614,8 @@ app.get('/api/book/:token', async (req, res) => {
       member: {
         name: member.member_name || member.email,
         email: member.email,
-        external_booking_link: member.external_booking_link,        // ← ADD
-        external_booking_platform: member.external_booking_platform // ← ADD
+        external_booking_link: member.external_booking_link,        // ? ADD
+        external_booking_platform: member.external_booking_platform // ? ADD
       }
     });
     
@@ -767,7 +767,7 @@ app.post('/api/bookings', async (req, res) => {
             attendees: [{ email: attendee_email, displayName: attendee_name }],
           }
         );
-        console.log('✅ Calendar event created');
+        console.log('? Calendar event created');
       } catch (calError) {
         console.error('Failed to create calendar event:', calError);
       }
@@ -791,7 +791,7 @@ app.post('/api/bookings', async (req, res) => {
             hour12: true
           })
         });
-        console.log('✅ Confirmation email sent');
+        console.log('? Confirmation email sent');
       } catch (emailError) {
         console.error('Failed to send confirmation email:', emailError);
       }
@@ -808,7 +808,7 @@ app.post('/api/bookings', async (req, res) => {
   }
 });
 
-// ============ SERVE STATIC FILES (PRODUCTION) ============
+// ============ SERVE STATIC FILES (PRODUCTION) (PRODUCTION) ============
 
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, 'client', 'dist');
@@ -924,7 +924,7 @@ app.post('/api/suggest-slots', async (req, res) => {
 
     return res.json({ slots });
   } catch (err) {
-    console.error('❌ AI slot suggestion error:', err);
+    console.error('? AI slot suggestion error:', err);
     return res.status(500).json({ error: 'Failed to suggest slots' });
   }
 });
