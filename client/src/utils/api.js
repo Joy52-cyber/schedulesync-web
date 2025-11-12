@@ -16,10 +16,11 @@ api.interceptors.request.use((config) => {
 });
 
 export const auth = {
-  googleCallback: (code) => api.post('/auth/google', { code }),
+  googleLogin: (code) => api.post('/auth/google', { code }), // renamed here
   getCurrentUser: () => api.get('/auth/me'),
   logout: () => api.post('/auth/logout'),
 };
+
 
 export const analytics = {
   getStats: () => Promise.resolve({ totalUsers: 0, totalBookings: 0 }),
