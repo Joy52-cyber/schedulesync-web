@@ -38,12 +38,12 @@ export const teams = {
 };
 
 export const bookings = {
-  getAll: () => api.get('/bookings'),
-- getByToken: (token) => api.get(`/book/${token}`),
-+ getByToken: (token) => api.get(`/api/book/${token}`),
-  create: (data) => api.post('/bookings', data),
-  getAvailability: (token, date) => api.get(`/book/${token}/availability?date=${date}`),
+  getAll: () => api.get('/api/bookings'),
+  getByToken: (token) => api.get(`/api/book/${encodeURIComponent(token)}`), // <-- add /api
+  create: (data) => api.post('/api/bookings', data),
+  getAvailability: (token, date) => api.get(`/api/book/${encodeURIComponent(token)}/availability?date=${encodeURIComponent(date)}`),
 };
+
 
 
 export default api;
