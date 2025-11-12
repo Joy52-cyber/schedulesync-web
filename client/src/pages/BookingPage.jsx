@@ -33,60 +33,86 @@ export default function BookingPage() {
   const [error, setError] = useState('');
 
   // 1) Load booking context
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await bookings.getByToken(token);
-        setTeamInfo(res.data.team);
-        setMemberInfo(res.data.member);
-        
-        // If has external link, show choice screen
-        if (res.data.member?.external_booking_link) {
-          setStep('choice');
-        } else {
-          setStep('auth');
-        }
-      } catch (err) {
-        console.error('Error fetching team info:', err);
-        setError('Invalid or expired booking link.');
-        setStep('auth');
-      }
-    };
-    load();
-  }, [token]);
+ useEffect(() => {
+  const load = async () => {
+    try {
+      const res = await bookings.getByToken(token);
+      console.log('📦 Booking API response:', res.data); // keep this log
+
+      setTeamInfo(res.data.team);
+      setMemberInfo(res.data.member);
+
+-     // If has external link, show choice screen
+-     if (res.data.member?.external_booking_link) {
+-       setStep('choice');
+-     } else {
+-       setStep('auth');
+-     }
++     // Only set step if we are still loading
++     setStep(prev => {
++       if (prev !== 'loading') return prev; // prevent override
++       return res.data.member?.external_booking_link ? 'choice' : 'auth';
++     });
+    } catch (err) {
+      console.error('Error fetching team info:', err);
+      setError('Invalid or expired booking link.');
+      setStep('auth');
+    }
+  };
+  load();
+}, [token]);
+
 
   // 2) Handle Google redirect (?code=...)
-  useEffect(() => {
-    const code = searchParams.get('code');
-    if (!code || !token) return;
+  // Handle Google redirect (?code=...)
+useEffect(() => {
+  const code = searchParams.get('code');
+  if (!code || !token) return;
 
-    (async () => {
-      try {
-        setError('');
-        const resp = await fetch(
-          `${import.meta.env.VITE_API_URL || ''}/api/book/auth/google`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              code,
-              bookingToken: token,
-            }),
-          }
-        );
-        if (!resp.ok) {
-          throw new Error('Calendar connection failed');
+  (async () => {
+    try {
+      setError('');
+
+      // Debug: make sure envs are baked into the client build
+      console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
+
+      const resp = await fetch(
+        `${import.meta.env.VITE_API_URL || ''}/api/book/auth/google`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({ code, bookingToken: token }),
         }
+      );
 
-        await fetchAiSlots(token);
-        navigate(`/book/${token}`, { replace: true });
-      } catch (err) {
-        console.error('Guest Google auth failed:', err);
-        setError('Unable to connect your calendar. Please try again.');
-        setStep('auth');
+      // If server accidentally returns HTML (e.g., wrong URL or static fallback)
+      const ctype = resp.headers.get('content-type') || '';
+      if (!resp.ok) {
+        const text = await resp.text();
+        console.error('Auth POST failed:', resp.status, text);
+        throw new Error('Calendar connection failed');
       }
-    })();
-  }, [searchParams, token, navigate]);
+      if (!ctype.includes('application/json')) {
+        const text = await resp.text();
+        console.error('Expected JSON, got:', ctype, text);
+        throw new Error('Unexpected server response');
+      }
+
+      const json = await resp.json();
+      console.log('Auth success payload:', json);
+
+      await fetchAiSlots(token);
+      navigate(`/book/${token}`, { replace: true });
+    } catch (err) {
+      console.error('Guest Google auth failed:', err);
+      setError('Unable to connect your calendar. Please try again.');
+      setStep('auth');
+    }
+  })();
+}, [searchParams, token, navigate]);
 
   // 3) Fetch AI slots
   const fetchAiSlots = async (bookingToken) => {

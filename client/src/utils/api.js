@@ -24,6 +24,14 @@ export const auth = {
   logout: () => api.post('/auth/logout'),
 };
 
+export const calendar = {
+  get: () => Promise.resolve({}),
+};
+
+export const analytics = {
+  getStats: () => Promise.resolve({ totalUsers: 0, totalBookings: 0 }),
+};
+
 export const teams = {
   getAll: () => api.get('/teams'),
   create: (data) => api.post('/teams', data),
@@ -43,4 +51,5 @@ export const bookings = {
   getAvailability: (token, date) => api.get(`/book/${token}/availability?date=${date}`),
 };
 
+export { api };
 export default api;
