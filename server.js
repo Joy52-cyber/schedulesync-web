@@ -1,4 +1,4 @@
-require('dotenv').config();
+ï»¿require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
@@ -160,30 +160,39 @@ const authenticateToken = (req, res, next) => {
 
 // ============ AUTH ROUTES ============
 
-// ============ AUTH ROUTES ============
-
 // Google OAuth callback (final, env-first)
-app.get('/api/auth/google/callback', async (req, res) => {
-  const { code, state } = req.query;
-
-  // 1) detect booking flow
-  if (state && typeof state === 'string' && state.startsWith('booking:')) {
-    const bookingToken = state.split('booking:')[1];
-
-    // send user back to booking page with ?code=...
-    return res.redirect(
-      `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/book/${bookingToken}?code=${encodeURIComponent(code)}`
-    );
-  }
-
-  // 2) otherwise: NORMAL LOGIN FLOW (the one you already had before)
-  // you can keep your existing logic here, e.g. exchange code -> create/update user -> issue JWT -> redirect
+// Google OAuth callback (robust)
+app.post('/api/auth/google', async (req, res) => {
   try {
-    const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+    const { code, redirectUri: clientRedirect } = req.body || {};
+    if (!code) return res.status(400).json({ error: 'Missing authorization code' });
+
+    // 1) Choose redirect: ENV first, else client-provided
+    let finalRedirectUri = process.env.GOOGLE_REDIRECT_URI || clientRedirect;
+
+    // 2) If still missing, try to infer from FRONTEND_URL or request origin
+    if (!finalRedirectUri) {
+      const origin = process.env.FRONTEND_URL || req.headers.origin || '';
+      if (origin) finalRedirectUri = `${origin.replace(/\/+$/, '')}/login`;
+    }
+
+    // 3) As a safety, if the chosen redirect does NOT end with /login,
+    // normalize to /login on the same origin (prevents /callback mismatches).
+    try {
+      const u = new URL(finalRedirectUri);
+      if (!u.pathname.endsWith('/login')) {
+        finalRedirectUri = `${u.origin}/login`;
+      }
+    } catch (_) {
+      return res.status(400).json({ error: 'Invalid redirectUri' });
+    }
+
+    console.log('ðŸ” Using redirectUri for token exchange:', finalRedirectUri);
+
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      redirectUri
+      finalRedirectUri
     );
 
     const { tokens } = await oauth2Client.getToken(code);
@@ -192,7 +201,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const { data } = await oauth2.userinfo.get();
 
-    // upsert user (this is just a simple example – keep your own upsert)
+    // --- existing upsert user code below unchanged ---
     let userResult = await pool.query(
       'SELECT * FROM users WHERE google_id = $1 OR email = $2',
       [data.id, data.email]
@@ -210,7 +219,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
           data.name || '',
           tokens.access_token || null,
           tokens.refresh_token || null,
-          Boolean(tokens.refresh_token),
+          Boolean(tokens.refresh_token)
         ]
       );
       user = insert.rows[0];
@@ -232,76 +241,31 @@ app.get('/api/auth/google/callback', async (req, res) => {
           tokens.refresh_token || null,
           hasRefresh,
           data.name || '',
-          user.id,
+          user.id
         ]
       );
       user = update.rows[0];
     }
 
-    // issue JWT
-    const token = jwt.sign(
-      { id: user.id, email: user.email, name: user.name },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const JWT_SECRET = process.env.JWT_SECRET;
+    if (!JWT_SECRET) return res.status(500).json({ error: 'Server misconfigured: JWT_SECRET missing' });
 
-    // redirect to dashboard (or send JSON, up to you)
-    const frontend = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
-    return res.redirect(`${frontend}/dashboard?token=${token}`);
-  } catch (err) {
-    console.error('? Google OAuth callback error:', err?.response?.data || err);
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+
+    return res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        calendarSyncEnabled: user.calendar_sync_enabled
+      }
+    });
+  } catch (error) {
+    console.error('âŒ Google OAuth error:', error?.response?.data || error);
     return res.status(500).json({ error: 'Authentication failed' });
   }
 });
-
-
-// Google OAuth for GUEST (booking link) – exchange code + attach to team member
-app.post('/api/book/auth/google', async (req, res) => {
-  const { code, bookingToken } = req.body || {};
-
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
-  console.log('?? Using GOOGLE_REDIRECT_URI for booking:', redirectUri);
-
-  if (!code || !bookingToken) {
-    return res.status(400).json({ error: 'Missing code or booking token' });
-  }
-
-  if (!redirectUri) {
-    return res.status(500).json({ error: 'Server misconfigured: GOOGLE_REDIRECT_URI not set' });
-  }
-
-  try {
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      redirectUri
-    );
-
-    const { tokens } = await oauth2Client.getToken(code);
-    console.log('? Booking Google token exchange success:', {
-      hasAccess: !!tokens.access_token,
-      hasRefresh: !!tokens.refresh_token,
-    });
-
-    oauth2Client.setCredentials(tokens);
-
-    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-    const { data } = await oauth2.userinfo.get();
-
-    console.log('?? Google userinfo for booking:', {
-      id: data.id,
-      email: data.email,
-      name: data.name,
-    });
-
-    // for now just say it's ok — you can add the DB link later
-    return res.json({ success: true });
-  } catch (err) {
-    console.error('? Booking Google OAuth error:', err?.response?.data || err);
-    return res.status(500).json({ error: 'Failed to connect calendar for booking' });
-  }
-});
-
 
 
 // ============ TEAM ROUTES ============
