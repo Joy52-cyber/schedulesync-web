@@ -6,7 +6,8 @@ import Teams from './pages/Teams';
 import Bookings from './pages/Bookings';
 import BookingPage from './pages/BookingPage';
 import Layout from './components/Layout';
-import { api } from './utils/api';
+import api from './utils/api';
+
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

@@ -33,38 +33,42 @@ export default function BookingPage() {
   const [error, setError] = useState('');
 
   // 1) Load booking context
- useEffect(() => {
-  const load = async () => {
+useEffect(() => {
+  if (!token) return;
+
+  (async () => {
     try {
       const res = await bookings.getByToken(token);
-      console.log('📦 Booking API response:', res.data); // keep this log
 
-      setTeamInfo(res.data.team);
-      setMemberInfo(res.data.member);
+      console.log('📦 Raw booking API response:', res);
+      console.log('📦 Response data:', res.data);
 
--     // If has external link, show choice screen
--     if (res.data.member?.external_booking_link) {
--       setStep('choice');
--     } else {
--       setStep('auth');
--     }
-+     // Only set step if we are still loading
-+     setStep(prev => {
-+       if (prev !== 'loading') return prev; // prevent override
-+       return res.data.member?.external_booking_link ? 'choice' : 'auth';
-+     });
+      const { team, member } = res.data || {};
+      console.log('🔹 Team:', team);
+      console.log('🔹 Member:', member);
+      console.log('🔹 External link:', member?.external_booking_link);
+      console.log('🔹 Platform:', member?.external_booking_platform);
+
+      setTeamInfo(team || null);
+      setMemberInfo(member || null);
+
+      // Guard to prevent overwriting later
+      setStep(prev => {
+        const nextStep =
+          member?.external_booking_link && member.external_booking_link.trim() !== ''
+            ? 'choice'
+            : 'auth';
+        console.log(`🔹 Setting step: ${prev} → ${nextStep}`);
+        return prev !== 'loading' ? prev : nextStep;
+      });
     } catch (err) {
-      console.error('Error fetching team info:', err);
+      console.error('❌ Error fetching team info:', err);
       setError('Invalid or expired booking link.');
-      setStep('auth');
+      setStep('error');
     }
-  };
-  load();
+  })();
 }, [token]);
-
-
-  // 2) Handle Google redirect (?code=...)
-  // Handle Google redirect (?code=...)
+// Handle Google redirect (?code=...)
 useEffect(() => {
   const code = searchParams.get('code');
   if (!code || !token) return;
@@ -76,17 +80,14 @@ useEffect(() => {
       // Debug: make sure envs are baked into the client build
       console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
 
-      const resp = await fetch(
-        `${import.meta.env.VITE_API_URL || ''}/api/book/auth/google`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify({ code, bookingToken: token }),
-        }
-      );
+      const resp = await fetch(`${import.meta.env.VITE_API_URL}/book/auth/google`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ code, bookingToken: token }),
+      });
 
       // If server accidentally returns HTML (e.g., wrong URL or static fallback)
       const ctype = resp.headers.get('content-type') || '';
@@ -114,38 +115,38 @@ useEffect(() => {
   })();
 }, [searchParams, token, navigate]);
 
+
   // 3) Fetch AI slots
-  const fetchAiSlots = async (bookingToken) => {
-    try {
-      setStep('slots');
-      const resp = await fetch(
-        `${import.meta.env.VITE_API_URL || ''}/api/suggest-slots`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            bookingToken,
-            duration: 60,
-          }),
-        }
-      );
-      if (!resp.ok) throw new Error('Failed to get AI slots');
+const fetchAiSlots = async (bookingToken) => {
+  try {
+    setStep('slots');
+    const resp = await fetch(`${import.meta.env.VITE_API_URL}/suggest-slots`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bookingToken,
+        duration: 60,
+      }),
+    });
 
-      const data = await resp.json();
-      const slots = data.slots || [];
-      setAiSlots(slots);
+    if (!resp.ok) throw new Error('Failed to get AI slots');
 
-      if (slots.length > 0) {
-        setSelectedSlot(slots[0]);
-      }
+    const data = await resp.json();
+    const slots = data.slots || [];
+    setAiSlots(slots);
 
-      setStep('confirm');
-    } catch (err) {
-      console.error('AI slot error:', err);
-      setError('Failed to load AI slot suggestions. Try again.');
-      setStep('slots');
+    if (slots.length > 0) {
+      setSelectedSlot(slots[0]);
     }
-  };
+
+    setStep('confirm');
+  } catch (err) {
+    console.error('AI slot error:', err);
+    setError('Failed to load AI slot suggestions. Try again.');
+    setStep('slots');
+  }
+};
+
 
   // 4) Trigger Google OAuth (guest)
   const handleGoogleConnect = () => {

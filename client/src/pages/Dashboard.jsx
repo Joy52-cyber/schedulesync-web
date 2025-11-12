@@ -8,7 +8,8 @@ import {
   LinkIcon,
   Eye
 } from 'lucide-react';
-import { calendar, analytics } from '../utils/api';
+import { analytics } from '../utils/api';
+
 
 export default function Dashboard() {
   const [events, setEvents] = useState([]);

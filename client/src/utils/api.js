@@ -1,20 +1,17 @@
+// client/src/utils/api.js
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const clean = (u) => (u || '').replace(/\/+$/, ''); // strip trailing slashes
+const API_URL = clean(import.meta.env.VITE_API_URL); // should be .../api
 
 const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: API_URL, // e.g. https://.../api
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// Add token to requests if available
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
@@ -22,10 +19,6 @@ export const auth = {
   googleCallback: (code) => api.post('/auth/google', { code }),
   getCurrentUser: () => api.get('/auth/me'),
   logout: () => api.post('/auth/logout'),
-};
-
-export const calendar = {
-  get: () => Promise.resolve({}),
 };
 
 export const analytics = {
@@ -40,16 +33,17 @@ export const teams = {
   getMembers: (teamId) => api.get(`/teams/${teamId}/members`),
   addMember: (teamId, data) => api.post(`/teams/${teamId}/members`, data),
   removeMember: (teamId, memberId) => api.delete(`/teams/${teamId}/members/${memberId}`),
-  updateMemberExternalLink: (teamId, memberId, data) => 
+  updateMemberExternalLink: (teamId, memberId, data) =>
     api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
 };
 
 export const bookings = {
   getAll: () => api.get('/bookings'),
-  getByToken: (token) => api.get(`/book/${token}`),
+- getByToken: (token) => api.get(`/book/${token}`),
++ getByToken: (token) => api.get(`/api/book/${token}`),
   create: (data) => api.post('/bookings', data),
   getAvailability: (token, date) => api.get(`/book/${token}/availability?date=${date}`),
 };
 
-export { api };
+
 export default api;
