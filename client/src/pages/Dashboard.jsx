@@ -8,10 +8,11 @@ import {
   LinkIcon,
   Eye
 } from 'lucide-react';
-import { analytics } from '../utils/api';
-
+import { analytics, teams, bookings } from '../utils/api';
+import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [stats, setStats] = useState({ 
     totalBookings: 0, 
@@ -28,14 +29,47 @@ export default function Dashboard() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [eventsRes, analyticsRes] = await Promise.all([
-        calendar.getEvents(),
-        analytics.get()
+      
+      // Get teams and bookings data
+      const [teamsRes, bookingsRes] = await Promise.all([
+        teams.getAll().catch(() => ({ data: [] })),
+        bookings.getAll().catch(() => ({ data: [] }))
       ]);
-      setEvents(eventsRes.data.events || []);
-      setStats(analyticsRes.data);
+      
+      const teamsList = teamsRes.data || [];
+      const bookingsList = bookingsRes.data || [];
+      
+      // Calculate stats
+      const now = new Date();
+      const upcomingBookings = bookingsList.filter(
+        booking => new Date(booking.start_time) > now
+      ).length;
+      
+      // Count total team members
+      let totalMembers = 0;
+      teamsList.forEach(team => {
+        totalMembers += (team.members?.length || 1); // At least 1 (owner)
+      });
+      
+      setStats({
+        totalTeams: teamsList.length,
+        totalBookings: bookingsList.length,
+        upcomingBookings: upcomingBookings,
+        teamMembers: totalMembers
+      });
+      
+      // Set events (upcoming bookings)
+      setEvents(bookingsList.filter(booking => new Date(booking.start_time) > now));
+      
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      // Use default stats if API fails
+      setStats({ 
+        totalBookings: 0, 
+        upcomingBookings: 0, 
+        totalTeams: 0,
+        teamMembers: 0 
+      });
     } finally {
       setLoading(false);
     }
@@ -57,7 +91,7 @@ export default function Dashboard() {
       {/* Header */}
       <div>
         <h1 className="text-4xl font-bold text-gray-900 flex items-center gap-3">
-          Welcome back, User! <span className="text-4xl">👋</span>
+          Welcome back! <span className="text-4xl">👋</span>
         </h1>
         <p className="text-gray-600 text-lg mt-2">Here's what's happening with your schedule today</p>
       </div>
@@ -120,25 +154,37 @@ export default function Dashboard() {
       {/* Action Buttons Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Create Team Button */}
-        <button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-4 rounded-xl font-semibold shadow-md hover:shadow-xl transition-all flex items-center justify-center gap-3 text-lg">
+        <button 
+          onClick={() => navigate('/teams')}
+          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-4 rounded-xl font-semibold shadow-md hover:shadow-xl transition-all flex items-center justify-center gap-3 text-lg"
+        >
           <Plus className="h-6 w-6" />
           Create Team
         </button>
 
         {/* Set Availability Button */}
-        <button className="bg-white border-2 border-gray-300 text-gray-700 px-6 py-4 rounded-xl font-semibold hover:border-blue-500 hover:shadow-md transition-all flex items-center justify-center gap-3 text-lg">
+        <button 
+          onClick={() => navigate('/availability')}
+          className="bg-white border-2 border-gray-300 text-gray-700 px-6 py-4 rounded-xl font-semibold hover:border-blue-500 hover:shadow-md transition-all flex items-center justify-center gap-3 text-lg"
+        >
           <Clock className="h-6 w-6" />
           Set Availability
         </button>
 
         {/* View Bookings Button */}
-        <button className="bg-white border-2 border-gray-300 text-gray-700 px-6 py-4 rounded-xl font-semibold hover:border-blue-500 hover:shadow-md transition-all flex items-center justify-center gap-3 text-lg">
+        <button 
+          onClick={() => navigate('/bookings')}
+          className="bg-white border-2 border-gray-300 text-gray-700 px-6 py-4 rounded-xl font-semibold hover:border-blue-500 hover:shadow-md transition-all flex items-center justify-center gap-3 text-lg"
+        >
           <Eye className="h-6 w-6" />
           View Bookings
         </button>
 
         {/* Connect Calendar Button */}
-        <button className="bg-white border-2 border-gray-300 text-gray-700 px-6 py-4 rounded-xl font-semibold hover:border-blue-500 hover:shadow-md transition-all flex items-center justify-center gap-3 text-lg">
+        <button 
+          onClick={() => navigate('/settings')}
+          className="bg-white border-2 border-gray-300 text-gray-700 px-6 py-4 rounded-xl font-semibold hover:border-blue-500 hover:shadow-md transition-all flex items-center justify-center gap-3 text-lg"
+        >
           <LinkIcon className="h-6 w-6" />
           Connect Calendar
         </button>

@@ -1,61 +1,91 @@
 ﻿// client/src/utils/api.js
+// BULLETPROOF VERSION - Works with all bundlers
 import axios from 'axios';
 
-const clean = (u) => (u || '').replace(/\/+$/, ''); // strip trailing slashes
+// Determine API URL
+const API_BASE = import.meta.env.VITE_API_URL || 
+  (window.location.hostname === 'localhost' 
+    ? 'http://localhost:3000/api'
+    : `${window.location.origin}/api`);
 
-// VITE_API_URL should be https://schedulesync-web-production.up.railway.app/api
-const API_URL = clean(import.meta.env.VITE_API_URL);
+// Remove any trailing slashes and ensure /api is not doubled
+const API_URL = API_BASE.replace(/\/+$/, '').replace(/\/api\/api/, '/api');
 
-const api = axios.create({
-  baseURL: API_URL, // e.g. https://.../api
-  headers: { 'Content-Type': 'application/json' },
+// Create axios instance
+const apiClient = axios.create({
+  baseURL: API_URL,
+  headers: { 
+    'Content-Type': 'application/json' 
+  },
 });
 
-api.interceptors.request.use((config) => {
+// Add auth interceptor
+apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
-// 🔹 Export googleLogin as a standalone function AND inside auth
-export const googleLogin = (codeOrPayload) => {
-  const payload = typeof codeOrPayload === 'string'
-    ? { code: codeOrPayload, redirectUri: window.location.origin + '/login' }
-    : codeOrPayload;
-  return api.post('/auth/google', payload);
-};
+// ============================================
+// CRITICAL: Define googleLogin as standalone function first
+// This ensures it's always available for import
+// ============================================
+function googleLogin(codeOrPayload) {
+  let payload;
+  
+  if (typeof codeOrPayload === 'string') {
+    payload = { 
+      code: codeOrPayload,
+      redirectUri: `${window.location.origin}/login`
+    };
+  } else {
+    payload = codeOrPayload;
+  }
+  
+  return apiClient.post('/auth/google', payload);
+}
 
+// Export the function directly
+export { googleLogin };
+
+// Also include in auth object for backwards compatibility
 export const auth = {
-  googleLogin, // still available as auth.googleLogin
-  getCurrentUser: () => api.get('/auth/me'),
-  logout: () => api.post('/auth/logout'),
-};
-
-export const analytics = {
-  getStats: () => Promise.resolve({ totalUsers: 0, totalBookings: 0 }),
+  googleLogin,
+  getCurrentUser: () => apiClient.get('/auth/me'),
+  logout: () => apiClient.post('/auth/logout'),
 };
 
 export const teams = {
-  getAll: () => api.get('/teams'),
-  create: (data) => api.post('/teams', data),
-  update: (id, data) => api.put(`/teams/${id}`, data),  // FIXED: Added parentheses
-  delete: (id) => api.delete(`/teams/${id}`),  // FIXED: Added parentheses
-  getMembers: (teamId) => api.get(`/teams/${teamId}/members`),  // FIXED: Added parentheses
-  addMember: (teamId, data) => api.post(`/teams/${teamId}/members`, data),  // FIXED: Added parentheses
-  removeMember: (teamId, memberId) => api.delete(`/teams/${teamId}/members/${memberId}`),  // FIXED: Added parentheses
-  updateMemberExternalLink: (teamId, memberId, data) =>
-    api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),  // FIXED: Added parentheses
+  getAll: () => apiClient.get('/teams'),
+  create: (data) => apiClient.post('/teams', data),
+  update: (id, data) => apiClient.put(`/teams/${id}`, data),
+  delete: (id) => apiClient.delete(`/teams/${id}`),
+  getMembers: (teamId) => apiClient.get(`/teams/${teamId}/members`),
+  addMember: (teamId, data) => apiClient.post(`/teams/${teamId}/members`, data),
+  removeMember: (teamId, memberId) => apiClient.delete(`/teams/${teamId}/members/${memberId}`),
+  updateMemberExternalLink: (teamId, memberId, data) => 
+    apiClient.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
 };
 
-// ⚠️ baseURL already includes /api, so don't prefix these with /api again
 export const bookings = {
-  getAll: () => api.get('/bookings'),
-  getByToken: (token) => api.get(`/book/${encodeURIComponent(token)}`),  // FIXED: Added parentheses
-  create: (data) => api.post('/bookings', data),
-  getAvailability: (token, date) =>
-    api.get(`/book/${encodeURIComponent(token)}/availability`, {  // FIXED: Added parentheses
-      params: { date },
+  getAll: () => apiClient.get('/bookings'),
+  getByToken: (token) => apiClient.get(`/book/${encodeURIComponent(token)}`),
+  create: (data) => apiClient.post('/bookings', data),
+  getAvailability: (token, date) => 
+    apiClient.get(`/book/${encodeURIComponent(token)}/availability`, { 
+      params: { date } 
     }),
 };
 
+export const analytics = {
+  getStats: () => Promise.resolve({ 
+    totalUsers: 0, 
+    totalBookings: 0 
+  }),
+};
+
+// Default export the axios instance
+const api = apiClient;
 export default api;
