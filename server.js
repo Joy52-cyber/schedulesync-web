@@ -171,6 +171,42 @@ app.post('/api/book/auth/google', async (req, res) => {
       return res.status(400).json({ error: 'Missing booking token' });
     }
 
+     const { tokens } = await oauth2Client.getToken(code);
+    oauth2Client.setCredentials(tokens);
+
+    // Get user info
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+    const { data: userInfo } = await oauth2.userinfo.get();
+
+    // Check scopes
+    const grantedScopes = tokens.scope || '';
+    const hasCalendarAccess = grantedScopes.includes('calendar.readonly');
+
+    console.log('✅ Guest OAuth successful:', {
+      email: userInfo.email,
+      name: userInfo.name,
+      hasCalendarAccess,
+    });
+
+    // ✅ RETURN TOKENS (NEW)
+    res.json({
+      success: true,
+      email: userInfo.email,
+      name: userInfo.name,
+      hasCalendarAccess,
+      accessToken: tokens.access_token,  // ← ADD THIS
+      refreshToken: tokens.refresh_token,  // ← ADD THIS
+    });
+
+  } catch (error) {
+    console.error('❌ Guest OAuth error:', error);
+    res.status(500).json({ 
+      error: 'Authentication failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
     // Verify the booking token is valid
     const memberCheck = await pool.query(
       'SELECT * FROM team_members WHERE booking_token = $1',
@@ -180,6 +216,7 @@ app.post('/api/book/auth/google', async (req, res) => {
     if (memberCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Invalid booking token' });
     }
+
 
     // ✅ Use the SINGLE callback URL
     const redirectUri = `${process.env.FRONTEND_URL}/oauth/callback`;
@@ -828,13 +865,18 @@ if (process.env.NODE_ENV === 'production') {
 // ============ AI SLOT SUGGESTIONS (public, for booking) ============
 app.post('/api/suggest-slots', async (req, res) => {
   try {
-    const { bookingToken, duration = 60 } = req.body || {};
+    const { 
+      bookingToken, 
+      duration = 60,
+      guestBusy = [],  // ← NEW
+      organizerBusy = []  // ← NEW
+    } = req.body;
 
     if (!bookingToken) {
       return res.status(400).json({ error: 'bookingToken is required' });
     }
 
-    // 1) find the team member + their connected user
+    // Get team member info
     const memberResult = await pool.query(
       `SELECT tm.*, u.google_access_token, u.google_refresh_token, u.calendar_sync_enabled
        FROM team_members tm
@@ -849,61 +891,41 @@ app.post('/api/suggest-slots', async (req, res) => {
 
     const member = memberResult.rows[0];
 
-    // 2) if we have Google tokens, try to get real availability
-    let slots = [];
-    if (
-      getAvailableSlots &&
-      member.calendar_sync_enabled &&
-      (member.google_refresh_token || member.google_access_token)
-    ) {
-      // suggest for "today" and "tomorrow"
-      const today = new Date();
-      const day1 = today.toISOString().split('T')[0];
+    // Generate potential slots
+    const slots = [];
+    const today = new Date();
+    
+    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() + dayOffset);
+      date.setHours(9, 0, 0, 0);
 
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const day2 = tomorrow.toISOString().split('T')[0];
-
-      const all = [];
-
-      // day 1
-      const d1 = await getAvailableSlots(
-        member.google_access_token,
-        member.google_refresh_token,
-        day1,
-        duration
-      );
-      all.push(...d1);
-
-      // day 2
-      const d2 = await getAvailableSlots(
-        member.google_access_token,
-        member.google_refresh_token,
-        day2,
-        duration
-      );
-      all.push(...d2);
-
-      // take first 10 and add fake match %
-      slots = all.slice(0, 10).map((s, idx) => ({
-        ...s,
-        match: 1 - idx * 0.05, // just descending confidence
-      }));
-    } else {
-      // 3) fallback: generic slots for tomorrow
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
-      const generic = [];
       for (let hour = 9; hour < 17; hour++) {
-        const start = new Date(tomorrow);
+        const start = new Date(date);
         start.setHours(hour, 0, 0, 0);
         const end = new Date(start);
         end.setMinutes(end.getMinutes() + duration);
 
-        generic.push({
-          start: start.toISOString(),
-          end: end.toISOString(),
+        if (end.getHours() >= 17) continue;
+        if (start < new Date()) continue;
+
+        // ✅ CHECK IF SLOT CONFLICTS WITH BUSY TIMES
+        const startTime = start.toISOString();
+        const endTime = end.toISOString();
+
+        const hasConflict = [...guestBusy, ...organizerBusy].some(busy => {
+          return (
+            (startTime >= busy.start && startTime < busy.end) ||
+            (endTime > busy.start && endTime <= busy.end) ||
+            (startTime <= busy.start && endTime >= busy.end)
+          );
+        });
+
+        if (hasConflict) continue;  // Skip this slot
+
+        slots.push({
+          start: startTime,
+          end: endTime,
           startTime: start.toLocaleTimeString('en-US', {
             hour: '2-digit',
             minute: '2-digit',
@@ -912,17 +934,22 @@ app.post('/api/suggest-slots', async (req, res) => {
             hour: '2-digit',
             minute: '2-digit',
           }),
-          match: 0.6,
         });
       }
-
-      slots = generic.slice(0, 10);
     }
 
-    return res.json({ slots });
-  } catch (err) {
-    console.error('? AI slot suggestion error:', err);
-    return res.status(500).json({ error: 'Failed to suggest slots' });
+    const slotsWithScores = slots.slice(0, 10).map((slot, idx) => ({
+      ...slot,
+      match: 0.90 - idx * 0.05,  // Higher match scores for mutual availability
+    }));
+
+    console.log(`✅ Generated ${slotsWithScores.length} mutual slots`);
+
+    res.json({ slots: slotsWithScores });
+
+  } catch (error) {
+    console.error('❌ AI slot suggestion error:', error);
+    res.status(500).json({ error: 'Failed to suggest slots' });
   }
 });
 
