@@ -302,6 +302,80 @@ app.delete('/api/teams/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// ============ GUEST FREEBUSY (for mutual availability) ============
+
+app.post('/api/book/:token/freebusy', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { guestAccessToken, startDate, endDate } = req.body;
+
+    if (!guestAccessToken) {
+      return res.status(400).json({ error: 'Guest access token required' });
+    }
+
+    // Get organizer info
+    const memberResult = await pool.query(
+      `SELECT tm.*, u.google_access_token, u.google_refresh_token
+       FROM team_members tm
+       LEFT JOIN users u ON tm.user_id = u.id
+       WHERE tm.booking_token = $1`,
+      [token]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    const member = memberResult.rows[0];
+
+    // Get guest's free/busy
+    const guestCalendar = google.calendar({ version: 'v3' });
+    const guestAuth = new google.auth.OAuth2();
+    guestAuth.setCredentials({ access_token: guestAccessToken });
+
+    const guestFreeBusy = await guestCalendar.freebusy.query({
+      auth: guestAuth,
+      requestBody: {
+        timeMin: startDate,
+        timeMax: endDate,
+        items: [{ id: 'primary' }],
+      },
+    });
+
+    // Get organizer's free/busy
+    const organizerAuth = new google.auth.OAuth2();
+    organizerAuth.setCredentials({ 
+      access_token: member.google_access_token 
+    });
+
+    const organizerFreeBusy = await guestCalendar.freebusy.query({
+      auth: organizerAuth,
+      requestBody: {
+        timeMin: startDate,
+        timeMax: endDate,
+        items: [{ id: 'primary' }],
+      },
+    });
+
+    const guestBusy = guestFreeBusy.data.calendars.primary.busy || [];
+    const organizerBusy = organizerFreeBusy.data.calendars.primary.busy || [];
+
+    console.log('📅 Guest busy times:', guestBusy.length);
+    console.log('📅 Organizer busy times:', organizerBusy.length);
+
+    res.json({
+      guestBusy,
+      organizerBusy,
+      mutualAvailability: true,
+    });
+
+  } catch (error) {
+    console.error('❌ FreeBusy error:', error);
+    res.status(500).json({ error: 'Failed to get calendar data' });
+  }
+});
+
+
 // ============ TEAM MEMBER ROUTES ============
 
 // Get team members
