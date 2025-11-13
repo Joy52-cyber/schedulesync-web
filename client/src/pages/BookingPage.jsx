@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -70,50 +70,62 @@ export default function BookingPageUnified() {
 
   // 2) Handle OAuth redirect
   useEffect(() => {
-  // Check if returning from OAuth
-  const oauthSuccess = searchParams.get('oauth');
-  const provider = searchParams.get('provider');
+    const code = searchParams.get('code');
+    const provider = searchParams.get('state')?.includes('microsoft') ? 'microsoft' : 'google';
 
-  if (oauthSuccess === 'success' && provider) {
-    // Retrieve auth state from navigation state
-    const navState = window.history.state?.usr?.guestAuth;
-    
-    if (navState) {
-      setGuestAuth(navState);
-      
-      setFormData((prev) => ({
-        ...prev,
-        attendee_name: navState.name || prev.attendee_name,
-        attendee_email: navState.email || prev.attendee_email,
-      }));
+    if (!code || !token) return;
 
-      console.log(`✅ Guest authenticated via ${provider}`);
+    (async () => {
+      try {
+        setError('');
+        console.log(`🔐 Processing ${provider} OAuth callback...`);
 
-      // Fetch slots if calendar access granted
-      if (navState.hasCalendarAccess) {
-        fetchAiSlots(token, true);
+        // Call backend to exchange code for tokens
+        const resp = await fetch(`${import.meta.env.VITE_API_URL}/api/book/auth/${provider}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({ code, bookingToken: token }),
+        });
+
+        if (!resp.ok) throw new Error('Calendar connection failed');
+
+        const data = await resp.json();
+        
+        setGuestAuth({
+          signedIn: true,
+          hasCalendarAccess: data.hasCalendarAccess || false,
+          provider: provider,
+          email: data.email || '',
+          name: data.name || '',
+        });
+
+        setFormData((prev) => ({
+          ...prev,
+          attendee_name: data.name || prev.attendee_name,
+          attendee_email: data.email || prev.attendee_email,
+        }));
+
+        console.log(`✅ Guest authenticated via ${provider}`);
+
+        navigate(`/book/${token}`, { replace: true });
+
+        // Fetch slots with calendar access
+        if (data.hasCalendarAccess) {
+          await fetchAiSlots(token, true);
+        }
+
+        // Move to form
+        setStep('form');
+      } catch (err) {
+        console.error('❌ OAuth failed:', err);
+        setError('Unable to connect your calendar. Please try again.');
+        setStep('calendar-choice');
       }
-
-      // Clean URL
-      navigate(`/book/${token}`, { replace: true });
-    }
-  }
-}, [searchParams, token, navigate]);
-```
-
----
-
-## 📁 File Structure Summary
-
-After these changes, you'll have:
-```
-client/src/
-├── pages/
-│   ├── BookingPage.jsx          (updated)
-│   ├── OAuthCallback.jsx        (new)
-│   └── Login.jsx
-├── App.jsx                      (updated - add route)
-└── ...
+    })();
+  }, [searchParams, token, navigate]);
 
   // 3) Fetch AI slots
   const fetchAiSlots = async (bookingToken, includeMutualAvailability = false) => {
@@ -147,27 +159,29 @@ client/src/
   };
 
   // 4) Trigger OAuth (Google or Microsoft)
- const handleCalendarConnect = (provider) => {
-  if (provider === 'google') {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    const redirectUri = `${window.location.origin}/oauth/callback`;  // ✅ NEW
-    const scope = 'openid email profile https://www.googleapis.com/auth/calendar.readonly';
+  const handleCalendarConnect = (provider) => {
+    if (provider === 'google') {
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+      const redirectUri = `${window.location.origin}/book/${token}`;
+      const scope = 'openid email profile https://www.googleapis.com/auth/calendar.readonly';
 
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: 'code',
-      scope: scope,
-      access_type: 'offline',
-      prompt: 'consent',
-      state: `booking:${token}`,  // ✅ Store token in state parameter
-    });
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: scope,
+        access_type: 'offline',
+        prompt: 'consent',
+        state: `booking:${token}:google`,
+      });
 
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-  } else if (provider === 'microsoft') {
-    alert('Microsoft Calendar integration coming soon!');
-  }
-};
+      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    } else if (provider === 'microsoft') {
+      // Microsoft OAuth flow (similar pattern)
+      alert('Microsoft Calendar integration coming soon!');
+      // TODO: Implement Microsoft OAuth
+    }
+  };
 
   // 5) Skip calendar connection
   const handleSkipConnection = () => {
