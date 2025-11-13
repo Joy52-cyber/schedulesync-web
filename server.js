@@ -159,19 +159,39 @@ const authenticateToken = (req, res, next) => {
 };
 
 // ============ AUTH ROUTES ============
+// ============ AUTH ROUTES ============
 app.post('/api/book/auth/google', async (req, res) => {
   try {
     const { code, bookingToken } = req.body;
-
+    
     if (!code) {
       return res.status(400).json({ error: 'Missing authorization code' });
     }
-
+    
     if (!bookingToken) {
       return res.status(400).json({ error: 'Missing booking token' });
     }
 
-     const { tokens } = await oauth2Client.getToken(code);
+    // ✅ VERIFY BOOKING TOKEN (moved inside try block)
+    const memberCheck = await pool.query(
+      'SELECT * FROM team_members WHERE booking_token = $1',
+      [bookingToken]
+    );
+
+    if (memberCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    // ✅ EXCHANGE CODE FOR TOKENS
+    const redirectUri = `${process.env.FRONTEND_URL}/oauth/callback`;
+    
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      redirectUri
+    );
+
+    const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
     // Get user info
@@ -188,14 +208,14 @@ app.post('/api/book/auth/google', async (req, res) => {
       hasCalendarAccess,
     });
 
-    // ✅ RETURN TOKENS (NEW)
+    // ✅ RETURN TOKENS
     res.json({
       success: true,
       email: userInfo.email,
       name: userInfo.name,
       hasCalendarAccess,
-      accessToken: tokens.access_token,  // ← ADD THIS
-      refreshToken: tokens.refresh_token,  // ← ADD THIS
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
     });
 
   } catch (error) {
