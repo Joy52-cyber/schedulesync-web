@@ -159,113 +159,72 @@ const authenticateToken = (req, res, next) => {
 };
 
 // ============ AUTH ROUTES ============
-
-// Google OAuth callback (final, env-first)
-// Google OAuth callback (robust)
-app.post('/api/auth/google', async (req, res) => {
+app.post('/api/book/auth/google', async (req, res) => {
   try {
-    const { code, redirectUri: clientRedirect } = req.body || {};
-    if (!code) return res.status(400).json({ error: 'Missing authorization code' });
+    const { code, bookingToken } = req.body;
 
-    // 1) Choose redirect: ENV first, else client-provided
-    let finalRedirectUri = process.env.GOOGLE_REDIRECT_URI || clientRedirect;
-
-    // 2) If still missing, try to infer from FRONTEND_URL or request origin
-    if (!finalRedirectUri) {
-      const origin = process.env.FRONTEND_URL || req.headers.origin || '';
-      if (origin) finalRedirectUri = `${origin.replace(/\/+$/, '')}/login`;
+    if (!code) {
+      return res.status(400).json({ error: 'Missing authorization code' });
     }
 
-    // 3) As a safety, if the chosen redirect does NOT end with /login,
-    // normalize to /login on the same origin (prevents /callback mismatches).
-    try {
-      const u = new URL(finalRedirectUri);
-      if (!u.pathname.endsWith('/login')) {
-        finalRedirectUri = `${u.origin}/login`;
-      }
-    } catch (_) {
-      return res.status(400).json({ error: 'Invalid redirectUri' });
+    if (!bookingToken) {
+      return res.status(400).json({ error: 'Missing booking token' });
     }
 
-    console.log('🔐 Using redirectUri for token exchange:', finalRedirectUri);
+    // Verify the booking token is valid
+    const memberCheck = await pool.query(
+      'SELECT * FROM team_members WHERE booking_token = $1',
+      [bookingToken]
+    );
 
+    if (memberCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    // ✅ Use the SINGLE callback URL
+    const redirectUri = `${process.env.FRONTEND_URL}/oauth/callback`;
+    
+    console.log('🔐 OAuth redirect URI:', redirectUri);
+    
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      finalRedirectUri
+      redirectUri  // ✅ Single URL, no wildcards
     );
 
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
+    // Get user info
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-    const { data } = await oauth2.userinfo.get();
+    const { data: userInfo } = await oauth2.userinfo.get();
 
-    // --- existing upsert user code below unchanged ---
-    let userResult = await pool.query(
-      'SELECT * FROM users WHERE google_id = $1 OR email = $2',
-      [data.id, data.email]
-    );
+    // Check what scopes were granted
+    const grantedScopes = tokens.scope || '';
+    const hasCalendarAccess = grantedScopes.includes('calendar.readonly');
 
-    let user;
-    if (userResult.rows.length === 0) {
-      const insert = await pool.query(
-        `INSERT INTO users (google_id, email, name, google_access_token, google_refresh_token, calendar_sync_enabled)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING *`,
-        [
-          data.id,
-          data.email,
-          data.name || '',
-          tokens.access_token || null,
-          tokens.refresh_token || null,
-          Boolean(tokens.refresh_token)
-        ]
-      );
-      user = insert.rows[0];
-    } else {
-      user = userResult.rows[0];
-      const hasRefresh = Boolean(tokens.refresh_token || user.google_refresh_token);
-      const update = await pool.query(
-        `UPDATE users 
-         SET google_id = COALESCE(google_id, $1),
-             google_access_token = $2,
-             google_refresh_token = COALESCE($3, google_refresh_token),
-             calendar_sync_enabled = $4,
-             name = COALESCE($5, name)
-         WHERE id = $6
-         RETURNING *`,
-        [
-          data.id,
-          tokens.access_token || null,
-          tokens.refresh_token || null,
-          hasRefresh,
-          data.name || '',
-          user.id
-        ]
-      );
-      user = update.rows[0];
-    }
-
-    const JWT_SECRET = process.env.JWT_SECRET;
-    if (!JWT_SECRET) return res.status(500).json({ error: 'Server misconfigured: JWT_SECRET missing' });
-
-    const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-
-    return res.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        calendarSyncEnabled: user.calendar_sync_enabled
-      }
+    console.log('✅ Guest OAuth successful:', {
+      email: userInfo.email,
+      name: userInfo.name,
+      hasCalendarAccess,
     });
+
+    res.json({
+      success: true,
+      email: userInfo.email,
+      name: userInfo.name,
+      hasCalendarAccess,
+    });
+
   } catch (error) {
-    console.error('❌ Google OAuth error:', error?.response?.data || error);
-    return res.status(500).json({ error: 'Authentication failed' });
+    console.error('❌ Guest OAuth error:', error);
+    res.status(500).json({ 
+      error: 'Authentication failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
+
 
 
 // ============ TEAM ROUTES ============

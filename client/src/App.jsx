@@ -7,6 +7,7 @@ import Bookings from './pages/Bookings';
 import BookingPage from './pages/BookingPage';
 import Layout from './components/Layout';
 import api from './utils/api';
+import OAuthCallback from './pages/OAuthCallback';
 
 
 function App() {
@@ -105,6 +106,19 @@ function App() {
           element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />}
         />
       </Routes>
+      import OAuthCallback from './pages/OAuthCallback';
+
+// Inside your Routes:
+<Routes>
+  {/* Existing routes */}
+  <Route path="/login" element={<Login onLogin={handleLogin} />} />
+  <Route path="/book/:token" element={<BookingPage />} />
+  
+  {/* NEW: OAuth callback route */}
+  <Route path="/oauth/callback" element={<OAuthCallback />} />
+  
+  {/* Other routes */}
+</Routes>
     </BrowserRouter>
   );
 }
