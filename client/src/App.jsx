@@ -5,17 +5,15 @@ import Dashboard from './pages/Dashboard';
 import Teams from './pages/Teams';
 import Bookings from './pages/Bookings';
 import BookingPage from './pages/BookingPage';
+import OAuthCallback from './pages/OAuthCallback';
 import Layout from './components/Layout';
 import api from './utils/api';
-import OAuthCallback from './pages/OAuthCallback';
-
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Check auth on mount
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -55,7 +53,6 @@ function App() {
     setIsAuthenticated(false);
   };
 
-  // Show loading screen while checking auth
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
@@ -82,7 +79,8 @@ function App() {
           }
         />
         <Route path="/book/:token" element={<BookingPage />} />
-
+        <Route path="/oauth/callback" element={<OAuthCallback />} />
+        
         {/* Protected Routes */}
         <Route
           path="/"
@@ -99,26 +97,13 @@ function App() {
           <Route path="teams" element={<Teams />} />
           <Route path="bookings" element={<Bookings />} />
         </Route>
-
-        {/* Catch all - redirect based on auth */}
+        
+        {/* Catch all */}
         <Route
           path="*"
           element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />}
         />
       </Routes>
-      import OAuthCallback from './pages/OAuthCallback';
-
-// Inside your Routes:
-<Routes>
-  {/* Existing routes */}
-  <Route path="/login" element={<Login onLogin={handleLogin} />} />
-  <Route path="/book/:token" element={<BookingPage />} />
-  
-  {/* NEW: OAuth callback route */}
-  <Route path="/oauth/callback" element={<OAuthCallback />} />
-  
-  {/* Other routes */}
-</Routes>
     </BrowserRouter>
   );
 }
