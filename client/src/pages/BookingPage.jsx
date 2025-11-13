@@ -162,7 +162,7 @@ export default function BookingPageUnified() {
   const handleCalendarConnect = (provider) => {
     if (provider === 'google') {
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-      const redirectUri = `${window.location.origin}/book/${token}`;
+     const redirectUri = `${window.location.origin}/oauth/callback`;
       const scope = 'openid email profile https://www.googleapis.com/auth/calendar.readonly';
 
       const params = new URLSearchParams({
