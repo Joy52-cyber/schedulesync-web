@@ -52,9 +52,12 @@ export default function BookingPageUnified() {
 
   (async () => {
     try {
-    const res = await bookings.getByToken(token);
-const data = res.data || res;  // Handle both cases
-const { team, member } = data || {};  
+      const res = await bookings.getByToken(token);
+      
+      console.log('🔍 FULL res object:', res);
+      console.log('🔍 res.data:', res.data);
+      
+      const { team, member } = res.data || {};  // ← KEEP .data here!
 
       console.log('🔍 API Response - Team:', team);
       console.log('🔍 API Response - Member:', member);
