@@ -1,12 +1,12 @@
-﻿import { useState, useEffect, useRef } from 'react';
+﻿// client/src/pages/Login.jsx
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Loader2, Calendar } from 'lucide-react';
-import { auth } from '../utils/api';
+import { googleLogin } from '../utils/api';
 
 export default function Login({ onLogin }) {
   const navigate = useNavigate();
 
-  // This must match what's registered in Google console
   const redirectUri = `${window.location.origin}/login`;
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -26,7 +26,6 @@ export default function Login({ onLogin }) {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
 
-    // No code → make sure spinner is off
     if (!code) {
       setProcessingOAuth(false);
       sessionStorage.removeItem('processing-oauth');
@@ -45,8 +44,8 @@ export default function Login({ onLogin }) {
 
     (async () => {
       try {
-        // IMPORTANT: send ONLY the code (original API shape)
-        const response = await auth.googleLogin(code);
+        // ✅ Call the top-level export directly
+        const response = await googleLogin(code);
 
         onLogin(response.data.token, response.data.user);
 
@@ -86,12 +85,10 @@ export default function Login({ onLogin }) {
       response_type: 'code',
       scope: 'openid email profile https://www.googleapis.com/auth/calendar.readonly',
       access_type: 'offline',
-      include_granted_scopes: 'true'
+      include_granted_scopes: 'true',
     });
 
-    if (firstTime) {
-      params.set('prompt', 'consent');
-    }
+    if (firstTime) params.set('prompt', 'consent');
 
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   };
@@ -112,6 +109,7 @@ export default function Login({ onLogin }) {
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
       <div className="w-full max-w-md animate-fadeIn">
         <div className="bg-white rounded-3xl shadow-2xl px-10 py-12">
+          {/* Header */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl mb-4 shadow-lg">
               <Calendar className="h-10 w-10 text-white" />
@@ -120,6 +118,7 @@ export default function Login({ onLogin }) {
             <p className="text-gray-500 text-lg">Welcome back!</p>
           </div>
 
+          {/* Google OAuth */}
           <div className="mb-6">
             <button
               onClick={handleGoogleLogin}
@@ -142,6 +141,7 @@ export default function Login({ onLogin }) {
             </button>
           </div>
 
+          {/* Divider */}
           <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300"></div>
@@ -151,12 +151,14 @@ export default function Login({ onLogin }) {
             </div>
           </div>
 
+          {/* Error */}
           {error && (
             <div className="mb-5 p-3 bg-red-50 border border-red-200 rounded-xl animate-fadeIn">
               <p className="text-sm text-red-600 text-center">{error}</p>
             </div>
           )}
 
+          {/* Email form (placeholder) */}
           <form onSubmit={handleEmailLogin} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>

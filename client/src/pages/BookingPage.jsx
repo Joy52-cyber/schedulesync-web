@@ -69,6 +69,7 @@ useEffect(() => {
   })();
 }, [token]);
 // Handle Google redirect (?code=...)
+// 2) Handle Google redirect (?code=...)
 useEffect(() => {
   const code = searchParams.get('code');
   if (!code || !token) return;
@@ -76,11 +77,9 @@ useEffect(() => {
   (async () => {
     try {
       setError('');
-
-      // Debug: make sure envs are baked into the client build
       console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
 
-      const resp = await fetch(`${import.meta.env.VITE_API_URL}/book/auth/google`, {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL}/api/book/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -89,22 +88,17 @@ useEffect(() => {
         body: JSON.stringify({ code, bookingToken: token }),
       });
 
-      // If server accidentally returns HTML (e.g., wrong URL or static fallback)
       const ctype = resp.headers.get('content-type') || '';
       if (!resp.ok) {
-        const text = await resp.text();
-        console.error('Auth POST failed:', resp.status, text);
+        console.error('Auth POST failed:', resp.status, await resp.text());
         throw new Error('Calendar connection failed');
       }
       if (!ctype.includes('application/json')) {
-        const text = await resp.text();
-        console.error('Expected JSON, got:', ctype, text);
+        console.error('Expected JSON, got:', ctype, await resp.text());
         throw new Error('Unexpected server response');
       }
 
-      const json = await resp.json();
-      console.log('Auth success payload:', json);
-
+      await resp.json(); // not used, just validating
       await fetchAiSlots(token);
       navigate(`/book/${token}`, { replace: true });
     } catch (err) {
@@ -116,17 +110,16 @@ useEffect(() => {
 }, [searchParams, token, navigate]);
 
 
+
   // 3) Fetch AI slots
-const fetchAiSlots = async (bookingToken) => {
+  const fetchAiSlots = async (bookingToken) => {
   try {
     setStep('slots');
-    const resp = await fetch(`${import.meta.env.VITE_API_URL}/suggest-slots`, {
+
+    const resp = await fetch(`${import.meta.env.VITE_API_URL}/api/suggest-slots`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        bookingToken,
-        duration: 60,
-      }),
+      body: JSON.stringify({ bookingToken, duration: 60 }),
     });
 
     if (!resp.ok) throw new Error('Failed to get AI slots');
@@ -134,10 +127,7 @@ const fetchAiSlots = async (bookingToken) => {
     const data = await resp.json();
     const slots = data.slots || [];
     setAiSlots(slots);
-
-    if (slots.length > 0) {
-      setSelectedSlot(slots[0]);
-    }
+    if (slots.length > 0) setSelectedSlot(slots[0]);
 
     setStep('confirm');
   } catch (err) {
