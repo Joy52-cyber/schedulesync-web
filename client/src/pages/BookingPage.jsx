@@ -47,26 +47,30 @@ export default function BookingPageUnified() {
   const [error, setError] = useState('');
 
   // 1) Load booking context
-  useEffect(() => {
-    if (!token) return;
+ useEffect(() => {
+  if (!token) return;
 
-    (async () => {
-      try {
-        const res = await bookings.getByToken(token);
-        const { team, member } = res.data || {};
+  (async () => {
+    try {
+      const res = await bookings.getByToken(token);
+      const { team, member } = res.data || {};
 
-        setTeamInfo(team || null);
-        setMemberInfo(member || null);
+      console.log('🔍 API Response - Team:', team);
+      console.log('🔍 API Response - Member:', member);
+      console.log('🔍 External Link:', member?.external_booking_link);
+      console.log('🔍 Platform:', member?.external_booking_platform);
 
-        // Go directly to calendar choice screen
-        setStep('calendar-choice');
-      } catch (err) {
-        console.error('❌ Error fetching team info:', err);
-        setError('Invalid or expired booking link.');
-        setStep('error');
-      }
-    })();
-  }, [token]);
+      setTeamInfo(team || null);
+      setMemberInfo(member || null);
+      
+      setStep('calendar-choice');
+    } catch (err) {
+      console.error('❌ Error fetching team info:', err);
+      setError('Invalid or expired booking link.');
+      setStep('error');
+    }
+  })();
+}, [token]);
 
   // 2) Handle OAuth redirect
   useEffect(() => {
@@ -216,6 +220,75 @@ export default function BookingPageUnified() {
     }
   };
 
+  // After OAuth success, in the useEffect that handles oauth=success
+useEffect(() => {
+  const oauthSuccess = searchParams.get('oauth');
+  const provider = searchParams.get('provider');
+
+  if (oauthSuccess === 'success' && provider) {
+    const navState = window.history.state?.usr?.guestAuth;
+    
+    if (navState) {
+      setGuestAuth({
+        ...navState,
+        accessToken: navState.accessToken, // Store this!
+      });
+      
+      // Now fetch slots WITH guest calendar data
+      if (navState.hasCalendarAccess && navState.accessToken) {
+        fetchMutualSlots(token, navState.accessToken);
+      }
+    }
+  }
+}, [searchParams, token, navigate]);
+
+// New function for mutual availability
+const fetchMutualSlots = async (bookingToken, guestAccessToken) => {
+  try {
+    setStep('slots');
+
+    // Get mutual free/busy times
+    const freeBusyResp = await fetch(
+      `${import.meta.env.VITE_API_URL}/book/${bookingToken}/freebusy`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guestAccessToken,
+          startDate: new Date().toISOString(),
+          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+        }),
+      }
+    );
+
+    const { guestBusy, organizerBusy } = await freeBusyResp.json();
+
+    // Now get slots that avoid BOTH busy times
+    const slotsResp = await fetch(
+      `${import.meta.env.VITE_API_URL}/suggest-slots`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingToken,
+          duration: 60,
+          guestBusy, // Pass guest's busy times
+          organizerBusy, // Pass organizer's busy times
+        }),
+      }
+    );
+
+    const data = await slotsResp.json();
+    setAiSlots(data.slots || []);
+    if (data.slots.length > 0) setSelectedSlot(data.slots[0]);
+    setStep('form');
+  } catch (err) {
+    console.error('❌ Mutual slots error:', err);
+    setError('Failed to find mutual availability');
+    setStep('form');
+  }
+};
+
   // ========== RENDER ==========
 
   // A. Loading screen
@@ -272,7 +345,16 @@ export default function BookingPageUnified() {
 
   // C. UNIFIED Calendar Connection Choice Screen
   if (step === 'calendar-choice') {
-    const hasExternalLink = memberInfo?.external_booking_link?.trim();
+    
+  // Add these logs
+console.log('🔍 Render - memberInfo:', memberInfo);
+console.log('🔍 Render - external_booking_link:', memberInfo?.external_booking_link);
+console.log('🔍 Render - external_booking_platform:', memberInfo?.external_booking_platform);
+
+const hasExternalLink = memberInfo?.external_booking_link?.trim();
+
+console.log('🔍 Render - hasExternalLink:', hasExternalLink);
+console.log('🔍 Render - Will show Calendly?', !!hasExternalLink);
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 py-12 px-4">
