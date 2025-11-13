@@ -227,63 +227,7 @@ app.post('/api/book/auth/google', async (req, res) => {
   }
 });
 
-    // Verify the booking token is valid
-    const memberCheck = await pool.query(
-      'SELECT * FROM team_members WHERE booking_token = $1',
-      [bookingToken]
-    );
-
-    if (memberCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Invalid booking token' });
-    }
-
-
-    // ✅ Use the SINGLE callback URL
-    const redirectUri = `${process.env.FRONTEND_URL}/oauth/callback`;
     
-    console.log('🔐 OAuth redirect URI:', redirectUri);
-    
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      redirectUri  // ✅ Single URL, no wildcards
-    );
-
-    const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
-
-    // Get user info
-    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-    const { data: userInfo } = await oauth2.userinfo.get();
-
-    // Check what scopes were granted
-    const grantedScopes = tokens.scope || '';
-    const hasCalendarAccess = grantedScopes.includes('calendar.readonly');
-
-    console.log('✅ Guest OAuth successful:', {
-      email: userInfo.email,
-      name: userInfo.name,
-      hasCalendarAccess,
-    });
-
-    res.json({
-      success: true,
-      email: userInfo.email,
-      name: userInfo.name,
-      hasCalendarAccess,
-    });
-
-  } catch (error) {
-    console.error('❌ Guest OAuth error:', error);
-    res.status(500).json({ 
-      error: 'Authentication failed',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
-
-
 // ============ TEAM ROUTES ============
 
 // Get all teams for user
