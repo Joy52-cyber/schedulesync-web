@@ -225,7 +225,7 @@ export default function BookingPageUnified() {
   };
 
   // After OAuth success, in the useEffect that handles oauth=success
-useEffect(() => {
+  useEffect(() => {
   const oauthSuccess = searchParams.get('oauth');
   const provider = searchParams.get('provider');
 
@@ -233,25 +233,37 @@ useEffect(() => {
     const navState = window.history.state?.usr?.guestAuth;
     
     if (navState) {
-      setGuestAuth({
-        ...navState,
-        accessToken: navState.accessToken, // Store this!
-      });
+      setGuestAuth(navState);
       
-      // Now fetch slots WITH guest calendar data
+      setFormData((prev) => ({
+        ...prev,
+        attendee_name: navState.name || prev.attendee_name,
+        attendee_email: navState.email || prev.attendee_email,
+      }));
+
+      console.log(`✅ Guest authenticated via ${provider}`);
+
+      // ✅ NEW: Fetch mutual slots if calendar access granted
       if (navState.hasCalendarAccess && navState.accessToken) {
-        fetchMutualSlots(token, navState.accessToken);
+        fetchMutualSlots(token, navState.accessToken, navState.refreshToken);
       }
+
+      // Clean URL
+      navigate(`/book/${token}`, { replace: true });
     }
   }
 }, [searchParams, token, navigate]);
 
-// New function for mutual availability
-const fetchMutualSlots = async (bookingToken, guestAccessToken) => {
+// ✅ NEW: Add this function
+const fetchMutualSlots = async (bookingToken, guestAccessToken, guestRefreshToken) => {
   try {
     setStep('slots');
+    setError('');
 
     // Get mutual free/busy times
+    const startDate = new Date().toISOString();
+    const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
     const freeBusyResp = await fetch(
       `${import.meta.env.VITE_API_URL}/book/${bookingToken}/freebusy`,
       {
@@ -259,13 +271,21 @@ const fetchMutualSlots = async (bookingToken, guestAccessToken) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           guestAccessToken,
-          startDate: new Date().toISOString(),
-          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+          guestRefreshToken,
+          startDate,
+          endDate,
         }),
       }
     );
 
+    if (!freeBusyResp.ok) {
+      throw new Error('Failed to get availability');
+    }
+
     const { guestBusy, organizerBusy } = await freeBusyResp.json();
+
+    console.log('📅 Guest busy:', guestBusy.length, 'slots');
+    console.log('📅 Organizer busy:', organizerBusy.length, 'slots');
 
     // Now get slots that avoid BOTH busy times
     const slotsResp = await fetch(
@@ -276,20 +296,29 @@ const fetchMutualSlots = async (bookingToken, guestAccessToken) => {
         body: JSON.stringify({
           bookingToken,
           duration: 60,
-          guestBusy, // Pass guest's busy times
-          organizerBusy, // Pass organizer's busy times
+          guestBusy,
+          organizerBusy,
         }),
       }
     );
 
+    if (!slotsResp.ok) {
+      throw new Error('Failed to get slots');
+    }
+
     const data = await slotsResp.json();
     setAiSlots(data.slots || []);
-    if (data.slots.length > 0) setSelectedSlot(data.slots[0]);
+    if (data.slots && data.slots.length > 0) {
+      setSelectedSlot(data.slots[0]);
+    }
+    
+    console.log(`✅ Found ${data.slots?.length || 0} mutually available slots`);
     setStep('form');
   } catch (err) {
-    console.error('❌ Mutual slots error:', err);
-    setError('Failed to find mutual availability');
-    setStep('form');
+    console.error('❌ Mutual availability error:', err);
+    setError('Could not find mutual times. Showing organizer availability only.');
+    // Fallback to regular slots
+    await fetchAiSlots(bookingToken, false);
   }
 };
 

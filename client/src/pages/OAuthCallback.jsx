@@ -58,22 +58,23 @@ export default function OAuthCallback() {
         }
 
         const data = await resp.json();
-        
-        console.log('✅ OAuth successful:', data);
 
-        // Redirect back to booking page with success indicator
-        navigate(`/book/${bookingToken}?oauth=success&provider=${provider}`, {
-          replace: true,
-          state: { 
-            guestAuth: {
-              signedIn: true,
-              hasCalendarAccess: data.hasCalendarAccess || false,
-              provider: provider,
-              email: data.email || '',
-              name: data.name || '',
-            }
-          }
-        });
+console.log('✅ OAuth successful:', data);
+
+navigate(`/book/${bookingToken}?oauth=success&provider=${provider}`, {
+  replace: true,
+  state: { 
+    guestAuth: {
+      signedIn: true,
+      hasCalendarAccess: data.hasCalendarAccess || false,
+      provider: provider,
+      email: data.email || '',
+      name: data.name || '',
+      accessToken: data.accessToken,  // ← ADD THIS
+      refreshToken: data.refreshToken,  // ← ADD THIS
+    }
+  }
+});
 
       } catch (error) {
         console.error('❌ OAuth callback error:', error);
