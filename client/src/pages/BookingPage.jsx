@@ -52,8 +52,9 @@ export default function BookingPageUnified() {
 
   (async () => {
     try {
-      const res = await bookings.getByToken(token);
-      const { team, member } = res.data || {};
+    const res = await bookings.getByToken(token);
+const data = res.data || res;  // Handle both cases
+const { team, member } = data || {};  
 
       console.log('🔍 API Response - Team:', team);
       console.log('🔍 API Response - Member:', member);
