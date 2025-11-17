@@ -35,6 +35,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Routes
+app.use(bookingsRouter);
+
 // ============ DATABASE CONNECTION ============
 
 const pool = new Pool({
