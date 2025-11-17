@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { Calendar, Clock, X, Check, Info, Loader2 } from 'lucide-react';
+import { Calendar, Clock, Check, Info, Loader2, Eye, EyeOff } from 'lucide-react';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 
@@ -17,6 +17,7 @@ export default function SmartSlotPicker({
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState(null);
+  const [showUnavailable, setShowUnavailable] = useState(false);
 
   useEffect(() => {
     loadSlots();
@@ -36,6 +37,11 @@ export default function SmartSlotPicker({
         }
       );
 
+      console.log('📊 Loaded slots:', {
+        totalDates: Object.keys(response.data.slots).length,
+        availableSlots: response.data.summary.availableSlots
+      });
+      
       setSlots(response.data.slots);
       setSummary(response.data.summary);
 
@@ -48,27 +54,10 @@ export default function SmartSlotPicker({
       }
 
     } catch (error) {
-      console.error('Error loading slots:', error);
+      console.error('❌ Error loading slots:', error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const getStatusColor = (status, reason) => {
-    if (status === 'available') return 'bg-green-50 border-green-500 hover:bg-green-100 cursor-pointer';
-    if (reason === 'past') return 'bg-gray-100 border-gray-300 text-gray-400';
-    if (reason === 'organizer_busy') return 'bg-red-50 border-red-300 text-red-600';
-    if (reason === 'guest_busy') return 'bg-yellow-50 border-yellow-300 text-yellow-700';
-    if (reason === 'both_busy') return 'bg-orange-50 border-orange-300 text-orange-700';
-    return 'bg-gray-50 border-gray-300 text-gray-500';
-  };
-
-  const getStatusIcon = (status, reason) => {
-    if (status === 'available') return <Check className="h-4 w-4 text-green-600" />;
-    if (reason === 'past') return <Clock className="h-4 w-4" />;
-    if (reason === 'organizer_busy') return <X className="h-4 w-4" />;
-    if (reason === 'guest_busy') return <X className="h-4 w-4" />;
-    return <Info className="h-4 w-4" />;
   };
 
   if (loading) {
@@ -85,19 +74,35 @@ export default function SmartSlotPicker({
   return (
     <div className="space-y-6">
       {/* Summary */}
-      {summary && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+      {summary && summary.availableSlots > 0 && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
           <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <Check className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-blue-900">
-                Found {summary.availableSlots} available slots in the next 2 weeks
+              <p className="text-sm font-semibold text-green-900">
+                {summary.availableSlots} available time{summary.availableSlots !== 1 ? 's' : ''} found
               </p>
               {!summary.hasGuestCalendar && (
-                <p className="text-xs text-blue-700 mt-1">
+                <p className="text-xs text-green-700 mt-1">
                   💡 Connect your calendar to see mutual availability
                 </p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {summary && summary.availableSlots === 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <Info className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-yellow-900">
+                No available slots in the next 2 weeks
+              </p>
+              <p className="text-xs text-yellow-700 mt-1">
+                Please connect your calendar or contact the organizer directly
+              </p>
             </div>
           </div>
         </div>
@@ -115,6 +120,9 @@ export default function SmartSlotPicker({
             const availableCount = daySlots.filter(s => s.status === 'available').length;
             const isSelected = selectedDate === date;
 
+            // Don't show dates with no available slots
+            if (availableCount === 0 && !showUnavailable) return null;
+
             return (
               <button
                 key={date}
@@ -122,9 +130,9 @@ export default function SmartSlotPicker({
                 disabled={availableCount === 0}
                 className={`p-3 rounded-xl border-2 text-left transition-all ${
                   isSelected 
-                    ? 'border-blue-500 bg-blue-50' 
+                    ? 'border-green-500 bg-green-50' 
                     : availableCount > 0
-                    ? 'border-gray-300 hover:border-blue-300'
+                    ? 'border-gray-300 hover:border-green-300'
                     : 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
                 }`}
               >
@@ -137,9 +145,18 @@ export default function SmartSlotPicker({
                     day: 'numeric'
                   })}
                 </p>
-                <p className="text-xs text-green-600 mt-1">
-                  {availableCount > 0 ? `${availableCount} slots` : 'None available'}
-                </p>
+                {availableCount > 0 ? (
+                  <div className="flex items-center gap-1 mt-1">
+                    <Check className="h-3 w-3 text-green-600" />
+                    <p className="text-xs font-medium text-green-600">
+                      {availableCount} slot{availableCount !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 mt-1">
+                    None available
+                  </p>
+                )}
               </button>
             );
           })}
@@ -149,74 +166,110 @@ export default function SmartSlotPicker({
       {/* Time Slots for Selected Date */}
       {selectedDate && slots[selectedDate] && (
         <div>
-          <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            Available times on {selectedDate}
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Available times
+            </h3>
+            <button
+              onClick={() => setShowUnavailable(!showUnavailable)}
+              className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+            >
+              {showUnavailable ? (
+                <>
+                  <EyeOff className="h-3 w-3" />
+                  Hide unavailable
+                </>
+              ) : (
+                <>
+                  <Eye className="h-3 w-3" />
+                  Show all times
+                </>
+              )}
+            </button>
+          </div>
 
-          {/* Filter: Show only work hours by default */}
+          {/* Slots Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-96 overflow-y-auto">
             {slots[selectedDate]
               .filter(slot => {
-                // Only show work hours + immediately surrounding times
-                const hour = new Date(slot.start).getHours();
-                return hour >= 8 && hour < 18;
+                // Always show available slots
+                if (slot.status === 'available') return true;
+                // Show unavailable only if toggle is on
+                return showUnavailable;
               })
               .map((slot, index) => {
                 const isSelected = selectedSlot?.start === slot.start;
                 const isAvailable = slot.status === 'available';
 
-                return (
-                  <button
-                    key={index}
-                    onClick={() => isAvailable && (onSlotSelected(slot), setSelectedSlot(slot))}
-                    disabled={!isAvailable}
-                    className={`group relative p-3 rounded-lg border-2 text-left transition-all ${
-                      isSelected
-                        ? 'border-blue-500 bg-blue-500 text-white'
-                        : getStatusColor(slot.status, slot.reason)
-                    }`}
-                    title={slot.details}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={`text-sm font-semibold ${
-                        isSelected ? 'text-white' : ''
+                if (isAvailable) {
+                  // Available slot - prominent green style
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setSelectedSlot(slot);
+                        onSlotSelected(slot);
+                      }}
+                      className={`p-4 rounded-lg border-2 text-left transition-all ${
+                        isSelected
+                          ? 'border-green-600 bg-green-600 text-white shadow-lg'
+                          : 'border-green-500 bg-green-50 hover:bg-green-100 hover:shadow-md'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className={`text-lg font-bold ${
+                          isSelected ? 'text-white' : 'text-green-900'
+                        }`}>
+                          {slot.time}
+                        </span>
+                        <Check className={`h-5 w-5 ${
+                          isSelected ? 'text-white' : 'text-green-600'
+                        }`} />
+                      </div>
+                      <p className={`text-xs font-medium ${
+                        isSelected ? 'text-green-100' : 'text-green-700'
                       }`}>
-                        {slot.time}
-                      </span>
-                      {getStatusIcon(slot.status, slot.reason)}
-                    </div>
-                    {!isAvailable && slot.details && (
-                      <p className="text-xs mt-1 opacity-75">
-                        {slot.details.replace('Organizer', '').replace('has another meeting', 'Busy')}
+                        Available
                       </p>
-                    )}
-                  </button>
-                );
+                    </button>
+                  );
+                } else {
+                  // Unavailable slot - muted style (only shown when toggle is on)
+                  return (
+                    <button
+                      key={index}
+                      disabled
+                      className="p-3 rounded-lg border border-gray-200 bg-gray-50 text-left opacity-60 cursor-not-allowed"
+                      title={slot.details}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium text-gray-600">
+                          {slot.time}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1 truncate">
+                        {slot.reason === 'organizer_busy' && '🔴 Busy'}
+                        {slot.reason === 'guest_busy' && '🟡 You\'re busy'}
+                        {slot.reason === 'outside_hours' && '⚪ Off hours'}
+                        {slot.reason === 'past' && '⏰ Past'}
+                        {slot.reason === 'weekend' && '📅 Weekend'}
+                      </p>
+                    </button>
+                  );
+                }
               })}
           </div>
 
-          {/* Legend */}
-          <div className="mt-4 flex flex-wrap gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-green-500"></div>
-              <span className="text-gray-600">Available</span>
+          {/* Available count */}
+          {slots[selectedDate] && (
+            <div className="mt-3 text-center">
+              <p className="text-sm text-gray-600">
+                {slots[selectedDate].filter(s => s.status === 'available').length} available time
+                {slots[selectedDate].filter(s => s.status === 'available').length !== 1 ? 's' : ''} on this day
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-red-500"></div>
-              <span className="text-gray-600">Organizer busy</span>
-            </div>
-            {summary?.hasGuestCalendar && (
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-yellow-500"></div>
-                <span className="text-gray-600">You're busy</span>
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-gray-400"></div>
-              <span className="text-gray-600">Outside hours</span>
-            </div>
-          </div>
+          )}
         </div>
       )}
     </div>

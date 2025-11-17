@@ -514,25 +514,30 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
             }
           }
 
-          slots.push({
-            start: startTime,
-            end: endTime,
-            date: slotStart.toLocaleDateString('en-US', {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric',
-              year: 'numeric'
-            }),
-            dayOfWeek: slotStart.toLocaleDateString('en-US', { weekday: 'short' }),
-            time: slotStart.toLocaleTimeString('en-US', {
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-            status,
-            reason,
-            details,
-            timestamp: slotStart.getTime()
-          });
+         slots.push({
+  start: startTime,
+  end: endTime,
+  date: slotStart.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'Asia/Manila'  // ← ADD YOUR TIMEZONE
+  }),
+  dayOfWeek: slotStart.toLocaleDateString('en-US', { 
+    weekday: 'short',
+    timeZone: 'Asia/Manila'  // ← ADD YOUR TIMEZONE
+  }),
+  time: slotStart.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Manila'  // ← ADD YOUR TIMEZONE
+  }),
+  status,
+  reason,
+  details,
+  timestamp: slotStart.getTime()
+});
         }
       }
     }
