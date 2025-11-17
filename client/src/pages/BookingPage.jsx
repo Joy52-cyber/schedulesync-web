@@ -7,7 +7,6 @@ import {
   MessageSquare,
   CheckCircle,
   Loader2,
-  Lock,
   Sparkles,
   ExternalLink,
   Star,
@@ -20,24 +19,21 @@ export default function BookingPageUnified() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Step flow: 'loading' | 'calendar-choice' | 'form' | 'slots' | 'success'
+  // State management
   const [step, setStep] = useState('loading');
-
   const [teamInfo, setTeamInfo] = useState(null);
   const [memberInfo, setMemberInfo] = useState(null);
-  
-  // Guest OAuth state
   const [guestAuth, setGuestAuth] = useState({
     signedIn: false,
     hasCalendarAccess: false,
-    provider: null, // 'google' | 'microsoft' | null
+    provider: null,
     email: '',
     name: '',
+    accessToken: '',
+    refreshToken: '',
   });
-
   const [aiSlots, setAiSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState(null);
-
   const [formData, setFormData] = useState({
     attendee_name: '',
     attendee_email: '',
@@ -46,107 +42,12 @@ export default function BookingPageUnified() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // 1) Load booking context
- useEffect(() => {
-  if (!token) return;
+  // ========== HELPER FUNCTIONS ==========
 
-  (async () => {
-    try {
-      const res = await bookings.getByToken(token);
-      
-      console.log('🔍 FULL res object:', res);
-      console.log('🔍 res.data:', res.data);
-      
-      const { team, member } = res.data || {};  // ← KEEP .data here!
-
-      console.log('🔍 API Response - Team:', team);
-      console.log('🔍 API Response - Member:', member);
-      console.log('🔍 External Link:', member?.external_booking_link);
-      console.log('🔍 Platform:', member?.external_booking_platform);
-
-      setTeamInfo(team || null);
-      setMemberInfo(member || null);
-      
-      setStep('calendar-choice');
-    } catch (err) {
-      console.error('❌ Error fetching team info:', err);
-      setError('Invalid or expired booking link.');
-      setStep('error');
-    }
-  })();
-}, [token]);
-
-  // 2) Handle OAuth redirect
- useEffect(() => {
-  const code = searchParams.get('code');
-  const provider = searchParams.get('state')?.includes('microsoft') ? 'microsoft' : 'google';
-
-  if (!code || !token) return;
-
-  (async () => {
-    try {
-      setError('');
-      console.log(`🔐 Processing ${provider} OAuth callback...`);
-
-      const resp = await fetch(`${import.meta.env.VITE_API_URL}/api/book/auth/${provider}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ code, bookingToken: token }),
-      });
-
-      if (!resp.ok) throw new Error('Calendar connection failed');
-
-      const data = await resp.json();
-      
-      // ✅ Store ALL OAuth data including tokens
-      setGuestAuth({
-        signedIn: true,
-        hasCalendarAccess: data.hasCalendarAccess || false,
-        provider: provider,
-        email: data.email || '',
-        name: data.name || '',
-        accessToken: data.accessToken,      // ✅ ADD THIS
-        refreshToken: data.refreshToken,    // ✅ ADD THIS
-      });
-
-      setFormData((prev) => ({
-        ...prev,
-        attendee_name: data.name || prev.attendee_name,
-        attendee_email: data.email || prev.attendee_email,
-      }));
-
-      console.log(`✅ Guest authenticated via ${provider}`);
-
-      // Clean URL first
-      navigate(`/book/${token}`, { replace: true });
-
-      // ✅ Fetch MUTUAL slots if calendar access granted
-      if (data.hasCalendarAccess && data.accessToken) {
-        await fetchMutualSlots(token, data.accessToken, data.refreshToken);
-      } else {
-        // Fallback to regular slots
-        await fetchAiSlots(token, false);
-      }
-
-      // Move to form
-      setStep('form');
-    } catch (err) {
-      console.error('❌ OAuth failed:', err);
-      setError('Unable to connect your calendar. Please try again.');
-      setStep('calendar-choice');
-    }
-  })();
-}, [searchParams, token, navigate]);
-
-  // 3) Fetch AI slots
   const fetchAiSlots = async (bookingToken, includeMutualAvailability = false) => {
     try {
       setStep('slots');
-
-      const resp = await fetch(`${import.meta.env.VITE_API_URL}/api/suggest-slots`, {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL}/suggest-slots`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -164,7 +65,7 @@ export default function BookingPageUnified() {
       if (slots.length > 0) setSelectedSlot(slots[0]);
 
       console.log(`✅ Loaded ${slots.length} slots`);
-      setStep('form'); // Back to form with slots loaded
+      setStep('form');
     } catch (err) {
       console.error('❌ AI slot error:', err);
       setError('Failed to load slot suggestions.');
@@ -172,11 +73,75 @@ export default function BookingPageUnified() {
     }
   };
 
-  // 4) Trigger OAuth (Google or Microsoft)
+  const fetchMutualSlots = async (bookingToken, guestAccessToken, guestRefreshToken) => {
+    try {
+      setStep('slots');
+      setError('');
+
+      const startDate = new Date().toISOString();
+      const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      // Get mutual free/busy times (VITE_API_URL already includes /api)
+      const freeBusyResp = await fetch(
+        `${import.meta.env.VITE_API_URL}/book/${bookingToken}/freebusy`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            guestAccessToken,
+            guestRefreshToken,
+            startDate,
+            endDate,
+          }),
+        }
+      );
+
+      if (!freeBusyResp.ok) {
+        throw new Error('Failed to get availability');
+      }
+
+      const { guestBusy, organizerBusy } = await freeBusyResp.json();
+      console.log('📅 Guest busy:', guestBusy.length, 'slots');
+      console.log('📅 Organizer busy:', organizerBusy.length, 'slots');
+
+      // Get slots that avoid BOTH busy times
+      const slotsResp = await fetch(
+        `${import.meta.env.VITE_API_URL}/suggest-slots`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bookingToken,
+            duration: 60,
+            guestBusy,
+            organizerBusy,
+          }),
+        }
+      );
+
+      if (!slotsResp.ok) {
+        throw new Error('Failed to get slots');
+      }
+
+      const data = await slotsResp.json();
+      setAiSlots(data.slots || []);
+      if (data.slots && data.slots.length > 0) {
+        setSelectedSlot(data.slots[0]);
+      }
+
+      console.log(`✅ Found ${data.slots?.length || 0} mutually available slots`);
+      setStep('form');
+    } catch (err) {
+      console.error('❌ Mutual availability error:', err);
+      setError('Could not find mutual times. Showing organizer availability only.');
+      await fetchAiSlots(bookingToken, false);
+    }
+  };
+
   const handleCalendarConnect = (provider) => {
     if (provider === 'google') {
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-     const redirectUri = `${window.location.origin}/oauth/callback`;
+      const redirectUri = `${window.location.origin}/oauth/callback`;
       const scope = 'openid email profile https://www.googleapis.com/auth/calendar.readonly';
 
       const params = new URLSearchParams({
@@ -191,18 +156,14 @@ export default function BookingPageUnified() {
 
       window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     } else if (provider === 'microsoft') {
-      // Microsoft OAuth flow (similar pattern)
       alert('Microsoft Calendar integration coming soon!');
-      // TODO: Implement Microsoft OAuth
     }
   };
 
-  // 5) Skip calendar connection
   const handleSkipConnection = () => {
     setStep('form');
   };
 
-  // 6) Final submit
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedSlot && aiSlots.length > 0) {
@@ -230,106 +191,94 @@ export default function BookingPageUnified() {
     }
   };
 
-  // After OAuth success, in the useEffect that handles oauth=success
+  // ========== EFFECTS ==========
+
+  // Load booking context on mount
   useEffect(() => {
-  const oauthSuccess = searchParams.get('oauth');
-  const provider = searchParams.get('provider');
+    if (!token) return;
 
-  if (oauthSuccess === 'success' && provider) {
-    const navState = window.history.state?.usr?.guestAuth;
-    
-    if (navState) {
-      setGuestAuth(navState);
-      
-      setFormData((prev) => ({
-        ...prev,
-        attendee_name: navState.name || prev.attendee_name,
-        attendee_email: navState.email || prev.attendee_email,
-      }));
+    (async () => {
+      try {
+        const res = await bookings.getByToken(token);
+        const { team, member } = res.data || {};
 
-      console.log(`✅ Guest authenticated via ${provider}`);
-
-      // ✅ NEW: Fetch mutual slots if calendar access granted
-      if (navState.hasCalendarAccess && navState.accessToken) {
-        fetchMutualSlots(token, navState.accessToken, navState.refreshToken);
+        setTeamInfo(team || null);
+        setMemberInfo(member || null);
+        setStep('calendar-choice');
+      } catch (err) {
+        console.error('❌ Error fetching team info:', err);
+        setError('Invalid or expired booking link.');
+        setStep('error');
       }
+    })();
+  }, [token]);
 
-      // Clean URL
-      navigate(`/book/${token}`, { replace: true });
-    }
-  }
-}, [searchParams, token, navigate]);
+  // Handle OAuth callback
+  useEffect(() => {
+    const code = searchParams.get('code');
+    const provider = searchParams.get('state')?.includes('microsoft') ? 'microsoft' : 'google';
 
-// ✅ NEW: Add this function
-const fetchMutualSlots = async (bookingToken, guestAccessToken, guestRefreshToken) => {
-  try {
-    setStep('slots');
-    setError('');
+    if (!code || !token) return;
 
-    const startDate = new Date().toISOString();
-    const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    (async () => {
+      try {
+        setError('');
+        console.log(`🔐 Processing ${provider} OAuth callback...`);
 
-    // ✅ ADD /api HERE
-    const freeBusyResp = await fetch(
-      `${import.meta.env.VITE_API_URL}/api/book/${bookingToken}/freebusy`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          guestAccessToken,
-          guestRefreshToken,
-          startDate,
-          endDate,
-        }),
+        const resp = await fetch(`${import.meta.env.VITE_API_URL}/book/auth/${provider}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({ code, bookingToken: token }),
+        });
+
+        if (!resp.ok) throw new Error('Calendar connection failed');
+
+        const data = await resp.json();
+
+        // Store OAuth data including tokens
+        setGuestAuth({
+          signedIn: true,
+          hasCalendarAccess: data.hasCalendarAccess || false,
+          provider: provider,
+          email: data.email || '',
+          name: data.name || '',
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+        });
+
+        setFormData((prev) => ({
+          ...prev,
+          attendee_name: data.name || prev.attendee_name,
+          attendee_email: data.email || prev.attendee_email,
+        }));
+
+        console.log(`✅ Guest authenticated via ${provider}`);
+
+        // Clean URL
+        navigate(`/book/${token}`, { replace: true });
+
+        // Fetch mutual slots if calendar access granted
+        if (data.hasCalendarAccess && data.accessToken) {
+          await fetchMutualSlots(token, data.accessToken, data.refreshToken);
+        } else {
+          await fetchAiSlots(token, false);
+        }
+
+        setStep('form');
+      } catch (err) {
+        console.error('❌ OAuth failed:', err);
+        setError('Unable to connect your calendar. Please try again.');
+        setStep('calendar-choice');
       }
-    );
-
-    if (!freeBusyResp.ok) {
-      throw new Error('Failed to get availability');
-    }
-
-    const { guestBusy, organizerBusy } = await freeBusyResp.json();
-
-    console.log('📅 Guest busy:', guestBusy.length, 'slots');
-    console.log('📅 Organizer busy:', organizerBusy.length, 'slots');
-
-    // ✅ ADD /api HERE
-    const slotsResp = await fetch(
-      `${import.meta.env.VITE_API_URL}/api/suggest-slots`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookingToken,
-          duration: 60,
-          guestBusy,
-          organizerBusy,
-        }),
-      }
-    );
-
-    if (!slotsResp.ok) {
-      throw new Error('Failed to get slots');
-    }
-
-    const data = await slotsResp.json();
-    setAiSlots(data.slots || []);
-    if (data.slots && data.slots.length > 0) {
-      setSelectedSlot(data.slots[0]);
-    }
-    
-    console.log(`✅ Found ${data.slots?.length || 0} mutually available slots`);
-    setStep('form');
-  } catch (err) {
-    console.error('❌ Mutual availability error:', err);
-    setError('Could not find mutual times. Showing organizer availability only.');
-    await fetchAiSlots(bookingToken, false);
-  }
-};
+    })();
+  }, [searchParams, token, navigate]);
 
   // ========== RENDER ==========
 
-  // A. Loading screen
+  // Loading screen
   if (step === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
@@ -341,7 +290,7 @@ const fetchMutualSlots = async (bookingToken, guestAccessToken, guestRefreshToke
     );
   }
 
-  // B. Success screen
+  // Success screen
   if (step === 'success') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 px-4">
@@ -381,18 +330,9 @@ const fetchMutualSlots = async (bookingToken, guestAccessToken, guestRefreshToke
     );
   }
 
-  // C. UNIFIED Calendar Connection Choice Screen
+  // Calendar connection choice screen
   if (step === 'calendar-choice') {
-    
-  // Add these logs
-console.log('🔍 Render - memberInfo:', memberInfo);
-console.log('🔍 Render - external_booking_link:', memberInfo?.external_booking_link);
-console.log('🔍 Render - external_booking_platform:', memberInfo?.external_booking_platform);
-
-const hasExternalLink = memberInfo?.external_booking_link?.trim();
-
-console.log('🔍 Render - hasExternalLink:', hasExternalLink);
-console.log('🔍 Render - Will show Calendly?', !!hasExternalLink);
+    const hasExternalLink = memberInfo?.external_booking_link?.trim();
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 py-12 px-4">
@@ -417,14 +357,14 @@ console.log('🔍 Render - Will show Calendly?', !!hasExternalLink);
             </p>
           </div>
 
-          {/* Unified Options Card */}
+          {/* Options Card */}
           <div className="bg-white rounded-3xl shadow-2xl p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">
               Connect Your Calendar
             </h2>
-            
+
             <div className="space-y-4">
-              {/* Google Calendar - RECOMMENDED */}
+              {/* Google Calendar */}
               <button
                 onClick={() => handleCalendarConnect('google')}
                 className="w-full flex items-center justify-between p-6 border-2 border-green-300 bg-green-50 rounded-xl hover:border-green-500 hover:shadow-lg transition-all group text-left relative"
@@ -515,7 +455,7 @@ console.log('🔍 Render - Will show Calendly?', !!hasExternalLink);
                 </div>
               </div>
 
-              {/* External Link (if configured) */}
+              {/* External Link */}
               {hasExternalLink && (
                 <button
                   onClick={() => window.open(memberInfo.external_booking_link, '_blank')}
@@ -599,7 +539,7 @@ console.log('🔍 Render - Will show Calendly?', !!hasExternalLink);
     );
   }
 
-  // D. Main booking form (same as before, but simplified)
+  // Main booking form
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 py-12 px-4">
       <div className="max-w-4xl mx-auto">
@@ -651,7 +591,6 @@ console.log('🔍 Render - Will show Calendly?', !!hasExternalLink);
           )}
         </div>
 
-        {/* Rest of booking form - same as original */}
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Slots column */}
           <div className="bg-white rounded-3xl shadow-2xl p-6">
