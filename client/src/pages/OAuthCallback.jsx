@@ -1,96 +1,76 @@
 ﻿import { useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
 export default function OAuthCallback() {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    const handleCallback = async () => {
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+    const error = searchParams.get('error');
+
+    console.log('🔍 OAuthCallback - code:', code ? 'present' : 'missing');
+    console.log('🔍 OAuthCallback - state:', state);
+    console.log('🔍 OAuthCallback - error:', error);
+
+    // Handle OAuth error
+    if (error) {
+      console.error('❌ OAuth error:', error);
+      navigate('/login?error=oauth_failed');
+      return;
+    }
+
+    // No code means something went wrong
+    if (!code) {
+      console.error('❌ No OAuth code received');
+      navigate('/login');
+      return;
+    }
+
+    // Booking flow - pass code to BookingPage
+    if (state?.startsWith('booking:')) {
+      console.log('📋 Booking OAuth detected');
+      const parts = state.split(':');
+      const bookingToken = parts[1];
+      
+      console.log('🔀 Redirecting to booking page with code');
+      // Pass the code and state as URL params to BookingPage
+      navigate(`/book/${bookingToken}?code=${code}&state=${state}`, { replace: true });
+      return;
+    }
+
+    // Regular dashboard login flow
+    console.log('🏠 Dashboard OAuth detected');
+    
+    (async () => {
       try {
-        const code = searchParams.get('code');
-        const state = searchParams.get('state');
-        const error = searchParams.get('error');
-
-        // Handle OAuth errors
-        if (error) {
-          console.error('OAuth error:', error);
-          navigate('/');
-          return;
-        }
-
-        if (!code || !state) {
-          console.error('Missing code or state');
-          navigate('/');
-          return;
-        }
-
-        // Extract booking token from state
-        // Format: "booking:TOKEN" or "booking:TOKEN:google"
-        const parts = state.split(':');
-        const bookingToken = parts[1];
-        const provider = parts[2] || 'google';
-
-        if (!bookingToken) {
-          console.error('Invalid state parameter');
-          navigate('/');
-          return;
-        }
-
-        console.log('🔐 Processing OAuth callback:', { provider, bookingToken });
-
-        // Call backend to exchange code for tokens
-        const apiUrl = import.meta.env.VITE_API_URL || '/api';
-        const resp = await fetch(`${apiUrl}/book/auth/${provider}`, {
+        const provider = state?.includes('microsoft') ? 'microsoft' : 'google';
+        
+        const resp = await fetch(`${import.meta.env.VITE_API_URL}/auth/${provider}`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            code, 
-            bookingToken 
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
         });
 
-        if (!resp.ok) {
-          throw new Error('Authentication failed');
-        }
+        if (!resp.ok) throw new Error('Auth failed');
 
         const data = await resp.json();
-
-console.log('✅ OAuth successful:', data);
-
-navigate(`/book/${bookingToken}?oauth=success&provider=${provider}`, {
-  replace: true,
-  state: { 
-    guestAuth: {
-      signedIn: true,
-      hasCalendarAccess: data.hasCalendarAccess || false,
-      provider: provider,
-      email: data.email || '',
-      name: data.name || '',
-      accessToken: data.accessToken,  // ← ADD THIS
-      refreshToken: data.refreshToken,  // ← ADD THIS
-    }
-  }
-});
-
-      } catch (error) {
-        console.error('❌ OAuth callback error:', error);
-        navigate('/?error=oauth_failed');
+        localStorage.setItem('token', data.token);
+        navigate('/dashboard');
+      } catch (err) {
+        console.error('❌ Dashboard auth failed:', err);
+        navigate('/login?error=auth_failed');
       }
-    };
-
-    handleCallback();
-  }, [searchParams, navigate]);
+    })();
+  }, [navigate, searchParams]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
       <div className="text-center">
         <Loader2 className="h-12 w-12 text-white animate-spin mx-auto mb-4" />
-        <p className="text-white text-lg font-medium">Connecting your calendar...</p>
-        <p className="text-white/80 text-sm mt-2">Please wait</p>
+        <p className="text-white text-lg">Completing authentication...</p>
       </div>
     </div>
   );
