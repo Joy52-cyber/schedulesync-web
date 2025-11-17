@@ -77,63 +77,69 @@ export default function BookingPageUnified() {
 }, [token]);
 
   // 2) Handle OAuth redirect
-  useEffect(() => {
-    const code = searchParams.get('code');
-    const provider = searchParams.get('state')?.includes('microsoft') ? 'microsoft' : 'google';
+ useEffect(() => {
+  const code = searchParams.get('code');
+  const provider = searchParams.get('state')?.includes('microsoft') ? 'microsoft' : 'google';
 
-    if (!code || !token) return;
+  if (!code || !token) return;
 
-    (async () => {
-      try {
-        setError('');
-        console.log(`🔐 Processing ${provider} OAuth callback...`);
+  (async () => {
+    try {
+      setError('');
+      console.log(`🔐 Processing ${provider} OAuth callback...`);
 
-        // Call backend to exchange code for tokens
-        const resp = await fetch(`${import.meta.env.VITE_API_URL}/api/book/auth/${provider}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify({ code, bookingToken: token }),
-        });
+      const resp = await fetch(`${import.meta.env.VITE_API_URL}/api/book/auth/${provider}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ code, bookingToken: token }),
+      });
 
-        if (!resp.ok) throw new Error('Calendar connection failed');
+      if (!resp.ok) throw new Error('Calendar connection failed');
 
-        const data = await resp.json();
-        
-        setGuestAuth({
-          signedIn: true,
-          hasCalendarAccess: data.hasCalendarAccess || false,
-          provider: provider,
-          email: data.email || '',
-          name: data.name || '',
-        });
+      const data = await resp.json();
+      
+      // ✅ Store ALL OAuth data including tokens
+      setGuestAuth({
+        signedIn: true,
+        hasCalendarAccess: data.hasCalendarAccess || false,
+        provider: provider,
+        email: data.email || '',
+        name: data.name || '',
+        accessToken: data.accessToken,      // ✅ ADD THIS
+        refreshToken: data.refreshToken,    // ✅ ADD THIS
+      });
 
-        setFormData((prev) => ({
-          ...prev,
-          attendee_name: data.name || prev.attendee_name,
-          attendee_email: data.email || prev.attendee_email,
-        }));
+      setFormData((prev) => ({
+        ...prev,
+        attendee_name: data.name || prev.attendee_name,
+        attendee_email: data.email || prev.attendee_email,
+      }));
 
-        console.log(`✅ Guest authenticated via ${provider}`);
+      console.log(`✅ Guest authenticated via ${provider}`);
 
-        navigate(`/book/${token}`, { replace: true });
+      // Clean URL first
+      navigate(`/book/${token}`, { replace: true });
 
-        // Fetch slots with calendar access
-        if (data.hasCalendarAccess) {
-          await fetchAiSlots(token, true);
-        }
-
-        // Move to form
-        setStep('form');
-      } catch (err) {
-        console.error('❌ OAuth failed:', err);
-        setError('Unable to connect your calendar. Please try again.');
-        setStep('calendar-choice');
+      // ✅ Fetch MUTUAL slots if calendar access granted
+      if (data.hasCalendarAccess && data.accessToken) {
+        await fetchMutualSlots(token, data.accessToken, data.refreshToken);
+      } else {
+        // Fallback to regular slots
+        await fetchAiSlots(token, false);
       }
-    })();
-  }, [searchParams, token, navigate]);
+
+      // Move to form
+      setStep('form');
+    } catch (err) {
+      console.error('❌ OAuth failed:', err);
+      setError('Unable to connect your calendar. Please try again.');
+      setStep('calendar-choice');
+    }
+  })();
+}, [searchParams, token, navigate]);
 
   // 3) Fetch AI slots
   const fetchAiSlots = async (bookingToken, includeMutualAvailability = false) => {
