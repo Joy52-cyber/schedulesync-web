@@ -13,6 +13,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { bookings } from '../utils/api';
+import SmartSlotPicker from '../components/SmartSlotPicker';
 
 export default function BookingPageUnified() {
   const { token } = useParams();
@@ -32,7 +33,6 @@ export default function BookingPageUnified() {
     accessToken: '',
     refreshToken: '',
   });
-  const [aiSlots, setAiSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [formData, setFormData] = useState({
     attendee_name: '',
@@ -124,203 +124,76 @@ export default function BookingPageUnified() {
     })();
   }, [token]);
 
- // Handle OAuth callback
-useEffect(() => {
-  const code = searchParams.get('code');
-  const state = searchParams.get('state');
-  
-  console.log('🔍 BookingPage OAuth check:');
-  console.log('  - code:', code ? 'present' : 'missing');
-  console.log('  - state:', state);
-  console.log('  - token:', token);
-  console.log('  - hasProcessedOAuth:', hasProcessedOAuth);
-  
-  if (!code || !state?.startsWith('booking:') || !token) {
-    console.log('⏭️ Skipping OAuth processing (missing requirements)');
-    return;
-  }
-  
-  if (hasProcessedOAuth) {
-    console.log('⏭️ OAuth already processed, skipping');
-    return;
-  }
-
-  console.log('✅ Starting OAuth processing...');
-  setHasProcessedOAuth(true);
-
-  (async () => {
-    try {
-      setError('');
-      const provider = state.includes('microsoft') ? 'microsoft' : 'google';
-      console.log(`🔐 Processing ${provider} OAuth callback...`);
-
-      const url = `${import.meta.env.VITE_API_URL}/book/auth/${provider}`;
-      console.log('📞 Calling:', url);
-
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ code, bookingToken: token }),
-      });
-
-      console.log('📞 Response status:', resp.status);
-
-      if (!resp.ok) {
-        const errorData = await resp.json();
-        console.error('❌ OAuth API error:', errorData);
-        throw new Error(errorData.error || 'Calendar connection failed');
-      }
-
-      const data = await resp.json();
-      console.log('✅ OAuth response data:', data);
-
-      const authData = {
-        signedIn: true,
-        hasCalendarAccess: data.hasCalendarAccess || false,
-        provider: provider,
-        email: data.email || '',
-        name: data.name || '',
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-      };
-      
-      console.log('💾 Saving auth data:', authData);
-      saveGuestAuth(authData);
-
-      setFormData((prev) => ({
-        ...prev,
-        attendee_name: data.name || prev.attendee_name,
-        attendee_email: data.email || prev.attendee_email,
-      }));
-
-      console.log('🧹 Cleaning URL...');
-      navigate(`/book/${token}`, { replace: true });
-
-      if (data.hasCalendarAccess && data.accessToken) {
-        console.log('🎯 Fetching mutual availability...');
-        await fetchMutualSlots(token, data.accessToken, data.refreshToken);
-      } else {
-        console.log('⚠️ No calendar access, fetching regular slots');
-        await fetchAiSlots(token, false);
-      }
-
-      console.log('✅ Setting step to form');
-      setStep('form');
-    } catch (err) {
-      console.error('❌ OAuth failed:', err);
-      setError('Unable to connect your calendar. Please try again.');
-      setHasProcessedOAuth(false);
-      setStep('calendar-choice');
+  // Handle OAuth callback
+  useEffect(() => {
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+    
+    console.log('🔍 OAuth check:', { code: !!code, state, hasProcessedOAuth });
+    
+    if (!code || !state?.startsWith('booking:') || !token || hasProcessedOAuth) {
+      return;
     }
-  })();
-}, [searchParams, token, navigate, hasProcessedOAuth]);
+
+    console.log('✅ Starting OAuth processing...');
+    setHasProcessedOAuth(true);
+
+    (async () => {
+      try {
+        setError('');
+        const provider = state.includes('microsoft') ? 'microsoft' : 'google';
+        console.log(`🔐 Processing ${provider} OAuth callback...`);
+
+        const url = `${import.meta.env.VITE_API_URL}/book/auth/${provider}`;
+
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({ code, bookingToken: token }),
+        });
+
+        if (!resp.ok) {
+          const errorData = await resp.json();
+          console.error('❌ OAuth API error:', errorData);
+          throw new Error(errorData.error || 'Calendar connection failed');
+        }
+
+        const data = await resp.json();
+        console.log('✅ OAuth response:', data);
+
+        const authData = {
+          signedIn: true,
+          hasCalendarAccess: data.hasCalendarAccess || false,
+          provider: provider,
+          email: data.email || '',
+          name: data.name || '',
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+        };
+        
+        saveGuestAuth(authData);
+
+        setFormData((prev) => ({
+          ...prev,
+          attendee_name: data.name || prev.attendee_name,
+          attendee_email: data.email || prev.attendee_email,
+        }));
+
+        navigate(`/book/${token}`, { replace: true });
+        setStep('form');
+      } catch (err) {
+        console.error('❌ OAuth failed:', err);
+        setError('Unable to connect your calendar. Please try again.');
+        setHasProcessedOAuth(false);
+        setStep('calendar-choice');
+      }
+    })();
+  }, [searchParams, token, navigate, hasProcessedOAuth]);
 
   // ========== HANDLER FUNCTIONS ==========
-
-  const fetchAiSlots = async (bookingToken, includeMutualAvailability = false) => {
-    try {
-      setStep('slots');
-
-      const resp = await fetch(`${import.meta.env.VITE_API_URL}/suggest-slots`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookingToken,
-          duration: 60,
-          includeMutualAvailability,
-        }),
-      });
-
-      if (!resp.ok) throw new Error('Failed to get AI slots');
-
-      const data = await resp.json();
-      const slots = data.slots || [];
-      setAiSlots(slots);
-      if (slots.length > 0) setSelectedSlot(slots[0]);
-
-      console.log(`✅ Loaded ${slots.length} slots`);
-      setStep('form');
-    } catch (err) {
-      console.error('❌ AI slot error:', err);
-      setError('Failed to load slot suggestions.');
-      setStep('form');
-    }
-  };
-
-  const fetchMutualSlots = async (bookingToken, guestAccessToken, guestRefreshToken) => {
-    try {
-      console.log('📅 fetchMutualSlots called');
-      setStep('slots');
-      setError('');
-
-      const startDate = new Date().toISOString();
-      const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-      console.log('📞 Calling FreeBusy API...');
-      
-      const freeBusyResp = await fetch(
-        `${import.meta.env.VITE_API_URL}/book/${bookingToken}/freebusy`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            guestAccessToken,
-            guestRefreshToken,
-            startDate,
-            endDate,
-          }),
-        }
-      );
-
-      console.log('📞 FreeBusy status:', freeBusyResp.status);
-
-      if (!freeBusyResp.ok) {
-        throw new Error('Failed to get availability');
-      }
-
-      const { guestBusy, organizerBusy } = await freeBusyResp.json();
-      console.log('📅 Guest busy:', guestBusy?.length || 0, 'slots');
-      console.log('📅 Organizer busy:', organizerBusy?.length || 0, 'slots');
-
-      console.log('📞 Calling suggest-slots API...');
-      
-      const slotsResp = await fetch(
-        `${import.meta.env.VITE_API_URL}/suggest-slots`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            bookingToken,
-            duration: 60,
-            guestBusy,
-            organizerBusy,
-          }),
-        }
-      );
-
-      console.log('📞 Suggest-slots status:', slotsResp.status);
-
-      if (!slotsResp.ok) {
-        throw new Error('Failed to get slots');
-      }
-
-      const data = await slotsResp.json();
-      setAiSlots(data.slots || []);
-      if (data.slots && data.slots.length > 0) {
-        setSelectedSlot(data.slots[0]);
-      }
-
-      console.log(`✅ Found ${data.slots?.length || 0} mutually available slots`);
-      setStep('form');
-    } catch (err) {
-      console.error('❌ Mutual availability error:', err);
-      setError('Could not find mutual times. Showing organizer availability only.');
-      await fetchAiSlots(bookingToken, false);
-    }
-  };
 
   const handleCalendarConnect = (provider) => {
     if (provider === 'google') {
@@ -350,7 +223,8 @@ useEffect(() => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedSlot && aiSlots.length > 0) {
+    
+    if (!selectedSlot) {
       setError('Please select a time slot.');
       return;
     }
@@ -361,10 +235,7 @@ useEffect(() => {
     try {
       await bookings.create({
         token,
-        slot: selectedSlot || {
-          start: new Date().toISOString(),
-          end: new Date(Date.now() + 3600000).toISOString(),
-        },
+        slot: selectedSlot,
         ...formData,
       });
       setStep('success');
@@ -415,11 +286,10 @@ useEffect(() => {
               </p>
               <p className="text-sm text-gray-700">
                 <strong>Time:</strong>{' '}
-                {selectedSlot.startTime ||
-                  new Date(selectedSlot.start).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
+                {selectedSlot.time || new Date(selectedSlot.start).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </p>
             </div>
           )}
@@ -658,15 +528,17 @@ useEffect(() => {
                 )}
               </div>
             </div>
-            <button
-              onClick={() => {
-                clearGuestAuth();
-                setStep('calendar-choice');
-              }}
-              className="px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            >
-              Change calendar
-            </button>
+            {guestAuth.signedIn && (
+              <button
+                onClick={() => {
+                  clearGuestAuth();
+                  setStep('calendar-choice');
+                }}
+                className="px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              >
+                Change calendar
+              </button>
+            )}
           </div>
 
           {error && (
@@ -708,70 +580,22 @@ useEffect(() => {
 
         {/* Slots and Form Grid */}
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Slots column */}
+          {/* SMART SLOT PICKER - Left Column */}
           <div className="bg-white rounded-3xl shadow-2xl p-6">
-            {aiSlots.length === 0 ? (
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-4">Select a Time</h3>
-                <button
-                  onClick={() => fetchAiSlots(token, guestAuth.hasCalendarAccess)}
-                  className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
-                >
-                  <Sparkles className="h-5 w-5" />
-                  Get Time Suggestions
-                </button>
-              </div>
-            ) : (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-gray-900">
-                    {guestAuth.hasCalendarAccess ? '🎯 Mutually Available' : '⏰ Suggested Times'}
-                  </h3>
-                  <button
-                    onClick={() => fetchAiSlots(token, guestAuth.hasCalendarAccess)}
-                    className="text-sm text-blue-600 hover:underline"
-                  >
-                    Refresh
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
-                  {aiSlots.map((slot, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedSlot(slot)}
-                      className={`p-3 rounded-lg border-2 transition-all text-left ${
-                        selectedSlot === slot
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-blue-300'
-                      }`}
-                    >
-                      <p className="font-semibold text-sm">
-                        {new Date(slot.start).toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </p>
-                      <p className="text-xs text-gray-600">
-                        {slot.startTime ||
-                          new Date(slot.start).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                      </p>
-                      {slot.match && (
-                        <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
-                          {(slot.match * 100).toFixed(0)}% match
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <SmartSlotPicker
+              bookingToken={token}
+              guestCalendar={guestAuth.hasCalendarAccess ? {
+                accessToken: guestAuth.accessToken,
+                refreshToken: guestAuth.refreshToken
+              } : null}
+              onSlotSelected={(slot) => {
+                setSelectedSlot(slot);
+                console.log('✅ Slot selected:', slot);
+              }}
+            />
           </div>
 
-          {/* Form column */}
+          {/* Form Column - Right */}
           <div className="bg-white rounded-3xl shadow-2xl p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Your Information</h2>
 
@@ -833,7 +657,7 @@ useEffect(() => {
 
               <button
                 type="submit"
-                disabled={submitting || (aiSlots.length > 0 && !selectedSlot)}
+                disabled={submitting || !selectedSlot}
                 className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {submitting ? (
