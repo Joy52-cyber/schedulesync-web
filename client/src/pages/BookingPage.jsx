@@ -263,15 +263,18 @@ export default function BookingPageUnified() {
 // ✅ NEW: Add this function
 const fetchMutualSlots = async (bookingToken, guestAccessToken, guestRefreshToken) => {
   try {
+    console.log('📅 fetchMutualSlots called');
     setStep('slots');
     setError('');
 
     const startDate = new Date().toISOString();
     const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // ✅ ADD /api HERE
+    console.log('📞 Calling FreeBusy API...');
+    
+    // ✅ NO /api prefix (VITE_API_URL already has it)
     const freeBusyResp = await fetch(
-      `${import.meta.env.VITE_API_URL}/api/book/${bookingToken}/freebusy`,
+      `${import.meta.env.VITE_API_URL}/book/${bookingToken}/freebusy`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -284,18 +287,21 @@ const fetchMutualSlots = async (bookingToken, guestAccessToken, guestRefreshToke
       }
     );
 
+    console.log('📞 FreeBusy status:', freeBusyResp.status);
+
     if (!freeBusyResp.ok) {
       throw new Error('Failed to get availability');
     }
 
     const { guestBusy, organizerBusy } = await freeBusyResp.json();
+    console.log('📅 Guest busy:', guestBusy?.length || 0, 'slots');
+    console.log('📅 Organizer busy:', organizerBusy?.length || 0, 'slots');
 
-    console.log('📅 Guest busy:', guestBusy.length, 'slots');
-    console.log('📅 Organizer busy:', organizerBusy.length, 'slots');
-
-    // ✅ ADD /api HERE
+    console.log('📞 Calling suggest-slots API...');
+    
+    // ✅ NO /api prefix (VITE_API_URL already has it)
     const slotsResp = await fetch(
-      `${import.meta.env.VITE_API_URL}/api/suggest-slots`,
+      `${import.meta.env.VITE_API_URL}/suggest-slots`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -308,6 +314,8 @@ const fetchMutualSlots = async (bookingToken, guestAccessToken, guestRefreshToke
       }
     );
 
+    console.log('📞 Suggest-slots status:', slotsResp.status);
+
     if (!slotsResp.ok) {
       throw new Error('Failed to get slots');
     }
@@ -317,7 +325,7 @@ const fetchMutualSlots = async (bookingToken, guestAccessToken, guestRefreshToke
     if (data.slots && data.slots.length > 0) {
       setSelectedSlot(data.slots[0]);
     }
-    
+
     console.log(`✅ Found ${data.slots?.length || 0} mutually available slots`);
     setStep('form');
   } catch (err) {
