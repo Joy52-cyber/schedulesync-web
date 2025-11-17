@@ -168,7 +168,7 @@ app.get('/api/auth/google/url', (req, res) => {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    `${process.env.FRONTEND_URL}/auth/callback`
+    process.env.GOOGLE_REDIRECT_URI || `${process.env.FRONTEND_URL}/login`  // ← Use GOOGLE_REDIRECT_URI
   );
 
   const scopes = [
@@ -198,7 +198,7 @@ app.post('/api/auth/google/callback', async (req, res) => {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      `${process.env.FRONTEND_URL}/auth/callback`
+      process.env.GOOGLE_REDIRECT_URI || `${process.env.FRONTEND_URL}/login`  // ← Use GOOGLE_REDIRECT_URI
     );
 
     const { tokens } = await oauth2Client.getToken(code);
