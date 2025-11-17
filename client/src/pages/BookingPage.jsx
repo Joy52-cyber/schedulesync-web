@@ -266,12 +266,12 @@ const fetchMutualSlots = async (bookingToken, guestAccessToken, guestRefreshToke
     setStep('slots');
     setError('');
 
-    // Get mutual free/busy times
     const startDate = new Date().toISOString();
     const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
+    // ✅ ADD /api HERE
     const freeBusyResp = await fetch(
-      `${import.meta.env.VITE_API_URL}/book/${bookingToken}/freebusy`,
+      `${import.meta.env.VITE_API_URL}/api/book/${bookingToken}/freebusy`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -293,9 +293,9 @@ const fetchMutualSlots = async (bookingToken, guestAccessToken, guestRefreshToke
     console.log('📅 Guest busy:', guestBusy.length, 'slots');
     console.log('📅 Organizer busy:', organizerBusy.length, 'slots');
 
-    // Now get slots that avoid BOTH busy times
+    // ✅ ADD /api HERE
     const slotsResp = await fetch(
-      `${import.meta.env.VITE_API_URL}/suggest-slots`,
+      `${import.meta.env.VITE_API_URL}/api/suggest-slots`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -323,7 +323,6 @@ const fetchMutualSlots = async (bookingToken, guestAccessToken, guestRefreshToke
   } catch (err) {
     console.error('❌ Mutual availability error:', err);
     setError('Could not find mutual times. Showing organizer availability only.');
-    // Fallback to regular slots
     await fetchAiSlots(bookingToken, false);
   }
 };
