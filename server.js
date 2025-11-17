@@ -308,7 +308,7 @@ app.delete('/api/teams/:id', authenticateToken, async (req, res) => {
 app.post('/api/book/:token/freebusy', async (req, res) => {
   try {
     const { token } = req.params;
-    const { guestAccessToken, startDate, endDate } = req.body;
+    const { guestAccessToken, guestRefreshToken, startDate, endDate } = req.body;
 
     if (!guestAccessToken) {
       return res.status(400).json({ error: 'Guest access token required' });
@@ -329,37 +329,52 @@ app.post('/api/book/:token/freebusy', async (req, res) => {
 
     const member = memberResult.rows[0];
 
-    // Get guest's free/busy
-    const guestCalendar = google.calendar({ version: 'v3' });
-    const guestAuth = new google.auth.OAuth2();
-    guestAuth.setCredentials({ access_token: guestAccessToken });
+    // ✅ Create OAuth2 clients with proper credentials
+    const calendar = google.calendar({ version: 'v3' });
 
-    const guestFreeBusy = await guestCalendar.freebusy.query({
-      auth: guestAuth,
-      requestBody: {
-        timeMin: startDate,
-        timeMax: endDate,
-        items: [{ id: 'primary' }],
-      },
+    // Guest OAuth client
+    const guestAuth = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      `${process.env.FRONTEND_URL}/oauth/callback`
+    );
+    guestAuth.setCredentials({ 
+      access_token: guestAccessToken,
+      refresh_token: guestRefreshToken
     });
 
-    // Get organizer's free/busy
-    const organizerAuth = new google.auth.OAuth2();
+    // Organizer OAuth client
+    const organizerAuth = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET
+    );
     organizerAuth.setCredentials({ 
-      access_token: member.google_access_token 
+      access_token: member.google_access_token,
+      refresh_token: member.google_refresh_token
     });
 
-    const organizerFreeBusy = await guestCalendar.freebusy.query({
-      auth: organizerAuth,
-      requestBody: {
-        timeMin: startDate,
-        timeMax: endDate,
-        items: [{ id: 'primary' }],
-      },
-    });
+    // Get both calendars' free/busy data
+    const [guestFreeBusy, organizerFreeBusy] = await Promise.all([
+      calendar.freebusy.query({
+        auth: guestAuth,
+        requestBody: {
+          timeMin: startDate,
+          timeMax: endDate,
+          items: [{ id: 'primary' }],
+        },
+      }),
+      calendar.freebusy.query({
+        auth: organizerAuth,
+        requestBody: {
+          timeMin: startDate,
+          timeMax: endDate,
+          items: [{ id: 'primary' }],
+        },
+      })
+    ]);
 
-    const guestBusy = guestFreeBusy.data.calendars.primary.busy || [];
-    const organizerBusy = organizerFreeBusy.data.calendars.primary.busy || [];
+    const guestBusy = guestFreeBusy.data.calendars?.primary?.busy || [];
+    const organizerBusy = organizerFreeBusy.data.calendars?.primary?.busy || [];
 
     console.log('📅 Guest busy times:', guestBusy.length);
     console.log('📅 Organizer busy times:', organizerBusy.length);
@@ -372,11 +387,21 @@ app.post('/api/book/:token/freebusy', async (req, res) => {
 
   } catch (error) {
     console.error('❌ FreeBusy error:', error);
-    res.status(500).json({ error: 'Failed to get calendar data' });
+    
+    // More detailed error for debugging
+    if (error.code === 401) {
+      return res.status(401).json({ 
+        error: 'Calendar access denied or expired. Please reconnect your calendar.',
+        details: 'OAuth token is invalid or expired'
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to get calendar data',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
-
-
 // ============ TEAM MEMBER ROUTES ============
 
 // Get team members
