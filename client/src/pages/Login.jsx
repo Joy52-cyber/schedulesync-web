@@ -1,8 +1,7 @@
-﻿// client/src/pages/Login.jsx
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Loader2, Calendar } from 'lucide-react';
-import { googleLogin } from '../utils/api';
+import { handleOrganizerOAuthCallback, getOrganizerOAuthUrl } from '../utils/api';
 
 export default function Login({ onLogin }) {
   const navigate = useNavigate();
@@ -44,12 +43,12 @@ export default function Login({ onLogin }) {
 
     (async () => {
       try {
-        // ✅ Call the top-level export directly
-        const response = await googleLogin(code);
+        // ✅ Use the organizer OAuth callback endpoint
+        const response = await handleOrganizerOAuthCallback(code);
 
-        onLogin(response.data.token, response.data.user);
+        onLogin(response.token, response.user);
 
-        if (response?.data?.user?.calendarSyncEnabled) {
+        if (response?.user?.calendar_sync_enabled) {
           localStorage.setItem('hasGoogleRefreshToken', 'true');
         }
 
@@ -59,7 +58,7 @@ export default function Login({ onLogin }) {
         navigate('/dashboard', { replace: true });
       } catch (err) {
         console.error('❌ OAuth failed:', err?.response?.data || err);
-        setError('Authentication failed. Please try again.');
+        setError(err?.response?.data?.error || 'Authentication failed. Please try again.');
         sessionStorage.removeItem('processing-oauth');
         setProcessingOAuth(false);
         setLoading(false);
@@ -73,24 +72,19 @@ export default function Login({ onLogin }) {
     setError('Email login not yet implemented. Please use Google.');
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     setLoading(true);
     setError('');
 
-    const firstTime = localStorage.getItem('hasGoogleRefreshToken') !== 'true';
-
-    const params = new URLSearchParams({
-      client_id: googleClientId,
-      redirect_uri: redirectUri,
-      response_type: 'code',
-      scope: 'openid email profile https://www.googleapis.com/auth/calendar.readonly',
-      access_type: 'offline',
-      include_granted_scopes: 'true',
-    });
-
-    if (firstTime) params.set('prompt', 'consent');
-
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    try {
+      // Get OAuth URL from backend
+      const response = await getOrganizerOAuthUrl();
+      window.location.href = response.url;
+    } catch (err) {
+      console.error('❌ Failed to get OAuth URL:', err);
+      setError('Failed to initiate login. Please try again.');
+      setLoading(false);
+    }
   };
 
   if (processingOAuth) {
