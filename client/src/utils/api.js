@@ -30,7 +30,6 @@ apiClient.interceptors.request.use((config) => {
 
 // ============================================
 // CRITICAL: Define googleLogin as standalone function first
-// This ensures it's always available for import
 // ============================================
 function googleLogin(codeOrPayload) {
   let payload;
@@ -77,6 +76,18 @@ export const bookings = {
     apiClient.get(`/book/${encodeURIComponent(token)}/availability`, { 
       params: { date } 
     }),
+};
+
+// Get Google OAuth URL for organizer calendar connection
+export const getOrganizerOAuthUrl = async () => {
+  const response = await apiClient.get('/auth/google/url');
+  return response.data;
+};
+
+// Handle organizer OAuth callback
+export const handleOrganizerOAuthCallback = async (code) => {
+  const response = await apiClient.post('/auth/google/callback', { code });
+  return response.data;
 };
 
 export const analytics = {

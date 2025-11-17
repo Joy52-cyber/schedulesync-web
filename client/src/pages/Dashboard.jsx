@@ -6,7 +6,8 @@ import {
   Star,
   Plus,
   LinkIcon,
-  Eye
+  Eye,
+  Check  // ← Add this import!
 } from 'lucide-react';
 import { analytics, teams, bookings } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
@@ -21,10 +22,18 @@ export default function Dashboard() {
     teamMembers: 0 
   });
   const [loading, setLoading] = useState(true);
+  const [calendarConnected, setCalendarConnected] = useState(false); // ← Add this here
 
   useEffect(() => {
     loadData();
+    checkCalendarStatus(); // ← Add this
   }, []);
+
+  // ← Add this function
+  const checkCalendarStatus = () => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    setCalendarConnected(user.calendar_sync_enabled || false);
+  };
 
   const loadData = async () => {
     try {
@@ -183,10 +192,19 @@ export default function Dashboard() {
         {/* Connect Calendar Button */}
         <button 
           onClick={() => navigate('/settings')}
-          className="bg-white border-2 border-gray-300 text-gray-700 px-6 py-4 rounded-xl font-semibold hover:border-blue-500 hover:shadow-md transition-all flex items-center justify-center gap-3 text-lg"
+          className={`bg-white border-2 ${calendarConnected ? 'border-green-500 bg-green-50' : 'border-gray-300'} text-gray-700 px-6 py-4 rounded-xl font-semibold hover:border-blue-500 hover:shadow-md transition-all flex items-center justify-center gap-3 text-lg`}
         >
-          <LinkIcon className="h-6 w-6" />
-          Connect Calendar
+          {calendarConnected ? (
+            <>
+              <Check className="h-6 w-6 text-green-600" />
+              <span className="text-green-700">Calendar Connected</span>
+            </>
+          ) : (
+            <>
+              <LinkIcon className="h-6 w-6" />
+              Connect Calendar
+            </>
+          )}
         </button>
       </div>
     </div>

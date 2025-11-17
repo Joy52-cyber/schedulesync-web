@@ -6,6 +6,7 @@ import Teams from './pages/Teams';
 import Bookings from './pages/Bookings';
 import BookingPage from './pages/BookingPage';
 import OAuthCallback from './pages/OAuthCallback';
+import CalendarSettings from './pages/CalendarSettings';
 import Layout from './components/Layout';
 import api from './utils/api';
 
@@ -80,7 +81,7 @@ function App() {
         />
         <Route path="/book/:token" element={<BookingPage />} />
         <Route path="/oauth/callback" element={<OAuthCallback />} />
-        
+
         {/* Protected Routes */}
         <Route
           path="/"
@@ -96,6 +97,7 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="teams" element={<Teams />} />
           <Route path="bookings" element={<Bookings />} />
+          <Route path="settings" element={<CalendarSettings />} />
         </Route>
         
         {/* Catch all */}
