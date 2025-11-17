@@ -338,6 +338,232 @@ app.post('/api/book/:token/freebusy', async (req, res) => {
   }
 });
 
+// ============ ENHANCED SLOT AVAILABILITY WITH REASONS ============
+
+app.post('/api/book/:token/slots-with-status', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { 
+      guestAccessToken, 
+      guestRefreshToken,
+      duration = 60,
+      daysAhead = 14
+    } = req.body;
+
+    // Get organizer info
+    const memberResult = await pool.query(
+      `SELECT tm.*, u.google_access_token, u.google_refresh_token, u.name as organizer_name
+       FROM team_members tm
+       LEFT JOIN users u ON tm.user_id = u.id
+       WHERE tm.booking_token = $1`,
+      [token]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    const member = memberResult.rows[0];
+
+    // Get busy times
+    let guestBusy = [];
+    let organizerBusy = [];
+
+    const now = new Date();
+    const endDate = new Date(now);
+    endDate.setDate(endDate.getDate() + daysAhead);
+
+    // Fetch organizer's busy times if they have calendar connected
+    if (member.google_access_token && member.google_refresh_token) {
+      try {
+        const calendar = google.calendar({ version: 'v3' });
+        const organizerAuth = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET
+        );
+        organizerAuth.setCredentials({
+          access_token: member.google_access_token,
+          refresh_token: member.google_refresh_token
+        });
+
+        const freeBusyResponse = await calendar.freebusy.query({
+          auth: organizerAuth,
+          requestBody: {
+            timeMin: now.toISOString(),
+            timeMax: endDate.toISOString(),
+            items: [{ id: 'primary' }],
+          },
+        });
+
+        organizerBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
+      } catch (error) {
+        console.error('⚠️ Failed to fetch organizer calendar:', error.message);
+      }
+    }
+
+    // Fetch guest's busy times if they connected calendar
+    if (guestAccessToken) {
+      try {
+        const calendar = google.calendar({ version: 'v3' });
+        const guestAuth = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET,
+          `${process.env.FRONTEND_URL}/oauth/callback`
+        );
+        guestAuth.setCredentials({
+          access_token: guestAccessToken,
+          refresh_token: guestRefreshToken
+        });
+
+        const freeBusyResponse = await calendar.freebusy.query({
+          auth: guestAuth,
+          requestBody: {
+            timeMin: now.toISOString(),
+            timeMax: endDate.toISOString(),
+            items: [{ id: 'primary' }],
+          },
+        });
+
+        guestBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
+      } catch (error) {
+        console.error('⚠️ Failed to fetch guest calendar:', error.message);
+      }
+    }
+
+    // Generate all possible slots with status
+    const slots = [];
+    const WORK_START_HOUR = 9;
+    const WORK_END_HOUR = 17;
+
+    for (let dayOffset = 0; dayOffset < daysAhead; dayOffset++) {
+      const date = new Date(now);
+      date.setDate(date.getDate() + dayOffset);
+      date.setHours(0, 0, 0, 0);
+
+      const dayOfWeek = date.getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+      // Generate slots for entire day (not just work hours)
+      for (let hour = 0; hour < 24; hour++) {
+        for (let minute = 0; minute < 60; minute += 30) {
+          const slotStart = new Date(date);
+          slotStart.setHours(hour, minute, 0, 0);
+          const slotEnd = new Date(slotStart);
+          slotEnd.setMinutes(slotEnd.getMinutes() + duration);
+
+          const startTime = slotStart.toISOString();
+          const endTime = slotEnd.toISOString();
+
+          // Determine slot status and reason
+          let status = 'available';
+          let reason = null;
+          let details = null;
+
+          // Check if time has passed
+          if (slotStart < now) {
+            status = 'unavailable';
+            reason = 'past';
+            details = 'Time has passed';
+          }
+          // Check if weekend
+          else if (isWeekend) {
+            status = 'unavailable';
+            reason = 'weekend';
+            details = 'Weekend - organizer not available';
+          }
+          // Check if outside work hours
+          else if (hour < WORK_START_HOUR || hour >= WORK_END_HOUR) {
+            status = 'unavailable';
+            reason = 'outside_hours';
+            details = `Outside working hours (${WORK_START_HOUR}:00 - ${WORK_END_HOUR}:00)`;
+          }
+          // Check organizer conflicts
+          else {
+            const organizerConflict = organizerBusy.some(busy => {
+              const busyStart = new Date(busy.start);
+              const busyEnd = new Date(busy.end);
+              return (
+                (slotStart >= busyStart && slotStart < busyEnd) ||
+                (slotEnd > busyStart && slotEnd <= busyEnd) ||
+                (slotStart <= busyStart && slotEnd >= busyEnd)
+              );
+            });
+
+            const guestConflict = guestBusy.some(busy => {
+              const busyStart = new Date(busy.start);
+              const busyEnd = new Date(busy.end);
+              return (
+                (slotStart >= busyStart && slotStart < busyEnd) ||
+                (slotEnd > busyStart && slotEnd <= busyEnd) ||
+                (slotStart <= busyStart && slotEnd >= busyEnd)
+              );
+            });
+
+            if (organizerConflict && guestConflict) {
+              status = 'unavailable';
+              reason = 'both_busy';
+              details = 'Both calendars show conflicts';
+            } else if (organizerConflict) {
+              status = 'unavailable';
+              reason = 'organizer_busy';
+              details = `${member.organizer_name || 'Organizer'} has another meeting`;
+            } else if (guestConflict) {
+              status = 'unavailable';
+              reason = 'guest_busy';
+              details = "You have another meeting";
+            }
+          }
+
+          slots.push({
+            start: startTime,
+            end: endTime,
+            date: slotStart.toLocaleDateString('en-US', {
+              weekday: 'long',
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric'
+            }),
+            dayOfWeek: slotStart.toLocaleDateString('en-US', { weekday: 'short' }),
+            time: slotStart.toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            status,
+            reason,
+            details,
+            timestamp: slotStart.getTime()
+          });
+        }
+      }
+    }
+
+    // Group by date for easier frontend rendering
+    const slotsByDate = {};
+    slots.forEach(slot => {
+      if (!slotsByDate[slot.date]) {
+        slotsByDate[slot.date] = [];
+      }
+      slotsByDate[slot.date].push(slot);
+    });
+
+    console.log(`✅ Generated ${slots.length} slots with status (${Object.keys(slotsByDate).length} days)`);
+
+    res.json({
+      slots: slotsByDate,
+      summary: {
+        totalSlots: slots.length,
+        availableSlots: slots.filter(s => s.status === 'available').length,
+        hasGuestCalendar: guestBusy.length > 0,
+        hasOrganizerCalendar: organizerBusy.length > 0
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Slot status error:', error);
+    res.status(500).json({ error: 'Failed to get slot availability' });
+  }
+});
+
 // ============ AI SLOT SUGGESTIONS ============
 
 app.post('/api/suggest-slots', async (req, res) => {
