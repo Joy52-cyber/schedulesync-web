@@ -6,6 +6,9 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const { google } = require('googleapis');
 const crypto = require('crypto');
+// const bookingsRouter = require('./routes/bookings'); // ← COMMENTED OUT
+
+const app = express();
 
 // Conditional imports for optional features
 let sendTeamInvitation, sendBookingConfirmation;
@@ -13,9 +16,9 @@ try {
   const emailUtils = require('./utils/email');
   sendTeamInvitation = emailUtils.sendTeamInvitation;
   sendBookingConfirmation = emailUtils.sendBookingConfirmation;
-  console.log('? Email utilities loaded successfully');
+  console.log('✅ Email utilities loaded successfully');
 } catch (error) {
-  console.log('?? Email utilities not available - emails will not be sent');
+  console.log('⚠️ Email utilities not available - emails will not be sent');
 }
 
 let getAvailableSlots, createCalendarEvent;
@@ -23,12 +26,10 @@ try {
   const calendarUtils = require('./utils/calendar');
   getAvailableSlots = calendarUtils.getAvailableSlots;
   createCalendarEvent = calendarUtils.createCalendarEvent;
-  console.log('? Calendar utilities loaded successfully');
+  console.log('✅ Calendar utilities loaded successfully');
 } catch (error) {
-  console.log('?? Calendar utilities not available - calendar sync disabled');
+  console.log('⚠️ Calendar utilities not available - calendar sync disabled');
 }
-
-const app = express();
 
 // ============ MIDDLEWARE ============
 
