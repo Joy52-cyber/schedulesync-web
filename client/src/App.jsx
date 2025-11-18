@@ -11,7 +11,7 @@ import BookingConfirmation from './pages/BookingConfirmation';
 import TeamSettings from './pages/TeamSettings';
 import Layout from './components/Layout';
 import api from './utils/api';
-import MyBookingLink from './pages/MyBookingLink';
+import MyBookingLink from './components/MyBookingLink';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
