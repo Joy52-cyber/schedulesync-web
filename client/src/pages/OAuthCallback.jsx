@@ -3,9 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { handleOrganizerOAuthCallback } from '../utils/api';
 
-// CRITICAL: Track processed codes globally to prevent double-processing
-const processedCodes = new Set();
-
 export default function OAuthCallback({ onLogin }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -15,86 +12,84 @@ export default function OAuthCallback({ onLogin }) {
     const state = searchParams.get('state');
     const error = searchParams.get('error');
 
-    console.log('🔵 OAuthCallback mounted');
+    console.log('🔵 OAuthCallback:', { code: code?.substring(0, 10) + '...', state, error });
 
     // Handle OAuth error
     if (error) {
-      console.error('❌ OAuth error from Google:', error);
+      console.error('❌ OAuth error:', error);
       navigate('/login?error=oauth_failed', { replace: true });
       return;
     }
 
-    // No code = something went wrong
     if (!code) {
-      console.error('❌ No OAuth code in URL');
+      console.error('❌ No code in URL');
       navigate('/login', { replace: true });
       return;
     }
 
-    // CRITICAL: Prevent processing the same code twice
-    if (processedCodes.has(code)) {
-      console.log('⚠️ Code already processed, skipping');
+    // CRITICAL: Check if this code was already processed
+    const processedKey = `oauth_processed_${code}`;
+    if (sessionStorage.getItem(processedKey)) {
+      console.log('⚠️ Code already processed in this session, redirecting...');
+      navigate('/dashboard', { replace: true });
       return;
     }
 
-    // Mark code as being processed
-    processedCodes.add(code);
-    console.log('✅ Code marked for processing');
+    // Mark as processing IMMEDIATELY
+    sessionStorage.setItem(processedKey, 'true');
+    console.log('🔒 Code locked for processing');
 
     // Booking flow
     if (state?.startsWith('booking:')) {
-      console.log('📋 Booking OAuth - redirecting to BookingPage');
-      const parts = state.split(':');
-      const bookingToken = parts[1];
+      console.log('📋 Booking flow detected');
+      const bookingToken = state.split(':')[1];
       navigate(`/book/${bookingToken}?code=${code}&state=${state}`, { replace: true });
       return;
     }
 
-    // Dashboard login flow
-    console.log('🏠 Dashboard OAuth - processing login');
+    // Dashboard login
+    console.log('🏠 Processing dashboard login...');
+    
+    // Clean URL immediately to prevent back button issues
+    window.history.replaceState({}, '', '/oauth/callback');
     
     (async () => {
       try {
-        console.log('📡 Exchanging code for token...');
+        console.log('📡 Calling backend...');
         const response = await handleOrganizerOAuthCallback(code);
         
-        console.log('✅ OAuth successful:', response.user.email);
+        console.log('✅ Response received:', response.user.email);
         
-        if (!response.token || !response.user) {
-          throw new Error('Invalid response from server');
-        }
-        
-        // Call parent's onLogin to update app state
-        console.log('🔐 Updating app state...');
+        // Update app state
         onLogin(response.token, response.user);
         
-        console.log('✅ Redirecting to dashboard...');
+        console.log('✅ State updated, redirecting...');
         
-        // Clear the code from URL before redirecting
-        window.history.replaceState({}, '', '/oauth/callback');
-        
-        // Use setTimeout to ensure state is fully updated
-        setTimeout(() => {
-          window.location.href = '/dashboard';
-        }, 100);
+        // Force full reload
+        window.location.href = '/dashboard';
         
       } catch (err) {
-        console.error('❌ OAuth callback failed:', err);
+        console.error('❌ Failed:', err.response?.data || err.message);
         
-        // Remove code from processed set on failure so user can retry
-        processedCodes.delete(code);
+        // Clear the processed flag on error so user can retry
+        sessionStorage.removeItem(processedKey);
         
         navigate('/login?error=auth_failed', { replace: true });
       }
     })();
-  }, []); // Empty deps - only run once on mount
+
+    // Cleanup function
+    return () => {
+      console.log('🧹 OAuthCallback unmounting');
+    };
+  }, []); // EMPTY DEPS - run once only
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
       <div className="text-center">
         <Loader2 className="h-12 w-12 text-white animate-spin mx-auto mb-4" />
-        <p className="text-white text-lg">Completing authentication...</p>
-        <p className="text-white text-sm mt-2">Please wait...</p>
+        <p className="text-white text-lg font-medium">Signing you in...</p>
+        <p className="text-white text-sm mt-2 opacity-80">This should only take a moment</p>
       </div>
     </div>
   );
