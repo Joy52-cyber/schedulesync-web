@@ -221,30 +221,48 @@ export default function BookingPageUnified() {
     setStep('form');
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  if (!selectedSlot) {
+    setError('Please select a time slot.');
+    return;
+  }
+
+  setSubmitting(true);
+  setError('');
+
+  try {
+    const response = await bookings.create({
+      token,
+      slot: selectedSlot,
+      ...formData,
+    });
     
-    if (!selectedSlot) {
-      setError('Please select a time slot.');
-      return;
-    }
-
-    setSubmitting(true);
-    setError('');
-
-    try {
-      await bookings.create({
-        token,
-        slot: selectedSlot,
-        ...formData,
-      });
-      setStep('success');
-    } catch (err) {
-      console.error('❌ Booking error:', err);
-      setError('Failed to create booking. Please try again.');
-      setSubmitting(false);
-    }
-  };
+    // Prepare booking data for confirmation page
+    const bookingInfo = {
+      id: response.data?.booking?.id || Date.now(),
+      start_time: selectedSlot.start,
+      end_time: selectedSlot.end,
+      attendee_name: formData.attendee_name,
+      attendee_email: formData.attendee_email,
+      notes: formData.notes,
+      organizer_name: memberInfo?.name,
+      organizer_email: memberInfo?.email,
+      booking_token: token,
+      team_name: teamInfo?.name
+    };
+    
+    // Redirect to confirmation page
+    const encodedData = encodeURIComponent(JSON.stringify(bookingInfo));
+    window.location.href = `/booking-confirmation?data=${encodedData}`;
+    
+  } catch (err) {
+    console.error('❌ Booking error:', err);
+    setError('Failed to create booking. Please try again.');
+    setSubmitting(false);
+  }
+};
 
   // ========== RENDER ==========
 
