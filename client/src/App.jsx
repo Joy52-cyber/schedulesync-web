@@ -7,10 +7,10 @@ import Bookings from './pages/Bookings';
 import BookingPage from './pages/BookingPage';
 import OAuthCallback from './pages/OAuthCallback';
 import CalendarSettings from './pages/CalendarSettings';
-import Layout from './components/Layout';
-import api from './utils/api';
 import BookingConfirmation from './pages/BookingConfirmation';
 import TeamSettings from './pages/TeamSettings';
+import Layout from './components/Layout';
+import api from './utils/api';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -18,33 +18,61 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    
-    if (token && storedUser) {
-      try {
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        const userData = JSON.parse(storedUser);
-        setUser(userData);
-        setIsAuthenticated(true);
-        console.log('✅ Auto-login successful for:', userData.email);
-      } catch (error) {
-        console.error('Invalid stored user data, clearing...');
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+    const initAuth = async () => {
+      const token = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
+      
+      console.log('🔍 Checking stored auth:', { hasToken: !!token, hasUser: !!storedUser });
+      
+      if (token && storedUser) {
+        try {
+          // Set token in axios defaults
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          
+          // Parse user data
+          const userData = JSON.parse(storedUser);
+          
+          // Verify token is still valid by making a test request
+          try {
+            await api.get('/teams'); // Test API call
+            setUser(userData);
+            setIsAuthenticated(true);
+            console.log('✅ Auto-login successful for:', userData.email);
+          } catch (apiError) {
+            // Token is invalid or expired
+            console.error('❌ Token validation failed, clearing auth');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            delete api.defaults.headers.common['Authorization'];
+          }
+        } catch (error) {
+          console.error('❌ Invalid stored user data, clearing...');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
       }
-    }
+      
+      setLoading(false);
+    };
     
-    setLoading(false);
+    initAuth();
   }, []);
 
   const handleLogin = (token, userData) => {
-    console.log('🔐 Login successful:', userData.email);
+    console.log('🔐 Saving login:', userData.email);
+    
+    // Save to localStorage
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
+    
+    // Set in axios
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    
+    // Update state
     setUser(userData);
     setIsAuthenticated(true);
+    
+    console.log('✅ Login saved successfully');
   };
 
   const handleLogout = () => {
@@ -82,6 +110,7 @@ function App() {
           }
         />
         <Route path="/book/:token" element={<BookingPage />} />
+        <Route path="/booking-confirmation" element={<BookingConfirmation />} />
         <Route path="/oauth/callback" element={<OAuthCallback />} />
 
         {/* Protected Routes */}
@@ -98,10 +127,9 @@ function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="teams" element={<Teams />} />
+          <Route path="teams/:teamId/settings" element={<TeamSettings />} />
           <Route path="bookings" element={<Bookings />} />
           <Route path="settings" element={<CalendarSettings />} />
-        <Route path="/booking-confirmation" element={<BookingConfirmation />} />
-         <Route path="teams/:teamId/settings" element={<TeamSettings />} />
         </Route>
         
         {/* Catch all */}
