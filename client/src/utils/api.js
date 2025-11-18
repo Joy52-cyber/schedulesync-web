@@ -29,15 +29,25 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 errors - Auto logout on expired token
+// Handle 401 errors - Auto logout ONLY on expired token
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // ONLY logout on 401 (unauthorized/expired token)
+    // Do NOT logout on other errors like 404, 500, etc.
     if (error.response?.status === 401) {
       console.error('❌ 401 Unauthorized - Token expired, logging out');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      delete apiClient.defaults.headers.common['Authorization'];
       window.location.href = '/login';
+    } else {
+      // Log other errors but don't logout
+      console.error('🔴 API Error:', {
+        status: error.response?.status,
+        url: error.config?.url,
+        message: error.response?.data?.error || error.message
+      });
     }
     return Promise.reject(error);
   }

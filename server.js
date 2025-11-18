@@ -587,6 +587,38 @@ app.get('/api/bookings', authenticateToken, async (req, res) => {
   }
 });
 
+app.get('/api/bookings/list', authenticateToken, async (req, res) => {
+  try {
+    const { status, team_id, time_filter } = req.query;
+
+    let query = `
+      SELECT b.*, t.name as team_name, tm.name as member_name 
+      FROM bookings b
+      LEFT JOIN teams t ON b.team_id = t.id 
+      LEFT JOIN team_members tm ON b.member_id = tm.id
+      WHERE t.owner_id = $1 OR tm.user_id = $1
+    `;
+
+    const params = [req.user.id];
+    let paramIndex = 2;
+
+    // Filter by time (upcoming/past)
+    if (time_filter === 'upcoming') {
+      query += ` AND b.start_time >= NOW()`;
+    } else if (time_filter === 'past') {
+      query += ` AND b.start_time < NOW()`;
+    }
+
+    query += ` ORDER BY b.start_time DESC`;
+
+    const result = await pool.query(query, params);
+    res.json({ bookings: result.rows });
+  } catch (error) {
+    console.error('Get bookings list error:', error);
+    res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+});
+
 app.get('/api/book/:token', async (req, res) => {
   try {
     const { token } = req.params;
