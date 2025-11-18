@@ -16,7 +16,7 @@ const app = express();
 const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
   try {
     const emailOptions = {
-      from: 'ScheduleSync <noreply@schedulesync.com>',
+      from: 'ScheduleSync <onboarding@resend.dev>', // ← CHANGE THIS LINE
       to: to,
       subject: subject,
       html: html,
@@ -32,7 +32,7 @@ const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
     }
 
     const result = await resend.emails.send(emailOptions);
-    console.log('✅ Email sent:', result.id);
+    console.log('✅ Email sent:', result.id); // Will show actual ID now
     return result;
   } catch (error) {
     console.error('❌ Email error:', error);
