@@ -232,10 +232,10 @@ app.get('/api/auth/google/url', (req, res) => {
     ];
 
     const authUrl = oauth2Client.generateAuthUrl({
-  access_type: 'offline',
-  scope: scopes,
-  prompt: 'select_account',  // ← Only show account picker, not consent!
-});
+      access_type: 'offline',
+      scope: scopes,
+      prompt: 'consent',
+    });
 
     console.log('🔗 Generated OAuth URL with redirect:', process.env.GOOGLE_REDIRECT_URI);
 
@@ -567,6 +567,82 @@ app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken,
   }
 });
 
+// ============ MY BOOKING LINK (PERSONAL BOOKING PAGE) ============
+
+app.get('/api/my-booking-link', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userEmail = req.user.email;
+    const userName = req.user.name;
+
+    console.log('📎 Getting personal booking link for:', userEmail);
+
+    // Check if user already has a personal team
+    let personalTeam = await pool.query(
+      `SELECT * FROM teams WHERE owner_id = $1 AND name = $2`,
+      [userId, `${userName}'s Personal Bookings`]
+    );
+
+    // Create personal team if it doesn't exist
+    if (personalTeam.rows.length === 0) {
+      console.log('➕ Creating personal team for:', userName);
+      
+      const teamBookingToken = crypto.randomBytes(16).toString('hex');
+      const teamResult = await pool.query(
+        `INSERT INTO teams (name, description, owner_id, team_booking_token) 
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [
+          `${userName}'s Personal Bookings`,
+          'Book time with me directly',
+          userId,
+          teamBookingToken
+        ]
+      );
+      personalTeam = teamResult;
+    }
+
+    const team = personalTeam.rows[0];
+
+    // Check if user is a member of their own team
+    let memberResult = await pool.query(
+      `SELECT * FROM team_members WHERE team_id = $1 AND user_id = $2`,
+      [team.id, userId]
+    );
+
+    // Add user as member if not already
+    if (memberResult.rows.length === 0) {
+      console.log('➕ Adding user as member of their personal team');
+      
+      const bookingToken = crypto.randomBytes(16).toString('hex');
+      const insertResult = await pool.query(
+        `INSERT INTO team_members (team_id, user_id, email, name, booking_token, invited_by) 
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [team.id, userId, userEmail, userName, bookingToken, userId]
+      );
+      memberResult = insertResult;
+    }
+
+    const member = memberResult.rows[0];
+    const bookingUrl = `${process.env.FRONTEND_URL}/book/${member.booking_token}`;
+
+    console.log('✅ Personal booking link generated:', bookingUrl);
+
+    res.json({
+      success: true,
+      bookingUrl,
+      bookingToken: member.booking_token,
+      team: {
+        id: team.id,
+        name: team.name
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error generating personal booking link:', error);
+    res.status(500).json({ error: 'Failed to generate booking link' });
+  }
+});
+
 // ============ BOOKING ROUTES ============
 
 app.get('/api/bookings', authenticateToken, async (req, res) => {
@@ -583,38 +659,6 @@ app.get('/api/bookings', authenticateToken, async (req, res) => {
     res.json({ bookings: result.rows });
   } catch (error) {
     console.error('Get bookings error:', error);
-    res.status(500).json({ error: 'Failed to fetch bookings' });
-  }
-});
-
-app.get('/api/bookings/list', authenticateToken, async (req, res) => {
-  try {
-    const { status, team_id, time_filter } = req.query;
-
-    let query = `
-      SELECT b.*, t.name as team_name, tm.name as member_name 
-      FROM bookings b
-      LEFT JOIN teams t ON b.team_id = t.id 
-      LEFT JOIN team_members tm ON b.member_id = tm.id
-      WHERE t.owner_id = $1 OR tm.user_id = $1
-    `;
-
-    const params = [req.user.id];
-    let paramIndex = 2;
-
-    // Filter by time (upcoming/past)
-    if (time_filter === 'upcoming') {
-      query += ` AND b.start_time >= NOW()`;
-    } else if (time_filter === 'past') {
-      query += ` AND b.start_time < NOW()`;
-    }
-
-    query += ` ORDER BY b.start_time DESC`;
-
-    const result = await pool.query(query, params);
-    res.json({ bookings: result.rows });
-  } catch (error) {
-    console.error('Get bookings list error:', error);
     res.status(500).json({ error: 'Failed to fetch bookings' });
   }
 });
