@@ -1,5 +1,9 @@
 ﻿require('dotenv').config();
 const express = require('express');
+const { Resend } = require('resend');
+const emailTemplates = require('./emailTemplates');
+const { generateICS } = require('./icsGenerator');
+const resend = new Resend(process.env.RESEND_API_KEY);
 const cors = require('cors');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
@@ -9,6 +13,32 @@ const crypto = require('crypto');
 
 const app = express();
 
+const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
+  try {
+    const emailOptions = {
+      from: 'ScheduleSync <noreply@schedulesync.com>',
+      to: to,
+      subject: subject,
+      html: html,
+    };
+
+    if (icsAttachment) {
+      emailOptions.attachments = [
+        {
+          filename: 'meeting.ics',
+          content: Buffer.from(icsAttachment).toString('base64'),
+        },
+      ];
+    }
+
+    const result = await resend.emails.send(emailOptions);
+    console.log('✅ Email sent:', result.id);
+    return result;
+  } catch (error) {
+    console.error('❌ Email error:', error);
+    throw error;
+  }
+};
 // ============ CONDITIONAL IMPORTS ============
 
 let sendTeamInvitation, sendBookingConfirmation, sendOrganizerNotification, isEmailAvailable;
@@ -1006,17 +1036,13 @@ app.post('/api/bookings/:id/cancel', authenticateToken, async (req, res) => {
     console.log('✅ Booking cancelled successfully');
 
     // TODO: Send cancellation email
+   console.log('✅ Booking cancelled successfully');
+
     try {
-      await sendEmail({
+      await sendBookingEmail({
         to: booking.attendee_email,
-        subject: '❌ Booking Cancelled',
-        html: `
-          <h2>Booking Cancelled</h2>
-          <p>Your booking has been cancelled.</p>
-          <p><strong>Original time:</strong> ${new Date(booking.start_time).toLocaleString()}</p>
-          ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
-          <p>If you need to reschedule, please book a new time.</p>
-        `
+        subject: '❌ Booking Cancelled - ScheduleSync',
+        html: emailTemplates.bookingCancellation(booking, reason),
       });
       console.log('✅ Cancellation email sent');
     } catch (emailError) {
@@ -1085,18 +1111,31 @@ app.post('/api/bookings/:id/reschedule', authenticateToken, async (req, res) => 
     console.log('✅ Booking rescheduled successfully');
 
     // TODO: Send reschedule email
-    try {
-      await sendEmail({
+       try {
+      const icsFile = generateICS({
+        id: updatedBooking.id,
+        start_time: updatedBooking.start_time,
+        end_time: updatedBooking.end_time,
+        attendee_name: booking.attendee_name,
+        attendee_email: booking.attendee_email,
+        organizer_name: booking.member_name,
+        organizer_email: booking.member_email,
+        team_name: booking.team_name,
+        notes: booking.notes,
+      });
+
+      await sendBookingEmail({
         to: booking.attendee_email,
-        subject: '🔄 Booking Rescheduled',
-        html: `
-          <h2>Booking Rescheduled</h2>
-          <p>Your booking has been rescheduled to a new time.</p>
-          <p><strong>Previous time:</strong> ${new Date(booking.start_time).toLocaleString()}</p>
-          <p><strong>New time:</strong> ${new Date(newStartTime).toLocaleString()}</p>
-          <p><strong>With:</strong> ${booking.member_name || 'Team member'}</p>
-          <p>See you at the new time! 📅</p>
-        `
+        subject: '🔄 Booking Rescheduled - ScheduleSync',
+        html: emailTemplates.bookingReschedule(
+          {
+            ...updatedBooking,
+            organizer_name: booking.member_name,
+            team_name: booking.team_name,
+          },
+          booking.start_time
+        ),
+        icsAttachment: icsFile,
       });
       console.log('✅ Reschedule email sent');
     } catch (emailError) {
@@ -1291,6 +1330,64 @@ app.post('/api/bookings', async (req, res) => {
       console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
     }
 
+    // ... booking creation loop ends here ...
+    
+    console.log(`✅ Created ${createdBookings.length} booking(s)`);
+
+    // ⬇️ ADD EMAIL CODE HERE ⬇️
+    try {
+      const icsFile = generateICS({
+        id: createdBookings[0].id,
+        start_time: createdBookings[0].start_time,
+        end_time: createdBookings[0].end_time,
+        attendee_name: attendee_name,
+        attendee_email: attendee_email,
+        organizer_name: member.member_name || member.name,
+        organizer_email: member.member_email || member.email,
+        team_name: member.team_name,
+        notes: notes,
+      });
+
+      await sendBookingEmail({
+        to: attendee_email,
+        subject: '✅ Booking Confirmed - ScheduleSync',
+        html: emailTemplates.bookingConfirmationGuest({
+          ...createdBookings[0],
+          attendee_name,
+          attendee_email,
+          organizer_name: member.member_name || member.name,
+          team_name: member.team_name,
+          notes,
+        }),
+        icsAttachment: icsFile,
+      });
+
+      if (member.member_email || member.email) {
+        await sendBookingEmail({
+          to: member.member_email || member.email,
+          subject: '📅 New Booking Received - ScheduleSync',
+          html: emailTemplates.bookingConfirmationOrganizer({
+            ...createdBookings[0],
+            attendee_name,
+            attendee_email,
+            organizer_name: member.member_name || member.name,
+            team_name: member.team_name,
+            notes,
+          }),
+          icsAttachment: icsFile,
+        });
+      }
+
+      console.log('✅ Confirmation emails sent');
+    } catch (emailError) {
+      console.error('⚠️ Failed to send emails:', emailError);
+    }
+    // ⬆️ ADD EMAIL CODE ABOVE ⬆️
+
+    res.json({ 
+      success: true,
+      // ... rest of response
+    });
     // Send emails and create calendar events (existing code)...
 
     res.json({ 
