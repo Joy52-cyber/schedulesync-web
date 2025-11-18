@@ -21,7 +21,7 @@ export default function SmartSlotPicker({
 
   useEffect(() => {
     loadSlots();
-  }, [guestCalendar]);
+  }, [bookingToken]); // Only reload when booking token changes
 
   const loadSlots = async () => {
     try {
@@ -45,12 +45,14 @@ export default function SmartSlotPicker({
       setSlots(response.data.slots);
       setSummary(response.data.summary);
 
-      // Auto-select first date with available slots
-      const firstAvailableDate = Object.keys(response.data.slots).find(date => 
-        response.data.slots[date].some(slot => slot.status === 'available')
-      );
-      if (firstAvailableDate) {
-        setSelectedDate(firstAvailableDate);
+      // Only auto-select first date if nothing is currently selected
+      if (!selectedDate) {
+        const firstAvailableDate = Object.keys(response.data.slots).find(date => 
+          response.data.slots[date].some(slot => slot.status === 'available')
+        );
+        if (firstAvailableDate) {
+          setSelectedDate(firstAvailableDate);
+        }
       }
 
     } catch (error) {
@@ -126,7 +128,10 @@ export default function SmartSlotPicker({
             return (
               <button
                 key={date}
-                onClick={() => setSelectedDate(date)}
+                onClick={() => {
+                  setSelectedDate(date);
+                  setSelectedSlot(null); // Clear slot selection when changing date
+                }}
                 disabled={availableCount === 0}
                 className={`p-3 rounded-xl border-2 text-left transition-all ${
                   isSelected 
@@ -207,9 +212,12 @@ export default function SmartSlotPicker({
                   return (
                     <button
                       key={index}
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setSelectedSlot(slot);
                         onSlotSelected(slot);
+                        console.log('✅ Slot selected:', slot.time, slot.start);
                       }}
                       className={`p-4 rounded-lg border-2 text-left transition-all ${
                         isSelected
@@ -230,7 +238,7 @@ export default function SmartSlotPicker({
                       <p className={`text-xs font-medium ${
                         isSelected ? 'text-green-100' : 'text-green-700'
                       }`}>
-                        Available
+                        {isSelected ? 'Selected' : 'Available'}
                       </p>
                     </button>
                   );
