@@ -162,13 +162,44 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// ============ TIMEZONE HELPER FUNCTION ============
+
+function getTimezoneOffset(timezone) {
+  const tzOffsets = {
+    'Asia/Singapore': 8,
+    'Asia/Manila': 8,
+    'Australia/Perth': 8,
+    'Asia/Hong_Kong': 8,
+    'Asia/Kuala_Lumpur': 8,
+    'Asia/Shanghai': 8,
+    'Asia/Taipei': 8,
+    'Asia/Bangkok': 7,
+    'Asia/Jakarta': 7,
+    'Australia/Sydney': 11,
+    'Australia/Melbourne': 11,
+    'Australia/Brisbane': 10,
+    'Australia/Adelaide': 10.5,
+    'America/New_York': -5,
+    'America/Chicago': -6,
+    'America/Denver': -7,
+    'America/Los_Angeles': -8,
+    'Europe/London': 0,
+    'Europe/Paris': 1,
+    'Europe/Berlin': 1,
+    'Europe/Madrid': 1,
+    'Europe/Rome': 1,
+  };
+  
+  return tzOffsets[timezone] || 0;
+}
+
 // ============ ORGANIZER OAUTH (dashboard login with calendar write access) ============
 
 app.get('/api/auth/google/url', (req, res) => {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI || `${process.env.FRONTEND_URL}/login`  // ← Use GOOGLE_REDIRECT_URI
+    process.env.GOOGLE_REDIRECT_URI || `${process.env.FRONTEND_URL}/login`
   );
 
   const scopes = [
@@ -198,7 +229,7 @@ app.post('/api/auth/google/callback', async (req, res) => {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI || `${process.env.FRONTEND_URL}/login`  // ← Use GOOGLE_REDIRECT_URI
+      process.env.GOOGLE_REDIRECT_URI || `${process.env.FRONTEND_URL}/login`
     );
 
     const { tokens } = await oauth2Client.getToken(code);
@@ -343,13 +374,13 @@ app.post('/api/book/:token/freebusy', async (req, res) => {
 app.post('/api/book/:token/slots-with-status', async (req, res) => {
   try {
     const { token } = req.params;
-   const { 
-  guestAccessToken, 
-  guestRefreshToken,
-  duration = 60,
-  daysAhead = 14,
-  timezone = 'America/New_York'  // Default fallback
-} = req.body;
+    const { 
+      guestAccessToken, 
+      guestRefreshToken,
+      duration = 60,
+      daysAhead = 14,
+      timezone = 'America/New_York'
+    } = req.body;
 
     // Get organizer info
     const memberResult = await pool.query(
@@ -374,7 +405,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     const endDate = new Date(now);
     endDate.setDate(endDate.getDate() + daysAhead);
 
-    // Fetch organizer's busy times if they have calendar connected
+    // Fetch organizer's busy times
     if (member.google_access_token && member.google_refresh_token) {
       try {
         const calendar = google.calendar({ version: 'v3' });
@@ -402,7 +433,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       }
     }
 
-    // Fetch guest's busy times if they connected calendar
+    // Fetch guest's busy times
     if (guestAccessToken) {
       try {
         const calendar = google.calendar({ version: 'v3' });
@@ -431,20 +462,151 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       }
     }
 
-  // TIMEZONE CONFIGURATION
-    // Generate all possible slots with status
-const slots = [];
+    // Generate slots
+    const slots = [];
+    const TIMEZONE = timezone;
+    const WORK_START_HOUR = 9;
+    const WORK_END_HOUR = 17;
 
-// TIMEZONE CONFIGURATION - Use timezone from request
-const TIMEZONE = timezone;  // Timezone sent from frontend
-const WORK_START_HOUR = 9;  // 9 AM in user's timezone
-const WORK_END_HOUR = 17;   // 5 PM in user's timezone
+    console.log(`🌍 Generating slots for timezone: ${TIMEZONE}`);
 
-console.log(`🌍 Generating slots for timezone: ${TIMEZONE}`);
-  
+    const tzOffsetHours = getTimezoneOffset(TIMEZONE);
+    console.log(`⏰ Timezone offset: UTC${tzOffsetHours >= 0 ? '+' : ''}${tzOffsetHours}`);
+
+    for (let dayOffset = 0; dayOffset < daysAhead; dayOffset++) {
+      const checkDate = new Date(now);
+      checkDate.setDate(checkDate.getDate() + dayOffset);
+      
+      // Get midnight UTC for this day
+      const baseDateUTC = new Date(checkDate);
+      baseDateUTC.setUTCHours(0, 0, 0, 0);
+      
+      // Calculate day of week in user's timezone
+      const userTZDate = new Date(baseDateUTC.getTime() + (tzOffsetHours * 60 * 60 * 1000));
+      const dayOfWeek = userTZDate.getUTCDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+      // Generate slots for work hours (9am-5pm in user's timezone)
+      for (let hour = WORK_START_HOUR; hour < WORK_END_HOUR; hour++) {
+        for (let minute = 0; minute < 60; minute += 30) {
+          // Create slot time in user's local timezone
+          const slotLocalTime = new Date(baseDateUTC);
+          slotLocalTime.setUTCHours(hour, minute, 0, 0);
+          
+          // Convert to UTC by subtracting the timezone offset
+          const slotStart = new Date(slotLocalTime.getTime() - (tzOffsetHours * 60 * 60 * 1000));
+          const slotEnd = new Date(slotStart);
+          slotEnd.setMinutes(slotEnd.getMinutes() + duration);
+
+          const startTime = slotStart.toISOString();
+          const endTime = slotEnd.toISOString();
+
+          // Determine slot status
+          let status = 'available';
+          let reason = null;
+          let details = null;
+
+          // Check if time has passed
+          if (slotStart < now) {
+            status = 'unavailable';
+            reason = 'past';
+            details = 'Time has passed';
+          }
+          // Check if weekend
+          else if (isWeekend) {
+            status = 'unavailable';
+            reason = 'weekend';
+            details = 'Weekend';
+          }
+          // Check conflicts
+          else {
+            const organizerConflict = organizerBusy.some(busy => {
+              const busyStart = new Date(busy.start);
+              const busyEnd = new Date(busy.end);
+              return (
+                (slotStart >= busyStart && slotStart < busyEnd) ||
+                (slotEnd > busyStart && slotEnd <= busyEnd) ||
+                (slotStart <= busyStart && slotEnd >= busyEnd)
+              );
+            });
+
+            const guestConflict = guestBusy.some(busy => {
+              const busyStart = new Date(busy.start);
+              const busyEnd = new Date(busy.end);
+              return (
+                (slotStart >= busyStart && slotStart < busyEnd) ||
+                (slotEnd > busyStart && slotEnd <= busyEnd) ||
+                (slotStart <= busyStart && slotEnd >= busyEnd)
+              );
+            });
+
+            if (organizerConflict && guestConflict) {
+              status = 'unavailable';
+              reason = 'both_busy';
+              details = 'Both calendars show conflicts';
+            } else if (organizerConflict) {
+              status = 'unavailable';
+              reason = 'organizer_busy';
+              details = `${member.organizer_name || 'Organizer'} has another meeting`;
+            } else if (guestConflict) {
+              status = 'unavailable';
+              reason = 'guest_busy';
+              details = "You have another meeting";
+            }
+          }
+
+          slots.push({
+            start: startTime,
+            end: endTime,
+            status,
+            reason,
+            details,
+            timestamp: slotStart.getTime()
+          });
+        }
+      }
+    }
+
+    // Group and format slots in user's timezone
+    const slotsByDate = {};
+    slots.forEach(slot => {
+      const slotDate = new Date(slot.start);
+      
+      const dateKey = new Intl.DateTimeFormat('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: TIMEZONE
+      }).format(slotDate);
+      
+      const dayOfWeek = new Intl.DateTimeFormat('en-US', { 
+        weekday: 'short',
+        timeZone: TIMEZONE 
+      }).format(slotDate);
+      
+      const time = new Intl.DateTimeFormat('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: TIMEZONE
+      }).format(slotDate);
+      
+      if (!slotsByDate[dateKey]) {
+        slotsByDate[dateKey] = [];
+      }
+      
+      slotsByDate[dateKey].push({
+        ...slot,
+        date: dateKey,
+        dayOfWeek: dayOfWeek,
+        time: time
+      });
+    });
+
     console.log(`✅ Generated ${slots.length} slots with status (${Object.keys(slotsByDate).length} days)`);
 
- res.json({
+    res.json({
       slots: slotsByDate,
       summary: {
         totalSlots: slots.length,
@@ -458,16 +620,14 @@ console.log(`🌍 Generating slots for timezone: ${TIMEZONE}`);
     console.error('❌ Slot status error:', error);
     res.status(500).json({ error: 'Failed to get slot availability' });
   }
-});  // ← This closes /api/book/:token/slots-with-status
-
-// 👇 ADD DEBUG ENDPOINT RIGHT HERE, AFTER THE LINE ABOVE 👇
+});
 
 // ============ DEBUG: CHECK WHAT BACKEND SEES ============
+
 app.get('/api/debug-slots/:token', async (req, res) => {
   try {
     const { token } = req.params;
     
-    // Get organizer
     const memberResult = await pool.query(
       `SELECT tm.*, u.google_access_token, u.google_refresh_token, u.name as organizer_name, u.email as organizer_email
        FROM team_members tm
@@ -482,9 +642,8 @@ app.get('/api/debug-slots/:token', async (req, res) => {
     
     const member = memberResult.rows[0];
     
-    // Get busy times for Nov 18, 2025
-    const nov18Start = new Date('2025-11-18T00:00:00Z'); // Midnight UTC
-    const nov18End = new Date('2025-11-18T23:59:59Z');   // End of day UTC
+    const nov18Start = new Date('2025-11-18T00:00:00Z');
+    const nov18End = new Date('2025-11-18T23:59:59Z');
     
     let organizerBusy = [];
     
@@ -511,21 +670,15 @@ app.get('/api/debug-slots/:token', async (req, res) => {
       organizerBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
     }
     
-    // Generate sample slots for Nov 18
     const sampleSlots = [];
-    const nov18Local = new Date('2025-11-18T00:00:00+08:00'); // Philippine time
-    
     for (let hour = 9; hour < 18; hour++) {
-      const slotStart = new Date(nov18Local);
-      slotStart.setHours(hour, 0, 0, 0);
-      const slotEnd = new Date(slotStart);
-      slotEnd.setMinutes(60);
+      const slotStartSingapore = new Date(`2025-11-18T${hour.toString().padStart(2, '0')}:00:00+08:00`);
+      const slotStartUTC = new Date(slotStartSingapore.getTime() - (8 * 60 * 60 * 1000));
       
       sampleSlots.push({
         hour: hour,
-        startLocal: slotStart.toLocaleString('en-US', { timeZone: 'Asia/Manila', hour12: true }),
-        startUTC: slotStart.toISOString(),
-        startUnix: slotStart.getTime(),
+        startLocal: `${hour}:00 Singapore Time`,
+        startUTC: slotStartUTC.toISOString(),
         isOutsideWorkHours: hour < 9 || hour >= 17
       });
     }
@@ -539,18 +692,12 @@ app.get('/api/debug-slots/:token', async (req, res) => {
       nov18BusyTimes: organizerBusy.map(b => ({
         start: b.start,
         end: b.end,
-        startLocal: new Date(b.start).toLocaleString('en-US', { timeZone: 'Asia/Manila' }),
-        endLocal: new Date(b.end).toLocaleString('en-US', { timeZone: 'Asia/Manila' }),
+        startLocal: new Date(b.start).toLocaleString('en-US', { timeZone: 'Asia/Singapore' }),
+        endLocal: new Date(b.end).toLocaleString('en-US', { timeZone: 'Asia/Singapore' }),
         startUTC: b.start,
         endUTC: b.end
       })),
-      sampleSlots: sampleSlots,
-      workingHours: {
-        start: 9,
-        end: 17,
-        timezone: 'UTC (backend)',
-        note: 'Slots from 9:00 to 16:59 are considered work hours'
-      }
+      sampleSlots: sampleSlots
     });
     
   } catch (error) {
@@ -558,7 +705,6 @@ app.get('/api/debug-slots/:token', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 
 // ============ AI SLOT SUGGESTIONS ============
 
@@ -581,137 +727,39 @@ app.post('/api/suggest-slots', async (req, res) => {
 
     const slots = [];
     const today = new Date();
-   for (let dayOffset = 0; dayOffset < daysAhead; dayOffset++) {
-  // Get date in user's timezone
-  const checkDate = new Date(now);
-  checkDate.setDate(checkDate.getDate() + dayOffset);
-  
-  // Format the date in the target timezone to get the correct year/month/day
-  const dateInTargetTZ = new Date(checkDate.toLocaleString('en-US', { timeZone: TIMEZONE }));
-  const year = dateInTargetTZ.getFullYear();
-  const month = dateInTargetTZ.getMonth();
-  const day = dateInTargetTZ.getDate();
-  
-  const dayOfWeek = dateInTargetTZ.getDay();
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    
+    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() + dayOffset);
+      date.setHours(9, 0, 0, 0);
 
-  // Generate slots for work hours (9am-5pm in USER'S timezone)
-  for (let hour = WORK_START_HOUR; hour < WORK_END_HOUR; hour++) {
-    for (let minute = 0; minute < 60; minute += 30) {
-      // Create date in user's local timezone
-      // We need to create a date that represents this specific time in the target timezone
-      
-      // Build a string like "2025-11-18 16:00" in the target timezone
-      const localDateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-      const localTimeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:00`;
-      const localDateTimeStr = `${localDateStr}T${localTimeStr}`;
-      
-      // Parse this as a date in the target timezone
-      // Create a date object and get the UTC equivalent
-      const tempDate = new Date(localDateTimeStr);
-      
-      // Get timezone offset in minutes for the target timezone at this specific date/time
-      const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: TIMEZONE,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-        timeZoneName: 'shortOffset'
-      });
-      
-      const parts = formatter.formatToParts(tempDate);
-      const tzOffset = parts.find(p => p.type === 'timeZoneName')?.value;
-      
-      // Calculate offset in milliseconds
-      let offsetMs = 0;
-      if (tzOffset) {
-        const match = tzOffset.match(/GMT([+-])(\d{1,2}):?(\d{2})?/);
-        if (match) {
-          const sign = match[1] === '+' ? 1 : -1;
-          const hours = parseInt(match[2]);
-          const minutes = parseInt(match[3] || '0');
-          offsetMs = sign * (hours * 60 + minutes) * 60 * 1000;
-        }
-      }
-      
-      // Create the slot start time in UTC by subtracting the offset
-      const slotStart = new Date(Date.UTC(year, month, day, hour, minute, 0) - offsetMs);
-      const slotEnd = new Date(slotStart);
-      slotEnd.setMinutes(slotEnd.getMinutes() + duration);
+      for (let hour = 9; hour < 17; hour++) {
+        const start = new Date(date);
+        start.setHours(hour, 0, 0, 0);
+        const end = new Date(start);
+        end.setMinutes(end.getMinutes() + duration);
 
-      const startTime = slotStart.toISOString();
-      const endTime = slotEnd.toISOString();
+        if (end.getHours() >= 17 || start < new Date()) continue;
 
-      // Determine slot status
-      let status = 'available';
-      let reason = null;
-      let details = null;
+        const startTime = start.toISOString();
+        const endTime = end.toISOString();
 
-      // Check if time has passed
-      if (slotStart < now) {
-        status = 'unavailable';
-        reason = 'past';
-        details = 'Time has passed';
-      }
-      // Check if weekend
-      else if (isWeekend) {
-        status = 'unavailable';
-        reason = 'weekend';
-        details = 'Weekend';
-      }
-      // Check conflicts
-      else {
-        const organizerConflict = organizerBusy.some(busy => {
-          const busyStart = new Date(busy.start);
-          const busyEnd = new Date(busy.end);
-          return (
-            (slotStart >= busyStart && slotStart < busyEnd) ||
-            (slotEnd > busyStart && slotEnd <= busyEnd) ||
-            (slotStart <= busyStart && slotEnd >= busyEnd)
-          );
+        const hasConflict = [...guestBusy, ...organizerBusy].some(busy => {
+          return (startTime >= busy.start && startTime < busy.end) ||
+                 (endTime > busy.start && endTime <= busy.end) ||
+                 (startTime <= busy.start && endTime >= busy.end);
         });
 
-        const guestConflict = guestBusy.some(busy => {
-          const busyStart = new Date(busy.start);
-          const busyEnd = new Date(busy.end);
-          return (
-            (slotStart >= busyStart && slotStart < busyEnd) ||
-            (slotEnd > busyStart && slotEnd <= busyEnd) ||
-            (slotStart <= busyStart && slotEnd >= busyEnd)
-          );
+        if (hasConflict) continue;
+
+        slots.push({
+          start: startTime,
+          end: endTime,
+          startTime: start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+          endTime: end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         });
-
-        if (organizerConflict && guestConflict) {
-          status = 'unavailable';
-          reason = 'both_busy';
-          details = 'Both calendars show conflicts';
-        } else if (organizerConflict) {
-          status = 'unavailable';
-          reason = 'organizer_busy';
-          details = `${member.organizer_name || 'Organizer'} has another meeting`;
-        } else if (guestConflict) {
-          status = 'unavailable';
-          reason = 'guest_busy';
-          details = "You have another meeting";
-        }
       }
-
-      // Store slot with UTC time, frontend will display in user's timezone
-      slots.push({
-        start: startTime,
-        end: endTime,
-        status,
-        reason,
-        details,
-        timestamp: slotStart.getTime()
-      });
     }
-  }
-}
 
     const slotsWithScores = slots.slice(0, 10).map((slot, idx) => ({ ...slot, match: 0.90 - idx * 0.05 }));
 
