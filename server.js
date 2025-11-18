@@ -1382,11 +1382,6 @@ app.post('/api/bookings', async (req, res) => {
     } catch (emailError) {
       console.error('⚠️ Failed to send emails:', emailError);
     }
-    // ⬆️ ADD EMAIL CODE ABOVE ⬆️
-
-    res.json({ 
-      success: true,
-      // ... rest of response
     });
     // Send emails and create calendar events (existing code)...
 
