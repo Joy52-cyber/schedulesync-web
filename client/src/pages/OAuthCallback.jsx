@@ -3,37 +3,46 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { handleOrganizerOAuthCallback } from '../utils/api';
 
-export default function OAuthCallback() {
+export default function OAuthCallback({ onLogin }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const hasProcessed = useRef(false);
 
   useEffect(() => {
+    console.log('🔵 OAuthCallback mounted');
+    
     // Prevent double processing
-    if (hasProcessed.current) return;
+    if (hasProcessed.current) {
+      console.log('⚠️ Already processed, skipping');
+      return;
+    }
     hasProcessed.current = true;
 
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     const error = searchParams.get('error');
 
-    console.log('🔍 OAuthCallback:', { code: !!code, state, error });
+    console.log('🔍 OAuth params:', { 
+      hasCode: !!code, 
+      state, 
+      error 
+    });
 
     // Handle OAuth error
     if (error) {
-      console.error('❌ OAuth error:', error);
+      console.error('❌ OAuth error from Google:', error);
       navigate('/login?error=oauth_failed', { replace: true });
       return;
     }
 
     // No code = something went wrong
     if (!code) {
-      console.error('❌ No OAuth code received');
+      console.error('❌ No OAuth code in URL');
       navigate('/login', { replace: true });
       return;
     }
 
-    // Booking flow - redirect to BookingPage with code
+    // Booking flow
     if (state?.startsWith('booking:')) {
       console.log('📋 Booking OAuth - redirecting to BookingPage');
       const parts = state.split(':');
@@ -42,27 +51,38 @@ export default function OAuthCallback() {
       return;
     }
 
-    // Dashboard login flow - process OAuth
+    // Dashboard login flow
     console.log('🏠 Dashboard OAuth - processing login');
     
     (async () => {
       try {
+        console.log('📡 Calling backend OAuth callback...');
         const response = await handleOrganizerOAuthCallback(code);
         
-        console.log('✅ OAuth successful:', response.user.email);
+        console.log('✅ OAuth response:', {
+          hasToken: !!response.token,
+          hasUser: !!response.user,
+          email: response.user?.email
+        });
         
-        // Save auth data
-        localStorage.setItem('token', response.token);
-        localStorage.setItem('user', JSON.stringify(response.user));
+        if (!response.token || !response.user) {
+          throw new Error('Invalid response from server');
+        }
         
-        // Redirect to dashboard
+        // CRITICAL: Call the parent's onLogin to update app state
+        console.log('🔐 Calling onLogin to update app state...');
+        onLogin(response.token, response.user);
+        
+        console.log('✅ App state updated, navigating to dashboard...');
         navigate('/dashboard', { replace: true });
+        
       } catch (err) {
         console.error('❌ OAuth callback failed:', err);
+        console.error('Error details:', err.response?.data || err.message);
         navigate('/login?error=auth_failed', { replace: true });
       }
     })();
-  }, [navigate, searchParams]);
+  }, [navigate, searchParams, onLogin]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
