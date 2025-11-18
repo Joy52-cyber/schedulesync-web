@@ -243,17 +243,17 @@ app.post('/api/auth/google/callback', async (req, res) => {
     let user;
     if (userResult.rows.length === 0) {
       const insertResult = await pool.query(
-        `INSERT INTO users (google_id, email, name, google_access_token, google_refresh_token, calendar_sync_enabled)
-         VALUES ($1, $2, $3, $4, $5, true) RETURNING *`,
-        [userInfo.id, userInfo.email, userInfo.name, tokens.access_token, tokens.refresh_token]
-      );
+  `INSERT INTO users (google_id, email, name, google_access_token, google_refresh_token, calendar_sync_enabled, provider)
+   VALUES ($1, $2, $3, $4, $5, true, 'google') RETURNING *`,
+  [userInfo.id, userInfo.email, userInfo.name, tokens.access_token, tokens.refresh_token]
+);
       user = insertResult.rows[0];
     } else {
-      const updateResult = await pool.query(
-        `UPDATE users SET google_id = $1, name = $2, google_access_token = $3, google_refresh_token = $4, calendar_sync_enabled = true
-         WHERE email = $5 RETURNING *`,
-        [userInfo.id, userInfo.name, tokens.access_token, tokens.refresh_token, userInfo.email]
-      );
+     const updateResult = await pool.query(
+  `UPDATE users SET google_id = $1, name = $2, google_access_token = $3, google_refresh_token = $4, calendar_sync_enabled = true, provider = 'google'
+   WHERE email = $5 RETURNING *`,
+  [userInfo.id, userInfo.name, tokens.access_token, tokens.refresh_token, userInfo.email]
+);
       user = updateResult.rows[0];
     }
 
