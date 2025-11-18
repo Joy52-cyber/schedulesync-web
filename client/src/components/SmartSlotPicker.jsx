@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { Calendar, Clock, Check, Info, Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, Check, Info, Loader2, Eye, EyeOff, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 
@@ -18,29 +18,30 @@ export default function SmartSlotPicker({
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState(null);
   const [showUnavailable, setShowUnavailable] = useState(false);
+  const [showAllDates, setShowAllDates] = useState(false);
 
   useEffect(() => {
     loadSlots();
   }, [bookingToken]);
 
- const loadSlots = async () => {
-  try {
-    setLoading(true);
-    
-    // Auto-detect user's timezone
-    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    console.log('🌍 User timezone detected:', userTimezone);
-    
-    const response = await axios.post(
-      `${API_URL}/book/${bookingToken}/slots-with-status`,
-      {
-        guestAccessToken: guestCalendar?.accessToken,
-        guestRefreshToken: guestCalendar?.refreshToken,
-        duration: 60,
-        daysAhead: 14,
-        timezone: userTimezone  // Send detected timezone
-      }
-    );
+  const loadSlots = async () => {
+    try {
+      setLoading(true);
+      
+      // Auto-detect user's timezone
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      console.log('🌍 User timezone detected:', userTimezone);
+      
+      const response = await axios.post(
+        `${API_URL}/book/${bookingToken}/slots-with-status`,
+        {
+          guestAccessToken: guestCalendar?.accessToken,
+          guestRefreshToken: guestCalendar?.refreshToken,
+          duration: 60,
+          daysAhead: 14,
+          timezone: userTimezone
+        }
+      );
 
       console.log('📊 Loaded slots:', {
         totalDates: Object.keys(response.data.slots).length,
@@ -77,6 +78,7 @@ export default function SmartSlotPicker({
   }
 
   const dates = Object.keys(slots);
+  const visibleDates = showAllDates ? dates : dates.slice(0, 4);
 
   return (
     <div className="space-y-6">
@@ -121,8 +123,9 @@ export default function SmartSlotPicker({
           <Calendar className="h-5 w-5" />
           Select a date
         </h3>
+        
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {dates.map(date => {
+          {visibleDates.map(date => {
             const daySlots = slots[date];
             const availableCount = daySlots.filter(s => s.status === 'available').length;
             const unavailableCount = daySlots.length - availableCount;
@@ -133,7 +136,7 @@ export default function SmartSlotPicker({
                 key={date}
                 onClick={() => {
                   setSelectedDate(date);
-                  setSelectedSlot(null); // Clear slot selection when changing date
+                  setSelectedSlot(null);
                 }}
                 disabled={availableCount === 0}
                 className={`p-3 rounded-xl border-2 text-left transition-all ${
@@ -176,6 +179,28 @@ export default function SmartSlotPicker({
             );
           })}
         </div>
+
+        {/* Show More/Less Button */}
+        {dates.length > 4 && (
+          <div className="mt-4 text-center">
+            <button
+              onClick={() => setShowAllDates(!showAllDates)}
+              className="px-4 py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors flex items-center justify-center gap-2 mx-auto"
+            >
+              {showAllDates ? (
+                <>
+                  <ChevronUp className="h-4 w-4" />
+                  Show less dates
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-4 w-4" />
+                  Show more dates ({dates.length - 4} more)
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Time Slots for Selected Date */}
@@ -208,9 +233,7 @@ export default function SmartSlotPicker({
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-96 overflow-y-auto">
             {slots[selectedDate]
               .filter(slot => {
-                // Always show available slots
                 if (slot.status === 'available') return true;
-                // Show unavailable only if toggle is on
                 return showUnavailable;
               })
               .map((slot, index) => {
@@ -218,7 +241,6 @@ export default function SmartSlotPicker({
                 const isAvailable = slot.status === 'available';
 
                 if (isAvailable) {
-                  // Available slot - prominent green style
                   return (
                     <button
                       key={index}
@@ -253,7 +275,6 @@ export default function SmartSlotPicker({
                     </button>
                   );
                 } else {
-                  // Unavailable slot - muted style (only shown when toggle is on)
                   return (
                     <button
                       key={index}
