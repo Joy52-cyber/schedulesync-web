@@ -232,10 +232,10 @@ app.get('/api/auth/google/url', (req, res) => {
     ];
 
     const authUrl = oauth2Client.generateAuthUrl({
-      access_type: 'offline',
-      scope: scopes,
-      prompt: 'consent',
-    });
+  access_type: 'offline',
+  scope: scopes,
+  prompt: 'select_account',  // ← Only show account picker, not consent!
+});
 
     console.log('🔗 Generated OAuth URL with redirect:', process.env.GOOGLE_REDIRECT_URI);
 
