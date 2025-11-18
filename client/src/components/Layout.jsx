@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, LogOut, Menu, X, Link2 } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Layout({ user, onLogout }) {
@@ -11,6 +11,7 @@ export default function Layout({ user, onLogout }) {
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Teams', path: '/teams', icon: Users },
     { name: 'Bookings', path: '/bookings', icon: Calendar },
+    { name: 'My Booking Link', path: '/my-booking-link', icon: Link2 },
   ];
 
   const handleLogout = () => {

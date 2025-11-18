@@ -11,6 +11,7 @@ import BookingConfirmation from './pages/BookingConfirmation';
 import TeamSettings from './pages/TeamSettings';
 import Layout from './components/Layout';
 import api from './utils/api';
+import MyBookingLink from './pages/MyBookingLink';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -120,6 +121,7 @@ function App() {
           <Route path="teams" element={<Teams />} />
           <Route path="teams/:teamId/settings" element={<TeamSettings />} />
           <Route path="bookings" element={<Bookings />} />
+          <Route path="my-booking-link" element={<MyBookingLink />} />
           <Route path="settings" element={<CalendarSettings />} />
         
           </Route>
