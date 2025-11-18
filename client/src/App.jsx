@@ -9,7 +9,7 @@ import OAuthCallback from './pages/OAuthCallback';
 import CalendarSettings from './pages/CalendarSettings';
 import Layout from './components/Layout';
 import api from './utils/api';
-import Bookings from './pages/Bookings';
+
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -99,8 +99,7 @@ function App() {
           <Route path="teams" element={<Teams />} />
           <Route path="bookings" element={<Bookings />} />
           <Route path="settings" element={<CalendarSettings />} />
-        <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
-          </Route>
+         </Route>
         
         {/* Catch all */}
         <Route
