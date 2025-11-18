@@ -919,6 +919,337 @@ app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken,
   }
 });
 
+// ============ TEAM BOOKING MODE SETTINGS ============
+
+app.get('/api/teams/:id/settings', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check authorization
+    const teamCheck = await pool.query(
+      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
+      [id, req.user.id]
+    );
+
+    if (teamCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const team = teamCheck.rows[0];
+
+    // Get team members with booking counts
+    const membersResult = await pool.query(
+      `SELECT tm.*, u.name as user_name, u.email as user_email, u.calendar_sync_enabled,
+       COUNT(b.id) as total_bookings,
+       COUNT(CASE WHEN b.start_time > NOW() THEN 1 END) as upcoming_bookings
+       FROM team_members tm
+       LEFT JOIN users u ON tm.user_id = u.id
+       LEFT JOIN bookings b ON b.member_id = tm.id
+       WHERE tm.team_id = $1
+       GROUP BY tm.id, u.name, u.email, u.calendar_sync_enabled
+       ORDER BY tm.created_at ASC`,
+      [id]
+    );
+
+    res.json({
+      team: {
+        id: team.id,
+        name: team.name,
+        booking_mode: team.booking_mode || 'individual',
+        allow_team_booking: team.allow_team_booking || false,
+        team_booking_token: team.team_booking_token
+      },
+      members: membersResult.rows
+    });
+  } catch (error) {
+    console.error('Get team settings error:', error);
+    res.status(500).json({ error: 'Failed to fetch team settings' });
+  }
+});
+
+app.put('/api/teams/:id/settings', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { booking_mode, allow_team_booking } = req.body;
+
+    // Validate booking mode
+    const validModes = ['individual', 'round-robin', 'first-available', 'collective'];
+    if (booking_mode && !validModes.includes(booking_mode)) {
+      return res.status(400).json({ error: 'Invalid booking mode' });
+    }
+
+    // Check authorization
+    const teamCheck = await pool.query(
+      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
+      [id, req.user.id]
+    );
+
+    if (teamCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Update team settings
+    const result = await pool.query(
+      `UPDATE teams 
+       SET booking_mode = COALESCE($1, booking_mode),
+           allow_team_booking = COALESCE($2, allow_team_booking)
+       WHERE id = $3 AND owner_id = $4
+       RETURNING *`,
+      [booking_mode, allow_team_booking, id, req.user.id]
+    );
+
+    console.log(`✅ Team ${id} settings updated: ${booking_mode || 'no change'}`);
+    res.json({ team: result.rows[0] });
+  } catch (error) {
+    console.error('Update team settings error:', error);
+    res.status(500).json({ error: 'Failed to update team settings' });
+  }
+});
+
+// ============ TEAM BOOKING PAGE ============
+
+app.get('/api/book/team/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const result = await pool.query(
+      `SELECT t.*, COUNT(tm.id) as member_count
+       FROM teams t
+       LEFT JOIN team_members tm ON t.id = tm.team_id
+       WHERE t.team_booking_token = $1
+       GROUP BY t.id`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Team booking link not found' });
+    }
+
+    const team = result.rows[0];
+
+    if (!team.allow_team_booking) {
+      return res.status(403).json({ error: 'Team booking is not enabled' });
+    }
+
+    // Get team members
+    const membersResult = await pool.query(
+      `SELECT tm.id, tm.name, tm.email, u.name as user_name, u.calendar_sync_enabled
+       FROM team_members tm
+       LEFT JOIN users u ON tm.user_id = u.id
+       WHERE tm.team_id = $1`,
+      [team.id]
+    );
+
+    res.json({
+      team: {
+        id: team.id,
+        name: team.name,
+        description: team.description,
+        booking_mode: team.booking_mode,
+        member_count: team.member_count
+      },
+      members: membersResult.rows
+    });
+  } catch (error) {
+    console.error('Get team booking error:', error);
+    res.status(500).json({ error: 'Failed to fetch team booking details' });
+  }
+});
+
+// ============ TEAM BOOKING CREATION (WITH ROUTING) ============
+
+app.post('/api/bookings/team', async (req, res) => {
+  try {
+    const { team_token, slot, attendee_name, attendee_email, notes } = req.body;
+
+    if (!team_token || !slot || !attendee_name || !attendee_email) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Get team
+    const teamResult = await pool.query(
+      'SELECT * FROM teams WHERE team_booking_token = $1',
+      [team_token]
+    );
+
+    if (teamResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid team booking token' });
+    }
+
+    const team = teamResult.rows[0];
+
+    if (!team.allow_team_booking) {
+      return res.status(403).json({ error: 'Team booking is not enabled' });
+    }
+
+    let selectedMember = null;
+
+    // Get all team members with their booking counts
+    const membersResult = await pool.query(
+      `SELECT tm.*, u.google_access_token, u.google_refresh_token, u.email as user_email, u.name as user_name,
+       COUNT(b.id) as booking_count
+       FROM team_members tm
+       LEFT JOIN users u ON tm.user_id = u.id
+       LEFT JOIN bookings b ON b.member_id = tm.id
+       WHERE tm.team_id = $1
+       GROUP BY tm.id, u.google_access_token, u.google_refresh_token, u.email, u.name
+       ORDER BY booking_count ASC, tm.created_at ASC`,
+      [team.id]
+    );
+
+    const members = membersResult.rows;
+
+    if (members.length === 0) {
+      return res.status(400).json({ error: 'No team members available' });
+    }
+
+    // Route booking based on mode
+    switch (team.booking_mode) {
+      case 'round-robin':
+        // Select member with lowest booking count
+        selectedMember = members[0];
+        console.log(`🔄 Round-robin: Selected member ${selectedMember.id} with ${selectedMember.booking_count} bookings`);
+        break;
+
+      case 'first-available':
+        // TODO: Check actual availability via calendar API
+        // For now, use round-robin logic
+        selectedMember = members[0];
+        console.log(`⚡ First-available: Selected member ${selectedMember.id}`);
+        break;
+
+      case 'collective':
+        // Book with all members (for now, book with first member)
+        // TODO: Implement multi-member booking
+        selectedMember = members[0];
+        console.log(`👥 Collective: Booking with all members (simplified to ${selectedMember.id})`);
+        break;
+
+      default:
+        // Individual mode - shouldn't happen on team booking endpoint
+        selectedMember = members[0];
+        break;
+    }
+
+    // Create booking
+    const bookingResult = await pool.query(
+      `INSERT INTO bookings (team_id, member_id, user_id, attendee_name, attendee_email, start_time, end_time, notes, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [
+        team.id,
+        selectedMember.id,
+        selectedMember.user_id,
+        attendee_name,
+        attendee_email,
+        slot.start,
+        slot.end,
+        notes || '',
+        'confirmed'
+      ]
+    );
+
+    const booking = bookingResult.rows[0];
+
+    // Increment booking count
+    await pool.query(
+      'UPDATE team_members SET booking_count = booking_count + 1 WHERE id = $1',
+      [selectedMember.id]
+    );
+
+    console.log(`✅ Team booking created: ${booking.id} assigned to member ${selectedMember.id}`);
+
+    // Send emails (if available)
+    const meetingDate = new Date(slot.start).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const meetingTime = new Date(slot.start).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    });
+    const durationMinutes = Math.round((new Date(slot.end) - new Date(slot.start)) / 60000);
+
+    if (isEmailAvailable && isEmailAvailable()) {
+      if (sendBookingConfirmation) {
+        try {
+          await sendBookingConfirmation({
+            attendee_email,
+            attendee_name,
+            organizer_name: selectedMember.user_name || selectedMember.name,
+            organizer_email: selectedMember.user_email || selectedMember.email,
+            team_name: team.name,
+            meeting_date: meetingDate,
+            meeting_time: meetingTime,
+            meeting_duration: durationMinutes,
+            notes: notes || '',
+          });
+          console.log('✅ Guest confirmation email sent');
+        } catch (emailError) {
+          console.error('⚠️ Failed to send guest email:', emailError);
+        }
+      }
+
+      if (sendOrganizerNotification && selectedMember.user_email) {
+        try {
+          await sendOrganizerNotification({
+            organizer_email: selectedMember.user_email,
+            organizer_name: selectedMember.user_name || selectedMember.name,
+            attendee_name,
+            attendee_email,
+            meeting_date: meetingDate,
+            meeting_time: meetingTime,
+            meeting_duration: durationMinutes,
+            notes: notes || '',
+          });
+          console.log('✅ Organizer notification email sent');
+        } catch (emailError) {
+          console.error('⚠️ Failed to send organizer email:', emailError);
+        }
+      }
+    }
+
+    // Create calendar event if possible
+    if (createCalendarEvent && selectedMember.google_refresh_token) {
+      try {
+        await createCalendarEvent(
+          selectedMember.google_access_token,
+          selectedMember.google_refresh_token,
+          {
+            summary: `Meeting with ${attendee_name}`,
+            description: `Booked via ScheduleSync (Team: ${team.name})\n\nClient: ${attendee_name}\nEmail: ${attendee_email}\n\nNotes: ${notes || 'No notes'}`,
+            start: slot.start,
+            end: slot.end,
+            attendees: [{ email: attendee_email, displayName: attendee_name }],
+          }
+        );
+        console.log('✅ Calendar event created');
+      } catch (calError) {
+        console.error('⚠️ Failed to create calendar event:', calError);
+      }
+    }
+
+    res.json({
+      success: true,
+      booking: {
+        id: booking.id,
+        start_time: booking.start_time,
+        end_time: booking.end_time,
+        attendee_name: booking.attendee_name,
+        attendee_email: booking.attendee_email,
+        status: booking.status,
+        assigned_to: selectedMember.user_name || selectedMember.name
+      },
+      message: 'Team booking confirmed successfully!'
+    });
+  } catch (error) {
+    console.error('❌ Create team booking error:', error);
+    res.status(500).json({ error: 'Failed to create team booking' });
+  }
+});
+
 // ============ BOOKING ROUTES ============
 
 app.get('/api/bookings', authenticateToken, async (req, res) => {

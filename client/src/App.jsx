@@ -10,6 +10,7 @@ import CalendarSettings from './pages/CalendarSettings';
 import Layout from './components/Layout';
 import api from './utils/api';
 import BookingConfirmation from './pages/BookingConfirmation';
+import TeamSettings from './pages/TeamSettings';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -100,7 +101,8 @@ function App() {
           <Route path="bookings" element={<Bookings />} />
           <Route path="settings" element={<CalendarSettings />} />
         <Route path="/booking-confirmation" element={<BookingConfirmation />} />
-          </Route>
+         <Route path="teams/:teamId/settings" element={<TeamSettings />} />
+        </Route>
         
         {/* Catch all */}
         <Route

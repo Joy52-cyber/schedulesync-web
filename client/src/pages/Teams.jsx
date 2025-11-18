@@ -196,13 +196,22 @@ export default function Teams() {
                   <div className="text-sm text-gray-500 mb-4">
                     Created {new Date(team.created_at).toLocaleDateString()}
                   </div>
-                  <button
-                    onClick={() => openManageModal(team)}
-                    className="w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Settings className="h-4 w-4" />
-                    Manage
-                  </button>
+                <div className="flex gap-2">
+  <button
+    onClick={() => openManageModal(team)}
+    className="flex-1 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+  >
+    <Users className="h-4 w-4" />
+    Members
+  </button>
+  <button
+    onClick={() => window.location.href = `/teams/${team.id}/settings`}
+    className="flex-1 px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+  >
+    <Settings className="h-4 w-4" />
+    Settings
+  </button>
+</div>
                 </div>
               </div>
             ))}
