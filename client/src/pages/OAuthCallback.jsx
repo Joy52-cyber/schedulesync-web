@@ -1,67 +1,65 @@
-﻿import { useEffect } from 'react';
+﻿import { useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import { handleOrganizerOAuthCallback } from '../utils/api';
 
 export default function OAuthCallback() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const hasProcessed = useRef(false);
 
   useEffect(() => {
+    // Prevent double processing
+    if (hasProcessed.current) return;
+    hasProcessed.current = true;
+
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     const error = searchParams.get('error');
 
-    console.log('🔍 OAuthCallback - code:', code ? 'present' : 'missing');
-    console.log('🔍 OAuthCallback - state:', state);
-    console.log('🔍 OAuthCallback - error:', error);
+    console.log('🔍 OAuthCallback:', { code: !!code, state, error });
 
     // Handle OAuth error
     if (error) {
       console.error('❌ OAuth error:', error);
-      navigate('/login?error=oauth_failed');
+      navigate('/login?error=oauth_failed', { replace: true });
       return;
     }
 
-    // No code means something went wrong
+    // No code = something went wrong
     if (!code) {
       console.error('❌ No OAuth code received');
-      navigate('/login');
+      navigate('/login', { replace: true });
       return;
     }
 
-    // Booking flow - pass code to BookingPage
+    // Booking flow - redirect to BookingPage with code
     if (state?.startsWith('booking:')) {
-      console.log('📋 Booking OAuth detected');
+      console.log('📋 Booking OAuth - redirecting to BookingPage');
       const parts = state.split(':');
       const bookingToken = parts[1];
-      
-      console.log('🔀 Redirecting to booking page with code');
-      // Pass the code and state as URL params to BookingPage
       navigate(`/book/${bookingToken}?code=${code}&state=${state}`, { replace: true });
       return;
     }
 
-    // Regular dashboard login flow
-    console.log('🏠 Dashboard OAuth detected');
+    // Dashboard login flow - process OAuth
+    console.log('🏠 Dashboard OAuth - processing login');
     
     (async () => {
       try {
-        const provider = state?.includes('microsoft') ? 'microsoft' : 'google';
+        const response = await handleOrganizerOAuthCallback(code);
         
-        const resp = await fetch(`${import.meta.env.VITE_API_URL}/auth/${provider}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code }),
-        });
-
-        if (!resp.ok) throw new Error('Auth failed');
-
-        const data = await resp.json();
-        localStorage.setItem('token', data.token);
-        navigate('/dashboard');
+        console.log('✅ OAuth successful:', response.user.email);
+        
+        // Save auth data
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+        
+        // Redirect to dashboard
+        navigate('/dashboard', { replace: true });
       } catch (err) {
-        console.error('❌ Dashboard auth failed:', err);
-        navigate('/login?error=auth_failed');
+        console.error('❌ OAuth callback failed:', err);
+        navigate('/login?error=auth_failed', { replace: true });
       }
     })();
   }, [navigate, searchParams]);
