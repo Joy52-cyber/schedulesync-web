@@ -431,7 +431,8 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     }
 
   // TIMEZONE CONFIGURATION
-const TIMEZONE = 'Australia/Sydney';  // Change this to your timezone
+   const slots = []; 
+const TIMEZONE = 'Australia/Perth';  // Change this to your timezone
 const WORK_START_HOUR = 9;  // 9 AM in your timezone
 const WORK_END_HOUR = 17;   // 5 PM in your timezone
 
