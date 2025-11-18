@@ -1053,6 +1053,166 @@ app.post('/api/bookings', async (req, res) => {
     res.status(500).json({ error: 'Failed to create booking' });
   }
 });
+// ============ CANCEL BOOKING ============
+
+app.patch('/api/bookings/:id/cancel', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { cancellation_reason } = req.body;
+
+    // Get booking details
+    const bookingResult = await pool.query(
+      `SELECT b.*, t.name as team_name, tm.name as member_name, u.email as organizer_email, u.name as organizer_name
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN users u ON tm.user_id = u.id
+       WHERE b.id = $1`,
+      [id]
+    );
+
+    if (bookingResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    const booking = bookingResult.rows[0];
+
+    // Check authorization (team owner or organizer can cancel)
+    const teamCheck = await pool.query(
+      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
+      [booking.team_id, req.user.id]
+    );
+
+    const memberCheck = await pool.query(
+      'SELECT * FROM team_members WHERE id = $1 AND user_id = $2',
+      [booking.member_id, req.user.id]
+    );
+
+    if (teamCheck.rows.length === 0 && memberCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized to cancel this booking' });
+    }
+
+    // Update booking status
+    await pool.query(
+      `UPDATE bookings 
+       SET status = 'cancelled', 
+           notes = CONCAT(COALESCE(notes, ''), '\n\nCancelled: ', COALESCE($2, 'No reason provided')),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [id, cancellation_reason]
+    );
+
+    // Send cancellation emails
+    if (isEmailAvailable && isEmailAvailable() && sendBookingConfirmation) {
+      const meetingDate = new Date(booking.start_time).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      const meetingTime = new Date(booking.start_time).toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZoneName: 'short'
+      });
+
+      try {
+        // Email to attendee
+        await sendBookingConfirmation({
+          attendee_email: booking.attendee_email,
+          attendee_name: booking.attendee_name,
+          organizer_name: booking.organizer_name || booking.member_name,
+          organizer_email: booking.organizer_email,
+          team_name: booking.team_name,
+          meeting_date: meetingDate,
+          meeting_time: meetingTime,
+          meeting_duration: Math.round((new Date(booking.end_time) - new Date(booking.start_time)) / 60000),
+          notes: `BOOKING CANCELLED\n\nReason: ${cancellation_reason || 'No reason provided'}`,
+        });
+
+        // Email to organizer
+        if (sendOrganizerNotification && booking.organizer_email) {
+          await sendOrganizerNotification({
+            organizer_email: booking.organizer_email,
+            organizer_name: booking.organizer_name || booking.member_name,
+            attendee_name: booking.attendee_name,
+            attendee_email: booking.attendee_email,
+            meeting_date: meetingDate,
+            meeting_time: meetingTime,
+            meeting_duration: Math.round((new Date(booking.end_time) - new Date(booking.start_time)) / 60000),
+            notes: `BOOKING CANCELLED\n\nReason: ${cancellation_reason || 'No reason provided'}`,
+          });
+        }
+
+        console.log('✅ Cancellation emails sent');
+      } catch (emailError) {
+        console.error('⚠️ Failed to send cancellation emails:', emailError);
+      }
+    }
+
+    console.log(`✅ Booking ${id} cancelled`);
+    res.json({ success: true, message: 'Booking cancelled successfully' });
+
+  } catch (error) {
+    console.error('❌ Cancel booking error:', error);
+    res.status(500).json({ error: 'Failed to cancel booking' });
+  }
+});
+
+// ============ GET BOOKINGS WITH FILTERS ============
+
+app.get('/api/bookings/list', authenticateToken, async (req, res) => {
+  try {
+    const { status, team_id, time_filter } = req.query;
+
+    let query = `
+      SELECT 
+        b.*,
+        t.name as team_name,
+        tm.name as member_name,
+        u.email as organizer_email,
+        u.name as organizer_name
+      FROM bookings b
+      LEFT JOIN teams t ON b.team_id = t.id
+      LEFT JOIN team_members tm ON b.member_id = tm.id
+      LEFT JOIN users u ON tm.user_id = u.id
+      WHERE (t.owner_id = $1 OR tm.user_id = $1)
+    `;
+
+    const params = [req.user.id];
+    let paramIndex = 2;
+
+    // Filter by status
+    if (status && status !== 'all') {
+      query += ` AND b.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    // Filter by team
+    if (team_id) {
+      query += ` AND b.team_id = $${paramIndex}`;
+      params.push(team_id);
+      paramIndex++;
+    }
+
+    // Filter by time (upcoming/past)
+    if (time_filter === 'upcoming') {
+      query += ` AND b.start_time >= NOW()`;
+    } else if (time_filter === 'past') {
+      query += ` AND b.start_time < NOW()`;
+    }
+
+    query += ` ORDER BY b.start_time DESC`;
+
+    const result = await pool.query(query, params);
+
+    res.json({ bookings: result.rows });
+  } catch (error) {
+    console.error('Get bookings list error:', error);
+    res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+});
 
 // ============ SERVE STATIC FILES ============
 
