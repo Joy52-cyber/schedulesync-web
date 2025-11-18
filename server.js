@@ -402,6 +402,7 @@ app.post('/api/book/auth/google', async (req, res) => {
 
 // ============ TEAM ROUTES ============
 
+// Get all teams for current user
 app.get('/api/teams', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -415,6 +416,73 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
   }
 });
 
+// Get single team
+app.get('/api/teams/:id', authenticateToken, async (req, res) => {
+  try {
+    const teamId = parseInt(req.params.id);
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `SELECT * FROM teams WHERE id = $1 AND owner_id = $2`,
+      [teamId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    res.json({ team: result.rows[0] });
+  } catch (error) {
+    console.error('Get team error:', error);
+    res.status(500).json({ error: 'Failed to fetch team' });
+  }
+});
+
+// Update team settings
+app.put('/api/teams/:id', authenticateToken, async (req, res) => {
+  try {
+    const teamId = parseInt(req.params.id);
+    const userId = req.user.id;
+    const { name, description, booking_mode } = req.body;
+
+    console.log('⚙️ Updating team settings:', { teamId, booking_mode });
+
+    // Verify ownership
+    const ownerCheck = await pool.query(
+      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
+      [teamId, userId]
+    );
+
+    if (ownerCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized to update this team' });
+    }
+
+    // Validate booking mode
+    const validModes = ['individual', 'round_robin', 'first_available', 'collective'];
+    if (booking_mode && !validModes.includes(booking_mode)) {
+      return res.status(400).json({ error: 'Invalid booking mode' });
+    }
+
+    // Update team
+    const result = await pool.query(
+      `UPDATE teams 
+       SET name = COALESCE($1, name),
+           description = COALESCE($2, description),
+           booking_mode = COALESCE($3, booking_mode)
+       WHERE id = $4
+       RETURNING *`,
+      [name, description, booking_mode, teamId]
+    );
+
+    console.log('✅ Team settings updated');
+    res.json({ team: result.rows[0] });
+  } catch (error) {
+    console.error('Update team error:', error);
+    res.status(500).json({ error: 'Failed to update team' });
+  }
+});
+
+// Create new team
 app.post('/api/teams', authenticateToken, async (req, res) => {
   const { name, description } = req.body;
   try {
@@ -1115,7 +1183,7 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     const memberResult = await pool.query(
-      `SELECT tm.*, t.name as team_name, u.google_access_token, u.google_refresh_token, 
+      `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, u.google_access_token, u.google_refresh_token, 
        u.email as member_email, u.name as member_name
        FROM team_members tm 
        JOIN teams t ON tm.team_id = t.id 
@@ -1127,31 +1195,112 @@ app.post('/api/bookings', async (req, res) => {
     if (memberResult.rows.length === 0) return res.status(404).json({ error: 'Invalid booking token' });
 
     const member = memberResult.rows[0];
+    const bookingMode = member.booking_mode || 'individual';
 
-    const bookingResult = await pool.query(
-      `INSERT INTO bookings (team_id, member_id, user_id, attendee_name, attendee_email, 
-       start_time, end_time, notes, booking_token, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [member.team_id, member.id, member.user_id, attendee_name, attendee_email, 
-       slot.start, slot.end, notes || '', token, 'confirmed']
-    );
+    console.log('🎯 Booking mode:', bookingMode);
 
-    const booking = bookingResult.rows[0];
-    console.log('✅ Booking created in database:', booking.id);
+    let assignedMembers = [];
+
+    // Determine which team member(s) to assign based on booking mode
+    switch (bookingMode) {
+      case 'individual':
+        // Use the specific member from the booking token
+        assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
+        console.log('👤 Individual mode: Assigning to', member.name);
+        break;
+
+      case 'round_robin':
+        // Find member with least bookings
+        const rrResult = await pool.query(
+          `SELECT tm.id, tm.name, tm.user_id, COUNT(b.id) as booking_count
+           FROM team_members tm
+           LEFT JOIN bookings b ON tm.id = b.member_id
+           WHERE tm.team_id = $1
+           GROUP BY tm.id, tm.name, tm.user_id
+           ORDER BY booking_count ASC, tm.id ASC
+           LIMIT 1`,
+          [member.team_id]
+        );
+        
+        if (rrResult.rows.length > 0) {
+          assignedMembers = [rrResult.rows[0]];
+          console.log('🔄 Round-robin: Assigning to', rrResult.rows[0].name, 'with', rrResult.rows[0].booking_count, 'bookings');
+        } else {
+          assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
+        }
+        break;
+
+      case 'first_available':
+        // Find first member who doesn't have a conflict at this time
+        const faResult = await pool.query(
+          `SELECT tm.id, tm.name, tm.user_id
+           FROM team_members tm
+           WHERE tm.team_id = $1
+           AND NOT EXISTS (
+             SELECT 1 FROM bookings b
+             WHERE b.member_id = tm.id
+             AND b.status != 'cancelled'
+             AND (
+               (b.start_time <= $2 AND b.end_time > $2)
+               OR (b.start_time < $3 AND b.end_time >= $3)
+               OR (b.start_time >= $2 AND b.end_time <= $3)
+             )
+           )
+           ORDER BY tm.id ASC
+           LIMIT 1`,
+          [member.team_id, slot.start, slot.end]
+        );
+        
+        if (faResult.rows.length > 0) {
+          assignedMembers = [faResult.rows[0]];
+          console.log('⚡ First-available: Assigning to', faResult.rows[0].name);
+        } else {
+          console.log('⚠️ No available members, falling back to token member');
+          assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
+        }
+        break;
+
+      case 'collective':
+        // Book with ALL team members
+        const collectiveResult = await pool.query(
+          'SELECT id, name, user_id FROM team_members WHERE team_id = $1',
+          [member.team_id]
+        );
+        
+        assignedMembers = collectiveResult.rows;
+        console.log('👥 Collective mode: Assigning to all', assignedMembers.length, 'members');
+        break;
+
+      default:
+        assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
+    }
+
+    // Create booking(s)
+    const createdBookings = [];
+
+    for (const assignedMember of assignedMembers) {
+      const bookingResult = await pool.query(
+        `INSERT INTO bookings (team_id, member_id, user_id, attendee_name, attendee_email, 
+         start_time, end_time, notes, booking_token, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        [member.team_id, assignedMember.id, assignedMember.user_id, attendee_name, attendee_email, 
+         slot.start, slot.end, notes || '', token, 'confirmed']
+      );
+
+      createdBookings.push(bookingResult.rows[0]);
+      console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
+    }
 
     // Send emails and create calendar events (existing code)...
 
     res.json({ 
       success: true,
-      booking: { 
-        id: booking.id, 
-        start_time: booking.start_time, 
-        end_time: booking.end_time, 
-        attendee_name: booking.attendee_name, 
-        attendee_email: booking.attendee_email, 
-        status: booking.status 
-      },
-      message: 'Booking confirmed successfully!'
+      booking: createdBookings[0], // Return first booking for compatibility
+      bookings: createdBookings,
+      mode: bookingMode,
+      message: bookingMode === 'collective' 
+        ? `Booking confirmed with all ${createdBookings.length} team members!`
+        : 'Booking confirmed successfully!'
     });
   } catch (error) {
     console.error('❌ Create booking error:', error);
