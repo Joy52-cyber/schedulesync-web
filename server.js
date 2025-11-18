@@ -430,117 +430,163 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       }
     }
 
-    // Generate all possible slots with status
-    const slots = [];
-    const WORK_START_HOUR = 9;
-    const WORK_END_HOUR = 17;
+  // TIMEZONE CONFIGURATION
+const TIMEZONE = 'Australia/Sydney';  // Change this to your timezone
+const WORK_START_HOUR = 9;  // 9 AM in your timezone
+const WORK_END_HOUR = 17;   // 5 PM in your timezone
 
-    for (let dayOffset = 0; dayOffset < daysAhead; dayOffset++) {
-      const date = new Date(now);
-      date.setDate(date.getDate() + dayOffset);
-      date.setHours(0, 0, 0, 0);
+for (let dayOffset = 0; dayOffset < daysAhead; dayOffset++) {
+  const checkDate = new Date(now);
+  checkDate.setDate(checkDate.getDate() + dayOffset);
+  
+  // Get the date in target timezone
+  const dateStr = checkDate.toLocaleDateString('en-CA', { timeZone: TIMEZONE }); // YYYY-MM-DD format
+  const [year, month, day] = dateStr.split('-');
+  
+  // Check if weekend in target timezone
+  const dateInTimezone = new Date(checkDate.toLocaleString('en-US', { timeZone: TIMEZONE }));
+  const dayOfWeek = dateInTimezone.getDay();
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-      const dayOfWeek = date.getDay();
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  // Generate slots for entire day
+  for (let hour = 0; hour < 24; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      // Create a date object for this specific time in the target timezone
+      // We'll create it by building an ISO string and parsing it
+      const localTimeStr = `${year}-${month}-${day}T${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:00`;
+      
+      // Convert local time to UTC by using Intl API
+      const timeFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: TIMEZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      
+      // Create a date that represents this time in the target timezone
+      // First create as if it's UTC, then find the actual UTC equivalent
+      const parts = localTimeStr.split(/[-T:]/);
+      const testDate = new Date(Date.UTC(
+        parseInt(parts[0]),
+        parseInt(parts[1]) - 1,
+        parseInt(parts[2]),
+        parseInt(parts[3]),
+        parseInt(parts[4]),
+        0
+      ));
+      
+      // Get the offset for this specific date/time
+      const testDateStr = testDate.toLocaleString('en-US', { timeZone: TIMEZONE });
+      const testDateUTC = testDate.toLocaleString('en-US', { timeZone: 'UTC' });
+      const offset = (Date.parse(testDateUTC) - Date.parse(testDateStr));
+      
+      // Create the actual slot time
+      const slotStart = new Date(Date.UTC(
+        parseInt(parts[0]),
+        parseInt(parts[1]) - 1,
+        parseInt(parts[2]),
+        parseInt(parts[3]),
+        parseInt(parts[4]),
+        0
+      ) - offset);
+      
+      const slotEnd = new Date(slotStart);
+      slotEnd.setMinutes(slotEnd.getMinutes() + duration);
 
-      // Generate slots for entire day (not just work hours)
-      for (let hour = 0; hour < 24; hour++) {
-        for (let minute = 0; minute < 60; minute += 30) {
-          const slotStart = new Date(date);
-          slotStart.setHours(hour, minute, 0, 0);
-          const slotEnd = new Date(slotStart);
-          slotEnd.setMinutes(slotEnd.getMinutes() + duration);
+      const startTime = slotStart.toISOString();
+      const endTime = slotEnd.toISOString();
 
-          const startTime = slotStart.toISOString();
-          const endTime = slotEnd.toISOString();
+      // Determine slot status and reason
+      let status = 'available';
+      let reason = null;
+      let details = null;
 
-          // Determine slot status and reason
-          let status = 'available';
-          let reason = null;
-          let details = null;
+      // Check if time has passed
+      if (slotStart < now) {
+        status = 'unavailable';
+        reason = 'past';
+        details = 'Time has passed';
+      }
+      // Check if weekend
+      else if (isWeekend) {
+        status = 'unavailable';
+        reason = 'weekend';
+        details = 'Weekend - organizer not available';
+      }
+      // Check if outside work hours
+      else if (hour < WORK_START_HOUR || hour >= WORK_END_HOUR) {
+        status = 'unavailable';
+        reason = 'outside_hours';
+        details = `Outside working hours (${WORK_START_HOUR}:00 - ${WORK_END_HOUR}:00)`;
+      }
+      // Check organizer conflicts
+      else {
+        const organizerConflict = organizerBusy.some(busy => {
+          const busyStart = new Date(busy.start);
+          const busyEnd = new Date(busy.end);
+          return (
+            (slotStart >= busyStart && slotStart < busyEnd) ||
+            (slotEnd > busyStart && slotEnd <= busyEnd) ||
+            (slotStart <= busyStart && slotEnd >= busyEnd)
+          );
+        });
 
-          // Check if time has passed
-          if (slotStart < now) {
-            status = 'unavailable';
-            reason = 'past';
-            details = 'Time has passed';
-          }
-          // Check if weekend
-          else if (isWeekend) {
-            status = 'unavailable';
-            reason = 'weekend';
-            details = 'Weekend - organizer not available';
-          }
-          // Check if outside work hours
-          else if (hour < WORK_START_HOUR || hour >= WORK_END_HOUR) {
-            status = 'unavailable';
-            reason = 'outside_hours';
-            details = `Outside working hours (${WORK_START_HOUR}:00 - ${WORK_END_HOUR}:00)`;
-          }
-          // Check organizer conflicts
-          else {
-            const organizerConflict = organizerBusy.some(busy => {
-              const busyStart = new Date(busy.start);
-              const busyEnd = new Date(busy.end);
-              return (
-                (slotStart >= busyStart && slotStart < busyEnd) ||
-                (slotEnd > busyStart && slotEnd <= busyEnd) ||
-                (slotStart <= busyStart && slotEnd >= busyEnd)
-              );
-            });
+        const guestConflict = guestBusy.some(busy => {
+          const busyStart = new Date(busy.start);
+          const busyEnd = new Date(busy.end);
+          return (
+            (slotStart >= busyStart && slotStart < busyEnd) ||
+            (slotEnd > busyStart && slotEnd <= busyEnd) ||
+            (slotStart <= busyStart && slotEnd >= busyEnd)
+          );
+        });
 
-            const guestConflict = guestBusy.some(busy => {
-              const busyStart = new Date(busy.start);
-              const busyEnd = new Date(busy.end);
-              return (
-                (slotStart >= busyStart && slotStart < busyEnd) ||
-                (slotEnd > busyStart && slotEnd <= busyEnd) ||
-                (slotStart <= busyStart && slotEnd >= busyEnd)
-              );
-            });
-
-            if (organizerConflict && guestConflict) {
-              status = 'unavailable';
-              reason = 'both_busy';
-              details = 'Both calendars show conflicts';
-            } else if (organizerConflict) {
-              status = 'unavailable';
-              reason = 'organizer_busy';
-              details = `${member.organizer_name || 'Organizer'} has another meeting`;
-            } else if (guestConflict) {
-              status = 'unavailable';
-              reason = 'guest_busy';
-              details = "You have another meeting";
-            }
-          }
-
-         slots.push({
-  start: startTime,
-  end: endTime,
-  date: slotStart.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'Asia/Manila'  // ← ADD YOUR TIMEZONE
-  }),
-  dayOfWeek: slotStart.toLocaleDateString('en-US', { 
-    weekday: 'short',
-    timeZone: 'Asia/Manila'  // ← ADD YOUR TIMEZONE
-  }),
-  time: slotStart.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Asia/Manila'  // ← ADD YOUR TIMEZONE
-  }),
-  status,
-  reason,
-  details,
-  timestamp: slotStart.getTime()
-});
+        if (organizerConflict && guestConflict) {
+          status = 'unavailable';
+          reason = 'both_busy';
+          details = 'Both calendars show conflicts';
+        } else if (organizerConflict) {
+          status = 'unavailable';
+          reason = 'organizer_busy';
+          details = `${member.organizer_name || 'Organizer'} has another meeting`;
+        } else if (guestConflict) {
+          status = 'unavailable';
+          reason = 'guest_busy';
+          details = "You have another meeting";
         }
       }
+
+      slots.push({
+        start: startTime,
+        end: endTime,
+        date: slotStart.toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+          timeZone: TIMEZONE
+        }),
+        dayOfWeek: slotStart.toLocaleDateString('en-US', { 
+          weekday: 'short',
+          timeZone: TIMEZONE 
+        }),
+        time: slotStart.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: TIMEZONE
+        }),
+        status,
+        reason,
+        details,
+        timestamp: slotStart.getTime()
+      });
     }
+  }
+}
 
     // Group by date for easier frontend rendering
     const slotsByDate = {};
