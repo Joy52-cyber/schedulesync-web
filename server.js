@@ -377,7 +377,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     const { 
       guestAccessToken, 
       guestRefreshToken,
-      duration = 60,
+      duration = 30,
       daysAhead = 14,
       timezone = 'America/New_York'
     } = req.body;
@@ -710,7 +710,7 @@ app.get('/api/debug-slots/:token', async (req, res) => {
 
 app.post('/api/suggest-slots', async (req, res) => {
   try {
-    const { bookingToken, duration = 60, guestBusy = [], organizerBusy = [] } = req.body;
+    const { bookingToken, duration = 30, guestBusy = [], organizerBusy = [] } = req.body;
 
     if (!bookingToken) {
       return res.status(400).json({ error: 'bookingToken is required' });

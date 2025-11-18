@@ -37,7 +37,7 @@ export default function SmartSlotPicker({
         {
           guestAccessToken: guestCalendar?.accessToken,
           guestRefreshToken: guestCalendar?.refreshToken,
-          duration: 60,
+          duration: 30,
           daysAhead: 14,
           timezone: userTimezone
         }
