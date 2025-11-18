@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { Calendar, Clock, Check, Info, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Calendar, Clock, Check, Info, Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 
@@ -21,7 +21,7 @@ export default function SmartSlotPicker({
 
   useEffect(() => {
     loadSlots();
-  }, [bookingToken]); // Only reload when booking token changes
+  }, [bookingToken]);
 
   const loadSlots = async () => {
     try {
@@ -97,7 +97,7 @@ export default function SmartSlotPicker({
       {summary && summary.availableSlots === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
           <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-semibold text-yellow-900">
                 No available slots in the next 2 weeks
@@ -120,10 +120,8 @@ export default function SmartSlotPicker({
           {dates.map(date => {
             const daySlots = slots[date];
             const availableCount = daySlots.filter(s => s.status === 'available').length;
+            const unavailableCount = daySlots.length - availableCount;
             const isSelected = selectedDate === date;
-
-            // Don't show dates with no available slots
-            if (availableCount === 0 && !showUnavailable) return null;
 
             return (
               <button
@@ -138,13 +136,13 @@ export default function SmartSlotPicker({
                     ? 'border-green-500 bg-green-50' 
                     : availableCount > 0
                     ? 'border-gray-300 hover:border-green-300'
-                    : 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
+                    : 'border-red-200 bg-red-50 opacity-75 cursor-not-allowed'
                 }`}
               >
                 <p className="text-xs font-semibold text-gray-600">
                   {daySlots[0]?.dayOfWeek}
                 </p>
-                <p className="text-sm font-bold text-gray-900 mt-1">
+                <p className={`text-sm font-bold mt-1 ${availableCount > 0 ? 'text-gray-900' : 'text-gray-500'}`}>
                   {new Date(daySlots[0]?.start).toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric'
@@ -158,9 +156,16 @@ export default function SmartSlotPicker({
                     </p>
                   </div>
                 ) : (
-                  <p className="text-xs text-gray-400 mt-1">
-                    None available
-                  </p>
+                  <div className="mt-1">
+                    <p className="text-xs text-red-600 font-medium">
+                      No slots
+                    </p>
+                    {showUnavailable && unavailableCount > 0 && (
+                      <p className="text-xs text-gray-500">
+                        ({unavailableCount} busy)
+                      </p>
+                    )}
+                  </div>
                 )}
               </button>
             );

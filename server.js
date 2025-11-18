@@ -553,7 +553,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
 
     console.log(`✅ Generated ${slots.length} slots with status (${Object.keys(slotsByDate).length} days)`);
 
-    res.json({
+ res.json({
       slots: slotsByDate,
       summary: {
         totalSlots: slots.length,
@@ -567,7 +567,107 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     console.error('❌ Slot status error:', error);
     res.status(500).json({ error: 'Failed to get slot availability' });
   }
+});  // ← This closes /api/book/:token/slots-with-status
+
+// 👇 ADD DEBUG ENDPOINT RIGHT HERE, AFTER THE LINE ABOVE 👇
+
+// ============ DEBUG: CHECK WHAT BACKEND SEES ============
+app.get('/api/debug-slots/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    // Get organizer
+    const memberResult = await pool.query(
+      `SELECT tm.*, u.google_access_token, u.google_refresh_token, u.name as organizer_name, u.email as organizer_email
+       FROM team_members tm
+       LEFT JOIN users u ON tm.user_id = u.id
+       WHERE tm.booking_token = $1`,
+      [token]
+    );
+    
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid token' });
+    }
+    
+    const member = memberResult.rows[0];
+    
+    // Get busy times for Nov 18, 2025
+    const nov18Start = new Date('2025-11-18T00:00:00Z'); // Midnight UTC
+    const nov18End = new Date('2025-11-18T23:59:59Z');   // End of day UTC
+    
+    let organizerBusy = [];
+    
+    if (member.google_access_token && member.google_refresh_token) {
+      const calendar = google.calendar({ version: 'v3' });
+      const auth = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET
+      );
+      auth.setCredentials({
+        access_token: member.google_access_token,
+        refresh_token: member.google_refresh_token
+      });
+      
+      const freeBusyResponse = await calendar.freebusy.query({
+        auth: auth,
+        requestBody: {
+          timeMin: nov18Start.toISOString(),
+          timeMax: nov18End.toISOString(),
+          items: [{ id: 'primary' }],
+        },
+      });
+      
+      organizerBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
+    }
+    
+    // Generate sample slots for Nov 18
+    const sampleSlots = [];
+    const nov18Local = new Date('2025-11-18T00:00:00+08:00'); // Philippine time
+    
+    for (let hour = 9; hour < 18; hour++) {
+      const slotStart = new Date(nov18Local);
+      slotStart.setHours(hour, 0, 0, 0);
+      const slotEnd = new Date(slotStart);
+      slotEnd.setMinutes(60);
+      
+      sampleSlots.push({
+        hour: hour,
+        startLocal: slotStart.toLocaleString('en-US', { timeZone: 'Asia/Manila', hour12: true }),
+        startUTC: slotStart.toISOString(),
+        startUnix: slotStart.getTime(),
+        isOutsideWorkHours: hour < 9 || hour >= 17
+      });
+    }
+    
+    res.json({
+      organizer: {
+        name: member.organizer_name,
+        email: member.organizer_email,
+        hasTokens: !!(member.google_access_token && member.google_refresh_token)
+      },
+      nov18BusyTimes: organizerBusy.map(b => ({
+        start: b.start,
+        end: b.end,
+        startLocal: new Date(b.start).toLocaleString('en-US', { timeZone: 'Asia/Manila' }),
+        endLocal: new Date(b.end).toLocaleString('en-US', { timeZone: 'Asia/Manila' }),
+        startUTC: b.start,
+        endUTC: b.end
+      })),
+      sampleSlots: sampleSlots,
+      workingHours: {
+        start: 9,
+        end: 17,
+        timezone: 'UTC (backend)',
+        note: 'Slots from 9:00 to 16:59 are considered work hours'
+      }
+    });
+    
+  } catch (error) {
+    console.error('Debug error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
+
 
 // ============ AI SLOT SUGGESTIONS ============
 
