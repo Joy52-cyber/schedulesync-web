@@ -73,8 +73,9 @@ export default function OAuthCallback({ onLogin }) {
         console.log('🔐 Calling onLogin to update app state...');
         onLogin(response.token, response.user);
         
-        console.log('✅ App state updated, navigating to dashboard...');
-        navigate('/dashboard', { replace: true });
+        console.log('✅ App state updated, forcing page reload...');
+// Force full page reload to ensure token is set everywhere
+window.location.href = '/dashboard';
         
       } catch (err) {
         console.error('❌ OAuth callback failed:', err);

@@ -16,11 +16,15 @@ export default function Bookings() {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
 
-  useEffect(() => {
-    loadTeams();
+ useEffect(() => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    console.log('📋 Bookings: Loading data with token');
     loadBookings();
-  }, [timeFilter, teamFilter, statusFilter]);
-
+  } else {
+    console.error('❌ Bookings: No token found');
+  }
+}, []);
   const loadTeams = async () => {
     try {
       const token = localStorage.getItem('token');

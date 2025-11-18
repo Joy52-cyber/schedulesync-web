@@ -25,9 +25,16 @@ export default function Dashboard() {
   const [calendarConnected, setCalendarConnected] = useState(false); // ← Add this here
 
   useEffect(() => {
+  // Only load data if we have a token
+  const token = localStorage.getItem('token');
+  if (token) {
+    console.log('📊 Dashboard: Loading data with token');
     loadData();
-    checkCalendarStatus(); // ← Add this
-  }, []);
+    checkCalendarStatus();
+  } else {
+    console.error('❌ Dashboard: No token found, skipping data load');
+  }
+}, []);
 
   // ← Add this function
   const checkCalendarStatus = () => {
