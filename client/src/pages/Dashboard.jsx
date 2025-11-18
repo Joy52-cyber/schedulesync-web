@@ -159,132 +159,132 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">Welcome back! Here's your scheduling overview</p>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 text-sm mt-0.5">Welcome back! Here's your scheduling overview</p>
         </div>
         <button
           onClick={() => navigate('/my-booking-link')}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
         >
-          <Link2 className="h-5 w-5" />
+          <Link2 className="h-4 w-4" />
           My Booking Link
         </button>
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Today's Bookings */}
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-white/20 rounded-lg p-3">
-              <Calendar className="h-6 w-6" />
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-4 text-white shadow-md">
+          <div className="flex items-center justify-between mb-2">
+            <div className="bg-white/20 rounded-lg p-2">
+              <Calendar className="h-4 w-4" />
             </div>
-            <TrendingUp className="h-5 w-5 opacity-75" />
+            <TrendingUp className="h-4 w-4 opacity-75" />
           </div>
-          <h3 className="text-3xl font-bold mb-1">{stats.todayBookings}</h3>
-          <p className="text-blue-100 text-sm font-medium">Today's Bookings</p>
+          <h3 className="text-2xl font-bold mb-0.5">{stats.todayBookings}</h3>
+          <p className="text-blue-100 text-xs font-medium">Today's Bookings</p>
         </div>
 
         {/* This Week */}
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-white/20 rounded-lg p-3">
-              <Clock className="h-6 w-6" />
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-4 text-white shadow-md">
+          <div className="flex items-center justify-between mb-2">
+            <div className="bg-white/20 rounded-lg p-2">
+              <Clock className="h-4 w-4" />
             </div>
-            <Zap className="h-5 w-5 opacity-75" />
+            <Zap className="h-4 w-4 opacity-75" />
           </div>
-          <h3 className="text-3xl font-bold mb-1">{stats.thisWeekBookings}</h3>
-          <p className="text-purple-100 text-sm font-medium">This Week</p>
+          <h3 className="text-2xl font-bold mb-0.5">{stats.thisWeekBookings}</h3>
+          <p className="text-purple-100 text-xs font-medium">This Week</p>
         </div>
 
         {/* Total Bookings */}
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-white/20 rounded-lg p-3">
-              <CheckCircle className="h-6 w-6" />
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg p-4 text-white shadow-md">
+          <div className="flex items-center justify-between mb-2">
+            <div className="bg-white/20 rounded-lg p-2">
+              <CheckCircle className="h-4 w-4" />
             </div>
-            <Users className="h-5 w-5 opacity-75" />
+            <Users className="h-4 w-4 opacity-75" />
           </div>
-          <h3 className="text-3xl font-bold mb-1">{stats.totalBookings}</h3>
-          <p className="text-green-100 text-sm font-medium">Total Bookings</p>
+          <h3 className="text-2xl font-bold mb-0.5">{stats.totalBookings}</h3>
+          <p className="text-green-100 text-xs font-medium">Total Bookings</p>
         </div>
 
         {/* Upcoming */}
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-white/20 rounded-lg p-3">
-              <AlertCircle className="h-6 w-6" />
+        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg p-4 text-white shadow-md">
+          <div className="flex items-center justify-between mb-2">
+            <div className="bg-white/20 rounded-lg p-2">
+              <AlertCircle className="h-4 w-4" />
             </div>
-            <ArrowRight className="h-5 w-5 opacity-75" />
+            <ArrowRight className="h-4 w-4 opacity-75" />
           </div>
-          <h3 className="text-3xl font-bold mb-1">{stats.upcomingBookings}</h3>
-          <p className="text-orange-100 text-sm font-medium">Upcoming</p>
+          <h3 className="text-2xl font-bold mb-0.5">{stats.upcomingBookings}</h3>
+          <p className="text-orange-100 text-xs font-medium">Upcoming</p>
         </div>
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid lg:grid-cols-3 gap-4">
         {/* Today's Bookings Widget */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-blue-600" />
+        <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-blue-600" />
               Today's Schedule
             </h2>
             <button
               onClick={() => navigate('/bookings')}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+              className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
             >
               View all
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-3 w-3" />
             </button>
           </div>
 
           {todayBookings.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="bg-gray-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                <Calendar className="h-8 w-8 text-gray-400" />
+            <div className="text-center py-8">
+              <div className="bg-gray-100 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
+                <Calendar className="h-6 w-6 text-gray-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No bookings today</h3>
-              <p className="text-gray-600 text-sm mb-4">Your schedule is clear for today</p>
+              <h3 className="text-sm font-semibold text-gray-900 mb-1">No bookings today</h3>
+              <p className="text-gray-600 text-xs mb-3">Your schedule is clear for today</p>
               <button
                 onClick={() => navigate('/my-booking-link')}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium"
               >
-                <Link2 className="h-4 w-4" />
+                <Link2 className="h-3 w-3" />
                 Share Booking Link
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {todayBookings.map((booking) => (
                 <div
                   key={booking.id}
-                  className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                  className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
                   onClick={() => navigate('/bookings')}
                 >
-                  <div className="bg-blue-100 rounded-lg p-3 flex-shrink-0">
-                    <Clock className="h-5 w-5 text-blue-600" />
+                  <div className="bg-blue-100 rounded-lg p-2 flex-shrink-0">
+                    <Clock className="h-4 w-4 text-blue-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-gray-900 truncate">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h3 className="font-semibold text-sm text-gray-900 truncate">
                         {booking.attendee_name}
                       </h3>
                       {booking.status === 'cancelled' && (
-                        <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full">
+                        <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded-full">
                           Cancelled
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600 truncate">{booking.attendee_email}</p>
+                    <p className="text-xs text-gray-600 truncate">{booking.attendee_email}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="font-semibold text-gray-900">
+                    <p className="font-semibold text-sm text-gray-900">
                       {formatTime(booking.start_time)}
                     </p>
                     <p className="text-xs text-gray-500">{booking.team_name}</p>
@@ -296,106 +296,106 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Quick Actions</h2>
-          <div className="space-y-3">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h2>
+          <div className="space-y-2">
             <button
               onClick={() => navigate('/teams')}
-              className="w-full flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg hover:shadow-md transition-all text-left group"
+              className="w-full flex items-center gap-2 p-3 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg hover:shadow-md transition-all text-left group"
             >
-              <div className="bg-blue-600 rounded-lg p-2">
-                <Users className="h-5 w-5 text-white" />
+              <div className="bg-blue-600 rounded-lg p-1.5">
+                <Users className="h-4 w-4 text-white" />
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                <p className="font-semibold text-sm text-gray-900 group-hover:text-blue-600 transition-colors">
                   Manage Teams
                 </p>
                 <p className="text-xs text-gray-600">
                   {teams.length} {teams.length === 1 ? 'team' : 'teams'}
                 </p>
               </div>
-              <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+              <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
             </button>
 
             <button
               onClick={() => navigate('/bookings')}
-              className="w-full flex items-center gap-3 p-4 bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg hover:shadow-md transition-all text-left group"
+              className="w-full flex items-center gap-2 p-3 bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg hover:shadow-md transition-all text-left group"
             >
-              <div className="bg-purple-600 rounded-lg p-2">
-                <Calendar className="h-5 w-5 text-white" />
+              <div className="bg-purple-600 rounded-lg p-1.5">
+                <Calendar className="h-4 w-4 text-white" />
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-gray-900 group-hover:text-purple-600 transition-colors">
+                <p className="font-semibold text-sm text-gray-900 group-hover:text-purple-600 transition-colors">
                   View All Bookings
                 </p>
                 <p className="text-xs text-gray-600">
                   {stats.upcomingBookings} upcoming
                 </p>
               </div>
-              <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
+              <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
             </button>
 
             <button
               onClick={() => navigate('/my-booking-link')}
-              className="w-full flex items-center gap-3 p-4 bg-gradient-to-r from-green-50 to-green-100 rounded-lg hover:shadow-md transition-all text-left group"
+              className="w-full flex items-center gap-2 p-3 bg-gradient-to-r from-green-50 to-green-100 rounded-lg hover:shadow-md transition-all text-left group"
             >
-              <div className="bg-green-600 rounded-lg p-2">
-                <Link2 className="h-5 w-5 text-white" />
+              <div className="bg-green-600 rounded-lg p-1.5">
+                <Link2 className="h-4 w-4 text-white" />
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
+                <p className="font-semibold text-sm text-gray-900 group-hover:text-green-600 transition-colors">
                   My Booking Link
                 </p>
                 <p className="text-xs text-gray-600">Share with clients</p>
               </div>
-              <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-green-600 group-hover:translate-x-1 transition-all" />
+              <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-green-600 group-hover:translate-x-1 transition-all" />
             </button>
           </div>
         </div>
       </div>
 
       {/* Upcoming This Week & Team Performance */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid lg:grid-cols-2 gap-4">
         {/* Upcoming This Week */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <Clock className="h-5 w-5 text-purple-600" />
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <Clock className="h-4 w-4 text-purple-600" />
               Upcoming This Week
             </h2>
             <button
               onClick={() => navigate('/bookings')}
-              className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+              className="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
             >
               View all
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-3 w-3" />
             </button>
           </div>
 
           {upcomingBookings.length === 0 ? (
-            <div className="text-center py-8">
-              <CheckCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-600 text-sm">No upcoming bookings this week</p>
+            <div className="text-center py-6">
+              <CheckCircle className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+              <p className="text-gray-600 text-xs">No upcoming bookings this week</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {upcomingBookings.map((booking) => (
                 <div
                   key={booking.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                  className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
                   onClick={() => navigate('/bookings')}
                 >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     <div className="text-center flex-shrink-0">
                       <p className="text-xs font-medium text-gray-500">
                         {formatDate(booking.start_time).split(',')[0]}
                       </p>
-                      <p className="text-lg font-bold text-gray-900">
+                      <p className="text-base font-bold text-gray-900">
                         {new Date(booking.start_time).getDate()}
                       </p>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 truncate">
+                      <p className="font-semibold text-sm text-gray-900 truncate">
                         {booking.attendee_name}
                       </p>
                       <p className="text-xs text-gray-600 truncate">
@@ -410,54 +410,54 @@ export default function Dashboard() {
         </div>
 
         {/* Team Performance */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-green-600" />
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-green-600" />
               Team Performance
             </h2>
             <button
               onClick={() => navigate('/teams')}
-              className="text-sm text-green-600 hover:text-green-700 font-medium flex items-center gap-1"
+              className="text-xs text-green-600 hover:text-green-700 font-medium flex items-center gap-1"
             >
               Manage
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-3 w-3" />
             </button>
           </div>
 
           {teamStats.length === 0 ? (
-            <div className="text-center py-8">
-              <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-600 text-sm mb-3">No teams yet</p>
+            <div className="text-center py-6">
+              <Users className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+              <p className="text-gray-600 text-xs mb-2">No teams yet</p>
               <button
                 onClick={() => navigate('/teams')}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3 w-3" />
                 Create Team
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {teamStats.map((team) => (
-                <div key={team.teamId} className="border-b border-gray-100 last:border-0 pb-4 last:pb-0">
+                <div key={team.teamId} className="border-b border-gray-100 last:border-0 pb-3 last:pb-0">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold text-gray-900">{team.teamName}</h3>
-                    <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
+                    <h3 className="font-semibold text-sm text-gray-900">{team.teamName}</h3>
+                    <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded-full">
                       {getBookingModeLabel(team.bookingMode)}
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    <div className="bg-blue-50 rounded-lg p-2">
-                      <p className="text-xl font-bold text-blue-600">{team.totalBookings}</p>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-blue-50 rounded-lg p-1.5">
+                      <p className="text-lg font-bold text-blue-600">{team.totalBookings}</p>
                       <p className="text-xs text-gray-600">Total</p>
                     </div>
-                    <div className="bg-green-50 rounded-lg p-2">
-                      <p className="text-xl font-bold text-green-600">{team.upcomingBookings}</p>
+                    <div className="bg-green-50 rounded-lg p-1.5">
+                      <p className="text-lg font-bold text-green-600">{team.upcomingBookings}</p>
                       <p className="text-xs text-gray-600">Upcoming</p>
                     </div>
-                    <div className="bg-purple-50 rounded-lg p-2">
-                      <p className="text-xl font-bold text-purple-600">{team.completedBookings}</p>
+                    <div className="bg-purple-50 rounded-lg p-1.5">
+                      <p className="text-lg font-bold text-purple-600">{team.completedBookings}</p>
                       <p className="text-xs text-gray-600">Done</p>
                     </div>
                   </div>
@@ -469,27 +469,27 @@ export default function Dashboard() {
       </div>
 
       {/* Performance Insights */}
-      <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+      <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg shadow-md p-4 text-white">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-2xl font-bold mb-2">📈 Your Performance</h2>
-            <div className="space-y-2 text-indigo-100">
-              <p className="text-sm">
+            <h2 className="text-lg font-bold mb-2">📈 Your Performance</h2>
+            <div className="space-y-1 text-indigo-100">
+              <p className="text-xs">
                 • <strong className="text-white">{stats.completedBookings}</strong> meetings completed
               </p>
-              <p className="text-sm">
+              <p className="text-xs">
                 • <strong className="text-white">{stats.cancelledBookings}</strong> cancellations (
                 {stats.totalBookings > 0 
                   ? Math.round((stats.cancelledBookings / stats.totalBookings) * 100) 
                   : 0}% rate)
               </p>
-              <p className="text-sm">
+              <p className="text-xs">
                 • <strong className="text-white">{teams.length}</strong> active {teams.length === 1 ? 'team' : 'teams'}
               </p>
             </div>
           </div>
-          <div className="bg-white/20 rounded-lg p-4 backdrop-blur-sm">
-            <TrendingUp className="h-8 w-8" />
+          <div className="bg-white/20 rounded-lg p-3 backdrop-blur-sm">
+            <TrendingUp className="h-6 w-6" />
           </div>
         </div>
       </div>
