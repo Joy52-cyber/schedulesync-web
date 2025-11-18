@@ -1,57 +1,52 @@
 ﻿import { useState, useEffect } from 'react';
-import { Calendar, Clock, User, Mail, FileText, X, AlertCircle, Filter, Search, CheckCircle, XCircle } from 'lucide-react';
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+import { Calendar, Clock, User, Mail, FileText, Filter, Users, Crown, UserCheck } from 'lucide-react';
+import api from '../utils/api';
 
 export default function Bookings() {
   const [bookings, setBookings] = useState([]);
-  const [teams, setTeams] = useState([]);
+  const [filteredBookings, setFilteredBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [timeFilter, setTimeFilter] = useState('upcoming');
-  const [teamFilter, setTeamFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [cancelModal, setCancelModal] = useState({ show: false, booking: null });
-  const [cancelReason, setCancelReason] = useState('');
-  const [cancelling, setCancelling] = useState(false);
+  const [filter, setFilter] = useState('all'); // 'all', 'my-teams', 'member-teams'
+  const [timeFilter, setTimeFilter] = useState('upcoming'); // 'all', 'upcoming', 'past'
 
- useEffect(() => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    console.log('📋 Bookings: Loading data with token');
+  useEffect(() => {
     loadBookings();
-  } else {
-    console.error('❌ Bookings: No token found');
-  }
-}, []);
-  const loadTeams = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/teams`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setTeams(response.data.teams);
-    } catch (error) {
-      console.error('Error loading teams:', error);
-    }
-  };
+  }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [bookings, filter, timeFilter]);
 
   const loadBookings = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error('❌ Bookings: No token found');
+      return;
+    }
+
     try {
+      console.log('📋 Bookings: Loading data with token');
       setLoading(true);
-      const token = localStorage.getItem('token');
       
-      const params = new URLSearchParams();
-      if (timeFilter !== 'all') params.append('time_filter', timeFilter);
-      if (teamFilter !== 'all') params.append('team_id', teamFilter);
-      if (statusFilter !== 'all') params.append('status', statusFilter);
+      // Get bookings
+      const bookingsResponse = await api.get('/bookings');
+      
+      // Get teams to determine ownership
+      const teamsResponse = await api.get('/teams');
+      const myTeamIds = new Set(teamsResponse.data.teams.map(t => t.id));
+      
+      // Get current user
+      const storedUser = localStorage.getItem('user');
+      const currentUser = storedUser ? JSON.parse(storedUser) : null;
+      
+      // Enhance bookings with ownership info
+      const enhancedBookings = bookingsResponse.data.bookings.map(booking => ({
+        ...booking,
+        isMyTeam: myTeamIds.has(booking.team_id),
+        isAssignedToMe: booking.user_id === currentUser?.id
+      }));
 
-      const response = await axios.get(`${API_URL}/bookings/list?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      setBookings(response.data.bookings);
+      setBookings(enhancedBookings);
     } catch (error) {
       console.error('Error loading bookings:', error);
     } finally {
@@ -59,348 +54,283 @@ export default function Bookings() {
     }
   };
 
-  const handleCancelBooking = async () => {
-    try {
-      setCancelling(true);
-      const token = localStorage.getItem('token');
-      
-      await axios.patch(
-        `${API_URL}/bookings/${cancelModal.booking.id}/cancel`,
-        { cancellation_reason: cancelReason },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+  const applyFilters = () => {
+    let filtered = [...bookings];
 
-      // Reload bookings
-      await loadBookings();
-      
-      // Close modal
-      setCancelModal({ show: false, booking: null });
-      setCancelReason('');
-      
-      alert('Booking cancelled successfully!');
-    } catch (error) {
-      console.error('Error cancelling booking:', error);
-      alert('Failed to cancel booking. Please try again.');
-    } finally {
-      setCancelling(false);
+    // Apply team filter
+    if (filter === 'my-teams') {
+      filtered = filtered.filter(b => b.isMyTeam);
+    } else if (filter === 'member-teams') {
+      filtered = filtered.filter(b => !b.isMyTeam);
     }
+
+    // Apply time filter
+    const now = new Date();
+    if (timeFilter === 'upcoming') {
+      filtered = filtered.filter(b => new Date(b.start_time) >= now);
+    } else if (timeFilter === 'past') {
+      filtered = filtered.filter(b => new Date(b.start_time) < now);
+    }
+
+    setFilteredBookings(filtered);
   };
 
-  const filteredBookings = bookings.filter(booking => {
-    if (!searchQuery) return true;
-    const search = searchQuery.toLowerCase();
-    return (
-      booking.attendee_name?.toLowerCase().includes(search) ||
-      booking.attendee_email?.toLowerCase().includes(search) ||
-      booking.team_name?.toLowerCase().includes(search)
-    );
-  });
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'confirmed': return 'bg-green-100 text-green-800 border-green-200';
-      case 'cancelled': return 'bg-red-100 text-red-800 border-red-200';
-      case 'completed': return 'bg-gray-100 text-gray-800 border-gray-200';
-      default: return 'bg-blue-100 text-blue-800 border-blue-200';
-    }
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'confirmed': return <CheckCircle className="h-4 w-4" />;
-      case 'cancelled': return <XCircle className="h-4 w-4" />;
-      default: return <Calendar className="h-4 w-4" />;
-    }
-  };
-
-  const formatDateTime = (dateString) => {
+  const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return {
-      date: date.toLocaleDateString('en-US', { 
-        weekday: 'short',
-        month: 'short', 
-        day: 'numeric',
-        year: 'numeric'
-      }),
-      time: date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true
-      })
-    };
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
   };
+
+  const formatTime = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getTeamBadge = (booking) => {
+    if (booking.isMyTeam) {
+      return (
+        <div className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+          <Crown className="h-3 w-3" />
+          My Team
+        </div>
+      );
+    } else if (booking.isAssignedToMe) {
+      return (
+        <div className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+          <UserCheck className="h-3 w-3" />
+          Assigned to Me
+        </div>
+      );
+    } else {
+      return (
+        <div className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+          <Users className="h-3 w-3" />
+          Team Member
+        </div>
+      );
+    }
+  };
+
+  const getStatusBadge = (status, startTime) => {
+    const isPast = new Date(startTime) < new Date();
+    
+    if (status === 'cancelled') {
+      return <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">Cancelled</span>;
+    }
+    
+    if (isPast) {
+      return <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">Completed</span>;
+    }
+    
+    return <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">Upcoming</span>;
+  };
+
+  // Count bookings by category
+  const myTeamsCount = bookings.filter(b => b.isMyTeam).length;
+  const memberTeamsCount = bookings.filter(b => !b.isMyTeam).length;
+  const upcomingCount = bookings.filter(b => new Date(b.start_time) >= new Date()).length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <Calendar className="h-8 w-8 text-blue-600" />
-            Bookings
-          </h1>
-          <p className="mt-2 text-gray-600">Manage your scheduled meetings</p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Bookings</h1>
+          <p className="text-gray-600 mt-1">View and manage all your bookings</p>
         </div>
-
-        {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Search */}
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Search className="h-4 w-4 inline mr-1" />
-                Search
-              </label>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by name or email..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            {/* Time Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Clock className="h-4 w-4 inline mr-1" />
-                Time
-              </label>
-              <select
-                value={timeFilter}
-                onChange={(e) => setTimeFilter(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="upcoming">Upcoming</option>
-                <option value="past">Past</option>
-                <option value="all">All</option>
-              </select>
-            </div>
-
-            {/* Status Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Filter className="h-4 w-4 inline mr-1" />
-                Status
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Team Filter */}
-          {teams.length > 0 && (
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Filter by Team
-              </label>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setTeamFilter('all')}
-                  className={`px-4 py-2 rounded-lg border transition-colors ${
-                    teamFilter === 'all'
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-gray-700 border-gray-300 hover:border-blue-600'
-                  }`}
-                >
-                  All Teams
-                </button>
-                {teams.map(team => (
-                  <button
-                    key={team.id}
-                    onClick={() => setTeamFilter(team.id.toString())}
-                    className={`px-4 py-2 rounded-lg border transition-colors ${
-                      teamFilter === team.id.toString()
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-blue-600'
-                    }`}
-                  >
-                    {team.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Bookings List */}
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-        ) : filteredBookings.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-            <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No bookings found</h3>
-            <p className="text-gray-600">
-              {searchQuery ? 'Try adjusting your search or filters' : 'You don\'t have any bookings yet'}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredBookings.map(booking => {
-              const dateTime = formatDateTime(booking.start_time);
-              const isPast = new Date(booking.start_time) < new Date();
-              const canCancel = booking.status === 'confirmed' && !isPast;
-
-              return (
-                <div
-                  key={booking.id}
-                  className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      {/* Header */}
-                      <div className="flex items-start gap-4 mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="text-lg font-bold text-gray-900">
-                              {booking.attendee_name}
-                            </h3>
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold border flex items-center gap-1 ${getStatusColor(booking.status)}`}>
-                              {getStatusIcon(booking.status)}
-                              {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600">{booking.team_name}</p>
-                        </div>
-
-                        {/* Cancel Button */}
-                        {canCancel && (
-                          <button
-                            onClick={() => setCancelModal({ show: true, booking })}
-                            className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-2 text-sm font-medium"
-                          >
-                            <X className="h-4 w-4" />
-                            Cancel
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Details Grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Date & Time */}
-                        <div className="flex items-start gap-3">
-                          <Calendar className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{dateTime.date}</p>
-                            <p className="text-sm text-gray-600">{dateTime.time}</p>
-                          </div>
-                        </div>
-
-                        {/* Email */}
-                        <div className="flex items-start gap-3">
-                          <Mail className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-700">Email</p>
-                            <p className="text-sm text-gray-600">{booking.attendee_email}</p>
-                          </div>
-                        </div>
-
-                        {/* Organizer */}
-                        <div className="flex items-start gap-3">
-                          <User className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-700">Organizer</p>
-                            <p className="text-sm text-gray-600">{booking.organizer_name || booking.member_name || 'N/A'}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Notes */}
-                      {booking.notes && (
-                        <div className="mt-4 flex items-start gap-3">
-                          <FileText className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-700 mb-1">Notes</p>
-                            <p className="text-sm text-gray-600 whitespace-pre-wrap">{booking.notes}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Results Count */}
-        {!loading && filteredBookings.length > 0 && (
-          <div className="mt-6 text-center text-sm text-gray-600">
-            Showing {filteredBookings.length} booking{filteredBookings.length !== 1 ? 's' : ''}
-          </div>
-        )}
       </div>
 
-      {/* Cancel Modal */}
-      {cancelModal.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <div className="flex items-start gap-4 mb-4">
-              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                <AlertCircle className="h-6 w-6 text-red-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-gray-900 mb-1">Cancel Booking</h3>
-                <p className="text-sm text-gray-600">
-                  Are you sure you want to cancel this meeting with <strong>{cancelModal.booking?.attendee_name}</strong>?
-                </p>
-              </div>
-            </div>
-
-            {/* Cancellation Reason */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Reason for cancellation (optional)
-              </label>
-              <textarea
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="Let them know why you're cancelling..."
-                rows={3}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              />
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-3">
+      {/* Filter Bar */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="flex flex-wrap gap-4">
+          {/* Team Filter */}
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Filter className="inline h-4 w-4 mr-1" />
+              Team Type
+            </label>
+            <div className="flex gap-2">
               <button
-                onClick={() => {
-                  setCancelModal({ show: false, booking: null });
-                  setCancelReason('');
-                }}
-                disabled={cancelling}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                onClick={() => setFilter('all')}
+                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  filter === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               >
-                Keep Booking
+                All ({bookings.length})
               </button>
               <button
-                onClick={handleCancelBooking}
-                disabled={cancelling}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                onClick={() => setFilter('my-teams')}
+                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  filter === 'my-teams'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               >
-                {cancelling ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Cancelling...
-                  </>
-                ) : (
-                  <>
-                    <X className="h-4 w-4" />
-                    Cancel Booking
-                  </>
-                )}
+                <Crown className="inline h-4 w-4 mr-1" />
+                My Teams ({myTeamsCount})
+              </button>
+              <button
+                onClick={() => setFilter('member-teams')}
+                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  filter === 'member-teams'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Users className="inline h-4 w-4 mr-1" />
+                Member Of ({memberTeamsCount})
               </button>
             </div>
           </div>
+
+          {/* Time Filter */}
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Clock className="inline h-4 w-4 mr-1" />
+              Time
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setTimeFilter('upcoming')}
+                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  timeFilter === 'upcoming'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Upcoming ({upcomingCount})
+              </button>
+              <button
+                onClick={() => setTimeFilter('past')}
+                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  timeFilter === 'past'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Past ({bookings.length - upcomingCount})
+              </button>
+              <button
+                onClick={() => setTimeFilter('all')}
+                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  timeFilter === 'all'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                All Time
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Info Banner */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <div className="text-blue-600 mt-0.5">
+            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-blue-900 mb-1">Why am I seeing these bookings?</h3>
+            <div className="text-sm text-blue-800 space-y-1">
+              <p>• <strong className="font-semibold">My Teams</strong> - Teams you created and own</p>
+              <p>• <strong className="font-semibold">Member Of</strong> - Teams where you're added as a member and can receive bookings</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bookings List */}
+      {filteredBookings.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-xl border-2 border-dashed border-gray-300">
+          <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No bookings found</h3>
+          <p className="text-gray-600">
+            {filter === 'my-teams' && 'No bookings in teams you own'}
+            {filter === 'member-teams' && 'No bookings in teams where you\'re a member'}
+            {filter === 'all' && 'No bookings yet'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {filteredBookings.map((booking) => (
+            <div
+              key={booking.id}
+              className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="bg-blue-100 rounded-lg p-3">
+                    <Calendar className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        {booking.attendee_name}
+                      </h3>
+                      {getStatusBadge(booking.status, booking.start_time)}
+                    </div>
+                    <p className="text-sm text-gray-600">{booking.attendee_email}</p>
+                  </div>
+                </div>
+                {getTeamBadge(booking)}
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4 mb-4">
+                <div className="flex items-center gap-2 text-gray-700">
+                  <Users className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm">
+                    <span className="font-medium">{booking.team_name}</span>
+                    {booking.member_name && (
+                      <span className="text-gray-500"> • {booking.member_name}</span>
+                    )}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 text-gray-700">
+                  <Calendar className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm">{formatDate(booking.start_time)}</span>
+                </div>
+
+                <div className="flex items-center gap-2 text-gray-700">
+                  <Clock className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm">
+                    {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                  </span>
+                </div>
+              </div>
+
+              {booking.notes && (
+                <div className="flex items-start gap-2 text-gray-700 bg-gray-50 rounded-lg p-3">
+                  <FileText className="h-4 w-4 text-gray-400 mt-0.5" />
+                  <div className="text-sm flex-1">
+                    <span className="font-medium block mb-1">Notes:</span>
+                    <span className="text-gray-600">{booking.notes}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
