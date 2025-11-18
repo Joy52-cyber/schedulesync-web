@@ -1211,6 +1211,8 @@ app.get('/api/book/:token', async (req, res) => {
   }
 });
 
+// REPLACE your entire app.post('/api/bookings', ...) endpoint with this:
+
 app.post('/api/bookings', async (req, res) => {
   try {
     const { token, slot, attendee_name, attendee_email, notes } = req.body;
@@ -1231,7 +1233,9 @@ app.post('/api/bookings', async (req, res) => {
       [token]
     );
 
-    if (memberResult.rows.length === 0) return res.status(404).json({ error: 'Invalid booking token' });
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
 
     const member = memberResult.rows[0];
     const bookingMode = member.booking_mode || 'individual';
@@ -1243,13 +1247,11 @@ app.post('/api/bookings', async (req, res) => {
     // Determine which team member(s) to assign based on booking mode
     switch (bookingMode) {
       case 'individual':
-        // Use the specific member from the booking token
         assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
         console.log('👤 Individual mode: Assigning to', member.name);
         break;
 
       case 'round_robin':
-        // Find member with least bookings
         const rrResult = await pool.query(
           `SELECT tm.id, tm.name, tm.user_id, COUNT(b.id) as booking_count
            FROM team_members tm
@@ -1263,14 +1265,13 @@ app.post('/api/bookings', async (req, res) => {
         
         if (rrResult.rows.length > 0) {
           assignedMembers = [rrResult.rows[0]];
-          console.log('🔄 Round-robin: Assigning to', rrResult.rows[0].name, 'with', rrResult.rows[0].booking_count, 'bookings');
+          console.log('🔄 Round-robin: Assigning to', rrResult.rows[0].name);
         } else {
           assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
         }
         break;
 
       case 'first_available':
-        // Find first member who doesn't have a conflict at this time
         const faResult = await pool.query(
           `SELECT tm.id, tm.name, tm.user_id
            FROM team_members tm
@@ -1300,7 +1301,6 @@ app.post('/api/bookings', async (req, res) => {
         break;
 
       case 'collective':
-        // Book with ALL team members
         const collectiveResult = await pool.query(
           'SELECT id, name, user_id FROM team_members WHERE team_id = $1',
           [member.team_id]
@@ -1330,11 +1330,9 @@ app.post('/api/bookings', async (req, res) => {
       console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
     }
 
-    // ... booking creation loop ends here ...
-    
     console.log(`✅ Created ${createdBookings.length} booking(s)`);
 
-    // ⬇️ ADD EMAIL CODE HERE ⬇️
+    // Send confirmation emails (don't fail booking if emails fail)
     try {
       const icsFile = generateICS({
         id: createdBookings[0].id,
@@ -1381,22 +1379,26 @@ app.post('/api/bookings', async (req, res) => {
       console.log('✅ Confirmation emails sent');
     } catch (emailError) {
       console.error('⚠️ Failed to send emails:', emailError);
+      // Don't fail the booking if email fails
     }
-    });
-    // Send emails and create calendar events (existing code)...
 
+    // IMPORTANT: Only ONE res.json() - at the very end
     res.json({ 
       success: true,
-      booking: createdBookings[0], // Return first booking for compatibility
+      booking: createdBookings[0],
       bookings: createdBookings,
       mode: bookingMode,
       message: bookingMode === 'collective' 
         ? `Booking confirmed with all ${createdBookings.length} team members!`
         : 'Booking confirmed successfully!'
     });
+
   } catch (error) {
     console.error('❌ Create booking error:', error);
-    res.status(500).json({ error: 'Failed to create booking' });
+    // Only send error if headers haven't been sent yet
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to create booking' });
+    }
   }
 });
 
