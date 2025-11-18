@@ -929,9 +929,8 @@ app.post('/api/bookings/:id/cancel', authenticateToken, async (req, res) => {
     // Update booking status
     await pool.query(
       `UPDATE bookings 
-       SET status = 'cancelled', 
-           updated_at = NOW(),
-           notes = CONCAT(COALESCE(notes, ''), '\nCancellation reason: ', COALESCE($1, 'No reason provided'))
+       SET status = 'cancelled',
+           notes = COALESCE(notes, '') || E'\nCancellation reason: ' || COALESCE($1, 'No reason provided')
        WHERE id = $2`,
       [reason, bookingId]
     );
@@ -1007,8 +1006,7 @@ app.post('/api/bookings/:id/reschedule', authenticateToken, async (req, res) => 
     const updateResult = await pool.query(
       `UPDATE bookings 
        SET start_time = $1, 
-           end_time = $2,
-           updated_at = NOW()
+           end_time = $2
        WHERE id = $3
        RETURNING *`,
       [newStartTime, newEndTime, bookingId]
