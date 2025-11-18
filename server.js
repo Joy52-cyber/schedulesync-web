@@ -343,12 +343,13 @@ app.post('/api/book/:token/freebusy', async (req, res) => {
 app.post('/api/book/:token/slots-with-status', async (req, res) => {
   try {
     const { token } = req.params;
-    const { 
-      guestAccessToken, 
-      guestRefreshToken,
-      duration = 60,
-      daysAhead = 14
-    } = req.body;
+   const { 
+  guestAccessToken, 
+  guestRefreshToken,
+  duration = 60,
+  daysAhead = 14,
+  timezone = 'America/New_York'  // Default fallback
+} = req.body;
 
     // Get organizer info
     const memberResult = await pool.query(
@@ -431,124 +432,156 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     }
 
   // TIMEZONE CONFIGURATION
-  // Generate all possible slots with status
-    const slots = [];
-    
-    // TIMEZONE CONFIGURATION
-    const TIMEZONE = 'Australia/Perth';  // UTC+8, same as Manila
-    const WORK_START_HOUR = 9;  // 9 AM in your timezone
-    const WORK_END_HOUR = 17;   // 5 PM in your timezone
+    // Generate all possible slots with status
+const slots = [];
 
-    for (let dayOffset = 0; dayOffset < daysAhead; dayOffset++) {
-      // Start of day in Perth timezone
-      const dateInPerth = new Date(now.toLocaleString('en-US', { timeZone: TIMEZONE }));
-      dateInPerth.setDate(dateInPerth.getDate() + dayOffset);
-      dateInPerth.setHours(0, 0, 0, 0);
+// TIMEZONE CONFIGURATION - Use timezone from request
+const TIMEZONE = timezone;  // Timezone sent from frontend
+const WORK_START_HOUR = 9;  // 9 AM in user's timezone
+const WORK_END_HOUR = 17;   // 5 PM in user's timezone
+
+console.log(`🌍 Generating slots for timezone: ${TIMEZONE}`);
+   for (let dayOffset = 0; dayOffset < daysAhead; dayOffset++) {
+  const checkDate = new Date(now);
+  checkDate.setDate(checkDate.getDate() + dayOffset);
+  
+  // Format date in target timezone to get correct year/month/day
+  const dateStr = new Intl.DateTimeFormat('en-CA', { 
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(checkDate);
+  
+  const [year, month, day] = dateStr.split('-');
+  
+  // Check if weekend
+  const dayOfWeek = new Date(`${year}-${month}-${day}`).getDay();
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+  // Generate slots for entire day (24 hours)
+  for (let hour = 0; hour < 24; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      // Create time string in target timezone
+      const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      const localDateTimeStr = `${year}-${month}-${day}T${timeStr}:00`;
       
-      const dayOfWeek = dateInPerth.getDay();
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      // Parse this as a date in the target timezone
+      // We create a Date object and adjust for timezone offset
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: TIMEZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      
+      // Create date in UTC
+      const baseDate = new Date(`${localDateTimeStr}Z`);
+      
+      // Get what this date/time would be in the target timezone
+      const partsInTargetTZ = formatter.formatToParts(baseDate);
+      const targetHour = parseInt(partsInTargetTZ.find(p => p.type === 'hour').value);
+      
+      // Calculate offset difference
+      const offsetDiff = hour - targetHour;
+      
+      // Adjust the date to match the target timezone
+      const slotStart = new Date(baseDate);
+      slotStart.setHours(slotStart.getHours() + offsetDiff);
+      
+      const slotEnd = new Date(slotStart);
+      slotEnd.setMinutes(slotEnd.getMinutes() + duration);
 
-      // Generate slots for entire day (24 hours)
-      for (let hour = 0; hour < 24; hour++) {
-        for (let minute = 0; minute < 60; minute += 30) {
-          // Create slot time in Perth timezone
-          const year = dateInPerth.getFullYear();
-          const month = dateInPerth.getMonth();
-          const day = dateInPerth.getDate();
-          
-          // Create date object for this time in Perth (UTC+8)
-          // Perth is UTC+8, so we subtract 8 hours to get UTC
-          const slotStartPerth = new Date(Date.UTC(year, month, day, hour, minute, 0) + (8 * 60 * 60 * 1000));
-          const slotEndPerth = new Date(slotStartPerth.getTime() + duration * 60 * 1000);
-          
-          // Get UTC times (subtract 8 hours for storage)
-          const slotStartUTC = new Date(slotStartPerth.getTime() - (8 * 60 * 60 * 1000));
-          const slotEndUTC = new Date(slotEndPerth.getTime() - (8 * 60 * 60 * 1000));
+      const startTime = slotStart.toISOString();
+      const endTime = slotEnd.toISOString();
 
-          const startTime = slotStartUTC.toISOString();
-          const endTime = slotEndUTC.toISOString();
+      // Determine slot status and reason
+      let status = 'available';
+      let reason = null;
+      let details = null;
 
-          // Determine slot status and reason
-          let status = 'available';
-          let reason = null;
-          let details = null;
+      // Check if time has passed
+      if (slotStart < now) {
+        status = 'unavailable';
+        reason = 'past';
+        details = 'Time has passed';
+      }
+      // Check if weekend
+      else if (isWeekend) {
+        status = 'unavailable';
+        reason = 'weekend';
+        details = 'Weekend - organizer not available';
+      }
+      // Check if outside work hours
+      else if (hour < WORK_START_HOUR || hour >= WORK_END_HOUR) {
+        status = 'unavailable';
+        reason = 'outside_hours';
+        details = `Outside working hours (${WORK_START_HOUR}:00 - ${WORK_END_HOUR}:00)`;
+      }
+      // Check conflicts
+      else {
+        const organizerConflict = organizerBusy.some(busy => {
+          const busyStart = new Date(busy.start);
+          const busyEnd = new Date(busy.end);
+          return (
+            (slotStart >= busyStart && slotStart < busyEnd) ||
+            (slotEnd > busyStart && slotEnd <= busyEnd) ||
+            (slotStart <= busyStart && slotEnd >= busyEnd)
+          );
+        });
 
-          // Check if time has passed (compare in UTC)
-          if (slotStartUTC < now) {
-            status = 'unavailable';
-            reason = 'past';
-            details = 'Time has passed';
-          }
-          // Check if weekend
-          else if (isWeekend) {
-            status = 'unavailable';
-            reason = 'weekend';
-            details = 'Weekend - organizer not available';
-          }
-          // Check if outside work hours (check in LOCAL time - the hour variable)
-          else if (hour < WORK_START_HOUR || hour >= WORK_END_HOUR) {
-            status = 'unavailable';
-            reason = 'outside_hours';
-            details = `Outside working hours (${WORK_START_HOUR}:00 - ${WORK_END_HOUR}:00)`;
-          }
-          // Check organizer conflicts (compare UTC times)
-          else {
-            const organizerConflict = organizerBusy.some(busy => {
-              const busyStart = new Date(busy.start);
-              const busyEnd = new Date(busy.end);
-              return (
-                (slotStartUTC >= busyStart && slotStartUTC < busyEnd) ||
-                (slotEndUTC > busyStart && slotEndUTC <= busyEnd) ||
-                (slotStartUTC <= busyStart && slotEndUTC >= busyEnd)
-              );
-            });
+        const guestConflict = guestBusy.some(busy => {
+          const busyStart = new Date(busy.start);
+          const busyEnd = new Date(busy.end);
+          return (
+            (slotStart >= busyStart && slotStart < busyEnd) ||
+            (slotEnd > busyStart && slotEnd <= busyEnd) ||
+            (slotStart <= busyStart && slotEnd >= busyEnd)
+          );
+        });
 
-            const guestConflict = guestBusy.some(busy => {
-              const busyStart = new Date(busy.start);
-              const busyEnd = new Date(busy.end);
-              return (
-                (slotStartUTC >= busyStart && slotStartUTC < busyEnd) ||
-                (slotEndUTC > busyStart && slotEndUTC <= busyEnd) ||
-                (slotStartUTC <= busyStart && slotEndUTC >= busyEnd)
-              );
-            });
-
-            if (organizerConflict && guestConflict) {
-              status = 'unavailable';
-              reason = 'both_busy';
-              details = 'Both calendars show conflicts';
-            } else if (organizerConflict) {
-              status = 'unavailable';
-              reason = 'organizer_busy';
-              details = `${member.organizer_name || 'Organizer'} has another meeting`;
-            } else if (guestConflict) {
-              status = 'unavailable';
-              reason = 'guest_busy';
-              details = "You have another meeting";
-            }
-          }
-
-          slots.push({
-            start: startTime,
-            end: endTime,
-            date: slotStartPerth.toLocaleDateString('en-US', {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric',
-              year: 'numeric'
-            }),
-            dayOfWeek: slotStartPerth.toLocaleDateString('en-US', { 
-              weekday: 'short'
-            }),
-            time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
-            status,
-            reason,
-            details,
-            timestamp: slotStartUTC.getTime()
-          });
+        if (organizerConflict && guestConflict) {
+          status = 'unavailable';
+          reason = 'both_busy';
+          details = 'Both calendars show conflicts';
+        } else if (organizerConflict) {
+          status = 'unavailable';
+          reason = 'organizer_busy';
+          details = `${member.organizer_name || 'Organizer'} has another meeting`;
+        } else if (guestConflict) {
+          status = 'unavailable';
+          reason = 'guest_busy';
+          details = "You have another meeting";
         }
       }
+
+      slots.push({
+        start: startTime,
+        end: endTime,
+        date: new Intl.DateTimeFormat('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+          timeZone: TIMEZONE
+        }).format(slotStart),
+        dayOfWeek: new Intl.DateTimeFormat('en-US', { 
+          weekday: 'short',
+          timeZone: TIMEZONE 
+        }).format(slotStart),
+        time: timeStr,
+        status,
+        reason,
+        details,
+        timestamp: slotStart.getTime()
+      });
     }
+  }
+}
 
     // Group by date for easier frontend rendering
     const slotsByDate = {};

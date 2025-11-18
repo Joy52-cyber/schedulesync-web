@@ -23,19 +23,24 @@ export default function SmartSlotPicker({
     loadSlots();
   }, [bookingToken]);
 
-  const loadSlots = async () => {
-    try {
-      setLoading(true);
-      
-      const response = await axios.post(
-        `${API_URL}/book/${bookingToken}/slots-with-status`,
-        {
-          guestAccessToken: guestCalendar?.accessToken,
-          guestRefreshToken: guestCalendar?.refreshToken,
-          duration: 60,
-          daysAhead: 14
-        }
-      );
+ const loadSlots = async () => {
+  try {
+    setLoading(true);
+    
+    // Auto-detect user's timezone
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    console.log('🌍 User timezone detected:', userTimezone);
+    
+    const response = await axios.post(
+      `${API_URL}/book/${bookingToken}/slots-with-status`,
+      {
+        guestAccessToken: guestCalendar?.accessToken,
+        guestRefreshToken: guestCalendar?.refreshToken,
+        duration: 60,
+        daysAhead: 14,
+        timezone: userTimezone  // Send detected timezone
+      }
+    );
 
       console.log('📊 Loaded slots:', {
         totalDates: Object.keys(response.data.slots).length,
