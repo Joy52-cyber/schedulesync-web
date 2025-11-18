@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
-import { Calendar, Clock, User, Mail, FileText, Filter, Users, Crown, UserCheck } from 'lucide-react';
+import { Calendar, Clock, User, Mail, FileText, Filter, Users, Crown, UserCheck, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import api from '../utils/api';
 
 export default function Bookings() {
@@ -8,6 +8,18 @@ export default function Bookings() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // 'all', 'my-teams', 'member-teams'
   const [timeFilter, setTimeFilter] = useState('upcoming'); // 'all', 'upcoming', 'past'
+  
+  // Cancel modal state
+  const [cancelModal, setCancelModal] = useState({ open: false, booking: null, reason: '', submitting: false });
+  
+  // Reschedule modal state
+  const [rescheduleModal, setRescheduleModal] = useState({ 
+    open: false, 
+    booking: null, 
+    newDate: '', 
+    newTime: '', 
+    submitting: false 
+  });
 
   useEffect(() => {
     loadBookings();
@@ -73,6 +85,72 @@ export default function Bookings() {
     }
 
     setFilteredBookings(filtered);
+  };
+
+  // Cancel booking handler
+  const handleCancelBooking = async () => {
+    try {
+      setCancelModal(prev => ({ ...prev, submitting: true }));
+      
+      await api.post(`/bookings/${cancelModal.booking.id}/cancel`, {
+        reason: cancelModal.reason
+      });
+      
+      console.log('✅ Booking cancelled');
+      
+      // Update local state
+      setBookings(prev => prev.map(b => 
+        b.id === cancelModal.booking.id 
+          ? { ...b, status: 'cancelled' }
+          : b
+      ));
+      
+      // Close modal
+      setCancelModal({ open: false, booking: null, reason: '', submitting: false });
+      
+      // Reload bookings
+      await loadBookings();
+      
+    } catch (error) {
+      console.error('❌ Cancel error:', error);
+      alert('Failed to cancel booking. Please try again.');
+      setCancelModal(prev => ({ ...prev, submitting: false }));
+    }
+  };
+
+  // Reschedule booking handler
+  const handleRescheduleBooking = async () => {
+    try {
+      if (!rescheduleModal.newDate || !rescheduleModal.newTime) {
+        alert('Please select both date and time');
+        return;
+      }
+
+      setRescheduleModal(prev => ({ ...prev, submitting: true }));
+      
+      // Combine date and time
+      const newStartTime = new Date(`${rescheduleModal.newDate}T${rescheduleModal.newTime}`);
+      const newEndTime = new Date(newStartTime);
+      newEndTime.setMinutes(newEndTime.getMinutes() + 30); // Assume 30 min duration
+      
+      await api.post(`/bookings/${rescheduleModal.booking.id}/reschedule`, {
+        newStartTime: newStartTime.toISOString(),
+        newEndTime: newEndTime.toISOString()
+      });
+      
+      console.log('✅ Booking rescheduled');
+      
+      // Close modal
+      setRescheduleModal({ open: false, booking: null, newDate: '', newTime: '', submitting: false });
+      
+      // Reload bookings
+      await loadBookings();
+      
+    } catch (error) {
+      console.error('❌ Reschedule error:', error);
+      alert('Failed to reschedule booking. Please try again.');
+      setRescheduleModal(prev => ({ ...prev, submitting: false }));
+    }
   };
 
   const formatDate = (dateString) => {
@@ -400,6 +478,216 @@ export default function Bookings() {
                   </div>
                 </div>
               )}
+
+              {/* Action Buttons - Only show for upcoming bookings that aren't cancelled */}
+              {booking.status !== 'cancelled' && new Date(booking.start_time) > new Date() && (
+                <div className="flex gap-3 mt-4 pt-4 border-t border-gray-200">
+                  <button
+                    onClick={() => setRescheduleModal({ 
+                      open: true, 
+                      booking, 
+                      newDate: '', 
+                      newTime: '', 
+                      submitting: false 
+                    })}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    🔄 Reschedule
+                  </button>
+                  <button
+                    onClick={() => setCancelModal({ 
+                      open: true, 
+                      booking, 
+                      reason: '', 
+                      submitting: false 
+                    })}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                  >
+                    ❌ Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Cancel Modal */}
+      {cancelModal.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-fadeIn">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Cancel Booking</h3>
+              <button
+                onClick={() => setCancelModal({ open: false, booking: null, reason: '', submitting: false })}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-red-900 mb-1">
+                      Are you sure you want to cancel this booking?
+                    </p>
+                    <p className="text-xs text-red-700">
+                      {cancelModal.booking?.attendee_name} will be notified via email.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4 mb-4 text-sm">
+                <p className="text-gray-700">
+                  <strong>Meeting:</strong> {formatDate(cancelModal.booking?.start_time)}
+                </p>
+                <p className="text-gray-700 mt-1">
+                  <strong>Time:</strong> {formatTime(cancelModal.booking?.start_time)} - {formatTime(cancelModal.booking?.end_time)}
+                </p>
+                <p className="text-gray-700 mt-1">
+                  <strong>Attendee:</strong> {cancelModal.booking?.attendee_name}
+                </p>
+              </div>
+
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Cancellation Reason (Optional)
+              </label>
+              <textarea
+                value={cancelModal.reason}
+                onChange={(e) => setCancelModal(prev => ({ ...prev, reason: e.target.value }))}
+                rows="3"
+                placeholder="Let the attendee know why you're cancelling..."
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-red-500 focus:outline-none resize-none"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCancelModal({ open: false, booking: null, reason: '', submitting: false })}
+                disabled={cancelModal.submitting}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium disabled:opacity-50"
+              >
+                Keep Booking
+              </button>
+              <button
+                onClick={handleCancelBooking}
+                disabled={cancelModal.submitting}
+                className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {cancelModal.submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cancelling...
+                  </>
+                ) : (
+                  <>
+                    ❌ Cancel Booking
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reschedule Modal */}
+      {rescheduleModal.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-fadeIn">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Reschedule Booking</h3>
+              <button
+                onClick={() => setRescheduleModal({ open: false, booking: null, newDate: '', newTime: '', submitting: false })}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-blue-900 mb-1">
+                      Choose a new time for this booking
+                    </p>
+                    <p className="text-xs text-blue-700">
+                      {rescheduleModal.booking?.attendee_name} will be notified via email.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4 mb-4 text-sm">
+                <p className="text-gray-700">
+                  <strong>Current time:</strong> {formatDate(rescheduleModal.booking?.start_time)}
+                </p>
+                <p className="text-gray-700 mt-1">
+                  {formatTime(rescheduleModal.booking?.start_time)} - {formatTime(rescheduleModal.booking?.end_time)}
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={rescheduleModal.newDate}
+                    onChange={(e) => setRescheduleModal(prev => ({ ...prev, newDate: e.target.value }))}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Time *
+                  </label>
+                  <input
+                    type="time"
+                    value={rescheduleModal.newTime}
+                    onChange={(e) => setRescheduleModal(prev => ({ ...prev, newTime: e.target.value }))}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setRescheduleModal({ open: false, booking: null, newDate: '', newTime: '', submitting: false })}
+                disabled={rescheduleModal.submitting}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRescheduleBooking}
+                disabled={rescheduleModal.submitting || !rescheduleModal.newDate || !rescheduleModal.newTime}
+                className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {rescheduleModal.submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Rescheduling...
+                  </>
+                ) : (
+                  <>
+                    🔄 Reschedule
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
             </div>
           ))}
         </div>

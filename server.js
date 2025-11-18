@@ -892,6 +892,163 @@ app.get('/api/my-booking-link', authenticateToken, async (req, res) => {
   }
 });
 
+// ============ BOOKING MANAGEMENT (CANCEL & RESCHEDULE) ============
+
+// Cancel a booking
+app.post('/api/bookings/:id/cancel', authenticateToken, async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.id);
+    const userId = req.user.id;
+    const { reason } = req.body;
+
+    console.log('❌ Canceling booking:', bookingId);
+
+    // Verify ownership
+    const bookingCheck = await pool.query(
+      `SELECT b.*, t.owner_id, tm.user_id as member_user_id
+       FROM bookings b
+       JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE b.id = $1`,
+      [bookingId]
+    );
+
+    if (bookingCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    const booking = bookingCheck.rows[0];
+
+    // Check if user has permission (team owner or assigned member)
+    const hasPermission = booking.owner_id === userId || booking.member_user_id === userId;
+    
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Not authorized to cancel this booking' });
+    }
+
+    // Update booking status
+    await pool.query(
+      `UPDATE bookings 
+       SET status = 'cancelled', 
+           updated_at = NOW(),
+           notes = CONCAT(COALESCE(notes, ''), '\nCancellation reason: ', COALESCE($1, 'No reason provided'))
+       WHERE id = $2`,
+      [reason, bookingId]
+    );
+
+    console.log('✅ Booking cancelled successfully');
+
+    // TODO: Send cancellation email
+    try {
+      await sendEmail({
+        to: booking.attendee_email,
+        subject: '❌ Booking Cancelled',
+        html: `
+          <h2>Booking Cancelled</h2>
+          <p>Your booking has been cancelled.</p>
+          <p><strong>Original time:</strong> ${new Date(booking.start_time).toLocaleString()}</p>
+          ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+          <p>If you need to reschedule, please book a new time.</p>
+        `
+      });
+      console.log('✅ Cancellation email sent');
+    } catch (emailError) {
+      console.error('⚠️ Failed to send cancellation email:', emailError);
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Booking cancelled successfully' 
+    });
+
+  } catch (error) {
+    console.error('❌ Cancel booking error:', error);
+    res.status(500).json({ error: 'Failed to cancel booking' });
+  }
+});
+
+// Reschedule a booking
+app.post('/api/bookings/:id/reschedule', authenticateToken, async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.id);
+    const userId = req.user.id;
+    const { newStartTime, newEndTime } = req.body;
+
+    console.log('🔄 Rescheduling booking:', bookingId);
+
+    if (!newStartTime || !newEndTime) {
+      return res.status(400).json({ error: 'New start and end times are required' });
+    }
+
+    // Verify ownership
+    const bookingCheck = await pool.query(
+      `SELECT b.*, t.owner_id, tm.user_id as member_user_id, tm.name as member_name
+       FROM bookings b
+       JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE b.id = $1`,
+      [bookingId]
+    );
+
+    if (bookingCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    const booking = bookingCheck.rows[0];
+
+    // Check permission
+    const hasPermission = booking.owner_id === userId || booking.member_user_id === userId;
+    
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Not authorized to reschedule this booking' });
+    }
+
+    // Update booking times
+    const updateResult = await pool.query(
+      `UPDATE bookings 
+       SET start_time = $1, 
+           end_time = $2,
+           updated_at = NOW()
+       WHERE id = $3
+       RETURNING *`,
+      [newStartTime, newEndTime, bookingId]
+    );
+
+    const updatedBooking = updateResult.rows[0];
+
+    console.log('✅ Booking rescheduled successfully');
+
+    // TODO: Send reschedule email
+    try {
+      await sendEmail({
+        to: booking.attendee_email,
+        subject: '🔄 Booking Rescheduled',
+        html: `
+          <h2>Booking Rescheduled</h2>
+          <p>Your booking has been rescheduled to a new time.</p>
+          <p><strong>Previous time:</strong> ${new Date(booking.start_time).toLocaleString()}</p>
+          <p><strong>New time:</strong> ${new Date(newStartTime).toLocaleString()}</p>
+          <p><strong>With:</strong> ${booking.member_name || 'Team member'}</p>
+          <p>See you at the new time! 📅</p>
+        `
+      });
+      console.log('✅ Reschedule email sent');
+    } catch (emailError) {
+      console.error('⚠️ Failed to send reschedule email:', emailError);
+    }
+
+    res.json({ 
+      success: true, 
+      booking: updatedBooking,
+      message: 'Booking rescheduled successfully' 
+    });
+
+  } catch (error) {
+    console.error('❌ Reschedule booking error:', error);
+    res.status(500).json({ error: 'Failed to reschedule booking' });
+  }
+});
+
 // ============ BOOKING ROUTES ============
 
 app.get('/api/bookings', authenticateToken, async (req, res) => {
