@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { Calendar, Clock, User, Mail, FileText, Filter, Users, Crown, UserCheck } from 'lucide-react';
 import api from '../utils/api';
 
@@ -132,10 +132,47 @@ export default function Bookings() {
     return <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">Upcoming</span>;
   };
 
-  // Count bookings by category
-  const myTeamsCount = bookings.filter(b => b.isMyTeam).length;
-  const memberTeamsCount = bookings.filter(b => !b.isMyTeam).length;
-  const upcomingCount = bookings.filter(b => new Date(b.start_time) >= new Date()).length;
+  // Get bookings filtered by current team selection (memoized for performance)
+  const teamFilteredBookings = useMemo(() => {
+    console.log('🔄 Recalculating team filtered bookings, filter:', filter);
+    if (filter === 'my-teams') {
+      const filtered = bookings.filter(b => b.isMyTeam);
+      console.log('  → My Teams bookings:', filtered.length);
+      return filtered;
+    } else if (filter === 'member-teams') {
+      const filtered = bookings.filter(b => !b.isMyTeam);
+      console.log('  → Member Teams bookings:', filtered.length);
+      return filtered;
+    }
+    console.log('  → All bookings:', bookings.length);
+    return bookings;
+  }, [bookings, filter]);
+
+  // Count bookings by category (memoized to recalculate when dependencies change)
+  const counts = useMemo(() => {
+    const myTeamsCount = bookings.filter(b => b.isMyTeam).length;
+    const memberTeamsCount = bookings.filter(b => !b.isMyTeam).length;
+    const upcomingCount = teamFilteredBookings.filter(b => new Date(b.start_time) >= new Date()).length;
+    const pastCount = teamFilteredBookings.filter(b => new Date(b.start_time) < new Date()).length;
+    
+    console.log('📊 Counts updated:', {
+      filter,
+      myTeamsCount,
+      memberTeamsCount,
+      upcomingCount,
+      pastCount,
+      totalFiltered: teamFilteredBookings.length
+    });
+    
+    return {
+      myTeamsCount,
+      memberTeamsCount,
+      upcomingCount,
+      pastCount,
+    };
+  }, [bookings, teamFilteredBookings, filter]);
+
+  const { myTeamsCount, memberTeamsCount, upcomingCount, pastCount } = counts;
 
   if (loading) {
     return (
@@ -156,86 +193,111 @@ export default function Bookings() {
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-        <div className="flex flex-wrap gap-4">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="space-y-6">
           {/* Team Filter */}
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Filter className="inline h-4 w-4 mr-1" />
+          <div>
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3">
+              <Users className="h-4 w-4" />
               Team Type
             </label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-3">
               <button
                 onClick={() => setFilter('all')}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                   filter === 'all'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-md scale-105'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
                 }`}
               >
-                All ({bookings.length})
+                <div className="text-center">
+                  <div className="text-base font-bold">{bookings.length}</div>
+                  <div className="text-xs opacity-90">All Bookings</div>
+                </div>
               </button>
               <button
                 onClick={() => setFilter('my-teams')}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                   filter === 'my-teams'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-md scale-105'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
                 }`}
               >
-                <Crown className="inline h-4 w-4 mr-1" />
-                My Teams ({myTeamsCount})
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <Crown className="h-4 w-4" />
+                    <span className="text-base font-bold">{myTeamsCount}</span>
+                  </div>
+                  <div className="text-xs opacity-90">My Teams</div>
+                </div>
               </button>
               <button
                 onClick={() => setFilter('member-teams')}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                   filter === 'member-teams'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-md scale-105'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
                 }`}
               >
-                <Users className="inline h-4 w-4 mr-1" />
-                Member Of ({memberTeamsCount})
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <UserCheck className="h-4 w-4" />
+                    <span className="text-base font-bold">{memberTeamsCount}</span>
+                  </div>
+                  <div className="text-xs opacity-90">Member Of</div>
+                </div>
               </button>
             </div>
           </div>
 
+          {/* Divider */}
+          <div className="border-t border-gray-200"></div>
+
           {/* Time Filter */}
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Clock className="inline h-4 w-4 mr-1" />
-              Time
+          <div>
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3">
+              <Clock className="h-4 w-4" />
+              Time Period
             </label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-3">
               <button
                 onClick={() => setTimeFilter('upcoming')}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                   timeFilter === 'upcoming'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-gradient-to-br from-green-600 to-green-700 text-white shadow-md scale-105'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
                 }`}
               >
-                Upcoming ({upcomingCount})
+                <div className="text-center">
+                  <div className="text-base font-bold">{upcomingCount}</div>
+                  <div className="text-xs opacity-90">Upcoming</div>
+                </div>
               </button>
               <button
                 onClick={() => setTimeFilter('past')}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                   timeFilter === 'past'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-gradient-to-br from-green-600 to-green-700 text-white shadow-md scale-105'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
                 }`}
               >
-                Past ({bookings.length - upcomingCount})
+                <div className="text-center">
+                  <div className="text-base font-bold">{pastCount}</div>
+                  <div className="text-xs opacity-90">Past</div>
+                </div>
               </button>
               <button
                 onClick={() => setTimeFilter('all')}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                   timeFilter === 'all'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-gradient-to-br from-green-600 to-green-700 text-white shadow-md scale-105'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
                 }`}
               >
-                All Time
+                <div className="text-center">
+                  <div className="text-base font-bold">{teamFilteredBookings.length}</div>
+                  <div className="text-xs opacity-90">All Time</div>
+                </div>
               </button>
             </div>
           </div>
@@ -265,10 +327,19 @@ export default function Bookings() {
         <div className="text-center py-16 bg-white rounded-xl border-2 border-dashed border-gray-300">
           <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">No bookings found</h3>
-          <p className="text-gray-600">
-            {filter === 'my-teams' && 'No bookings in teams you own'}
-            {filter === 'member-teams' && 'No bookings in teams where you\'re a member'}
-            {filter === 'all' && 'No bookings yet'}
+          <p className="text-gray-600 mb-1">
+            {filter === 'my-teams' && timeFilter === 'upcoming' && 'No upcoming bookings in teams you own'}
+            {filter === 'my-teams' && timeFilter === 'past' && 'No past bookings in teams you own'}
+            {filter === 'my-teams' && timeFilter === 'all' && 'No bookings yet in teams you own'}
+            {filter === 'member-teams' && timeFilter === 'upcoming' && 'No upcoming bookings in teams where you\'re a member'}
+            {filter === 'member-teams' && timeFilter === 'past' && 'No past bookings in teams where you\'re a member'}
+            {filter === 'member-teams' && timeFilter === 'all' && 'No bookings yet in teams where you\'re a member'}
+            {filter === 'all' && timeFilter === 'upcoming' && 'No upcoming bookings'}
+            {filter === 'all' && timeFilter === 'past' && 'No past bookings'}
+            {filter === 'all' && timeFilter === 'all' && 'No bookings yet'}
+          </p>
+          <p className="text-sm text-gray-500 mt-2">
+            Try changing the filters above to see different bookings
           </p>
         </div>
       ) : (
