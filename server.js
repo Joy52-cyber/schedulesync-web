@@ -1093,14 +1093,13 @@ app.patch('/api/bookings/:id/cancel', authenticateToken, async (req, res) => {
     }
 
     // Update booking status
-    await pool.query(
-      `UPDATE bookings 
-       SET status = 'cancelled', 
-           notes = CONCAT(COALESCE(notes, ''), '\n\nCancelled: ', COALESCE($2, 'No reason provided')),
-           updated_at = NOW()
-       WHERE id = $1`,
-      [id, cancellation_reason]
-    );
+   await pool.query(
+  `UPDATE bookings 
+   SET status = 'cancelled', 
+       notes = CONCAT(COALESCE(notes, ''), '\n\nCancelled: ', COALESCE($2, 'No reason provided'))
+   WHERE id = $1`,
+  [id, cancellation_reason]
+);
 
     // Send cancellation emails
     if (isEmailAvailable && isEmailAvailable() && sendBookingConfirmation) {

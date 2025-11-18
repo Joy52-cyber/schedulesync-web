@@ -35,54 +35,54 @@ export default function Dashboard() {
     setCalendarConnected(user.calendar_sync_enabled || false);
   };
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      
-      // Get teams and bookings data
-      const [teamsRes, bookingsRes] = await Promise.all([
-        teams.getAll().catch(() => ({ data: [] })),
-        bookings.getAll().catch(() => ({ data: [] }))
-      ]);
-      
-      const teamsList = teamsRes.data || [];
-      const bookingsList = bookingsRes.data || [];
-      
-      // Calculate stats
-      const now = new Date();
-      const upcomingBookings = bookingsList.filter(
-        booking => new Date(booking.start_time) > now
-      ).length;
-      
-      // Count total team members
-      let totalMembers = 0;
-      teamsList.forEach(team => {
-        totalMembers += (team.members?.length || 1); // At least 1 (owner)
-      });
-      
-      setStats({
-        totalTeams: teamsList.length,
-        totalBookings: bookingsList.length,
-        upcomingBookings: upcomingBookings,
-        teamMembers: totalMembers
-      });
-      
-      // Set events (upcoming bookings)
-      setEvents(bookingsList.filter(booking => new Date(booking.start_time) > now));
-      
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      // Use default stats if API fails
-      setStats({ 
-        totalBookings: 0, 
-        upcomingBookings: 0, 
-        totalTeams: 0,
-        teamMembers: 0 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+ const loadData = async () => {
+  try {
+    setLoading(true);
+    
+    // Get teams and bookings data
+    const [teamsRes, bookingsRes] = await Promise.all([
+      teams.getAll().catch(() => ({ data: { teams: [] } })),
+      bookings.getAll().catch(() => ({ data: { bookings: [] } }))
+    ]);
+    
+    const teamsList = teamsRes.data?.teams || [];  // ← FIXED
+    const bookingsList = bookingsRes.data?.bookings || [];  // ← FIXED
+    
+    // Calculate stats
+    const now = new Date();
+    const upcomingBookings = bookingsList.filter(
+      booking => new Date(booking.start_time) > now
+    ).length;
+    
+    // Count total team members
+    let totalMembers = 0;
+    teamsList.forEach(team => {
+      totalMembers += (team.members?.length || 1); // At least 1 (owner)
+    });
+    
+    setStats({
+      totalTeams: teamsList.length,
+      totalBookings: bookingsList.length,
+      upcomingBookings: upcomingBookings,
+      teamMembers: totalMembers
+    });
+    
+    // Set events (upcoming bookings)
+    setEvents(bookingsList.filter(booking => new Date(booking.start_time) > now));
+    
+  } catch (error) {
+    console.error('Error loading dashboard data:', error);
+    // Use default stats if API fails
+    setStats({ 
+      totalBookings: 0, 
+      upcomingBookings: 0, 
+      totalTeams: 0,
+      teamMembers: 0 
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (loading) {
     return (
