@@ -688,10 +688,6 @@ export default function Bookings() {
           </div>
         </div>
       )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
