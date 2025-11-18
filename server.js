@@ -15,8 +15,12 @@ const app = express();
 
 const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
   try {
+    console.log('📤 Attempting to send email to:', to);
+    console.log('🔑 Resend API key exists?', !!process.env.RESEND_API_KEY);
+    console.log('🔑 Resend API key starts with:', process.env.RESEND_API_KEY?.substring(0, 10));
+    
     const emailOptions = {
-      from: 'ScheduleSync <onboarding@resend.dev>', // ← CHANGE THIS LINE
+      from: 'ScheduleSync <onboarding@resend.dev>',
       to: to,
       subject: subject,
       html: html,
@@ -31,11 +35,14 @@ const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
       ];
     }
 
+    console.log('📨 Calling resend.emails.send...');
     const result = await resend.emails.send(emailOptions);
-    console.log('✅ Email sent:', result.id); // Will show actual ID now
+    console.log('✅ Email sent - FULL RESULT:', JSON.stringify(result, null, 2));
     return result;
   } catch (error) {
-    console.error('❌ Email error:', error);
+    console.error('❌ Email error - FULL ERROR:', error);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
     throw error;
   }
 };
