@@ -1,8 +1,10 @@
 ﻿import { useState, useEffect } from 'react';
-import { Users, Plus, Edit2, Trash2, Mail, Copy, Check, X, Settings, Send } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, Plus, Edit2, Trash2, Mail, Copy, Check, X, Settings, Clock, Send } from 'lucide-react';
 import { teams } from '../utils/api';
 
 export default function Teams() {
+  const navigate = useNavigate();
   const [teamsList, setTeamsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -196,22 +198,22 @@ export default function Teams() {
                   <div className="text-sm text-gray-500 mb-4">
                     Created {new Date(team.created_at).toLocaleDateString()}
                   </div>
-                <div className="flex gap-2">
-  <button
-    onClick={() => openManageModal(team)}
-    className="flex-1 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-  >
-    <Users className="h-4 w-4" />
-    Members
-  </button>
-  <button
-    onClick={() => window.location.href = `/teams/${team.id}/settings`}
-    className="flex-1 px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
-  >
-    <Settings className="h-4 w-4" />
-    Settings
-  </button>
-</div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openManageModal(team)}
+                      className="flex-1 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Users className="h-4 w-4" />
+                      Members
+                    </button>
+                    <button
+                      onClick={() => navigate(`/teams/${team.id}/settings`)}
+                      className="flex-1 px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Settings className="h-4 w-4" />
+                      Settings
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -322,12 +324,11 @@ export default function Teams() {
         </div>
       )}
 
-      {/* Manage Team Modal - ULTRA COMPACT VERSION */}
+      {/* Manage Team Modal */}
       {showManageModal && selectedTeam && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          {/* Much smaller modal: max-w-lg (32rem) instead of max-w-2xl (42rem) */}
           <div className="bg-white rounded-xl w-full max-w-lg mx-auto relative">
-            {/* X Button - Moved inside with better positioning */}
+            {/* Header */}
             <div className="flex justify-between items-center p-4 border-b">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Manage Team</h2>
@@ -342,9 +343,9 @@ export default function Teams() {
               </button>
             </div>
             
-            {/* Content with max height and scroll */}
+            {/* Content with scroll */}
             <div className="max-h-[70vh] overflow-y-auto p-4">
-              {/* Team Booking URL - Compact */}
+              {/* Team Booking URL */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                 <h3 className="text-xs font-semibold text-blue-900 mb-2">Team Booking URL</h3>
                 <div className="space-y-2">
@@ -373,7 +374,7 @@ export default function Teams() {
                 </div>
               </div>
 
-              {/* Add Member Section - Compact */}
+              {/* Add Member Section */}
               <div className="bg-gray-50 rounded-lg p-3 mb-4">
                 <h3 className="text-sm font-semibold text-gray-900 mb-2">Add New Member</h3>
                 <form onSubmit={handleAddMember} className="space-y-2">
@@ -401,7 +402,7 @@ export default function Teams() {
                 </p>
               </div>
 
-              {/* Members List - Compact */}
+              {/* Members List */}
               <div>
                 <h3 className="text-sm font-semibold text-gray-900 mb-2">
                   Team Members ({selectedTeam.members?.length || 0})
@@ -419,8 +420,8 @@ export default function Teams() {
                         key={member.id}
                         className="bg-white border border-gray-200 rounded-lg p-2.5 hover:border-blue-300 transition-colors"
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start gap-2 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-2 flex-1 min-w-0">
                             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
                               <span className="text-white font-bold text-xs">
                                 {(member.user_email?.[0] || 'U').toUpperCase()}
@@ -431,34 +432,44 @@ export default function Teams() {
                                 {member.user_name || member.user_email}
                               </p>
                               <p className="text-xs text-gray-600 truncate">{member.user_email}</p>
-                              {member.booking_token && (
-                                <details className="mt-1">
-                                  <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-700">
-                                    Show booking URL
-                                  </summary>
-                                  <div className="mt-1 bg-gray-50 rounded p-1.5">
-                                    <div className="flex items-center gap-1">
-                                      <input
-                                        type="text"
-                                        value={`${window.location.origin}/book/${member.booking_token}`}
-                                        readOnly
-                                        className="flex-1 px-1.5 py-0.5 bg-white border border-gray-300 rounded text-xs text-gray-700"
-                                      />
-                                      <button
-                                        onClick={() => copyToClipboard(`${window.location.origin}/book/${member.booking_token}`)}
-                                        className="p-0.5 text-blue-600 hover:bg-blue-50 rounded"
-                                        title="Copy"
-                                      >
-                                        {copiedUrl === `${window.location.origin}/book/${member.booking_token}` ? (
-                                          <Check className="h-3 w-3 text-green-600" />
-                                        ) : (
-                                          <Copy className="h-3 w-3" />
-                                        )}
-                                      </button>
-                                    </div>
-                                  </div>
-                                </details>
-                              )}
+                              
+                              {/* Member Actions */}
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {/* Availability Button */}
+                                <button
+                                  onClick={() => {
+                                    setShowManageModal(false);
+                                    navigate(`/team-members/${member.id}/availability`);
+                                  }}
+                                  className="px-2 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 transition-colors flex items-center gap-1"
+                                  title="Manage Availability"
+                                >
+                                  <Clock className="h-3 w-3" />
+                                  Availability
+                                </button>
+                                
+                                {/* Copy Booking Link Button */}
+                                {member.booking_token && (
+                                  <button
+                                    onClick={() => copyToClipboard(`${window.location.origin}/book/${member.booking_token}`)}
+                                    className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 transition-colors flex items-center gap-1"
+                                    title="Copy Booking Link"
+                                  >
+                                    {copiedUrl === `${window.location.origin}/book/${member.booking_token}` ? (
+                                      <>
+                                        <Check className="h-3 w-3" />
+                                        Copied
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="h-3 w-3" />
+                                        Copy Link
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+
                               <div className="mt-1 text-xs text-gray-500">
                                 <span className="inline-flex items-center gap-0.5">
                                   <span className={`w-1.5 h-1.5 rounded-full ${member.user_id ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
@@ -469,8 +480,8 @@ export default function Teams() {
                           </div>
                           <button
                             onClick={() => handleRemoveMember(member.id)}
-                            className="ml-2 p-1 text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
-                            title="Remove"
+                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                            title="Remove Member"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
