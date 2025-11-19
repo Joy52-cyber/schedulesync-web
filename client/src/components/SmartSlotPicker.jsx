@@ -1,12 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
 import { Calendar, Clock, Check, Info, Loader2, Eye, EyeOff, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
-import axios from 'axios';
 import { bookings } from '../utils/api';
-
-const API_URL = import.meta.env.VITE_API_URL || 
-  (window.location.hostname === 'localhost' 
-    ? 'http://localhost:3000/api'
-    : `${window.location.origin}/api`);
 
 export default function SmartSlotPicker({ 
   bookingToken, 
@@ -23,7 +17,7 @@ export default function SmartSlotPicker({
 
   useEffect(() => {
     loadSlots();
-  }, [bookingToken]);
+  }, [bookingToken, guestCalendar]);
 
   const loadSlots = async () => {
     try {
@@ -33,28 +27,27 @@ export default function SmartSlotPicker({
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       console.log('🌍 User timezone detected:', userTimezone);
       
-     const response = await bookings.getSlots(bookingToken, {
-  guestAccessToken: guestCalendar?.accessToken,
-  guestRefreshToken: guestCalendar?.refreshToken,
-  duration: duration || 30,
-  timezone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
-});
+      const response = await bookings.getSlots(bookingToken, {
+        guestAccessToken: guestCalendar?.accessToken,
+        guestRefreshToken: guestCalendar?.refreshToken,
+        duration: 30,
+        timezone: userTimezone
+      });
 
-// Then access the data:
-const slotsData = response.data;
+      const slotsData = response.data;
 
       console.log('📊 Loaded slots:', {
-        totalDates: Object.keys(response.data.slots).length,
-        availableSlots: response.data.summary.availableSlots
+        totalDates: Object.keys(slotsData.slots).length,
+        availableSlots: slotsData.summary.availableSlots
       });
       
-      setSlots(response.data.slots);
-      setSummary(response.data.summary);
+      setSlots(slotsData.slots);
+      setSummary(slotsData.summary);
 
       // Only auto-select first date if nothing is currently selected
       if (!selectedDate) {
-        const firstAvailableDate = Object.keys(response.data.slots).find(date => 
-          response.data.slots[date].some(slot => slot.status === 'available')
+        const firstAvailableDate = Object.keys(slotsData.slots).find(date => 
+          slotsData.slots[date].some(slot => slot.status === 'available')
         );
         if (firstAvailableDate) {
           setSelectedDate(firstAvailableDate);
