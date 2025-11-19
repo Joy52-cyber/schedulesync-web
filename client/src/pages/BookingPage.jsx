@@ -158,12 +158,15 @@ export default function BookingPage() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!selectedSlot) {
-      alert('Please select a time slot');
-      return;
-    }
+  // No alert needed - button is already hidden without a slot
+  if (!selectedSlot) return;
+
+  if (!formData.attendee_name || !formData.attendee_email) {
+    alert('Please fill in all required fields');
+    return;
+  }
 
     if (!formData.attendee_name || !formData.attendee_email) {
       alert('Please fill in all required fields');
