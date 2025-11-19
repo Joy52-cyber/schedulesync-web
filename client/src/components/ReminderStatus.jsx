@@ -30,7 +30,7 @@ export default function ReminderStatus() {
   const handleSendTestReminder = async () => {
     try {
       setSending(true);
-      await api.post('/api/admin/send-reminders');
+      await api.post('/admin/send-reminders');
       await loadReminders();
       alert('✅ Reminder check completed!');
     } catch (error) {
