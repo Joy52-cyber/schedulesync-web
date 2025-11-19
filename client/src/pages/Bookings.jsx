@@ -80,24 +80,29 @@ export default function BookingsCompact() {
     let filtered = [...bookings];
     const now = new Date();
 
+    // Team filter
     if (filter === 'my-teams') {
       filtered = filtered.filter(b => b.isMyTeam);
     } else if (filter === 'member-teams') {
       filtered = filtered.filter(b => !b.isMyTeam);
     }
 
-    if (timeFilter === 'upcoming') {
-      filtered = filtered.filter(b => new Date(b.start_time) >= now);
-    } else if (timeFilter === 'past') {
-      filtered = filtered.filter(b => new Date(b.start_time) < now);
-    }
-
+    // Status filter takes priority over time filter
     if (statusFilter === 'confirmed') {
       filtered = filtered.filter(b => b.status === 'confirmed' && new Date(b.start_time) >= now);
     } else if (statusFilter === 'cancelled') {
+      // Show ALL cancelled bookings regardless of time
       filtered = filtered.filter(b => b.status === 'cancelled');
     } else if (statusFilter === 'completed') {
+      // Show completed bookings (past meetings that were confirmed)
       filtered = filtered.filter(b => new Date(b.start_time) < now && b.status === 'confirmed');
+    } else {
+      // Only apply time filter if no specific status is selected
+      if (timeFilter === 'upcoming') {
+        filtered = filtered.filter(b => new Date(b.start_time) >= now && b.status !== 'cancelled');
+      } else if (timeFilter === 'past') {
+        filtered = filtered.filter(b => new Date(b.start_time) < now);
+      }
     }
 
     if (searchQuery.trim()) {
@@ -423,9 +428,12 @@ export default function BookingsCompact() {
               {/* Quick Filters */}
               <div className="flex flex-wrap items-center gap-2">
                 <button
-                  onClick={() => setTimeFilter('upcoming')}
+                  onClick={() => {
+                    setTimeFilter('upcoming');
+                    setStatusFilter('all');
+                  }}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                    timeFilter === 'upcoming'
+                    timeFilter === 'upcoming' && statusFilter === 'all'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
@@ -433,9 +441,12 @@ export default function BookingsCompact() {
                   Upcoming ({counts.upcoming})
                 </button>
                 <button
-                  onClick={() => setTimeFilter('past')}
+                  onClick={() => {
+                    setTimeFilter('past');
+                    setStatusFilter('all');
+                  }}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                    timeFilter === 'past'
+                    timeFilter === 'past' && statusFilter === 'all'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
@@ -443,7 +454,10 @@ export default function BookingsCompact() {
                   Past ({counts.past})
                 </button>
                 <button
-                  onClick={() => setStatusFilter('confirmed')}
+                  onClick={() => {
+                    setStatusFilter('confirmed');
+                    setTimeFilter('all');
+                  }}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
                     statusFilter === 'confirmed'
                       ? 'bg-green-600 text-white'
@@ -453,7 +467,10 @@ export default function BookingsCompact() {
                   Active ({counts.confirmed})
                 </button>
                 <button
-                  onClick={() => setStatusFilter('cancelled')}
+                  onClick={() => {
+                    setStatusFilter('cancelled');
+                    setTimeFilter('all');
+                  }}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
                     statusFilter === 'cancelled'
                       ? 'bg-red-600 text-white'
@@ -461,6 +478,19 @@ export default function BookingsCompact() {
                   }`}
                 >
                   Cancelled ({counts.cancelled})
+                </button>
+                <button
+                  onClick={() => {
+                    setStatusFilter('completed');
+                    setTimeFilter('all');
+                  }}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                    statusFilter === 'completed'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Completed ({counts.completed})
                 </button>
 
                 <div className="ml-auto flex items-center gap-2">
