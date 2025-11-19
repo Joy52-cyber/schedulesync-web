@@ -21,51 +21,7 @@ export default function Login({ onLogin }) {
 
   const didProcessRef = useRef(false);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-
-    if (!code) {
-      setProcessingOAuth(false);
-      sessionStorage.removeItem('processing-oauth');
-      return;
-    }
-
-    if (didProcessRef.current) return;
-    didProcessRef.current = true;
-
-    sessionStorage.setItem('processing-oauth', 'true');
-    setProcessingOAuth(true);
-    setLoading(true);
-
-    // Clean URL
-    window.history.replaceState({}, document.title, '/login');
-
-    (async () => {
-      try {
-        // ✅ Use the organizer OAuth callback endpoint
-        const response = await handleOrganizerOAuthCallback(code);
-
-        onLogin(response.token, response.user);
-
-        if (response?.user?.calendar_sync_enabled) {
-          localStorage.setItem('hasGoogleRefreshToken', 'true');
-        }
-
-        sessionStorage.removeItem('processing-oauth');
-        setProcessingOAuth(false);
-        setLoading(false);
-        navigate('/dashboard', { replace: true });
-      } catch (err) {
-        console.error('❌ OAuth failed:', err?.response?.data || err);
-        setError(err?.response?.data?.error || 'Authentication failed. Please try again.');
-        sessionStorage.removeItem('processing-oauth');
-        setProcessingOAuth(false);
-        setLoading(false);
-        didProcessRef.current = false;
-      }
-    })();
-  }, [onLogin, navigate]);
+ 
 
   const handleEmailLogin = (e) => {
     e.preventDefault();

@@ -267,7 +267,7 @@ export default function BookingPageUnified() {
   // ========== RENDER ==========
 
   // Loading screen
-  if (step === 'loading') {
+  /*if (step === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
         <div className="text-center">
@@ -316,6 +316,7 @@ export default function BookingPageUnified() {
       </div>
     );
   }
+  */
 
   // Calendar connection choice screen
   if (step === 'calendar-choice') {
