@@ -207,11 +207,11 @@ export default function AvailabilitySettingsEnhanced() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 flex items-center justify-center">
         <div className="text-center">
-          <div className="relative inline-block mb-4">
-            <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200"></div>
-            <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
+          <div className="relative inline-block mb-2">
+            <div className="animate-spin rounded-full h-10 w-10 border-3 border-blue-200"></div>
+            <div className="animate-spin rounded-full h-10 w-10 border-3 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
           </div>
-          <p className="text-gray-600 font-medium">Loading settings...</p>
+          <p className="text-gray-600 text-sm">Loading settings...</p>
         </div>
       </div>
     );
@@ -221,13 +221,13 @@ export default function AvailabilitySettingsEnhanced() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
       {/* Notification */}
       {notification && (
-        <div className="fixed top-4 right-4 z-50 animate-slide-in">
-          <div className={`flex items-center gap-2 px-4 py-3 rounded-xl shadow-2xl text-sm font-medium ${
+        <div className="fixed top-3 right-3 z-50 animate-slide-in">
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-xl text-xs font-medium ${
             notification.type === 'error' 
               ? 'bg-red-600 text-white' 
               : 'bg-green-600 text-white'
           }`}>
-            {notification.type === 'error' ? <AlertCircle className="h-5 w-5" /> : <CheckCircle className="h-5 w-5" />}
+            {notification.type === 'error' ? <AlertCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
             {notification.message}
           </div>
         </div>
@@ -236,33 +236,33 @@ export default function AvailabilitySettingsEnhanced() {
       {/* Header */}
       <div className="bg-white border-b shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-4 py-4">
+          <div className="flex items-center gap-3 py-3">
             <button
               onClick={() => navigate(-1)}
-              className="p-2 hover:bg-gray-100 rounded-xl transition-all"
+              className="p-1.5 hover:bg-gray-100 rounded-lg transition-all"
             >
-              <ArrowLeft className="h-6 w-6 text-gray-600" />
+              <ArrowLeft className="h-5 w-5 text-gray-600" />
             </button>
             <div className="flex-1">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 via-blue-900 to-purple-900 bg-clip-text text-transparent">
+              <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 via-blue-900 to-purple-900 bg-clip-text text-transparent">
                 Availability Settings
               </h1>
-              <p className="text-sm text-gray-600 mt-0.5">{member?.name} • Full control</p>
+              <p className="text-xs text-gray-600">{member?.name} • Full control</p>
             </div>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2 text-sm font-semibold"
+              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2 text-xs font-semibold"
             >
               {saving ? (
                 <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Saving...
                 </>
               ) : (
                 <>
-                  <Save className="h-5 w-5" />
-                  Save All Settings
+                  <Save className="h-4 w-4" />
+                  Save All
                 </>
               )}
             </button>
@@ -271,39 +271,39 @@ export default function AvailabilitySettingsEnhanced() {
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
         
         {/* Advanced Settings Grid */}
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className="grid lg:grid-cols-2 gap-4">
           
           {/* Buffer Time */}
-          <div className="bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex items-center gap-3">
-              <Clock className="h-6 w-6 text-white" />
+          <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2.5 flex items-center gap-2">
+              <Clock className="h-5 w-5 text-white" />
               <div>
-                <h2 className="text-lg font-bold text-white">Buffer Time</h2>
+                <h2 className="text-sm font-bold text-white">Buffer Time</h2>
                 <p className="text-blue-100 text-xs">Gap between meetings</p>
               </div>
             </div>
-            <div className="p-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-                <div className="flex items-start gap-2">
-                  <Info className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div className="p-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 mb-3">
+                <div className="flex items-start gap-1.5">
+                  <Info className="h-3.5 w-3.5 text-blue-600 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-blue-900">Prevents back-to-back meetings, gives you time to prep/decompress</p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 {bufferOptions.map((option) => (
                   <button
                     key={option.value}
                     onClick={() => setBufferTime(option.value)}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
+                    className={`p-2.5 rounded-lg border-2 text-left transition-all ${
                       bufferTime === option.value
                         ? 'border-blue-500 bg-blue-50 shadow-md'
                         : 'border-gray-200 bg-white hover:border-blue-300'
                     }`}
                   >
-                    <p className="text-lg font-bold text-gray-900">{option.label}</p>
+                    <p className="text-sm font-bold text-gray-900">{option.label}</p>
                     <p className="text-xs text-gray-600">{option.desc}</p>
                   </button>
                 ))}
@@ -312,33 +312,33 @@ export default function AvailabilitySettingsEnhanced() {
           </div>
 
           {/* Lead Time */}
-          <div className="bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-green-600 to-emerald-700 px-6 py-4 flex items-center gap-3">
-              <Zap className="h-6 w-6 text-white" />
+          <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-green-600 to-emerald-700 px-4 py-2.5 flex items-center gap-2">
+              <Zap className="h-5 w-5 text-white" />
               <div>
-                <h2 className="text-lg font-bold text-white">Lead Time</h2>
+                <h2 className="text-sm font-bold text-white">Lead Time</h2>
                 <p className="text-green-100 text-xs">Minimum notice required</p>
               </div>
             </div>
-            <div className="p-6">
-              <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
-                <div className="flex items-start gap-2">
-                  <Info className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="p-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-2.5 mb-3">
+                <div className="flex items-start gap-1.5">
+                  <Info className="h-3.5 w-3.5 text-green-600 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-green-900">How far in advance people must book (e.g., 24h = must book tomorrow or later)</p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 {leadTimeOptions.map((option) => (
                   <button
                     key={option.value}
                     onClick={() => setLeadTimeHours(option.value)}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
+                    className={`p-2.5 rounded-lg border-2 text-left transition-all ${
                       leadTimeHours === option.value
                         ? 'border-green-500 bg-green-50 shadow-md'
                         : 'border-gray-200 bg-white hover:border-green-300'
                     }`}
                   >
-                    <p className="text-lg font-bold text-gray-900">{option.label}</p>
+                    <p className="text-sm font-bold text-gray-900">{option.label}</p>
                     <p className="text-xs text-gray-600">{option.desc}</p>
                   </button>
                 ))}
@@ -347,33 +347,33 @@ export default function AvailabilitySettingsEnhanced() {
           </div>
 
           {/* Horizon */}
-          <div className="bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4 flex items-center gap-3">
-              <TrendingUp className="h-6 w-6 text-white" />
+          <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-4 py-2.5 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-white" />
               <div>
-                <h2 className="text-lg font-bold text-white">Booking Horizon</h2>
+                <h2 className="text-sm font-bold text-white">Booking Horizon</h2>
                 <p className="text-purple-100 text-xs">How far ahead to show</p>
               </div>
             </div>
-            <div className="p-6">
-              <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-4">
-                <div className="flex items-start gap-2">
-                  <Info className="h-4 w-4 text-purple-600 flex-shrink-0 mt-0.5" />
+            <div className="p-4">
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-2.5 mb-3">
+                <div className="flex items-start gap-1.5">
+                  <Info className="h-3.5 w-3.5 text-purple-600 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-purple-900">Maximum days in the future people can book (e.g., 30 days = only show next month)</p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 {horizonOptions.map((option) => (
                   <button
                     key={option.value}
                     onClick={() => setHorizonDays(option.value)}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
+                    className={`p-2.5 rounded-lg border-2 text-left transition-all ${
                       horizonDays === option.value
                         ? 'border-purple-500 bg-purple-50 shadow-md'
                         : 'border-gray-200 bg-white hover:border-purple-300'
                     }`}
                   >
-                    <p className="text-lg font-bold text-gray-900">{option.label}</p>
+                    <p className="text-sm font-bold text-gray-900">{option.label}</p>
                     <p className="text-xs text-gray-600">{option.desc}</p>
                   </button>
                 ))}
@@ -382,33 +382,33 @@ export default function AvailabilitySettingsEnhanced() {
           </div>
 
           {/* Daily Cap */}
-          <div className="bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-600 to-orange-700 px-6 py-4 flex items-center gap-3">
-              <Shield className="h-6 w-6 text-white" />
+          <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-orange-600 to-orange-700 px-4 py-2.5 flex items-center gap-2">
+              <Shield className="h-5 w-5 text-white" />
               <div>
-                <h2 className="text-lg font-bold text-white">Daily Cap</h2>
+                <h2 className="text-sm font-bold text-white">Daily Cap</h2>
                 <p className="text-orange-100 text-xs">Max bookings per day</p>
               </div>
             </div>
-            <div className="p-6">
-              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
-                <div className="flex items-start gap-2">
-                  <Info className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" />
+            <div className="p-4">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-2.5 mb-3">
+                <div className="flex items-start gap-1.5">
+                  <Info className="h-3.5 w-3.5 text-orange-600 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-orange-900">Prevent burnout by limiting daily meetings (e.g., max 3 per day)</p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 {dailyCapOptions.map((option) => (
                   <button
                     key={option.value}
                     onClick={() => setDailyCap(option.value)}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
+                    className={`p-2.5 rounded-lg border-2 text-left transition-all ${
                       dailyCap === option.value
                         ? 'border-orange-500 bg-orange-50 shadow-md'
                         : 'border-gray-200 bg-white hover:border-orange-300'
                     }`}
                   >
-                    <p className="text-lg font-bold text-gray-900">{option.label}</p>
+                    <p className="text-sm font-bold text-gray-900">{option.label}</p>
                     <p className="text-xs text-gray-600">{option.desc}</p>
                   </button>
                 ))}
@@ -417,13 +417,13 @@ export default function AvailabilitySettingsEnhanced() {
           </div>
         </div>
 
-        {/* Working Hours - Keep from original */}
-        <div className="bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Calendar className="h-6 w-6 text-white" />
+        {/* Working Hours */}
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-white" />
               <div>
-                <h2 className="text-lg font-bold text-white">Working Hours</h2>
+                <h2 className="text-sm font-bold text-white">Working Hours</h2>
                 <p className="text-indigo-100 text-xs">When you're available</p>
               </div>
             </div>
@@ -434,7 +434,7 @@ export default function AvailabilitySettingsEnhanced() {
                   Object.keys(all).forEach(d => all[d].enabled = true);
                   setWorkingHours(all);
                 }}
-                className="px-3 py-1.5 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-xs font-medium"
+                className="px-2.5 py-1 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-xs font-medium"
               >
                 All Days
               </button>
@@ -446,18 +446,18 @@ export default function AvailabilitySettingsEnhanced() {
                   Object.keys(wk).forEach(d => { if (d !== 'saturday' && d !== 'sunday') wk[d].enabled = true; });
                   setWorkingHours(wk);
                 }}
-                className="px-3 py-1.5 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-xs font-medium"
+                className="px-2.5 py-1 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-xs font-medium"
               >
                 Weekdays
               </button>
             </div>
           </div>
-          <div className="p-6">
-            <div className="space-y-3">
+          <div className="p-4">
+            <div className="space-y-2">
               {days.map((day) => (
                 <div
                   key={day.key}
-                  className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
+                  className={`flex items-center gap-3 p-2.5 rounded-lg border-2 transition-all ${
                     workingHours[day.key].enabled
                       ? 'bg-indigo-50 border-indigo-200'
                       : 'bg-gray-50 border-gray-200 opacity-60'
@@ -465,37 +465,37 @@ export default function AvailabilitySettingsEnhanced() {
                 >
                   <button
                     onClick={() => toggleDay(day.key)}
-                    className={`relative flex-shrink-0 w-12 h-7 rounded-full transition-all ${
+                    className={`relative flex-shrink-0 w-10 h-6 rounded-full transition-all ${
                       workingHours[day.key].enabled ? 'bg-green-500' : 'bg-gray-300'
                     }`}
                   >
-                    <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform shadow ${
-                      workingHours[day.key].enabled ? 'translate-x-6' : 'translate-x-1'
+                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow ${
+                      workingHours[day.key].enabled ? 'translate-x-4' : 'translate-x-0.5'
                     }`}>
                       {workingHours[day.key].enabled && <Check className="h-5 w-5 text-green-600" />}
                     </div>
                   </button>
-                  <div className="w-20">
-                    <p className="text-sm font-bold text-gray-900">{day.full}</p>
+                  <div className="w-16">
+                    <p className="text-xs font-bold text-gray-900">{day.full}</p>
                   </div>
                   {workingHours[day.key].enabled ? (
-                    <div className="flex items-center gap-3 flex-1">
+                    <div className="flex items-center gap-2 flex-1">
                       <input
                         type="time"
                         value={workingHours[day.key].start}
                         onChange={(e) => updateDayTime(day.key, 'start', e.target.value)}
-                        className="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm font-medium"
+                        className="px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium"
                       />
-                      <span className="text-gray-400 font-bold">→</span>
+                      <span className="text-gray-400 text-sm font-bold">→</span>
                       <input
                         type="time"
                         value={workingHours[day.key].end}
                         onChange={(e) => updateDayTime(day.key, 'end', e.target.value)}
-                        className="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm font-medium"
+                        className="px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium"
                       />
                     </div>
                   ) : (
-                    <span className="text-sm text-gray-500 font-medium">Day off</span>
+                    <span className="text-xs text-gray-500 font-medium">Day off</span>
                   )}
                 </div>
               ))}
@@ -503,48 +503,48 @@ export default function AvailabilitySettingsEnhanced() {
           </div>
         </div>
 
-        {/* Blocked Times - Keep from original */}
-        <div className="bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-red-600 to-red-700 px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <X className="h-6 w-6 text-white" />
+        {/* Blocked Times */}
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-red-600 to-red-700 px-4 py-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <X className="h-5 w-5 text-white" />
               <div>
-                <h2 className="text-lg font-bold text-white">Blocked Times</h2>
+                <h2 className="text-sm font-bold text-white">Blocked Times</h2>
                 <p className="text-red-100 text-xs">Specific unavailable periods</p>
               </div>
             </div>
             <button
               onClick={addBlockedTime}
-              className="px-3 py-1.5 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-xs font-medium flex items-center gap-1"
+              className="px-2.5 py-1 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-xs font-medium flex items-center gap-1"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
               Add Block
             </button>
           </div>
-          <div className="p-6">
+          <div className="p-4">
             {blockedTimes.length === 0 ? (
-              <div className="text-center py-12 bg-red-50 rounded-xl border-2 border-dashed border-red-300">
-                <X className="h-12 w-12 text-red-300 mx-auto mb-3" />
-                <p className="text-sm text-gray-600 mb-4">No blocked times</p>
+              <div className="text-center py-8 bg-red-50 rounded-lg border-2 border-dashed border-red-300">
+                <X className="h-10 w-10 text-red-300 mx-auto mb-2" />
+                <p className="text-xs text-gray-600 mb-3">No blocked times</p>
                 <button
                   onClick={addBlockedTime}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
+                  className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700"
                 >
                   Add Blocked Time
                 </button>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {blockedTimes.map((block, index) => (
-                  <div key={block.id} className="flex items-center gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div key={block.id} className="flex items-center gap-2 p-3 bg-red-50 border-2 border-red-200 rounded-lg">
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2">
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 mb-1">Start</label>
                         <input
                           type="datetime-local"
                           value={block.start_time}
                           onChange={(e) => updateBlockedTime(index, 'start_time', e.target.value)}
-                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-sm"
+                          className="w-full px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs"
                         />
                       </div>
                       <div>
@@ -553,7 +553,7 @@ export default function AvailabilitySettingsEnhanced() {
                           type="datetime-local"
                           value={block.end_time}
                           onChange={(e) => updateBlockedTime(index, 'end_time', e.target.value)}
-                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-sm"
+                          className="w-full px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs"
                         />
                       </div>
                       <div>
@@ -563,15 +563,15 @@ export default function AvailabilitySettingsEnhanced() {
                           placeholder="Vacation, meeting, etc."
                           value={block.reason || ''}
                           onChange={(e) => updateBlockedTime(index, 'reason', e.target.value)}
-                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-sm"
+                          className="w-full px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs"
                         />
                       </div>
                     </div>
                     <button
                       onClick={() => removeBlockedTime(index)}
-                      className="p-3 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors"
+                      className="p-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors"
                     >
-                      <Trash2 className="h-5 w-5" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 ))}
