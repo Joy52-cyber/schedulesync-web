@@ -217,7 +217,7 @@ export default function BookingPageUnified() {
         response_type: 'code',
         scope: scope,
         access_type: 'offline',
-        prompt: 'consent',
+        prompt: 'select_account',
         state: `booking:${token}:google`,
       });
 
