@@ -200,7 +200,7 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
               </div>
               <h2 className="text-2xl font-bold mb-2">Your Meeting is Ready!</h2>
               <p className="text-blue-100 mb-6">Join via Google Meet at the scheduled time</p>
-              
+              <a
                 href={bookingData.meet_link}
                 target="_blank"
                 rel="noopener noreferrer"
