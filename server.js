@@ -738,7 +738,14 @@ app.put('/api/team-members/:id/availability', authenticateToken, async (req, res
   try {
     const memberId = parseInt(req.params.id);
     const userId = req.user.id;
-    const { buffer_time, working_hours, blocked_times } = req.body;
+   const { 
+  buffer_time, 
+  lead_time_hours,        // ← ADD THIS
+  booking_horizon_days,   // ← ADD THIS  
+  daily_booking_cap,      // ← ADD THIS
+  working_hours, 
+  blocked_times 
+} = req.body;
 
     console.log('⚙️ Updating availability for member:', memberId);
 
