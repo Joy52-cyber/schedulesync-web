@@ -1,4 +1,4 @@
-﻿// emailTemplates.js - UPDATED with management links
+﻿// emailTemplates.js - COMPLETE FIXED VERSION
 
 const formatDate = (dateString) => {
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -31,7 +31,6 @@ const emailWrapper = (content) => `
     <tr>
       <td align="center">
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
-          <!-- Header -->
           <tr>
             <td style="background: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%); padding: 40px 40px 30px; text-align: center;">
               <div style="background-color: rgba(255, 255, 255, 0.2); width: 60px; height: 60px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
@@ -41,15 +40,11 @@ const emailWrapper = (content) => `
               <p style="color: rgba(255, 255, 255, 0.9); margin: 8px 0 0; font-size: 14px;">Smart Team Scheduling</p>
             </td>
           </tr>
-          
-          <!-- Content -->
           <tr>
             <td style="padding: 40px;">
               ${content}
             </td>
           </tr>
-          
-          <!-- Footer -->
           <tr>
             <td style="background-color: #f9fafb; padding: 30px 40px; text-align: center; border-top: 1px solid #e5e7eb;">
               <p style="color: #6b7280; font-size: 14px; margin: 0 0 8px;">
@@ -68,7 +63,6 @@ const emailWrapper = (content) => `
 </html>
 `;
 
-// Booking Confirmation Email (to guest) - UPDATED with management link
 const bookingConfirmationGuest = (booking) => {
   const manageUrl = `${process.env.FRONTEND_URL}/manage/${booking.booking_token || booking.id}`;
   
@@ -155,7 +149,6 @@ const bookingConfirmationGuest = (booking) => {
   return emailWrapper(content);
 };
 
-// Booking Confirmation Email (to organizer) - UPDATED with management link
 const bookingConfirmationOrganizer = (booking) => {
   const manageUrl = `${process.env.FRONTEND_URL}/manage/${booking.booking_token || booking.id}`;
   
@@ -238,7 +231,6 @@ const bookingConfirmationOrganizer = (booking) => {
   return emailWrapper(content);
 };
 
-// Cancellation Email - UPDATED with rebook link
 const bookingCancellation = (booking, reason) => {
   const rebookUrl = `${process.env.FRONTEND_URL}/book/${booking.booking_token}`;
   
@@ -297,7 +289,6 @@ const bookingCancellation = (booking, reason) => {
   return emailWrapper(content);
 };
 
-// Reschedule Email - UPDATED
 const bookingReschedule = (booking, oldTime) => {
   const manageUrl = `${process.env.FRONTEND_URL}/manage/${booking.booking_token || booking.id}`;
   
@@ -321,4 +312,46 @@ const bookingReschedule = (booking, oldTime) => {
       <p style="color: #065f46; margin: 0 0 12px; font-size: 14px; font-weight: 600; text-align: center;">✨ New Meeting Time:</p>
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
-          <td style="padding: 8px 0;"
+          <td style="padding: 8px 0;">
+            <span style="color: #047857; font-size: 14px;">📅 Date</span>
+          </td>
+          <td align="right" style="padding: 8px 0;">
+            <strong style="color: #065f46; font-size: 14px;">${formatDate(booking.start_time)}</strong>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0;">
+            <span style="color: #047857; font-size: 14px;">🕐 Time</span>
+          </td>
+          <td align="right" style="padding: 8px 0;">
+            <strong style="color: #065f46; font-size: 14px;">${formatTime(booking.start_time)}</strong>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="background-color: #eff6ff; border-left: 4px solid #3B82F6; border-radius: 8px; padding: 16px; margin-bottom: 30px;">
+      <p style="color: #1e40af; margin: 0; font-size: 14px; line-height: 1.6;">
+        <strong>💡 Action Required:</strong><br>
+        • Update the event in your calendar<br>
+        • A new calendar invite has been sent<br>
+        • You'll receive a reminder 24 hours before the new time
+      </p>
+    </div>
+
+    <div style="text-align: center;">
+      <a href="${manageUrl}" style="display: inline-block; background-color: #3B82F6; color: #ffffff; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+        📋 View Details
+      </a>
+    </div>
+  `;
+  
+  return emailWrapper(content);
+};
+
+module.exports = {
+  bookingConfirmationGuest,
+  bookingConfirmationOrganizer,
+  bookingCancellation,
+  bookingReschedule,
+};
