@@ -11,7 +11,7 @@ export default function Layout({ user, onLogout }) {
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Teams', path: '/teams', icon: Users },
     { name: 'Bookings', path: '/bookings', icon: Calendar },
-    { name: 'My Booking Link', path: '/my-booking-link', icon: Link2 },
+    { name: 'My Link', path: '/my-booking-link', icon: Link2 },
   ];
 
   const handleLogout = () => {
@@ -19,7 +19,6 @@ export default function Layout({ user, onLogout }) {
     navigate('/login');
   };
 
-  // Get user initials for avatar
   const getUserInitials = () => {
     if (user?.name) {
       return user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -32,20 +31,20 @@ export default function Layout({ user, onLogout }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+      {/* Header - Responsive */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
+        <div className="mx-auto px-3 sm:px-4 lg:px-6">
+          <div className="flex justify-between items-center h-14 sm:h-16">
             {/* Logo */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-white" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
+                <Calendar className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
               </div>
-              <span className="text-xl font-bold text-blue-600">ScheduleSync</span>
+              <span className="text-base sm:text-xl font-bold text-blue-600">ScheduleSync</span>
             </div>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-1">
+            {/* Desktop Navigation - Hidden on mobile */}
+            <nav className="hidden lg:flex items-center gap-1">
               {navigation.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
@@ -53,60 +52,76 @@ export default function Layout({ user, onLogout }) {
                   <Link
                     key={item.name}
                     to={item.path}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    className={`flex items-center gap-2 px-3 xl:px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
                       isActive
                         ? 'bg-blue-50 text-blue-600'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`}
                   >
-                    <Icon className="h-5 w-5" />
-                    {item.name}
+                    <Icon className="h-4 w-4 xl:h-5 xl:w-5" />
+                    <span className="hidden xl:inline">{item.name}</span>
                   </Link>
                 );
               })}
             </nav>
 
-            {/* User Menu */}
-            <div className="flex items-center gap-3">
-              {/* User Info */}
+            {/* Right Side - User Menu */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* User Info - Hidden on small mobile */}
               <div className="hidden sm:block text-right">
-                <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
-                <p className="text-xs text-gray-500">{user?.email}</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-[150px]">
+                  {user?.name || 'User'}
+                </p>
+                <p className="text-[10px] sm:text-xs text-gray-500 truncate max-w-[150px]">
+                  {user?.email}
+                </p>
               </div>
               
               {/* Avatar */}
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                <span className="text-white font-semibold text-sm">{getUserInitials()}</span>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-semibold text-xs sm:text-sm">
+                  {getUserInitials()}
+                </span>
               </div>
 
-              {/* Logout Button */}
+              {/* Desktop Logout Button - Hidden on tablet and below */}
               <button
                 onClick={handleLogout}
-                className="hidden md:flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
+                className="hidden lg:flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium text-sm"
               >
-                <LogOut className="h-5 w-5" />
-                Logout
+                <LogOut className="h-4 w-4" />
+                <span className="hidden xl:inline">Logout</span>
               </button>
 
-              {/* Mobile Menu Button */}
+              {/* Mobile Menu Button - Show on tablet and below */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-lg hover:bg-gray-100"
+                className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                aria-label="Toggle menu"
               >
                 {mobileMenuOpen ? (
-                  <X className="h-6 w-6 text-gray-600" />
+                  <X className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600" />
                 ) : (
-                  <Menu className="h-6 w-6 text-gray-600" />
+                  <Menu className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600" />
                 )}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu - Dropdown */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-200 bg-white">
-            <div className="px-4 py-3 space-y-1">
+          <div className="lg:hidden border-t border-gray-200 bg-white shadow-lg">
+            <div className="px-3 sm:px-4 py-3 space-y-1">
+              {/* Mobile User Info */}
+              <div className="sm:hidden px-4 py-3 bg-gray-50 rounded-lg mb-2">
+                <p className="text-sm font-semibold text-gray-900 truncate">
+                  {user?.name || 'User'}
+                </p>
+                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+              </div>
+
+              {/* Navigation Links */}
               {navigation.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
@@ -121,28 +136,30 @@ export default function Layout({ user, onLogout }) {
                         : 'text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    <Icon className="h-5 w-5" />
-                    {item.name}
+                    <Icon className="h-5 w-5 flex-shrink-0" />
+                    <span className="text-sm">{item.name}</span>
                   </Link>
                 );
               })}
+
+              {/* Mobile Logout */}
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
                   handleLogout();
                 }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
+                className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium mt-2"
               >
-                <LogOut className="h-5 w-5" />
-                Logout
+                <LogOut className="h-5 w-5 flex-shrink-0" />
+                <span className="text-sm">Logout</span>
               </button>
             </div>
           </div>
         )}
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Main Content - Responsive padding */}
+      <main className="mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 max-w-[1600px]">
         <Outlet />
       </main>
     </div>
