@@ -2681,6 +2681,13 @@ app.put('/api/team-members/:id/timezone', authenticateToken, async (req, res) =>
 
 const stripeService = require('./server/utils/stripe');
 
+// Get Stripe publishable key
+app.get('/api/payments/config', (req, res) => {
+  res.json({
+    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+  });
+});
+
 // Get pricing for a booking token
 app.get('/api/book/:token/pricing', async (req, res) => {
   try {
