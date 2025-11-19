@@ -1,15 +1,31 @@
 ﻿import axios from 'axios';
 
-// Determine API URL
-const API_BASE = import.meta.env.VITE_API_URL || 
-  (window.location.hostname === 'localhost' 
-    ? 'http://localhost:3000/api'
-    : `${window.location.origin}/api`);
+// Determine API URL - Clean and simple
+const getApiUrl = () => {
+  const viteUrl = import.meta.env.VITE_API_URL;
+  
+  if (viteUrl) {
+    // Remove trailing slash and /api suffix if present
+    return viteUrl.replace(/\/+$/, '').replace(/\/api$/, '');
+  }
+  
+  // Fallback for local development
+  if (window.location.hostname === 'localhost') {
+    return 'http://localhost:3000';
+  }
+  
+  // Production fallback
+  return window.location.origin;
+};
 
-// Remove any trailing slashes and ensure /api is not doubled
-const API_URL = API_BASE.replace(/\/+$/, '').replace(/\/api\/api/, '/api');
+const API_BASE = getApiUrl();
+const API_URL = `${API_BASE}/api`;
 
-console.log('🔌 API URL:', API_URL);
+console.log('🔌 API Configuration:', { 
+  VITE_API_URL: import.meta.env.VITE_API_URL,
+  API_BASE,
+  API_URL 
+});
 
 // Create axios instance
 const apiClient = axios.create({
@@ -19,7 +35,7 @@ const apiClient = axios.create({
   },
 });
 
-// Add auth interceptor - Automatically add token to requests
+// Add auth interceptor
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -29,12 +45,10 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 errors - Auto logout ONLY on expired token
+// Handle 401 errors
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // ONLY logout on 401 (unauthorized/expired token)
-    // Do NOT logout on other errors like 404, 500, etc.
     if (error.response?.status === 401) {
       console.error('❌ 401 Unauthorized - Token expired, logging out');
       localStorage.removeItem('token');
@@ -42,7 +56,6 @@ apiClient.interceptors.response.use(
       delete apiClient.defaults.headers.common['Authorization'];
       window.location.href = '/login';
     } else {
-      // Log other errors but don't logout
       console.error('🔴 API Error:', {
         status: error.response?.status,
         url: error.config?.url,
@@ -76,16 +89,13 @@ export const auth = {
   logout: () => apiClient.post('/auth/logout'),
 };
 
-// Export googleLogin standalone for backwards compatibility
 export const googleLogin = auth.googleLogin;
 
-// Get Google OAuth URL for organizer calendar connection
 export const getOrganizerOAuthUrl = async () => {
   const response = await apiClient.get('/auth/google/url');
   return response.data;
 };
 
-// Handle organizer OAuth callback
 export const handleOrganizerOAuthCallback = async (code) => {
   const response = await apiClient.post('/auth/google/callback', { code });
   return response.data;
@@ -119,6 +129,18 @@ export const bookings = {
     apiClient.get(`/book/${encodeURIComponent(token)}/availability`, { 
       params: { date } 
     }),
+  
+  // ⭐ NEW: Slots endpoint for SmartSlotPicker
+  getSlots: (token, data) => 
+    apiClient.post(`/book/${encodeURIComponent(token)}/slots-with-status`, data),
+  
+  // Management endpoints (no auth required - use axios directly)
+  getByManagementToken: (token) => 
+    axios.get(`${API_URL}/bookings/manage/${token}`),
+  rescheduleByToken: (token, data) => 
+    axios.post(`${API_URL}/bookings/manage/${token}/reschedule`, data),
+  cancelByToken: (token, data) => 
+    axios.post(`${API_URL}/bookings/manage/${token}/cancel`, data),
 };
 
 // ============================================
@@ -132,5 +154,35 @@ export const analytics = {
   }),
 };
 
-// Default export the axios instance
+// ============================================
+// AVAILABILITY API
+// ============================================
+
+export const availability = {
+  get: (memberId) => apiClient.get(`/team-members/${memberId}/availability`),
+  update: (memberId, data) => apiClient.put(`/team-members/${memberId}/availability`, data),
+};
+
+// ============================================
+// USER API
+// ============================================
+
+export const user = {
+  getTimezone: () => apiClient.get('/user/timezone'),
+  updateTimezone: (timezone) => apiClient.put('/user/timezone', { timezone }),
+};
+
+// ============================================
+// REMINDERS API
+// ============================================
+
+export const reminders = {
+  getStatus: () => apiClient.get('/reminders/status'),
+  sendManual: () => apiClient.post('/admin/send-reminders'),
+};
+
+// Export API_URL for components that need it
+export { API_URL };
+
+// Default export
 export default apiClient;

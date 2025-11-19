@@ -1,11 +1,11 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import SmartSlotPicker from '../components/SmartSlotPicker';
+import { bookings } from '../utils/api';
 
 const ManageBooking = () => {
   const { token } = useParams();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -32,52 +32,41 @@ const ManageBooking = () => {
   const loadBooking = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/bookings/manage/${token}`);
-      
-      if (!response.ok) {
-        throw new Error('Booking not found');
-      }
-      
-      const data = await response.json();
-      setBooking(data.booking);
+      const response = await bookings.getByManagementToken(token);
+      setBooking(response.data.booking);
     } catch (err) {
       console.error('Error loading booking:', err);
-      setError(err.message || 'Failed to load booking');
+      setError(err.response?.data?.error || 'Failed to load booking');
     } finally {
       setLoading(false);
     }
   };
 
   const handleReschedule = async (newSlot) => {
+    console.log('🔄 Reschedule triggered with slot:', newSlot);
+    
+    if (!newSlot || !newSlot.start || !newSlot.end) {
+      console.error('❌ Invalid slot data:', newSlot);
+      alert('Please select a valid time slot');
+      return;
+    }
+
     try {
       setActionLoading(true);
       
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/bookings/manage/${token}/reschedule`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            newStartTime: newSlot.start,
-            newEndTime: newSlot.end,
-          }),
-        }
-      );
+      const response = await bookings.rescheduleByToken(token, {
+        newStartTime: newSlot.start,
+        newEndTime: newSlot.end,
+      });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to reschedule');
-      }
-
-      const data = await response.json();
-      setBooking(data.booking);
+      setBooking(response.data.booking);
       setShowReschedule(false);
       setSuccessMessage('🎉 Booking rescheduled successfully! Check your email for the updated calendar invite.');
       
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      console.error('Error rescheduling:', err);
-      alert(err.message || 'Failed to reschedule booking');
+      console.error('❌ Reschedule error:', err);
+      alert(err.response?.data?.error || 'Failed to reschedule booking');
     } finally {
       setActionLoading(false);
     }
@@ -96,19 +85,7 @@ const ManageBooking = () => {
     try {
       setActionLoading(true);
       
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/bookings/manage/${token}/cancel`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason: cancelReason }),
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to cancel');
-      }
+      await bookings.cancelByToken(token, { reason: cancelReason });
 
       setBooking({ ...booking, status: 'cancelled' });
       setShowCancel(false);
@@ -116,8 +93,8 @@ const ManageBooking = () => {
       
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      console.error('Error cancelling:', err);
-      alert(err.message || 'Failed to cancel booking');
+      console.error('❌ Cancel error:', err);
+      alert(err.response?.data?.error || 'Failed to cancel booking');
     } finally {
       setActionLoading(false);
     }
@@ -173,7 +150,7 @@ const ManageBooking = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <div className="max-w-4xl mx-auto px-4 py-12">
         {successMessage && (
-          <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-6 rounded-lg animate-fade-in">
+          <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-6 rounded-lg">
             <p className="text-green-800">{successMessage}</p>
           </div>
         )}
@@ -206,9 +183,7 @@ const ManageBooking = () => {
 
             {!booking.can_modify && booking.status === 'confirmed' && (
               <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6 rounded-lg">
-                <p className="text-yellow-800">
-                  ⏰ This booking is in the past and cannot be modified
-                </p>
+                <p className="text-yellow-800">⏰ This booking is in the past and cannot be modified</p>
               </div>
             )}
 
@@ -303,7 +278,7 @@ const ManageBooking = () => {
         {showReschedule && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+              <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white z-10">
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl font-bold">🔄 Reschedule Meeting</h2>
                   <button
@@ -325,13 +300,22 @@ const ManageBooking = () => {
                     <strong>Current time:</strong> {formatDate(booking.start_time)} at {formatTime(booking.start_time)}
                   </p>
                 </div>
+
+                {actionLoading && (
+                  <div className="mb-6 bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                      <p className="text-blue-800 font-medium">Rescheduling your booking...</p>
+                    </div>
+                  </div>
+                )}
+
                 <SmartSlotPicker
-  bookingToken={booking.member_booking_token}
-  onSlotSelected={handleReschedule}  // ✅ Correct prop name (with 'd')
-  loading={actionLoading}
-  duration={30}
-/>
-                
+                  bookingToken={booking.member_booking_token}
+                  onSlotSelected={handleReschedule}
+                  loading={actionLoading}
+                  duration={30}
+                />
               </div>
             </div>
           </div>
