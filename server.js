@@ -762,12 +762,12 @@ app.put('/api/team-members/:id/availability', authenticateToken, async (req, res
     }
 
     // Update team member settings
-    await pool.query(
-      `UPDATE team_members 
-       SET buffer_time = $1, working_hours = $2, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $3`,
-      [buffer_time, JSON.stringify(working_hours), memberId]
-    );
+   await pool.query(
+  `UPDATE team_members 
+   SET buffer_time = $1, working_hours = $2 
+   WHERE id = $3`,
+  [buffer_time, JSON.stringify(working_hours), memberId]
+);
 
     // Update blocked times
     await pool.query('DELETE FROM blocked_times WHERE team_member_id = $1', [memberId]);
