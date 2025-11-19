@@ -1,16 +1,33 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
-import { Calendar, Clock, User, Mail, FileText, Filter, Users, Crown, UserCheck, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { 
+  Calendar, Clock, User, Mail, FileText, Filter, Users, Crown, UserCheck, 
+  X, Loader2, AlertCircle, CheckCircle, Search, Download, Trash2, 
+  XCircle, RefreshCw
+} from 'lucide-react';
 import api from '../utils/api';
 
 export default function Bookings() {
   const [bookings, setBookings] = useState([]);
-  const [filteredBookings, setFilteredBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Filter states
   const [filter, setFilter] = useState('all'); // 'all', 'my-teams', 'member-teams'
   const [timeFilter, setTimeFilter] = useState('upcoming'); // 'all', 'upcoming', 'past'
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'confirmed', 'cancelled', 'completed'
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  
+  // Bulk actions
+  const [selectedBookings, setSelectedBookings] = useState(new Set());
+  const [bulkCancelling, setBulkCancelling] = useState(false);
   
   // Cancel modal state
-  const [cancelModal, setCancelModal] = useState({ open: false, booking: null, reason: '', submitting: false });
+  const [cancelModal, setCancelModal] = useState({ 
+    open: false, 
+    booking: null, 
+    reason: '', 
+    submitting: false 
+  });
   
   // Reschedule modal state
   const [rescheduleModal, setRescheduleModal] = useState({ 
@@ -25,10 +42,6 @@ export default function Bookings() {
     loadBookings();
   }, []);
 
-  useEffect(() => {
-    applyFilters();
-  }, [bookings, filter, timeFilter]);
-
   const loadBookings = async () => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -40,18 +53,13 @@ export default function Bookings() {
       console.log('📋 Bookings: Loading data with token');
       setLoading(true);
       
-      // Get bookings
       const bookingsResponse = await api.get('/bookings');
-      
-      // Get teams to determine ownership
       const teamsResponse = await api.get('/teams');
       const myTeamIds = new Set(teamsResponse.data.teams.map(t => t.id));
       
-      // Get current user
       const storedUser = localStorage.getItem('user');
       const currentUser = storedUser ? JSON.parse(storedUser) : null;
       
-      // Enhance bookings with ownership info
       const enhancedBookings = bookingsResponse.data.bookings.map(booking => ({
         ...booking,
         isMyTeam: myTeamIds.has(booking.team_id),
@@ -66,28 +74,174 @@ export default function Bookings() {
     }
   };
 
-  const applyFilters = () => {
+  // ========== FILTERED BOOKINGS ==========
+  const filteredBookings = useMemo(() => {
     let filtered = [...bookings];
+    const now = new Date();
 
-    // Apply team filter
+    // Team filter
     if (filter === 'my-teams') {
       filtered = filtered.filter(b => b.isMyTeam);
     } else if (filter === 'member-teams') {
       filtered = filtered.filter(b => !b.isMyTeam);
     }
 
-    // Apply time filter
-    const now = new Date();
+    // Time filter
     if (timeFilter === 'upcoming') {
       filtered = filtered.filter(b => new Date(b.start_time) >= now);
     } else if (timeFilter === 'past') {
       filtered = filtered.filter(b => new Date(b.start_time) < now);
     }
 
-    setFilteredBookings(filtered);
+    // Status filter
+    if (statusFilter === 'confirmed') {
+      filtered = filtered.filter(b => b.status === 'confirmed' && new Date(b.start_time) >= now);
+    } else if (statusFilter === 'cancelled') {
+      filtered = filtered.filter(b => b.status === 'cancelled');
+    } else if (statusFilter === 'completed') {
+      filtered = filtered.filter(b => new Date(b.start_time) < now && b.status === 'confirmed');
+    }
+
+    // Search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(b => 
+        b.attendee_name?.toLowerCase().includes(query) ||
+        b.attendee_email?.toLowerCase().includes(query) ||
+        b.notes?.toLowerCase().includes(query) ||
+        b.team_name?.toLowerCase().includes(query) ||
+        b.member_name?.toLowerCase().includes(query)
+      );
+    }
+
+    // Date range filter
+    if (dateRange.start) {
+      const startDate = new Date(dateRange.start);
+      filtered = filtered.filter(b => new Date(b.start_time) >= startDate);
+    }
+    if (dateRange.end) {
+      const endDate = new Date(dateRange.end);
+      endDate.setHours(23, 59, 59, 999); // End of day
+      filtered = filtered.filter(b => new Date(b.start_time) <= endDate);
+    }
+
+    // Sort by date (newest first)
+    filtered.sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+
+    return filtered;
+  }, [bookings, filter, timeFilter, statusFilter, searchQuery, dateRange]);
+
+  // ========== COUNTS ==========
+  const counts = useMemo(() => {
+    const now = new Date();
+    const teamFiltered = filter === 'my-teams' 
+      ? bookings.filter(b => b.isMyTeam)
+      : filter === 'member-teams'
+      ? bookings.filter(b => !b.isMyTeam)
+      : bookings;
+
+    return {
+      myTeamsCount: bookings.filter(b => b.isMyTeam).length,
+      memberTeamsCount: bookings.filter(b => !b.isMyTeam).length,
+      upcomingCount: teamFiltered.filter(b => new Date(b.start_time) >= now && b.status !== 'cancelled').length,
+      pastCount: teamFiltered.filter(b => new Date(b.start_time) < now).length,
+      confirmedCount: teamFiltered.filter(b => b.status === 'confirmed' && new Date(b.start_time) >= now).length,
+      cancelledCount: teamFiltered.filter(b => b.status === 'cancelled').length,
+      completedCount: teamFiltered.filter(b => new Date(b.start_time) < now && b.status === 'confirmed').length,
+    };
+  }, [bookings, filter]);
+
+  // ========== BULK ACTIONS ==========
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      const allIds = new Set(filteredBookings.map(b => b.id));
+      setSelectedBookings(allIds);
+    } else {
+      setSelectedBookings(new Set());
+    }
   };
 
-  // Cancel booking handler
+  const handleSelectBooking = (bookingId) => {
+    setSelectedBookings(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(bookingId)) {
+        newSet.delete(bookingId);
+      } else {
+        newSet.add(bookingId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleBulkCancel = async () => {
+    if (selectedBookings.size === 0) return;
+    
+    if (!confirm(`Cancel ${selectedBookings.size} booking(s)? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setBulkCancelling(true);
+      
+      const cancelPromises = Array.from(selectedBookings).map(bookingId =>
+        api.post(`/bookings/${bookingId}/cancel`, { reason: 'Bulk cancellation' })
+      );
+      
+      await Promise.all(cancelPromises);
+      
+      console.log(`✅ Cancelled ${selectedBookings.size} bookings`);
+      setSelectedBookings(new Set());
+      await loadBookings();
+      
+    } catch (error) {
+      console.error('❌ Bulk cancel error:', error);
+      alert('Some bookings failed to cancel. Please try again.');
+    } finally {
+      setBulkCancelling(false);
+    }
+  };
+
+  // ========== EXPORT TO CSV ==========
+  const exportToCSV = () => {
+    const headers = ['Date', 'Time', 'Attendee Name', 'Attendee Email', 'Team', 'Member', 'Status', 'Notes'];
+    const rows = filteredBookings.map(b => [
+      formatDate(b.start_time),
+      formatTime(b.start_time),
+      b.attendee_name,
+      b.attendee_email,
+      b.team_name || '',
+      b.member_name || '',
+      b.status,
+      b.notes || ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `bookings-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // ========== CLEAR FILTERS ==========
+  const clearFilters = () => {
+    setSearchQuery('');
+    setDateRange({ start: '', end: '' });
+    setStatusFilter('all');
+    setTimeFilter('upcoming');
+    setFilter('all');
+  };
+
+  const hasActiveFilters = searchQuery || dateRange.start || dateRange.end || 
+    statusFilter !== 'all' || timeFilter !== 'upcoming' || filter !== 'all';
+
+  // ========== SINGLE BOOKING ACTIONS ==========
   const handleCancelBooking = async () => {
     try {
       setCancelModal(prev => ({ ...prev, submitting: true }));
@@ -96,19 +250,13 @@ export default function Bookings() {
         reason: cancelModal.reason
       });
       
-      console.log('✅ Booking cancelled');
-      
-      // Update local state
       setBookings(prev => prev.map(b => 
         b.id === cancelModal.booking.id 
           ? { ...b, status: 'cancelled' }
           : b
       ));
       
-      // Close modal
       setCancelModal({ open: false, booking: null, reason: '', submitting: false });
-      
-      // Reload bookings
       await loadBookings();
       
     } catch (error) {
@@ -118,7 +266,6 @@ export default function Bookings() {
     }
   };
 
-  // Reschedule booking handler
   const handleRescheduleBooking = async () => {
     try {
       if (!rescheduleModal.newDate || !rescheduleModal.newTime) {
@@ -128,22 +275,16 @@ export default function Bookings() {
 
       setRescheduleModal(prev => ({ ...prev, submitting: true }));
       
-      // Combine date and time
       const newStartTime = new Date(`${rescheduleModal.newDate}T${rescheduleModal.newTime}`);
       const newEndTime = new Date(newStartTime);
-      newEndTime.setMinutes(newEndTime.getMinutes() + 30); // Assume 30 min duration
+      newEndTime.setMinutes(newEndTime.getMinutes() + 30);
       
       await api.post(`/bookings/${rescheduleModal.booking.id}/reschedule`, {
         newStartTime: newStartTime.toISOString(),
         newEndTime: newEndTime.toISOString()
       });
       
-      console.log('✅ Booking rescheduled');
-      
-      // Close modal
       setRescheduleModal({ open: false, booking: null, newDate: '', newTime: '', submitting: false });
-      
-      // Reload bookings
       await loadBookings();
       
     } catch (error) {
@@ -153,6 +294,7 @@ export default function Bookings() {
     }
   };
 
+  // ========== FORMATTING ==========
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -210,48 +352,6 @@ export default function Bookings() {
     return <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">Upcoming</span>;
   };
 
-  // Get bookings filtered by current team selection (memoized for performance)
-  const teamFilteredBookings = useMemo(() => {
-    console.log('🔄 Recalculating team filtered bookings, filter:', filter);
-    if (filter === 'my-teams') {
-      const filtered = bookings.filter(b => b.isMyTeam);
-      console.log('  → My Teams bookings:', filtered.length);
-      return filtered;
-    } else if (filter === 'member-teams') {
-      const filtered = bookings.filter(b => !b.isMyTeam);
-      console.log('  → Member Teams bookings:', filtered.length);
-      return filtered;
-    }
-    console.log('  → All bookings:', bookings.length);
-    return bookings;
-  }, [bookings, filter]);
-
-  // Count bookings by category (memoized to recalculate when dependencies change)
-  const counts = useMemo(() => {
-    const myTeamsCount = bookings.filter(b => b.isMyTeam).length;
-    const memberTeamsCount = bookings.filter(b => !b.isMyTeam).length;
-    const upcomingCount = teamFilteredBookings.filter(b => new Date(b.start_time) >= new Date()).length;
-    const pastCount = teamFilteredBookings.filter(b => new Date(b.start_time) < new Date()).length;
-    
-    console.log('📊 Counts updated:', {
-      filter,
-      myTeamsCount,
-      memberTeamsCount,
-      upcomingCount,
-      pastCount,
-      totalFiltered: teamFilteredBookings.length
-    });
-    
-    return {
-      myTeamsCount,
-      memberTeamsCount,
-      upcomingCount,
-      pastCount,
-    };
-  }, [bookings, teamFilteredBookings, filter]);
-
-  const { myTeamsCount, memberTeamsCount, upcomingCount, pastCount } = counts;
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -266,7 +366,86 @@ export default function Bookings() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Bookings</h1>
-          <p className="text-gray-600 mt-1">View and manage all your bookings</p>
+          <p className="text-gray-600 mt-1">
+            {filteredBookings.length} of {bookings.length} bookings
+            {hasActiveFilters && ' (filtered)'}
+          </p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3">
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+            >
+              <XCircle className="h-4 w-4" />
+              Clear Filters
+            </button>
+          )}
+          
+          <button
+            onClick={exportToCSV}
+            disabled={filteredBookings.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </button>
+
+          {selectedBookings.size > 0 && (
+            <button
+              onClick={handleBulkCancel}
+              disabled={bulkCancelling}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50"
+            >
+              {bulkCancelling ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  Cancel ({selectedBookings.size})
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="flex items-center gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by name, email, notes, or team..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={dateRange.start}
+              onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+              className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+              placeholder="Start date"
+            />
+            <span className="text-gray-500">to</span>
+            <input
+              type="date"
+              value={dateRange.end}
+              onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+              className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+              placeholder="End date"
+            />
+          </div>
         </div>
       </div>
 
@@ -304,7 +483,7 @@ export default function Bookings() {
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-1 mb-1">
                     <Crown className="h-4 w-4" />
-                    <span className="text-base font-bold">{myTeamsCount}</span>
+                    <span className="text-base font-bold">{counts.myTeamsCount}</span>
                   </div>
                   <div className="text-xs opacity-90">My Teams</div>
                 </div>
@@ -320,7 +499,7 @@ export default function Bookings() {
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-1 mb-1">
                     <UserCheck className="h-4 w-4" />
-                    <span className="text-base font-bold">{memberTeamsCount}</span>
+                    <span className="text-base font-bold">{counts.memberTeamsCount}</span>
                   </div>
                   <div className="text-xs opacity-90">Member Of</div>
                 </div>
@@ -328,73 +507,122 @@ export default function Bookings() {
             </div>
           </div>
 
-          {/* Divider */}
           <div className="border-t border-gray-200"></div>
 
-          {/* Time Filter */}
-          <div>
-            <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3">
-              <Clock className="h-4 w-4" />
-              Time Period
-            </label>
-            <div className="grid grid-cols-3 gap-3">
-              <button
-                onClick={() => setTimeFilter('upcoming')}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
-                  timeFilter === 'upcoming'
-                    ? 'bg-gradient-to-br from-green-600 to-green-700 text-white shadow-md scale-105'
-                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
-                }`}
-              >
-                <div className="text-center">
-                  <div className="text-base font-bold">{upcomingCount}</div>
-                  <div className="text-xs opacity-90">Upcoming</div>
-                </div>
-              </button>
-              <button
-                onClick={() => setTimeFilter('past')}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
-                  timeFilter === 'past'
-                    ? 'bg-gradient-to-br from-green-600 to-green-700 text-white shadow-md scale-105'
-                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
-                }`}
-              >
-                <div className="text-center">
-                  <div className="text-base font-bold">{pastCount}</div>
-                  <div className="text-xs opacity-90">Past</div>
-                </div>
-              </button>
-              <button
-                onClick={() => setTimeFilter('all')}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
-                  timeFilter === 'all'
-                    ? 'bg-gradient-to-br from-green-600 to-green-700 text-white shadow-md scale-105'
-                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
-                }`}
-              >
-                <div className="text-center">
-                  <div className="text-base font-bold">{teamFilteredBookings.length}</div>
-                  <div className="text-xs opacity-90">All Time</div>
-                </div>
-              </button>
+          {/* Time & Status Filters */}
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Time Filter */}
+            <div>
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3">
+                <Clock className="h-4 w-4" />
+                Time Period
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => setTimeFilter('upcoming')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    timeFilter === 'upcoming'
+                      ? 'bg-gradient-to-br from-green-600 to-green-700 text-white shadow-md'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="text-base font-bold">{counts.upcomingCount}</div>
+                    <div className="text-xs opacity-90">Upcoming</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setTimeFilter('past')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    timeFilter === 'past'
+                      ? 'bg-gradient-to-br from-green-600 to-green-700 text-white shadow-md'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="text-base font-bold">{counts.pastCount}</div>
+                    <div className="text-xs opacity-90">Past</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setTimeFilter('all')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    timeFilter === 'all'
+                      ? 'bg-gradient-to-br from-green-600 to-green-700 text-white shadow-md'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="text-base font-bold">
+                      {filter === 'my-teams' 
+                        ? counts.myTeamsCount 
+                        : filter === 'member-teams' 
+                        ? counts.memberTeamsCount 
+                        : bookings.length}
+                    </div>
+                    <div className="text-xs opacity-90">All</div>
+                  </div>
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Info Banner */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-        <div className="flex items-start gap-3">
-          <div className="text-blue-600 mt-0.5">
-            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="flex-1">
-            <h3 className="text-sm font-medium text-blue-900 mb-1">Why am I seeing these bookings?</h3>
-            <div className="text-sm text-blue-800 space-y-1">
-              <p>• <strong className="font-semibold">My Teams</strong> - Teams you created and own</p>
-              <p>• <strong className="font-semibold">Member Of</strong> - Teams where you're added as a member and can receive bookings</p>
+            {/* Status Filter */}
+            <div>
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3">
+                <Filter className="h-4 w-4" />
+                Status
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    statusFilter === 'all'
+                      ? 'bg-gradient-to-br from-purple-600 to-purple-700 text-white shadow-md'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  <div className="text-xs opacity-90">All</div>
+                </button>
+                <button
+                  onClick={() => setStatusFilter('confirmed')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    statusFilter === 'confirmed'
+                      ? 'bg-gradient-to-br from-purple-600 to-purple-700 text-white shadow-md'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="text-base font-bold">{counts.confirmedCount}</div>
+                    <div className="text-xs opacity-90">Active</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setStatusFilter('cancelled')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    statusFilter === 'cancelled'
+                      ? 'bg-gradient-to-br from-purple-600 to-purple-700 text-white shadow-md'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="text-base font-bold">{counts.cancelledCount}</div>
+                    <div className="text-xs opacity-90">Cancelled</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setStatusFilter('completed')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    statusFilter === 'completed'
+                      ? 'bg-gradient-to-br from-purple-600 to-purple-700 text-white shadow-md'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="text-base font-bold">{counts.completedCount}</div>
+                    <div className="text-xs opacity-90">Done</div>
+                  </div>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -403,110 +631,147 @@ export default function Bookings() {
       {/* Bookings List */}
       {filteredBookings.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border-2 border-dashed border-gray-300">
-          <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <Search className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">No bookings found</h3>
-          <p className="text-gray-600 mb-1">
-            {filter === 'my-teams' && timeFilter === 'upcoming' && 'No upcoming bookings in teams you own'}
-            {filter === 'my-teams' && timeFilter === 'past' && 'No past bookings in teams you own'}
-            {filter === 'my-teams' && timeFilter === 'all' && 'No bookings yet in teams you own'}
-            {filter === 'member-teams' && timeFilter === 'upcoming' && 'No upcoming bookings in teams where you\'re a member'}
-            {filter === 'member-teams' && timeFilter === 'past' && 'No past bookings in teams where you\'re a member'}
-            {filter === 'member-teams' && timeFilter === 'all' && 'No bookings yet in teams where you\'re a member'}
-            {filter === 'all' && timeFilter === 'upcoming' && 'No upcoming bookings'}
-            {filter === 'all' && timeFilter === 'past' && 'No past bookings'}
-            {filter === 'all' && timeFilter === 'all' && 'No bookings yet'}
+          <p className="text-gray-600 mb-4">
+            {searchQuery 
+              ? `No results for "${searchQuery}"`
+              : hasActiveFilters 
+              ? 'Try adjusting your filters'
+              : 'No bookings match your current filters'}
           </p>
-          <p className="text-sm text-gray-500 mt-2">
-            Try changing the filters above to see different bookings
-          </p>
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Clear All Filters
+            </button>
+          )}
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="space-y-4">
+          {/* Select All */}
+          <div className="bg-white rounded-lg border border-gray-200 p-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedBookings.size === filteredBookings.length && filteredBookings.length > 0}
+                onChange={handleSelectAll}
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Select All ({filteredBookings.length})
+              </span>
+            </label>
+          </div>
+
+          {/* Booking Cards */}
           {filteredBookings.map((booking) => (
             <div
               key={booking.id}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+              className={`bg-white rounded-xl shadow-sm border-2 transition-all ${
+                selectedBookings.has(booking.id)
+                  ? 'border-blue-500 shadow-md'
+                  : 'border-gray-200 hover:shadow-md'
+              }`}
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-100 rounded-lg p-3">
-                    <Calendar className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {booking.attendee_name}
-                      </h3>
-                      {getStatusBadge(booking.status, booking.start_time)}
+              <div className="p-6">
+                <div className="flex items-start gap-4">
+                  {/* Checkbox */}
+                  <input
+                    type="checkbox"
+                    checked={selectedBookings.has(booking.id)}
+                    onChange={() => handleSelectBooking(booking.id)}
+                    className="mt-1 w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                  />
+
+                  {/* Content */}
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-blue-100 rounded-lg p-3">
+                          <Calendar className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {booking.attendee_name}
+                            </h3>
+                            {getStatusBadge(booking.status, booking.start_time)}
+                          </div>
+                          <p className="text-sm text-gray-600">{booking.attendee_email}</p>
+                        </div>
+                      </div>
+                      {getTeamBadge(booking)}
                     </div>
-                    <p className="text-sm text-gray-600">{booking.attendee_email}</p>
-                  </div>
-                </div>
-                {getTeamBadge(booking)}
-              </div>
 
-              <div className="grid md:grid-cols-2 gap-4 mb-4">
-                <div className="flex items-center gap-2 text-gray-700">
-                  <Users className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm">
-                    <span className="font-medium">{booking.team_name}</span>
-                    {booking.member_name && (
-                      <span className="text-gray-500"> • {booking.member_name}</span>
+                    <div className="grid md:grid-cols-2 gap-4 mb-4">
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <Users className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm">
+                          <span className="font-medium">{booking.team_name}</span>
+                          {booking.member_name && (
+                            <span className="text-gray-500"> • {booking.member_name}</span>
+                          )}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm">{formatDate(booking.start_time)}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <Clock className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm">
+                          {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {booking.notes && (
+                      <div className="flex items-start gap-2 text-gray-700 bg-gray-50 rounded-lg p-3">
+                        <FileText className="h-4 w-4 text-gray-400 mt-0.5" />
+                        <div className="text-sm flex-1">
+                          <span className="font-medium block mb-1">Notes:</span>
+                          <span className="text-gray-600">{booking.notes}</span>
+                        </div>
+                      </div>
                     )}
-                  </span>
-                </div>
 
-                <div className="flex items-center gap-2 text-gray-700">
-                  <Calendar className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm">{formatDate(booking.start_time)}</span>
-                </div>
-
-                <div className="flex items-center gap-2 text-gray-700">
-                  <Clock className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm">
-                    {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
-                  </span>
-                </div>
-              </div>
-
-              {booking.notes && (
-                <div className="flex items-start gap-2 text-gray-700 bg-gray-50 rounded-lg p-3">
-                  <FileText className="h-4 w-4 text-gray-400 mt-0.5" />
-                  <div className="text-sm flex-1">
-                    <span className="font-medium block mb-1">Notes:</span>
-                    <span className="text-gray-600">{booking.notes}</span>
+                    {/* Action Buttons */}
+                    {booking.status !== 'cancelled' && new Date(booking.start_time) > new Date() && (
+                      <div className="flex gap-3 mt-4 pt-4 border-t border-gray-200">
+                        <button
+                          onClick={() => setRescheduleModal({ 
+                            open: true, 
+                            booking, 
+                            newDate: '', 
+                            newTime: '', 
+                            submitting: false 
+                          })}
+                          className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                        >
+                          🔄 Reschedule
+                        </button>
+                        <button
+                          onClick={() => setCancelModal({ 
+                            open: true, 
+                            booking, 
+                            reason: '', 
+                            submitting: false 
+                          })}
+                          className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                        >
+                          ❌ Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
-
-              {/* Action Buttons - Only show for upcoming bookings that aren't cancelled */}
-              {booking.status !== 'cancelled' && new Date(booking.start_time) > new Date() && (
-                <div className="flex gap-3 mt-4 pt-4 border-t border-gray-200">
-                  <button
-                    onClick={() => setRescheduleModal({ 
-                      open: true, 
-                      booking, 
-                      newDate: '', 
-                      newTime: '', 
-                      submitting: false 
-                    })}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                  >
-                    🔄 Reschedule
-                  </button>
-                  <button
-                    onClick={() => setCancelModal({ 
-                      open: true, 
-                      booking, 
-                      reason: '', 
-                      submitting: false 
-                    })}
-                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-                  >
-                    ❌ Cancel
-                  </button>
-                </div>
-              )}
+              </div>
             </div>
           ))}
         </div>
