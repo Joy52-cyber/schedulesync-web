@@ -1599,18 +1599,19 @@ app.get('/api/reminders/status', authenticateToken, async (req, res) => {
     
     // Failed reminders
     const failedResult = await pool.query(
-      `SELECT DISTINCT b.*, tm.name as organizer_name, t.name as team_name, br.error_message
-       FROM bookings b
-       LEFT JOIN team_members tm ON b.member_id = tm.id
-       LEFT JOIN teams t ON b.team_id = t.id
-       LEFT JOIN booking_reminders br ON b.id = br.booking_id
-       WHERE (t.owner_id = $1 OR tm.user_id = $1)
-         AND br.status = 'failed'
-         AND br.sent_at >= NOW() - INTERVAL '7 days'
-       ORDER BY br.sent_at DESC
-       LIMIT 10`,
-      [userId]
-    );
+  `SELECT b.*, tm.name as organizer_name, t.name as team_name, 
+          br.error_message, br.sent_at as reminder_failed_at
+   FROM bookings b
+   LEFT JOIN team_members tm ON b.member_id = tm.id
+   LEFT JOIN teams t ON b.team_id = t.id
+   INNER JOIN booking_reminders br ON b.id = br.booking_id
+   WHERE (t.owner_id = $1 OR tm.user_id = $1)
+     AND br.status = 'failed'
+     AND br.sent_at >= NOW() - INTERVAL '7 days'
+   ORDER BY br.sent_at DESC
+   LIMIT 10`,
+  [userId]
+);
     
     res.json({
       pending: pendingResult.rows,
