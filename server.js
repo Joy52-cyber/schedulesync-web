@@ -1819,182 +1819,276 @@ res.json({
 // ============ BOOKING MANAGEMENT BY TOKEN (NO AUTH REQUIRED) ============
 
 // Get booking by token (for guest management page)
-app.get('/api/bookings/manage/:token', async (req, res) => {
+app.post('/api/bookings', async (req, res) => {
   try {
-    const { token } = req.params;
-    
-    console.log('📋 Getting booking for management:', token);
-    
-    const result = await pool.query(
-      `SELECT b.*, 
-              t.name as team_name,
-              tm.name as organizer_name,
-              tm.email as organizer_email,
-              tm.booking_token as member_booking_token
-       FROM bookings b
-       JOIN teams t ON b.team_id = t.id
-       LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE b.booking_token = $1`,
-      [token]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Booking not found' });
-    }
-    
-    const booking = result.rows[0];
-    
-    // Check if booking is in the past
-    const now = new Date();
-    const bookingTime = new Date(booking.start_time);
-    const canModify = bookingTime > now && booking.status === 'confirmed';
-    
-    res.json({
-      booking: {
-        id: booking.id,
-        attendee_name: booking.attendee_name,
-        attendee_email: booking.attendee_email,
-        start_time: booking.start_time,
-        end_time: booking.end_time,
-        notes: booking.notes,
-        status: booking.status,
-        team_name: booking.team_name,
-        organizer_name: booking.organizer_name,
-        organizer_email: booking.organizer_email,
-        member_booking_token: booking.member_booking_token,
-        can_modify: canModify,
-        is_past: bookingTime < now
-      }
-    });
-  } catch (error) {
-    console.error('❌ Get booking by token error:', error);
-    res.status(500).json({ error: 'Failed to get booking' });
-  }
-});
+    const { token, slot, attendee_name, attendee_email, notes } = req.body;
 
-// Reschedule booking by token
-app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
-  try {
-    const { token } = req.params;
-    const { newStartTime, newEndTime } = req.body;
+    console.log('📝 Creating booking:', { token, attendee_name, attendee_email });
 
-    console.log('🔄 Rescheduling booking via token:', token);
-
-    if (!newStartTime || !newEndTime) {
-      return res.status(400).json({ error: 'New start and end times are required' });
+    if (!token || !slot || !attendee_name || !attendee_email) {
+      return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Get booking by token
-    const bookingCheck = await pool.query(
-      `SELECT b.*, t.owner_id, tm.user_id as member_user_id, tm.name as member_name,
-              tm.email as member_email, t.name as team_name
-       FROM bookings b
-       JOIN teams t ON b.team_id = t.id
-       LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE b.booking_token = $1 AND b.status = 'confirmed'`,
+    const memberResult = await pool.query(
+      `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
+              u.google_access_token, u.google_refresh_token, 
+              u.email as member_email, u.name as member_name
+       FROM team_members tm 
+       JOIN teams t ON tm.team_id = t.id 
+       LEFT JOIN users u ON tm.user_id = u.id 
+       WHERE tm.booking_token = $1`,
       [token]
     );
 
-    if (bookingCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Booking not found or already cancelled' });
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
     }
 
-    const booking = bookingCheck.rows[0];
+    const member = memberResult.rows[0];
+    const bookingMode = member.booking_mode || 'individual';
 
-    // Don't allow rescheduling past bookings
-    const now = new Date();
-    const bookingTime = new Date(booking.start_time);
-    if (bookingTime < now) {
-      return res.status(400).json({ error: 'Cannot reschedule past bookings' });
+    console.log('🎯 Booking mode:', bookingMode);
+
+    let assignedMembers = [];
+
+    // Determine which team member(s) to assign based on booking mode
+    switch (bookingMode) {
+      case 'individual':
+        assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
+        console.log('👤 Individual mode: Assigning to', member.name);
+        break;
+
+      case 'round_robin':
+        const rrResult = await pool.query(
+          `SELECT tm.id, tm.name, tm.user_id, COUNT(b.id) as booking_count
+           FROM team_members tm
+           LEFT JOIN bookings b ON tm.id = b.member_id
+           WHERE tm.team_id = $1
+           GROUP BY tm.id, tm.name, tm.user_id
+           ORDER BY booking_count ASC, tm.id ASC
+           LIMIT 1`,
+          [member.team_id]
+        );
+        
+        if (rrResult.rows.length > 0) {
+          assignedMembers = [rrResult.rows[0]];
+          console.log('🔄 Round-robin: Assigning to', rrResult.rows[0].name);
+        } else {
+          assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
+        }
+        break;
+
+      case 'first_available':
+        const faResult = await pool.query(
+          `SELECT tm.id, tm.name, tm.user_id
+           FROM team_members tm
+           WHERE tm.team_id = $1
+           AND NOT EXISTS (
+             SELECT 1 FROM bookings b
+             WHERE b.member_id = tm.id
+             AND b.status != 'cancelled'
+             AND (
+               (b.start_time <= $2 AND b.end_time > $2)
+               OR (b.start_time < $3 AND b.end_time >= $3)
+               OR (b.start_time >= $2 AND b.end_time <= $3)
+             )
+           )
+           ORDER BY tm.id ASC
+           LIMIT 1`,
+          [member.team_id, slot.start, slot.end]
+        );
+        
+        if (faResult.rows.length > 0) {
+          assignedMembers = [faResult.rows[0]];
+          console.log('⚡ First-available: Assigning to', faResult.rows[0].name);
+        } else {
+          console.log('⚠️ No available members, falling back to token member');
+          assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
+        }
+        break;
+
+      case 'collective':
+        const collectiveResult = await pool.query(
+          'SELECT id, name, user_id FROM team_members WHERE team_id = $1',
+          [member.team_id]
+        );
+        
+        assignedMembers = collectiveResult.rows;
+        console.log('👥 Collective mode: Assigning to all', assignedMembers.length, 'members');
+        break;
+
+      default:
+        assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
     }
 
-    // Store old time for email
-    const oldStartTime = booking.start_time;
+    // Create booking(s) FIRST (without meet link yet)
+    const createdBookings = [];
 
-    // Update booking times
-    const updateResult = await pool.query(
-      `UPDATE bookings 
-       SET start_time = $1, 
-           end_time = $2,
-           updated_at = NOW()
-       WHERE booking_token = $3
-       RETURNING *`,
-      [newStartTime, newEndTime, token]
-    );
+    for (const assignedMember of assignedMembers) {
+      const bookingResult = await pool.query(
+        `INSERT INTO bookings (team_id, member_id, user_id, attendee_name, attendee_email, 
+         start_time, end_time, notes, booking_token, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        [member.team_id, assignedMember.id, assignedMember.user_id, attendee_name, attendee_email, 
+         slot.start, slot.end, notes || '', token, 'confirmed']
+      );
 
-    const updatedBooking = updateResult.rows[0];
-
-    console.log('✅ Booking rescheduled successfully');
-
-    // Send reschedule emails
-    try {
-      const icsFile = generateICS({
-        id: updatedBooking.id,
-        start_time: updatedBooking.start_time,
-        end_time: updatedBooking.end_time,
-        attendee_name: booking.attendee_name,
-        attendee_email: booking.attendee_email,
-        organizer_name: booking.member_name,
-        organizer_email: booking.member_email,
-        team_name: booking.team_name,
-        notes: booking.notes,
-      });
-
-      // Email to guest
-      await sendBookingEmail({
-        to: booking.attendee_email,
-        subject: '🔄 Booking Rescheduled - ScheduleSync',
-        html: emailTemplates.bookingReschedule(
-          {
-            ...updatedBooking,
-            organizer_name: booking.member_name,
-            team_name: booking.team_name,
-            booking_token: token,
-          },
-          oldStartTime
-        ),
-        icsAttachment: icsFile,
-      });
-
-      // Email to organizer
-      if (booking.member_email) {
-        await sendBookingEmail({
-          to: booking.member_email,
-          subject: '🔄 Booking Rescheduled by Guest - ScheduleSync',
-          html: emailTemplates.bookingReschedule(
-            {
-              ...updatedBooking,
-              organizer_name: booking.member_name,
-              team_name: booking.team_name,
-              booking_token: token,
-            },
-            oldStartTime
-          ),
-          icsAttachment: icsFile,
-        });
-      }
-
-      console.log('✅ Reschedule emails sent');
-    } catch (emailError) {
-      console.error('⚠️ Failed to send reschedule email:', emailError);
+      createdBookings.push(bookingResult.rows[0]);
+      console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
     }
 
+    console.log(`✅ Created ${createdBookings.length} booking(s)`);
+
+    // ========== RESPOND IMMEDIATELY ==========
     res.json({ 
-      success: true, 
-      booking: {
-        ...updatedBooking,
-        team_name: booking.team_name,
-        organizer_name: booking.member_name,
-      },
-      message: 'Booking rescheduled successfully' 
+      success: true,
+      booking: createdBookings[0],
+      bookings: createdBookings,
+      mode: bookingMode,
+      meet_link: null, // Will be updated in background
+      message: bookingMode === 'collective' 
+        ? `Booking confirmed with all ${createdBookings.length} team members!`
+        : 'Booking confirmed! Calendar invite with Google Meet link will arrive shortly.'
     });
 
+    // ========== ASYNC: CREATE CALENDAR EVENT & SEND EMAILS ==========
+    // Don't await this - let it run in background
+    (async () => {
+      try {
+        let meetLink = null;
+        let calendarEventId = null;
+
+        // Create calendar event with Meet link
+        if (member.google_access_token && member.google_refresh_token) {
+          try {
+            console.log('📅 Creating calendar event with Meet link (async)...');
+
+            const oauth2Client = new google.auth.OAuth2(
+              process.env.GOOGLE_CLIENT_ID,
+              process.env.GOOGLE_CLIENT_SECRET,
+              process.env.GOOGLE_REDIRECT_URI
+            );
+
+            oauth2Client.setCredentials({
+              access_token: member.google_access_token,
+              refresh_token: member.google_refresh_token
+            });
+
+            const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+            const event = {
+              summary: `Meeting with ${attendee_name}`,
+              description: notes || 'Scheduled via ScheduleSync',
+              start: {
+                dateTime: slot.start,
+                timeZone: 'UTC',
+              },
+              end: {
+                dateTime: slot.end,
+                timeZone: 'UTC',
+              },
+              attendees: [
+                { email: attendee_email, displayName: attendee_name },
+                { email: member.member_email, displayName: member.member_name }
+              ],
+              conferenceData: {
+                createRequest: {
+                  requestId: `schedulesync-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  conferenceSolutionKey: {
+                    type: 'hangoutsMeet'
+                  }
+                }
+              },
+              reminders: {
+                useDefault: false,
+                overrides: [
+                  { method: 'email', minutes: 24 * 60 },
+                  { method: 'popup', minutes: 30 }
+                ]
+              }
+            };
+
+            const calendarResponse = await calendar.events.insert({
+              calendarId: 'primary',
+              resource: event,
+              conferenceDataVersion: 1,
+              sendUpdates: 'all'
+            });
+
+            meetLink = calendarResponse.data.hangoutLink || null;
+            calendarEventId = calendarResponse.data.id;
+
+            // Update bookings with meet link
+            for (const booking of createdBookings) {
+              await pool.query(
+                `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
+                [meetLink, calendarEventId, booking.id]
+              );
+            }
+
+            console.log('✅ Calendar event created with Meet link:', meetLink);
+          } catch (calendarError) {
+            console.error('⚠️ Calendar event creation failed:', calendarError.message);
+          }
+        }
+
+        // Send confirmation emails
+        try {
+          const icsFile = generateICS({
+            id: createdBookings[0].id,
+            start_time: createdBookings[0].start_time,
+            end_time: createdBookings[0].end_time,
+            attendee_name: attendee_name,
+            attendee_email: attendee_email,
+            organizer_name: member.member_name || member.name,
+            organizer_email: member.member_email || member.email,
+            team_name: member.team_name,
+            notes: notes,
+          });
+
+          // Update booking object with meet_link for email
+          const bookingWithMeetLink = {
+            ...createdBookings[0],
+            attendee_name,
+            attendee_email,
+            organizer_name: member.member_name || member.name,
+            team_name: member.team_name,
+            notes,
+            meet_link: meetLink,
+          };
+
+          await sendBookingEmail({
+            to: attendee_email,
+            subject: '✅ Booking Confirmed - ScheduleSync',
+            html: emailTemplates.bookingConfirmationGuest(bookingWithMeetLink),
+            icsAttachment: icsFile,
+          });
+
+          if (member.member_email || member.email) {
+            await sendBookingEmail({
+              to: member.member_email || member.email,
+              subject: '📅 New Booking Received - ScheduleSync',
+              html: emailTemplates.bookingConfirmationOrganizer(bookingWithMeetLink),
+              icsAttachment: icsFile,
+            });
+          }
+
+          console.log('✅ Confirmation emails sent with Meet link');
+        } catch (emailError) {
+          console.error('⚠️ Failed to send emails:', emailError);
+        }
+      } catch (error) {
+        console.error('❌ Background processing error:', error);
+      }
+    })();
+
   } catch (error) {
-    console.error('❌ Reschedule booking error:', error);
-    res.status(500).json({ error: 'Failed to reschedule booking' });
+    console.error('❌ Create booking error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to create booking' });
+    }
   }
 });
-
 // Cancel booking by token
 app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
   try {
