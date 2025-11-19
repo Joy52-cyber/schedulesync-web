@@ -16,59 +16,45 @@ import AvailabilitySettings from './pages/AvailabilitySettings';
 import UserSettings from './pages/UserSettings';
 import ManageBooking from './pages/ManageBooking';
 
-
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-  const initAuth = () => {
-    const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    
-    console.log('🔍 Checking stored auth:', { hasToken: !!token, hasUser: !!storedUser });
-    
-    if (token && storedUser) {
-      try {
-        // Set token in axios defaults
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        
-        // Parse user data
-        const userData = JSON.parse(storedUser);
-        
-        // Set state directly - no validation needed
-        setUser(userData);
-        setIsAuthenticated(true);
-        console.log('✅ Auto-login successful for:', userData.email);
-        
-      } catch (error) {
-        console.error('❌ Invalid stored user data, clearing...');
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+    const initAuth = () => {
+      const token = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
+      
+      console.log('🔍 Checking stored auth:', { hasToken: !!token, hasUser: !!storedUser });
+      
+      if (token && storedUser) {
+        try {
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          const userData = JSON.parse(storedUser);
+          setUser(userData);
+          setIsAuthenticated(true);
+          console.log('✅ Auto-login successful for:', userData.email);
+        } catch (error) {
+          console.error('❌ Invalid stored user data, clearing...');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
       }
-    }
+      
+      setLoading(false);
+    };
     
-    setLoading(false);
-  };
-  
-  initAuth();
-}, []);
+    initAuth();
+  }, []);
 
   const handleLogin = (token, userData) => {
     console.log('🔐 Saving login:', userData.email);
-    
-    // Save to localStorage
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
-    
-    // Set in axios
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    
-    // Update state
     setUser(userData);
     setIsAuthenticated(true);
-    
     console.log('✅ Login saved successfully');
   };
 
@@ -95,7 +81,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Routes */}
+        {/* ========== PUBLIC ROUTES (NO AUTH REQUIRED) ========== */}
         <Route
           path="/login"
           element={
@@ -106,10 +92,20 @@ function App() {
             )
           }
         />
+        
+        {/* Public booking page */}
         <Route path="/book/:token" element={<BookingPage />} />
+        
+        {/* Booking confirmation */}
         <Route path="/booking-confirmation" element={<BookingConfirmation />} />
+        
+        {/* OAuth callback */}
         <Route path="/oauth/callback" element={<OAuthCallback onLogin={handleLogin} />} />
-        {/* Protected Routes */}
+        
+        {/* ⭐ BOOKING MANAGEMENT - PUBLIC (NO AUTH) */}
+        <Route path="/manage/:token" element={<ManageBooking />} />
+
+        {/* ========== PROTECTED ROUTES (REQUIRE AUTH) ========== */}
         <Route
           path="/"
           element={
@@ -127,12 +123,11 @@ function App() {
           <Route path="bookings" element={<Bookings />} />
           <Route path="my-booking-link" element={<MyBookingLink />} />
           <Route path="settings" element={<CalendarSettings />} />
-        <Route path="/team-members/:memberId/availability" element={<AvailabilitySettings />} />
-         <Route path="/settings" element={<UserSettings />} />
-         <Route path="/manage/:token" element={<ManageBooking />} />
+          <Route path="team-members/:memberId/availability" element={<AvailabilitySettings />} />
+          <Route path="settings" element={<UserSettings />} />
         </Route>
         
-        {/* Catch all */}
+        {/* Catch all - redirect based on auth status */}
         <Route
           path="*"
           element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />}
