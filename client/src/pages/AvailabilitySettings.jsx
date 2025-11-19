@@ -77,24 +77,35 @@ export default function AvailabilitySettings() {
   };
 
   const handleSave = async () => {
-    try {
-      setSaving(true);
+  try {
+    setSaving(true);
 
-      await api.put(`/team-members/${memberId}/availability`, {
-        buffer_time: bufferTime,
-        working_hours: workingHours,
-        blocked_times: blockedTimes,
-      });
+    // Filter out empty blocked times (ones without dates)
+    const validBlockedTimes = blockedTimes.filter(
+      block => block.start_time && block.end_time
+    );
 
-      console.log('✅ Availability settings saved');
-      navigate(-1); // Go back
-    } catch (error) {
-      console.error('Error saving availability:', error);
-      alert('Failed to save settings. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  };
+    console.log('💾 Saving availability:', {
+      buffer_time: bufferTime,
+      working_hours: workingHours,
+      blocked_times: validBlockedTimes
+    });
+
+    await api.put(`/team-members/${memberId}/availability`, {
+      buffer_time: bufferTime,
+      working_hours: workingHours,
+      blocked_times: validBlockedTimes,
+    });
+
+    console.log('✅ Availability settings saved');
+    navigate(-1);
+  } catch (error) {
+    console.error('Error saving availability:', error);
+    alert('Failed to save settings. Please try again.');
+  } finally {
+    setSaving(false);
+  }
+};
 
   const toggleDay = (day) => {
     setWorkingHours({

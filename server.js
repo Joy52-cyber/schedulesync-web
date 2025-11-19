@@ -772,17 +772,46 @@ app.put('/api/team-members/:id/availability', authenticateToken, async (req, res
     // Update blocked times
     await pool.query('DELETE FROM blocked_times WHERE team_member_id = $1', [memberId]);
 
-    if (blocked_times && blocked_times.length > 0) {
-      for (const block of blocked_times) {
-        if (block.start_time && block.end_time) {
-          await pool.query(
-            `INSERT INTO blocked_times (team_member_id, start_time, end_time, reason) 
-             VALUES ($1, $2, $3, $4)`,
-            [memberId, block.start_time, block.end_time, block.reason || null]
-          );
-        }
-      }
+    // Handle blocked times
+console.log('🔧 Processing blocked times:', blocked_times);
+
+if (blocked_times && blocked_times.length > 0) {
+  console.log(`📝 Saving ${blocked_times.length} blocked time(s)`);
+  
+  for (const block of blocked_times) {
+    console.log('Processing block:', block);
+    
+    // Skip blocks with temp IDs and no dates
+    if (!block.start_time || !block.end_time) {
+      console.log('⚠️ Skipping block - missing dates');
+      continue;
     }
+    
+    // Convert datetime-local format to ISO timestamp
+    const startTime = new Date(block.start_time).toISOString();
+    const endTime = new Date(block.end_time).toISOString();
+    
+    console.log('📅 Inserting blocked time:', {
+      memberId,
+      startTime,
+      endTime,
+      reason: block.reason
+    });
+    
+    try {
+      await pool.query(
+        `INSERT INTO blocked_times (team_member_id, start_time, end_time, reason) 
+         VALUES ($1, $2, $3, $4)`,
+        [memberId, startTime, endTime, block.reason || null]
+      );
+      console.log('✅ Blocked time inserted');
+    } catch (blockError) {
+      console.error('❌ Failed to insert blocked time:', blockError);
+    }
+  }
+} else {
+  console.log('ℹ️ No blocked times to save');
+}
 
     console.log('✅ Availability settings updated');
     res.json({ success: true, message: 'Availability settings updated' });
