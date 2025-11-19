@@ -1,332 +1,444 @@
-﻿import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { 
-  CheckCircle, 
-  Calendar, 
-  Clock, 
-  User, 
-  Mail, 
-  FileText,
+﻿import { useEffect, useState } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import {
+  CheckCircle,
+  Calendar,
+  Clock,
+  User,
+  Mail,
+  MapPin,
   Download,
-  RefreshCw,
-  ExternalLink
+  Plus,
+  ArrowLeft,
+  ExternalLink,
+  Sparkles,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 export default function BookingConfirmation() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [booking, setBooking] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [bookingData, setBookingData] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    // Get booking data from URL params
-    const bookingData = searchParams.get('data');
-    
-    if (bookingData) {
+    const data = searchParams.get('data');
+    if (data) {
       try {
-        const parsedBooking = JSON.parse(decodeURIComponent(bookingData));
-        setBooking(parsedBooking);
+        const decoded = JSON.parse(decodeURIComponent(data));
+        setBookingData(decoded);
       } catch (error) {
-        console.error('Error parsing booking data:', error);
+        console.error('Failed to parse booking data:', error);
       }
     }
-    
-    setLoading(false);
+
+    // Hide confetti after 3 seconds
+    const timer = setTimeout(() => setShowConfetti(false), 3000);
+    return () => clearTimeout(timer);
   }, [searchParams]);
 
-  const formatDateTime = (dateString) => {
+  const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return {
-      date: date.toLocaleDateString('en-US', { 
-        weekday: 'long',
-        month: 'long', 
-        day: 'numeric',
-        year: 'numeric'
-      }),
-      time: date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        timeZoneName: 'short'
-      })
-    };
+    return new Intl.DateTimeFormat('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }).format(date);
   };
 
-  const getDuration = (start, end) => {
-    const minutes = Math.round((new Date(end) - new Date(start)) / 60000);
-    if (minutes >= 60) {
-      const hours = Math.floor(minutes / 60);
-      const mins = minutes % 60;
-      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-    }
-    return `${minutes}m`;
+  const formatTime = (dateString) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(date);
   };
 
-  const generateICSFile = () => {
-    if (!booking) return;
+  const formatTimeWithZone = (dateString) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZoneName: 'short',
+    }).format(date);
+  };
 
-    const startDate = new Date(booking.start_time);
-    const endDate = new Date(booking.end_time);
-    
-    // Format dates for ICS (YYYYMMDDTHHmmssZ)
-    const formatICSDate = (date) => {
+  const getDuration = () => {
+    if (!bookingData) return '';
+    const start = new Date(bookingData.start_time);
+    const end = new Date(bookingData.end_time);
+    const minutes = Math.round((end - start) / (1000 * 60));
+    return `${minutes} minutes`;
+  };
+
+  const handleAddToGoogleCalendar = () => {
+    if (!bookingData) return;
+
+    const start = new Date(bookingData.start_time);
+    const end = new Date(bookingData.end_time);
+
+    const formatGoogleDate = (date) => {
       return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
     };
 
-    const icsContent = `BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//ScheduleSync//Booking//EN
-BEGIN:VEVENT
-UID:${booking.id}@schedulesync.app
-DTSTAMP:${formatICSDate(new Date())}
-DTSTART:${formatICSDate(startDate)}
-DTEND:${formatICSDate(endDate)}
-SUMMARY:Meeting with ${booking.organizer_name || 'Team'}
-DESCRIPTION:Booked via ScheduleSync\\n\\nOrganizer: ${booking.organizer_name || 'Team'}\\nAttendee: ${booking.attendee_name}\\n\\nNotes: ${booking.notes || 'No notes'}
-LOCATION:Online
-STATUS:CONFIRMED
-ORGANIZER:mailto:${booking.organizer_email || 'noreply@schedulesync.app'}
-ATTENDEE:mailto:${booking.attendee_email}
-END:VEVENT
-END:VCALENDAR`;
+    const params = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: `Meeting with ${bookingData.organizer_name || 'Team'}`,
+      dates: `${formatGoogleDate(start)}/${formatGoogleDate(end)}`,
+      details: bookingData.notes || `Meeting scheduled via ScheduleSync`,
+      location: 'Google Meet (link in calendar invite)',
+    });
 
-    // Create blob and download
-    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-    const link = document.createElement('a');
-    link.href = window.URL.createObjectURL(blob);
-    link.download = `booking-${booking.id}.ics`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, '_blank');
   };
 
-  const addToGoogleCalendar = () => {
-    if (!booking) return;
+  const handleAddToOutlook = () => {
+    if (!bookingData) return;
 
-    const startDate = new Date(booking.start_time).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-    const endDate = new Date(booking.end_time).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-    
-    const title = encodeURIComponent(`Meeting with ${booking.organizer_name || 'Team'}`);
-    const details = encodeURIComponent(`Booked via ScheduleSync\n\nOrganizer: ${booking.organizer_name || 'Team'}\nAttendee: ${booking.attendee_name}\n\nNotes: ${booking.notes || 'No notes'}`);
-    
-    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}/${endDate}&details=${details}&location=Online`;
-    
-    window.open(url, '_blank');
+    const start = new Date(bookingData.start_time);
+    const end = new Date(bookingData.end_time);
+
+    const params = new URLSearchParams({
+      path: '/calendar/action/compose',
+      rru: 'addevent',
+      subject: `Meeting with ${bookingData.organizer_name || 'Team'}`,
+      startdt: start.toISOString(),
+      enddt: end.toISOString(),
+      body: bookingData.notes || `Meeting scheduled via ScheduleSync`,
+      location: 'Google Meet (link in calendar invite)',
+    });
+
+    window.open(`https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`, '_blank');
   };
 
-  const addToOutlookCalendar = () => {
-    if (!booking) return;
+  const handleCopyDetails = () => {
+    if (!bookingData) return;
 
-    const startDate = new Date(booking.start_time).toISOString();
-    const endDate = new Date(booking.end_time).toISOString();
-    
-    const title = encodeURIComponent(`Meeting with ${booking.organizer_name || 'Team'}`);
-    const body = encodeURIComponent(`Booked via ScheduleSync\n\nOrganizer: ${booking.organizer_name || 'Team'}\nAttendee: ${booking.attendee_name}\n\nNotes: ${booking.notes || 'No notes'}`);
-    
-    const url = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${title}&startdt=${startDate}&enddt=${endDate}&body=${body}&location=Online`;
-    
-    window.open(url, '_blank');
+    const text = `
+Meeting Confirmation
+
+Date: ${formatDate(bookingData.start_time)}
+Time: ${formatTime(bookingData.start_time)} - ${formatTime(bookingData.end_time)}
+Duration: ${getDuration()}
+With: ${bookingData.organizer_name || 'Team'}
+${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
+    `.trim();
+
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  if (loading) {
+  if (!bookingData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
-      </div>
-    );
-  }
-
-  if (!booking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Booking not found</h2>
-          <p className="text-gray-600 mb-6">The booking information could not be loaded.</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Calendar className="h-8 w-8 text-gray-400" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">No Booking Data</h2>
+          <p className="text-gray-600 mb-6">We couldn't find your booking information.</p>
           <button
             onClick={() => navigate('/')}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Go Home
+            Go to Dashboard
           </button>
         </div>
       </div>
     );
   }
 
-  const dateTime = formatDateTime(booking.start_time);
-  const duration = getDuration(booking.start_time, booking.end_time);
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-12 px-4">
-      <div className="max-w-3xl mx-auto">
-        {/* Success Animation */}
-        <div className="text-center mb-8 animate-fadeIn">
-          <div className="inline-flex items-center justify-center w-24 h-24 bg-green-100 rounded-full mb-6 animate-scaleIn">
-            <CheckCircle className="h-16 w-16 text-green-600 animate-checkmark" />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 relative overflow-hidden">
+      {/* Confetti Animation */}
+      {showConfetti && (
+        <div className="confetti-container">
+          {[...Array(50)].map((_, i) => (
+            <div
+              key={i}
+              className="confetti"
+              style={{
+                left: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 3}s`,
+                backgroundColor: ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B'][Math.floor(Math.random() * 5)],
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Main Content */}
+      <div className="max-w-4xl mx-auto px-4 py-12 relative z-10">
+        {/* Success Header */}
+        <div className="text-center mb-8 animate-fadeInUp">
+          <div className="w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl animate-scaleIn">
+            <CheckCircle className="h-14 w-14 text-white" />
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-3">
-            Booking Confirmed! 🎉
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-3">
+            You're All Set! 🎉
           </h1>
           <p className="text-xl text-gray-600">
-            Your meeting has been successfully scheduled
+            Your meeting has been confirmed
           </p>
         </div>
 
-        {/* Booking Details Card */}
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden mb-6 animate-slideUp">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-6 text-white">
-            <h2 className="text-2xl font-bold mb-2">Meeting Details</h2>
-            <p className="text-blue-100">Reference: #{booking.id}</p>
-          </div>
-
-          {/* Details */}
-          <div className="p-8 space-y-6">
-            {/* Date & Time */}
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-500 mb-1">Date & Time</p>
-                <p className="text-lg font-semibold text-gray-900">{dateTime.date}</p>
-                <p className="text-md text-gray-700">{dateTime.time}</p>
-                <p className="text-sm text-gray-500 mt-1">Duration: {duration}</p>
-              </div>
+        {/* Main Booking Details Card */}
+        <div className="bg-white rounded-3xl shadow-xl p-8 mb-6 animate-fadeInUp" style={{animationDelay: '0.1s'}}>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
+              <Calendar className="h-6 w-6 text-white" />
             </div>
-
-            {/* Attendee */}
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <User className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-500 mb-1">Your Information</p>
-                <p className="text-lg font-semibold text-gray-900">{booking.attendee_name}</p>
-                <p className="text-md text-gray-700">{booking.attendee_email}</p>
-              </div>
-            </div>
-
-            {/* Organizer */}
-            {booking.organizer_name && (
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                  <User className="h-6 w-6 text-green-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-500 mb-1">Meeting With</p>
-                  <p className="text-lg font-semibold text-gray-900">{booking.organizer_name}</p>
-                  {booking.organizer_email && (
-                    <p className="text-md text-gray-700">{booking.organizer_email}</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Notes */}
-            {booking.notes && (
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                  <FileText className="h-6 w-6 text-orange-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-500 mb-1">Notes</p>
-                  <p className="text-md text-gray-700 whitespace-pre-wrap">{booking.notes}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Add to Calendar Options */}
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 mb-6 animate-slideUp animation-delay-200">
-          <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <Calendar className="h-6 w-6 text-blue-600" />
-            Add to Your Calendar
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Google Calendar */}
-            <button
-              onClick={addToGoogleCalendar}
-              className="flex items-center justify-center gap-3 px-6 py-4 border-2 border-gray-300 rounded-xl hover:border-blue-600 hover:bg-blue-50 transition-all group"
-            >
-              <svg className="h-6 w-6" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M12 0C5.372 0 0 5.373 0 12s5.372 12 12 12c6.627 0 12-5.373 12-12S18.627 0 12 0zm5.696 14.943c-1.067 2.033-3.245 3.43-5.696 3.43-3.314 0-6-2.686-6-6s2.686-6 6-6c1.517 0 2.894.567 3.953 1.496l-1.638 1.638c-.633-.613-1.511-1.003-2.315-1.003-2.21 0-4 1.79-4 4s1.79 4 4 4c1.41 0 2.633-.74 3.293-1.843H12v-2.157h5.696v1.086z"/>
-              </svg>
-              <span className="font-semibold text-gray-700 group-hover:text-blue-600">Google</span>
-              <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-blue-600" />
-            </button>
-
-            {/* Outlook Calendar */}
-            <button
-              onClick={addToOutlookCalendar}
-              className="flex items-center justify-center gap-3 px-6 py-4 border-2 border-gray-300 rounded-xl hover:border-blue-600 hover:bg-blue-50 transition-all group"
-            >
-              <svg className="h-6 w-6" viewBox="0 0 24 24">
-                <path fill="#0078D4" d="M24 7.386V2.75A2.755 2.755 0 0021.25 0h-1.964L11.5 6.429 3.714 0H1.75A1.752 1.752 0 000 1.75v14.5A1.752 1.752 0 001.75 18h1.964L11.5 11.571 19.286 18h1.964A2.755 2.755 0 0024 15.25v-4.636L13.393 18 2.786 10.614z"/>
-              </svg>
-              <span className="font-semibold text-gray-700 group-hover:text-blue-600">Outlook</span>
-              <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-blue-600" />
-            </button>
-
-            {/* Download ICS */}
-            <button
-              onClick={generateICSFile}
-              className="flex items-center justify-center gap-3 px-6 py-4 border-2 border-gray-300 rounded-xl hover:border-blue-600 hover:bg-blue-50 transition-all group"
-            >
-              <Download className="h-6 w-6 text-gray-600 group-hover:text-blue-600" />
-              <span className="font-semibold text-gray-700 group-hover:text-blue-600">Download</span>
-            </button>
-          </div>
-          <p className="text-sm text-gray-500 mt-4 text-center">
-            Choose your preferred calendar app to add this meeting
-          </p>
-        </div>
-
-        {/* Email Confirmation Notice */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6 animate-slideUp animation-delay-300">
-          <div className="flex items-start gap-4">
-            <Mail className="h-6 w-6 text-blue-600 flex-shrink-0 mt-1" />
             <div>
-              <h4 className="font-semibold text-gray-900 mb-1">Confirmation Email Sent</h4>
+              <h2 className="text-2xl font-bold text-gray-900">Meeting Details</h2>
               <p className="text-sm text-gray-600">
-                We've sent a confirmation email to <strong>{booking.attendee_email}</strong> with all the meeting details.
-                Please check your inbox (and spam folder just in case).
+                Confirmation sent to {bookingData.attendee_email}
               </p>
             </div>
           </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Date & Time */}
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Calendar className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                    Date
+                  </p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {formatDate(bookingData.start_time)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Clock className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                    Time
+                  </p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {formatTime(bookingData.start_time)} - {formatTime(bookingData.end_time)}
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {getDuration()} • {formatTimeWithZone(bookingData.start_time)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Participants */}
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <User className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                    Organizer
+                  </p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {bookingData.organizer_name || 'Team Member'}
+                  </p>
+                  {bookingData.team_name && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      {bookingData.team_name}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Mail className="h-5 w-5 text-pink-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                    Your Email
+                  </p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {bookingData.attendee_name}
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {bookingData.attendee_email}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          {bookingData.notes && (
+            <div className="mt-6 pt-6 border-t-2 border-gray-200">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="h-5 w-5 text-amber-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                    Meeting Notes
+                  </p>
+                  <p className="text-gray-900">
+                    {bookingData.notes}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-col sm:flex-row gap-4 animate-slideUp animation-delay-400">
+        {/* Action Buttons */}
+        <div className="grid md:grid-cols-2 gap-4 mb-6">
+          {/* Add to Calendar Buttons */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 animate-fadeInUp" style={{animationDelay: '0.2s'}}>
+            <div className="flex items-center gap-2 mb-4">
+              <Plus className="h-5 w-5 text-blue-600" />
+              <h3 className="font-bold text-gray-900">Add to Calendar</h3>
+            </div>
+            
+            <div className="space-y-3">
+              <button
+                onClick={handleAddToGoogleCalendar}
+                className="w-full flex items-center justify-between p-4 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <img
+                    src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                    alt="Google"
+                    className="h-6 w-6"
+                  />
+                  <span className="font-medium text-gray-900">Google Calendar</span>
+                </div>
+                <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-blue-600 transition-colors" />
+              </button>
+
+              <button
+                onClick={handleAddToOutlook}
+                className="w-full flex items-center justify-between p-4 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <svg className="h-6 w-6" viewBox="0 0 23 23" fill="none">
+                    <path d="M0 0h10.93v10.93H0z" fill="#F35325" />
+                    <path d="M12.07 0H23v10.93H12.07z" fill="#81BC06" />
+                    <path d="M0 12.07h10.93V23H0z" fill="#05A6F0" />
+                    <path d="M12.07 12.07H23V23H12.07z" fill="#FFBA08" />
+                  </svg>
+                  <span className="font-medium text-gray-900">Outlook Calendar</span>
+                </div>
+                <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-blue-600 transition-colors" />
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 animate-fadeInUp" style={{animationDelay: '0.3s'}}>
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+              <h3 className="font-bold text-gray-900">Quick Actions</h3>
+            </div>
+            
+            <div className="space-y-3">
+              <button
+                onClick={handleCopyDetails}
+                className="w-full flex items-center justify-between p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  {copied ? (
+                    <Check className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <Copy className="h-5 w-5 text-gray-600 group-hover:text-purple-600" />
+                  )}
+                  <span className="font-medium text-gray-900">
+                    {copied ? 'Copied!' : 'Copy Details'}
+                  </span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => window.print()}
+                className="w-full flex items-center justify-between p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <Download className="h-5 w-5 text-gray-600 group-hover:text-purple-600" />
+                  <span className="font-medium text-gray-900">Print / Save as PDF</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* What's Next Card */}
+        <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-2xl border-2 border-blue-200 p-6 mb-6 animate-fadeInUp" style={{animationDelay: '0.4s'}}>
+          <div className="flex items-center gap-2 mb-4">
+            <CheckCircle className="h-5 w-5 text-blue-600" />
+            <h3 className="font-bold text-gray-900">What Happens Next?</h3>
+          </div>
+          
+          <div className="space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-white text-xs font-bold">1</span>
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Check Your Email</p>
+                <p className="text-sm text-gray-600">
+                  We've sent a calendar invite with a Google Meet link to{' '}
+                  <span className="font-semibold">{bookingData.attendee_email}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-white text-xs font-bold">2</span>
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Add to Your Calendar</p>
+                <p className="text-sm text-gray-600">
+                  Use the buttons above to add this meeting to your preferred calendar app
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-pink-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-white text-xs font-bold">3</span>
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Join at Scheduled Time</p>
+                <p className="text-sm text-gray-600">
+                  Click the Google Meet link in your calendar invite to join the meeting
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Back Button */}
+        <div className="text-center animate-fadeInUp" style={{animationDelay: '0.5s'}}>
           <button
-            onClick={() => window.location.href = booking.booking_link || '/'}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+            onClick={() => navigate('/')}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-white text-gray-700 rounded-xl hover:bg-gray-50 border-2 border-gray-200 hover:border-gray-300 transition-all font-medium shadow-sm"
           >
-            <RefreshCw className="h-5 w-5" />
-            Book Another Meeting
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
           </button>
         </div>
       </div>
 
-      {/* CSS Animations */}
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        
-        @keyframes scaleIn {
-          from { 
-            opacity: 0;
-            transform: scale(0.5);
-          }
-          to { 
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-        
-        @keyframes slideUp {
+      {/* Styles */}
+      <style jsx>{`
+        @keyframes fadeInUp {
           from {
             opacity: 0;
             transform: translateY(20px);
@@ -336,44 +448,59 @@ END:VCALENDAR`;
             transform: translateY(0);
           }
         }
-        
-        @keyframes checkmark {
+
+        @keyframes scaleIn {
+          from {
+            transform: scale(0.5);
+            opacity: 0;
+          }
+          to {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+
+        @keyframes confettiFall {
           0% {
-            stroke-dashoffset: 100;
+            transform: translateY(-100vh) rotate(0deg);
+            opacity: 1;
           }
           100% {
-            stroke-dashoffset: 0;
+            transform: translateY(100vh) rotate(720deg);
+            opacity: 0;
           }
         }
-        
-        .animate-fadeIn {
-          animation: fadeIn 0.6s ease-out;
+
+        .animate-fadeInUp {
+          animation: fadeInUp 0.6s ease-out;
         }
-        
+
         .animate-scaleIn {
           animation: scaleIn 0.5s ease-out;
         }
-        
-        .animate-slideUp {
-          animation: slideUp 0.6s ease-out;
+
+        .confetti-container {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          z-index: 9999;
         }
-        
-        .animation-delay-200 {
-          animation-delay: 0.2s;
-          opacity: 0;
-          animation-fill-mode: forwards;
+
+        .confetti {
+          position: absolute;
+          width: 10px;
+          height: 10px;
+          top: -10px;
+          animation: confettiFall 3s linear forwards;
         }
-        
-        .animation-delay-300 {
-          animation-delay: 0.3s;
-          opacity: 0;
-          animation-fill-mode: forwards;
-        }
-        
-        .animation-delay-400 {
-          animation-delay: 0.4s;
-          opacity: 0;
-          animation-fill-mode: forwards;
+
+        @media print {
+          .confetti-container {
+            display: none;
+          }
         }
       `}</style>
     </div>
