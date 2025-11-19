@@ -1,14 +1,24 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Calendar, Clock, User, Mail, MessageSquare, Loader2, CheckCircle, Globe } from 'lucide-react';
-import SmartSlotPicker from '../components/SmartSlotPicker';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import {
+  Calendar,
+  User,
+  Mail,
+  MessageSquare,
+  CheckCircle,
+  Loader2,
+  Clock,
+  Globe,
+  ArrowRight,
+} from 'lucide-react';
 import { bookings } from '../utils/api';
+import SmartSlotPicker from '../components/SmartSlotPicker';
 
 export default function BookingPage() {
   const { token } = useParams();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
+  const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [teamInfo, setTeamInfo] = useState(null);
@@ -190,8 +200,8 @@ export default function BookingPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
         <div className="text-center">
-          <Loader2 className="h-10 w-10 sm:h-12 sm:w-12 animate-spin text-blue-600 mx-auto mb-3 sm:mb-4" />
-          <p className="text-sm sm:text-base text-gray-600">Loading booking page...</p>
+          <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto mb-3" />
+          <p className="text-sm text-gray-600">Loading booking page...</p>
         </div>
       </div>
     );
@@ -200,13 +210,13 @@ export default function BookingPage() {
   if (error && !teamInfo) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-6 sm:p-8 max-w-md w-full text-center">
-          <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">😕</div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Invalid Link</h1>
-          <p className="text-sm sm:text-base text-gray-600 mb-6">{error}</p>
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+          <div className="text-6xl mb-4">😕</div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Invalid Link</h1>
+          <p className="text-gray-600 mb-6">{error}</p>
           <button
             onClick={() => window.location.href = '/'}
-            className="bg-blue-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors text-sm sm:text-base font-medium min-h-[44px]"
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
             Go Home
           </button>
@@ -217,45 +227,40 @@ export default function BookingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-8 lg:py-12">
+      <div className="max-w-4xl mx-auto px-4 py-8">
         
         {/* Header Card */}
-        <div className="bg-white rounded-xl sm:rounded-2xl lg:rounded-3xl shadow-xl p-4 sm:p-6 lg:p-8 mb-4 sm:mb-6">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-4 mb-4">
-            {/* Avatar */}
-            <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-xl sm:text-2xl lg:text-3xl">
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+          <div className="flex items-center gap-4 mb-3">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+              <span className="text-white font-bold text-xl">
                 {memberInfo?.name?.[0]?.toUpperCase() || teamInfo?.name?.[0]?.toUpperCase() || 'U'}
               </span>
             </div>
-
-            {/* Info */}
-            <div className="text-center sm:text-left flex-1">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-bold text-gray-900 truncate">
                 {memberInfo?.name || teamInfo?.name || 'Schedule a Meeting'}
               </h1>
-              <p className="text-sm sm:text-base text-gray-600">{teamInfo?.name}</p>
-              {teamInfo?.description && (
-                <p className="text-xs sm:text-sm text-gray-500 mt-1">{teamInfo.description}</p>
-              )}
+              <p className="text-gray-600 truncate">{teamInfo?.name}</p>
             </div>
-
-            {/* Duration Badge */}
-            <div className="bg-blue-100 text-blue-700 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-              <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
+            <div className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1.5 flex-shrink-0">
+              <Clock className="h-4 w-4" />
               30 min
             </div>
           </div>
 
-          {/* Calendar Connection Status */}
+          {teamInfo?.description && (
+            <p className="text-sm text-gray-600 mt-3">{teamInfo.description}</p>
+          )}
+
           {guestCalendar?.signedIn && (
-            <div className="bg-green-50 border border-green-200 rounded-lg sm:rounded-xl p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-              <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0" />
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2 mt-3">
+              <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-xs sm:text-sm font-semibold text-green-900 truncate">
+                <p className="text-sm font-semibold text-green-900 truncate">
                   ✅ Connected via {guestCalendar.provider === 'google' ? 'Google' : 'Microsoft'} • {guestCalendar.email}
                 </p>
-                <p className="text-[10px] sm:text-xs text-green-700">
+                <p className="text-xs text-green-700">
                   Showing mutual available times ✨
                 </p>
               </div>
@@ -265,36 +270,36 @@ export default function BookingPage() {
 
         {/* Calendar Choice Step */}
         {step === 'calendar-choice' && (
-          <div className="space-y-3 sm:space-y-4">
-            <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3 text-center sm:text-left">
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-3">
                 Connect Your Calendar (Optional)
               </h2>
-              <p className="text-xs sm:text-sm text-gray-600 mb-4 sm:mb-6 text-center sm:text-left">
+              <p className="text-sm text-gray-600 mb-6">
                 Get smart scheduling by checking your availability automatically
               </p>
 
-              <div className="space-y-3 sm:space-y-4">
+              <div className="space-y-3">
                 {/* Google Calendar */}
                 <button
                   onClick={() => handleCalendarConnect('google')}
                   className="w-full group"
                 >
-                  <div className="flex flex-col sm:flex-row items-center justify-between p-3 sm:p-4 lg:p-6 bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg sm:rounded-xl lg:rounded-2xl hover:border-green-500 hover:shadow-lg active:shadow-xl transition-all min-h-[80px] sm:min-h-0">
-                    <div className="flex items-center gap-3 sm:gap-4 text-center sm:text-left mb-3 sm:mb-0">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 bg-white rounded-lg sm:rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
-                        <Globe className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-green-600" />
+                  <div className="flex items-center justify-between p-4 bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl hover:border-green-500 hover:shadow-md transition-all">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                        <Globe className="h-6 w-6 text-green-600" />
                       </div>
-                      <div>
-                        <p className="font-bold text-gray-900 text-sm sm:text-base lg:text-lg">
+                      <div className="text-left flex-1 min-w-0">
+                        <p className="font-bold text-gray-900 text-base truncate">
                           Connect Google Calendar
                         </p>
-                        <p className="text-xs sm:text-sm text-gray-700 mt-0.5">
+                        <p className="text-sm text-gray-700 truncate">
                           Smart scheduling with mutual availability
                         </p>
                       </div>
                     </div>
-                    <div className="bg-green-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold group-hover:bg-green-700 transition-colors">
+                    <div className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm font-semibold group-hover:bg-green-700 transition-colors flex-shrink-0 ml-3">
                       Connect
                     </div>
                   </div>
@@ -303,12 +308,12 @@ export default function BookingPage() {
                 {/* Skip */}
                 <button
                   onClick={handleSkipCalendar}
-                  className="w-full p-3 sm:p-4 bg-gray-50 hover:bg-gray-100 active:bg-gray-200 border-2 border-gray-300 rounded-lg sm:rounded-xl transition-all min-h-[44px]"
+                  className="w-full p-4 bg-gray-50 hover:bg-gray-100 border-2 border-gray-300 rounded-xl transition-all"
                 >
-                  <p className="text-sm sm:text-base font-semibold text-gray-700">
+                  <p className="text-base font-semibold text-gray-700">
                     Continue without calendar
                   </p>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+                  <p className="text-sm text-gray-500 mt-0.5">
                     You'll see all available times
                   </p>
                 </button>
@@ -319,11 +324,11 @@ export default function BookingPage() {
 
         {/* Form Step */}
         {step === 'form' && (
-          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {/* Time Selection */}
-            <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
-                <Calendar className="h-5 w-5 sm:h-6 sm:w-6" />
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <Calendar className="h-6 w-6" />
                 Select a Time
               </h2>
 
@@ -335,62 +340,62 @@ export default function BookingPage() {
             </div>
 
             {/* Guest Information */}
-            <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
-                <User className="h-5 w-5 sm:h-6 sm:w-6" />
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <User className="h-6 w-6" />
                 Your Information
               </h2>
 
-              <div className="space-y-3 sm:space-y-4">
+              <div className="space-y-4">
                 {/* Name */}
                 <div>
-                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Full Name *
                   </label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <input
                       type="text"
                       required
                       value={formData.attendee_name}
                       onChange={(e) => setFormData({ ...formData, attendee_name: e.target.value })}
                       placeholder="John Doe"
-                      className="w-full pl-9 sm:pl-10 pr-3 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all min-h-[44px]"
+                      className="w-full pl-10 pr-3 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                     />
                   </div>
                 </div>
 
                 {/* Email */}
                 <div>
-                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Email Address *
                   </label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <input
                       type="email"
                       required
                       value={formData.attendee_email}
                       onChange={(e) => setFormData({ ...formData, attendee_email: e.target.value })}
                       placeholder="john@example.com"
-                      className="w-full pl-9 sm:pl-10 pr-3 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all min-h-[44px]"
+                      className="w-full pl-10 pr-3 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                     />
                   </div>
                 </div>
 
                 {/* Notes */}
                 <div>
-                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Additional Notes (Optional)
                   </label>
                   <div className="relative">
-                    <MessageSquare className="absolute left-3 top-3 h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
+                    <MessageSquare className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                     <textarea
                       value={formData.notes}
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                       rows="3"
                       placeholder="Any specific topics or questions?"
-                      className="w-full pl-9 sm:pl-10 pr-3 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none resize-none transition-all"
+                      className="w-full pl-10 pr-3 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none resize-none transition-all"
                     />
                   </div>
                 </div>
@@ -398,27 +403,27 @@ export default function BookingPage() {
             </div>
 
             {/* Submit Button */}
-            <div className="sticky bottom-0 bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 border-t-4 border-blue-500">
+            <div className="bg-white rounded-2xl shadow-lg p-6 border-t-4 border-blue-500">
               <button
                 type="submit"
                 disabled={!selectedSlot || submitting}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 sm:py-4 rounded-lg sm:rounded-xl text-base sm:text-lg font-bold hover:from-blue-700 hover:to-purple-700 active:from-blue-800 active:to-purple-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 sm:gap-3 min-h-[52px] sm:min-h-[56px]"
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg text-base font-bold hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" />
+                    <Loader2 className="h-5 w-5 animate-spin" />
                     Scheduling...
                   </>
                 ) : (
                   <>
-                    <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6" />
+                    <CheckCircle className="h-5 w-5" />
                     Confirm Booking
                   </>
                 )}
               </button>
 
               {!selectedSlot && (
-                <p className="text-xs sm:text-sm text-center text-gray-500 mt-2 sm:mt-3">
+                <p className="text-sm text-center text-gray-500 mt-3">
                   Please select a time slot to continue
                 </p>
               )}
