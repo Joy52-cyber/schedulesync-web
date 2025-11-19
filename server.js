@@ -2679,7 +2679,7 @@ app.put('/api/team-members/:id/timezone', authenticateToken, async (req, res) =>
 
 // ============ PAYMENT ENDPOINTS ============
 
-const stripeService = require('./utils/stripe');
+const stripeService = require('./server/utils/stripe');
 
 // Get pricing for a booking token
 app.get('/api/book/:token/pricing', async (req, res) => {
