@@ -1687,6 +1687,20 @@ app.put('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, r
   }
 });
 
+// ============ MANUAL REMINDER ENDPOINT (FOR TESTING) ============
+
+app.post('/api/admin/send-reminders', authenticateToken, async (req, res) => {
+  try {
+    console.log('🔔 Manual reminder check triggered by user:', req.user.email);
+    await checkAndSendReminders();
+    res.json({ success: true, message: 'Reminder check completed' });
+  } catch (error) {
+    console.error('Manual reminder error:', error);
+    res.status(500).json({ error: 'Failed to send reminders' });
+  }
+});
+
+
 // ============ SERVE STATIC FILES ============
 
 if (process.env.NODE_ENV === 'production') {
@@ -1966,18 +1980,6 @@ setTimeout(() => {
 
 console.log('✅ Booking reminder scheduler initialized');
 
-// ============ MANUAL REMINDER ENDPOINT (FOR TESTING) ============
-
-app.post('/api/admin/send-reminders', authenticateToken, async (req, res) => {
-  try {
-    console.log('🔔 Manual reminder check triggered by user:', req.user.email);
-    await checkAndSendReminders();
-    res.json({ success: true, message: 'Reminder check completed' });
-  } catch (error) {
-    console.error('Manual reminder error:', error);
-    res.status(500).json({ error: 'Failed to send reminders' });
-  }
-});
 
 // ============ START SERVER ============
 
