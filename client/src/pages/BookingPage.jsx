@@ -20,11 +20,15 @@ import {
 } from 'lucide-react';
 import { bookings } from '../utils/api';
 import SmartSlotPicker from '../components/SmartSlotPicker';
+import { getBrowserTimezone, getTimezoneAbbr } from '../utils/timezone';
 
 export default function BookingPageUnified() {
   const { token } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // Get guest timezone
+  const guestTz = getBrowserTimezone();
 
   // ========== STATE ==========
   const [step, setStep] = useState('loading');
@@ -708,10 +712,18 @@ export default function BookingPageUnified() {
           <div className="lg:col-span-3 space-y-6">
             {/* Smart Slot Picker */}
             <div className="bg-white rounded-2xl shadow-sm border-2 border-gray-200 p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-blue-600" />
-                Select a Time
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-blue-600" />
+                  Select a Time
+                </h3>
+                
+                {/* Timezone Display */}
+                <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded-lg">
+                  <Globe className="h-4 w-4" />
+                  <span className="font-medium">{getTimezoneAbbr(guestTz)}</span>
+                </div>
+              </div>
               
               <SmartSlotPicker
                 bookingToken={token}

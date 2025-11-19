@@ -6,20 +6,21 @@ import {
   Clock,
   TrendingUp,
   CheckCircle,
-  XCircle,
   AlertCircle,
   ArrowRight,
   Zap,
-  Mail,
   Link2,
   Plus,
+  Globe,
 } from 'lucide-react';
 import api from '../utils/api';
 import ReminderStatus from '../components/ReminderStatus';
+import { formatInTimezone, getUserTimezone, getTimezoneAbbr } from '../utils/timezone';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [userTimezone, setUserTimezone] = useState('America/New_York');
   const [stats, setStats] = useState({
     totalBookings: 0,
     todayBookings: 0,
@@ -34,6 +35,10 @@ export default function Dashboard() {
   const [teamStats, setTeamStats] = useState([]);
 
   useEffect(() => {
+    // Load user's timezone preference
+    const tz = getUserTimezone();
+    setUserTimezone(tz);
+    
     loadDashboardData();
   }, []);
 
@@ -59,7 +64,7 @@ export default function Dashboard() {
       todayEnd.setDate(todayEnd.getDate() + 1);
 
       const weekStart = new Date(todayStart);
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Sunday
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 7);
 
@@ -127,18 +132,11 @@ export default function Dashboard() {
   };
 
   const formatTime = (dateString) => {
-    return new Date(dateString).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatInTimezone(dateString, userTimezone, 'time');
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    });
+    return formatInTimezone(dateString, userTimezone, 'date');
   };
 
   const getBookingModeLabel = (mode) => {
@@ -165,11 +163,17 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 text-sm mt-0.5">Welcome back! Here's your scheduling overview</p>
+          <p className="text-gray-600 text-sm mt-0.5 flex items-center gap-2">
+            Welcome back! Here's your scheduling overview
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+              <Globe className="h-3 w-3" />
+              {getTimezoneAbbr(userTimezone)}
+            </span>
+          </p>
         </div>
         <button
           onClick={() => navigate('/my-booking-link')}
-          className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-md hover:shadow-lg"
         >
           <Link2 className="h-4 w-4" />
           My Booking Link
@@ -179,7 +183,7 @@ export default function Dashboard() {
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Today's Bookings */}
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-4 text-white shadow-md">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-4 text-white shadow-md hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between mb-2">
             <div className="bg-white/20 rounded-lg p-2">
               <Calendar className="h-4 w-4" />
@@ -191,7 +195,7 @@ export default function Dashboard() {
         </div>
 
         {/* This Week */}
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-4 text-white shadow-md">
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-4 text-white shadow-md hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between mb-2">
             <div className="bg-white/20 rounded-lg p-2">
               <Clock className="h-4 w-4" />
@@ -203,7 +207,7 @@ export default function Dashboard() {
         </div>
 
         {/* Total Bookings */}
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg p-4 text-white shadow-md">
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg p-4 text-white shadow-md hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between mb-2">
             <div className="bg-white/20 rounded-lg p-2">
               <CheckCircle className="h-4 w-4" />
@@ -215,7 +219,7 @@ export default function Dashboard() {
         </div>
 
         {/* Upcoming */}
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg p-4 text-white shadow-md">
+        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg p-4 text-white shadow-md hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between mb-2">
             <div className="bg-white/20 rounded-lg p-2">
               <AlertCircle className="h-4 w-4" />
@@ -351,13 +355,29 @@ export default function Dashboard() {
               </div>
               <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-green-600 group-hover:translate-x-1 transition-all" />
             </button>
+
+            <button
+              onClick={() => navigate('/settings')}
+              className="w-full flex items-center gap-2 p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg hover:shadow-md transition-all text-left group"
+            >
+              <div className="bg-gray-600 rounded-lg p-1.5">
+                <Globe className="h-4 w-4 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-sm text-gray-900 group-hover:text-gray-600 transition-colors">
+                  Settings
+                </p>
+                <p className="text-xs text-gray-600">Timezone & preferences</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600 group-hover:translate-x-1 transition-all" />
+            </button>
           </div>
         </div>
       </div>
 
       {/* Reminder Status & Upcoming This Week */}
       <div className="grid lg:grid-cols-2 gap-4">
-        {/* NEW: Reminder Status Widget */}
+        {/* Reminder Status Widget */}
         <ReminderStatus />
 
         {/* Upcoming This Week */}
@@ -445,7 +465,7 @@ export default function Dashboard() {
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {teamStats.map((team) => (
-              <div key={team.teamId} className="border border-gray-200 rounded-lg p-4">
+              <div key={team.teamId} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-sm text-gray-900 truncate">{team.teamName}</h3>
                   <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full whitespace-nowrap">

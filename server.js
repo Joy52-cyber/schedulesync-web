@@ -1980,6 +1980,127 @@ setTimeout(() => {
 
 console.log('✅ Booking reminder scheduler initialized');
 
+// ============ TIMEZONE ENDPOINTS ============
+
+// Get user's timezone
+app.get('/api/user/timezone', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await pool.query(
+      'SELECT timezone FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json({ 
+      timezone: result.rows[0].timezone || 'America/New_York' 
+    });
+  } catch (error) {
+    console.error('Get timezone error:', error);
+    res.status(500).json({ error: 'Failed to get timezone' });
+  }
+});
+
+// Update user's timezone
+app.put('/api/user/timezone', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { timezone } = req.body;
+    
+    if (!timezone) {
+      return res.status(400).json({ error: 'Timezone is required' });
+    }
+    
+    await pool.query(
+      'UPDATE users SET timezone = $1 WHERE id = $2',
+      [timezone, userId]
+    );
+    
+    console.log(`✅ Updated timezone for user ${userId}: ${timezone}`);
+    
+    res.json({ success: true, timezone });
+  } catch (error) {
+    console.error('Update timezone error:', error);
+    res.status(500).json({ error: 'Failed to update timezone' });
+  }
+});
+
+// Get team member's timezone
+app.get('/api/team-members/:id/timezone', authenticateToken, async (req, res) => {
+  try {
+    const memberId = parseInt(req.params.id);
+    const userId = req.user.id;
+    
+    const memberResult = await pool.query(
+      `SELECT tm.*, t.owner_id 
+       FROM team_members tm 
+       JOIN teams t ON tm.team_id = t.id 
+       WHERE tm.id = $1`,
+      [memberId]
+    );
+    
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Team member not found' });
+    }
+    
+    const member = memberResult.rows[0];
+    
+    if (member.owner_id !== userId && member.user_id !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    
+    res.json({ timezone: member.timezone || 'America/New_York' });
+  } catch (error) {
+    console.error('Get member timezone error:', error);
+    res.status(500).json({ error: 'Failed to get timezone' });
+  }
+});
+
+// Update team member's timezone
+app.put('/api/team-members/:id/timezone', authenticateToken, async (req, res) => {
+  try {
+    const memberId = parseInt(req.params.id);
+    const userId = req.user.id;
+    const { timezone } = req.body;
+    
+    if (!timezone) {
+      return res.status(400).json({ error: 'Timezone is required' });
+    }
+    
+    const memberResult = await pool.query(
+      `SELECT tm.*, t.owner_id 
+       FROM team_members tm 
+       JOIN teams t ON tm.team_id = t.id 
+       WHERE tm.id = $1`,
+      [memberId]
+    );
+    
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Team member not found' });
+    }
+    
+    const member = memberResult.rows[0];
+    
+    if (member.owner_id !== userId && member.user_id !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    
+    await pool.query(
+      'UPDATE team_members SET timezone = $1 WHERE id = $2',
+      [timezone, memberId]
+    );
+    
+    console.log(`✅ Updated timezone for member ${memberId}: ${timezone}`);
+    
+    res.json({ success: true, timezone });
+  } catch (error) {
+    console.error('Update member timezone error:', error);
+    res.status(500).json({ error: 'Failed to update timezone' });
+  }
+});
 
 // ============ START SERVER ============
 
