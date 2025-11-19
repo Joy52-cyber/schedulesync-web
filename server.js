@@ -774,7 +774,7 @@ app.put('/api/team-members/:id/availability', authenticateToken, async (req, res
    SET buffer_time = $1, 
        lead_time_hours = $2,        
        booking_horizon_days = $3,   
-       daily_booking_cap = $4,      
+       daily_booking_cap = $4,  
        working_hours = $5
    WHERE id = $6`,
   [buffer_time || 0, lead_time_hours || 0, booking_horizon_days || 30, 
@@ -1740,6 +1740,269 @@ app.post('/api/bookings', async (req, res) => {
     }
   }
 });
+
+// ============ BOOKING MANAGEMENT BY TOKEN (NO AUTH REQUIRED) ============
+
+// Get booking by token (for guest management page)
+app.get('/api/bookings/manage/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    console.log('📋 Getting booking for management:', token);
+    
+    const result = await pool.query(
+      `SELECT b.*, 
+              t.name as team_name,
+              tm.name as organizer_name,
+              tm.email as organizer_email,
+              tm.booking_token as member_booking_token
+       FROM bookings b
+       JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE b.booking_token = $1`,
+      [token]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    
+    const booking = result.rows[0];
+    
+    // Check if booking is in the past
+    const now = new Date();
+    const bookingTime = new Date(booking.start_time);
+    const canModify = bookingTime > now && booking.status === 'confirmed';
+    
+    res.json({
+      booking: {
+        id: booking.id,
+        attendee_name: booking.attendee_name,
+        attendee_email: booking.attendee_email,
+        start_time: booking.start_time,
+        end_time: booking.end_time,
+        notes: booking.notes,
+        status: booking.status,
+        team_name: booking.team_name,
+        organizer_name: booking.organizer_name,
+        organizer_email: booking.organizer_email,
+        member_booking_token: booking.member_booking_token,
+        can_modify: canModify,
+        is_past: bookingTime < now
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get booking by token error:', error);
+    res.status(500).json({ error: 'Failed to get booking' });
+  }
+});
+
+// Reschedule booking by token
+app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { newStartTime, newEndTime } = req.body;
+
+    console.log('🔄 Rescheduling booking via token:', token);
+
+    if (!newStartTime || !newEndTime) {
+      return res.status(400).json({ error: 'New start and end times are required' });
+    }
+
+    // Get booking by token
+    const bookingCheck = await pool.query(
+      `SELECT b.*, t.owner_id, tm.user_id as member_user_id, tm.name as member_name,
+              tm.email as member_email, t.name as team_name
+       FROM bookings b
+       JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE b.booking_token = $1 AND b.status = 'confirmed'`,
+      [token]
+    );
+
+    if (bookingCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found or already cancelled' });
+    }
+
+    const booking = bookingCheck.rows[0];
+
+    // Don't allow rescheduling past bookings
+    const now = new Date();
+    const bookingTime = new Date(booking.start_time);
+    if (bookingTime < now) {
+      return res.status(400).json({ error: 'Cannot reschedule past bookings' });
+    }
+
+    // Store old time for email
+    const oldStartTime = booking.start_time;
+
+    // Update booking times
+    const updateResult = await pool.query(
+      `UPDATE bookings 
+       SET start_time = $1, 
+           end_time = $2,
+           updated_at = NOW()
+       WHERE booking_token = $3
+       RETURNING *`,
+      [newStartTime, newEndTime, token]
+    );
+
+    const updatedBooking = updateResult.rows[0];
+
+    console.log('✅ Booking rescheduled successfully');
+
+    // Send reschedule emails
+    try {
+      const icsFile = generateICS({
+        id: updatedBooking.id,
+        start_time: updatedBooking.start_time,
+        end_time: updatedBooking.end_time,
+        attendee_name: booking.attendee_name,
+        attendee_email: booking.attendee_email,
+        organizer_name: booking.member_name,
+        organizer_email: booking.member_email,
+        team_name: booking.team_name,
+        notes: booking.notes,
+      });
+
+      // Email to guest
+      await sendBookingEmail({
+        to: booking.attendee_email,
+        subject: '🔄 Booking Rescheduled - ScheduleSync',
+        html: emailTemplates.bookingReschedule(
+          {
+            ...updatedBooking,
+            organizer_name: booking.member_name,
+            team_name: booking.team_name,
+            booking_token: token,
+          },
+          oldStartTime
+        ),
+        icsAttachment: icsFile,
+      });
+
+      // Email to organizer
+      if (booking.member_email) {
+        await sendBookingEmail({
+          to: booking.member_email,
+          subject: '🔄 Booking Rescheduled by Guest - ScheduleSync',
+          html: emailTemplates.bookingReschedule(
+            {
+              ...updatedBooking,
+              organizer_name: booking.member_name,
+              team_name: booking.team_name,
+              booking_token: token,
+            },
+            oldStartTime
+          ),
+          icsAttachment: icsFile,
+        });
+      }
+
+      console.log('✅ Reschedule emails sent');
+    } catch (emailError) {
+      console.error('⚠️ Failed to send reschedule email:', emailError);
+    }
+
+    res.json({ 
+      success: true, 
+      booking: {
+        ...updatedBooking,
+        team_name: booking.team_name,
+        organizer_name: booking.member_name,
+      },
+      message: 'Booking rescheduled successfully' 
+    });
+
+  } catch (error) {
+    console.error('❌ Reschedule booking error:', error);
+    res.status(500).json({ error: 'Failed to reschedule booking' });
+  }
+});
+
+// Cancel booking by token
+app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { reason } = req.body;
+
+    console.log('❌ Canceling booking via token:', token);
+
+    // Get booking by token
+    const bookingCheck = await pool.query(
+      `SELECT b.*, t.owner_id, tm.user_id as member_user_id, tm.name as member_name,
+              tm.email as member_email, t.name as team_name, tm.booking_token as member_booking_token
+       FROM bookings b
+       JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE b.booking_token = $1 AND b.status = 'confirmed'`,
+      [token]
+    );
+
+    if (bookingCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found or already cancelled' });
+    }
+
+    const booking = bookingCheck.rows[0];
+
+    // Update booking status
+    await pool.query(
+      `UPDATE bookings 
+       SET status = 'cancelled',
+           notes = COALESCE(notes, '') || E'\n\nCancellation reason: ' || COALESCE($1, 'No reason provided'),
+           updated_at = NOW()
+       WHERE booking_token = $2`,
+      [reason, token]
+    );
+
+    console.log('✅ Booking cancelled successfully');
+
+    // Send cancellation emails
+    try {
+      // Email to guest
+      await sendBookingEmail({
+        to: booking.attendee_email,
+        subject: '❌ Booking Cancelled - ScheduleSync',
+        html: emailTemplates.bookingCancellation(
+          {
+            ...booking,
+            booking_token: booking.member_booking_token, // For rebooking
+          },
+          reason
+        ),
+      });
+
+      // Email to organizer
+      if (booking.member_email) {
+        await sendBookingEmail({
+          to: booking.member_email,
+          subject: '❌ Booking Cancelled by Guest - ScheduleSync',
+          html: emailTemplates.bookingCancellation(
+            {
+              ...booking,
+              booking_token: booking.member_booking_token,
+            },
+            reason
+          ),
+        });
+      }
+
+      console.log('✅ Cancellation emails sent');
+    } catch (emailError) {
+      console.error('⚠️ Failed to send cancellation email:', emailError);
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Booking cancelled successfully' 
+    });
+
+  } catch (error) {
+    console.error('❌ Cancel booking error:', error);
+    res.status(500).json({ error: 'Failed to cancel booking' });
+  }
+});
+
 
 // ============ REMINDER ENDPOINTS ============
 
