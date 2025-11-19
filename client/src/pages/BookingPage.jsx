@@ -8,8 +8,12 @@ import {
   CheckCircle,
   Loader2,
   Clock,
-  Globe,
+  Sparkles,
+  Shield,
+  Zap,
   ArrowRight,
+  Star,
+  Check,
 } from 'lucide-react';
 import { bookings } from '../utils/api';
 import SmartSlotPicker from '../components/SmartSlotPicker';
@@ -41,7 +45,6 @@ export default function BookingPage() {
     loadBookingInfo();
   }, [token]);
 
-  // Handle OAuth callback
   useEffect(() => {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
@@ -200,8 +203,12 @@ export default function BookingPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
         <div className="text-center">
-          <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto mb-3" />
-          <p className="text-sm text-gray-600">Loading booking page...</p>
+          <div className="relative w-20 h-20 mx-auto mb-4">
+            <div className="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
+            <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+            <Sparkles className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-8 w-8 text-blue-600" />
+          </div>
+          <p className="text-gray-600 font-medium">Loading your booking page...</p>
         </div>
       </div>
     );
@@ -210,13 +217,15 @@ export default function BookingPage() {
   if (error && !teamInfo) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
-          <div className="text-6xl mb-4">😕</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Invalid Link</h1>
+        <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-4xl">😕</span>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Invalid Booking Link</h1>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
             onClick={() => window.location.href = '/'}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-all font-semibold"
           >
             Go Home
           </button>
@@ -227,96 +236,189 @@ export default function BookingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-5xl mx-auto px-4 py-8">
         
-        {/* Header Card */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-          <div className="flex items-center gap-4 mb-3">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-xl">
-                {memberInfo?.name?.[0]?.toUpperCase() || teamInfo?.name?.[0]?.toUpperCase() || 'U'}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-gray-900 truncate">
-                {memberInfo?.name || teamInfo?.name || 'Schedule a Meeting'}
-              </h1>
-              <p className="text-gray-600 truncate">{teamInfo?.name}</p>
-            </div>
-            <div className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1.5 flex-shrink-0">
-              <Clock className="h-4 w-4" />
-              30 min
-            </div>
-          </div>
+        {/* Premium Header */}
+        <div className="relative bg-white rounded-3xl shadow-xl overflow-hidden mb-6">
+          {/* Background Pattern */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-purple-600/5 to-pink-600/5"></div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-400/10 to-purple-400/10 rounded-full blur-3xl"></div>
+          
+          <div className="relative p-8">
+            <div className="flex items-start gap-6 mb-4">
+              {/* Avatar with Ring */}
+              <div className="relative">
+                <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full blur opacity-30"></div>
+                <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                  <span className="text-white font-bold text-3xl">
+                    {memberInfo?.name?.[0]?.toUpperCase() || teamInfo?.name?.[0]?.toUpperCase() || 'U'}
+                  </span>
+                </div>
+              </div>
 
-          {teamInfo?.description && (
-            <p className="text-sm text-gray-600 mt-3">{teamInfo.description}</p>
-          )}
-
-          {guestCalendar?.signedIn && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2 mt-3">
-              <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+              {/* Info */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-green-900 truncate">
-                  ✅ Connected via {guestCalendar.provider === 'google' ? 'Google' : 'Microsoft'} • {guestCalendar.email}
-                </p>
-                <p className="text-xs text-green-700">
-                  Showing mutual available times ✨
-                </p>
+                <div className="flex items-center gap-3 mb-2">
+                  <h1 className="text-3xl font-bold text-gray-900 truncate">
+                    {memberInfo?.name || teamInfo?.name || 'Schedule a Meeting'}
+                  </h1>
+                  <div className="bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1.5 flex-shrink-0">
+                    <Clock className="h-4 w-4" />
+                    30 min
+                  </div>
+                </div>
+                <p className="text-gray-600 mb-3">{teamInfo?.name}</p>
+                
+                {teamInfo?.description && (
+                  <p className="text-gray-700 leading-relaxed">{teamInfo.description}</p>
+                )}
               </div>
             </div>
-          )}
+
+            {/* Calendar Connection Badge */}
+            {guestCalendar?.signedIn && (
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-green-900 flex items-center gap-2">
+                      <Sparkles className="h-4 w-4" />
+                      Calendar Connected
+                    </p>
+                    <p className="text-sm text-green-700">
+                      {guestCalendar.name} • Showing mutual availability
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Calendar Choice Step */}
         {step === 'calendar-choice' && (
-          <div className="space-y-4">
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-3">
-                Connect Your Calendar (Optional)
-              </h2>
-              <p className="text-sm text-gray-600 mb-6">
-                Get smart scheduling by checking your availability automatically
+          <div className="space-y-6 animate-fadeIn">
+            {/* Why Connect Section */}
+            <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl shadow-xl p-8 text-white">
+              <div className="flex items-center gap-3 mb-4">
+                <Sparkles className="h-7 w-7" />
+                <h2 className="text-2xl font-bold">Get Smart Scheduling</h2>
+              </div>
+              <p className="text-blue-50 mb-6">
+                Connect your calendar to automatically find times that work for both of you
               </p>
+              
+              <div className="grid sm:grid-cols-3 gap-4">
+                <div className="bg-white/10 backdrop-blur rounded-xl p-4">
+                  <Zap className="h-8 w-8 mb-2" />
+                  <p className="font-semibold mb-1">Instant Booking</p>
+                  <p className="text-sm text-blue-100">See mutual free times instantly</p>
+                </div>
+                <div className="bg-white/10 backdrop-blur rounded-xl p-4">
+                  <Shield className="h-8 w-8 mb-2" />
+                  <p className="font-semibold mb-1">Privacy First</p>
+                  <p className="text-sm text-blue-100">We only see busy/free, never details</p>
+                </div>
+                <div className="bg-white/10 backdrop-blur rounded-xl p-4">
+                  <User className="h-8 w-8 mb-2" />
+                  <p className="font-semibold mb-1">Auto-fill Info</p>
+                  <p className="text-sm text-blue-100">Your details filled automatically</p>
+                </div>
+              </div>
+            </div>
 
-              <div className="space-y-3">
-                {/* Google Calendar */}
+            {/* Connection Options */}
+            <div className="bg-white rounded-3xl shadow-xl p-8">
+              <h3 className="text-xl font-bold text-gray-900 mb-6">Choose Connection Method</h3>
+              
+              <div className="space-y-4">
+                {/* Google Calendar - Featured */}
                 <button
                   onClick={() => handleCalendarConnect('google')}
-                  className="w-full group"
+                  className="w-full group relative"
                 >
-                  <div className="flex items-center justify-between p-4 bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl hover:border-green-500 hover:shadow-md transition-all">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                        <Globe className="h-6 w-6 text-green-600" />
+                  {/* Glow Effect */}
+                  <div className="absolute -inset-1 bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl opacity-20 group-hover:opacity-30 blur transition-opacity"></div>
+                  
+                  <div className="relative bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 rounded-2xl p-5 group-hover:border-green-500 group-hover:shadow-lg transition-all">
+                    {/* Recommended Badge */}
+                    <div className="absolute top-4 right-4">
+                      <span className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-xs font-bold rounded-full shadow-md">
+                        <Star className="h-3 w-3 fill-white" />
+                        RECOMMENDED
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
+                        <img
+                          src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                          alt="Google"
+                          className="h-8 w-8"
+                        />
                       </div>
-                      <div className="text-left flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 text-base truncate">
+                      
+                      <div className="flex-1 text-left">
+                        <p className="font-bold text-gray-900 text-lg mb-1">
                           Connect Google Calendar
                         </p>
-                        <p className="text-sm text-gray-700 truncate">
-                          Smart scheduling with mutual availability
+                        <p className="text-sm text-gray-700 mb-3">
+                          Smart scheduling with mutual availability detection
                         </p>
+                        
+                        <div className="flex flex-wrap gap-2">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-white rounded-lg text-xs font-medium text-green-700 shadow-sm">
+                            <Zap className="h-3 w-3" />
+                            Instant
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-white rounded-lg text-xs font-medium text-green-700 shadow-sm">
+                            <Shield className="h-3 w-3" />
+                            Secure
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-white rounded-lg text-xs font-medium text-green-700 shadow-sm">
+                            <Check className="h-3 w-3" />
+                            No event details shared
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm font-semibold group-hover:bg-green-700 transition-colors flex-shrink-0 ml-3">
-                      Connect
+                      
+                      <ArrowRight className="h-6 w-6 text-green-600 group-hover:translate-x-2 transition-transform flex-shrink-0" />
                     </div>
                   </div>
                 </button>
 
-                {/* Skip */}
+                {/* Divider */}
+                <div className="relative py-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t-2 border-gray-200"></div>
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="px-4 bg-white text-gray-500 font-semibold">or</span>
+                  </div>
+                </div>
+
+                {/* Skip Option */}
                 <button
                   onClick={handleSkipCalendar}
-                  className="w-full p-4 bg-gray-50 hover:bg-gray-100 border-2 border-gray-300 rounded-xl transition-all"
+                  className="w-full group"
                 >
-                  <p className="text-base font-semibold text-gray-700">
-                    Continue without calendar
-                  </p>
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    You'll see all available times
-                  </p>
+                  <div className="flex items-center justify-center gap-3 p-5 border-2 border-dashed border-gray-300 rounded-2xl hover:border-blue-400 hover:bg-blue-50/50 transition-all">
+                    <span className="font-semibold text-gray-700 group-hover:text-blue-700 transition-colors">
+                      Continue without calendar sync
+                    </span>
+                    <ArrowRight className="h-5 w-5 text-gray-500 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                  </div>
                 </button>
+              </div>
+
+              {/* Trust Badge */}
+              <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                <p className="text-xs text-gray-600 text-center flex items-center justify-center gap-2">
+                  <Shield className="h-4 w-4 text-gray-500" />
+                  Your calendar data is encrypted and never stored on our servers
+                </p>
               </div>
             </div>
           </div>
@@ -324,13 +426,29 @@ export default function BookingPage() {
 
         {/* Form Step */}
         {step === 'form' && (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Time Selection */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <Calendar className="h-6 w-6" />
-                Select a Time
-              </h2>
+          <form onSubmit={handleSubmit} className="space-y-6 animate-fadeIn">
+            {/* Time Selection with Progress */}
+            <div className="bg-white rounded-3xl shadow-xl p-8">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedSlot ? 'bg-green-500' : 'bg-blue-600'} shadow-lg`}>
+                    {selectedSlot ? (
+                      <CheckCircle className="h-6 w-6 text-white" />
+                    ) : (
+                      <span className="text-white font-bold">1</span>
+                    )}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                      <Calendar className="h-6 w-6 text-blue-600" />
+                      Select Your Time
+                    </h2>
+                    <p className="text-sm text-gray-600">
+                      {selectedSlot ? 'Time selected! Continue below' : 'Choose an available slot'}
+                    </p>
+                  </div>
+                </div>
+              </div>
 
               <SmartSlotPicker
                 bookingToken={token}
@@ -340,97 +458,143 @@ export default function BookingPage() {
             </div>
 
             {/* Guest Information */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <User className="h-6 w-6" />
-                Your Information
-              </h2>
-
-              <div className="space-y-4">
-                {/* Name */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Full Name *
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <input
-                      type="text"
-                      required
-                      value={formData.attendee_name}
-                      onChange={(e) => setFormData({ ...formData, attendee_name: e.target.value })}
-                      placeholder="John Doe"
-                      className="w-full pl-10 pr-3 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
-                    />
+            {selectedSlot && (
+              <div className="bg-white rounded-3xl shadow-xl p-8 animate-slideUp">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center shadow-lg">
+                    <span className="text-white font-bold">2</span>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                      <User className="h-6 w-6 text-purple-600" />
+                      Your Information
+                    </h2>
+                    <p className="text-sm text-gray-600">Almost there! Just need a few details</p>
                   </div>
                 </div>
 
-                {/* Email */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Email Address *
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <input
-                      type="email"
-                      required
-                      value={formData.attendee_email}
-                      onChange={(e) => setFormData({ ...formData, attendee_email: e.target.value })}
-                      placeholder="john@example.com"
-                      className="w-full pl-10 pr-3 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
-                    />
+                <div className="space-y-5">
+                  {/* Name */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      Full Name *
+                    </label>
+                    <div className="relative group">
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl opacity-0 group-focus-within:opacity-10 blur transition-opacity"></div>
+                      <User className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                      <input
+                        type="text"
+                        required
+                        value={formData.attendee_name}
+                        onChange={(e) => setFormData({ ...formData, attendee_name: e.target.value })}
+                        placeholder="John Doe"
+                        className="relative w-full pl-12 pr-4 py-4 text-base border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 focus:outline-none transition-all"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* Notes */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Additional Notes (Optional)
-                  </label>
-                  <div className="relative">
-                    <MessageSquare className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                    <textarea
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      rows="3"
-                      placeholder="Any specific topics or questions?"
-                      className="w-full pl-10 pr-3 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none resize-none transition-all"
-                    />
+                  {/* Email */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      Email Address *
+                    </label>
+                    <div className="relative group">
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl opacity-0 group-focus-within:opacity-10 blur transition-opacity"></div>
+                      <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                      <input
+                        type="email"
+                        required
+                        value={formData.attendee_email}
+                        onChange={(e) => setFormData({ ...formData, attendee_email: e.target.value })}
+                        placeholder="john@example.com"
+                        className="relative w-full pl-12 pr-4 py-4 text-base border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 focus:outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      Additional Notes (Optional)
+                    </label>
+                    <div className="relative group">
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl opacity-0 group-focus-within:opacity-10 blur transition-opacity"></div>
+                      <MessageSquare className="absolute left-4 top-4 h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                      <textarea
+                        value={formData.notes}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                        rows="4"
+                        placeholder="Any specific topics or questions you'd like to discuss?"
+                        className="relative w-full pl-12 pr-4 py-4 text-base border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 focus:outline-none resize-none transition-all"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Submit Button */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 border-t-4 border-blue-500">
-              <button
-                type="submit"
-                disabled={!selectedSlot || submitting}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg text-base font-bold hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    Scheduling...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-5 w-5" />
-                    Confirm Booking
-                  </>
-                )}
-              </button>
-
-              {!selectedSlot && (
-                <p className="text-sm text-center text-gray-500 mt-3">
-                  Please select a time slot to continue
-                </p>
-              )}
-            </div>
+            {/* Premium Submit Button */}
+            {selectedSlot && (
+              <div className="relative animate-slideUp">
+                {/* Glow effect */}
+                <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-3xl opacity-30 blur-xl"></div>
+                
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="relative w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white px-8 py-5 rounded-2xl text-lg font-bold hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all flex items-center justify-center gap-3"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span>Confirming Your Booking...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-6 w-6" />
+                      <span>Confirm Booking</span>
+                      <ArrowRight className="h-6 w-6" />
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </form>
         )}
       </div>
+
+      {/* Custom Animations */}
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .animate-fadeIn {
+          animation: fadeIn 0.5s ease-out;
+        }
+
+        .animate-slideUp {
+          animation: slideUp 0.4s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
