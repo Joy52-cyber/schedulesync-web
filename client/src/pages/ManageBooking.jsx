@@ -238,7 +238,7 @@ const ManageBooking = () => {
       </div>
       <div className="flex-1">
         <p className="font-bold text-gray-900 mb-3 text-lg">Video Conference</p>
-        
+        <a
           href={booking.meet_link}
           target="_blank"
           rel="noopener noreferrer"
