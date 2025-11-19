@@ -231,32 +231,31 @@ const ManageBooking = () => {
 
               {/* Google Meet Link */}
               {booking.meet_link && booking.status === 'confirmed' && (
-                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-2xl p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <span className="text-3xl">🎥</span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-900 mb-3 text-lg">Video Conference</p>
-                      
-                        href={booking.meet_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl hover:shadow-xl hover:scale-105 transition-all font-semibold"
-                      >
-                        <span>Join Google Meet</span>
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </a>
-                      <p className="text-xs text-gray-600 mt-3">
-                        💡 This link will be active for the duration of your meeting
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
+  <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-2xl p-6">
+    <div className="flex items-start gap-4">
+      <div className="w-14 h-14 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+        <span className="text-3xl">🎥</span>
+      </div>
+      <div className="flex-1">
+        <p className="font-bold text-gray-900 mb-3 text-lg">Video Conference</p>
+        
+          href={booking.meet_link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl hover:shadow-xl hover:scale-105 transition-all font-semibold"
+        >
+          <span>Join Google Meet</span>
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
+        <p className="text-xs text-gray-600 mt-3">
+          💡 This link will be active for the duration of your meeting
+        </p>
+      </div>
+    </div>
+  </div>
+)}
               {/* Guest & Organizer Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="border border-gray-200 rounded-xl p-4">
