@@ -14,6 +14,7 @@ import {
   Sparkles,
   Copy,
   Check,
+  Video,
 } from 'lucide-react';
 
 export default function BookingConfirmation() {
@@ -29,6 +30,7 @@ export default function BookingConfirmation() {
       try {
         const decoded = JSON.parse(decodeURIComponent(data));
         setBookingData(decoded);
+        console.log('📋 Booking data:', decoded);
       } catch (error) {
         console.error('Failed to parse booking data:', error);
       }
@@ -91,7 +93,7 @@ export default function BookingConfirmation() {
       text: `Meeting with ${bookingData.organizer_name || 'Team'}`,
       dates: `${formatGoogleDate(start)}/${formatGoogleDate(end)}`,
       details: bookingData.notes || `Meeting scheduled via ScheduleSync`,
-      location: 'Google Meet (link in calendar invite)',
+      location: bookingData.meet_link || 'Google Meet (link in calendar invite)',
     });
 
     window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, '_blank');
@@ -110,7 +112,7 @@ export default function BookingConfirmation() {
       startdt: start.toISOString(),
       enddt: end.toISOString(),
       body: bookingData.notes || `Meeting scheduled via ScheduleSync`,
-      location: 'Google Meet (link in calendar invite)',
+      location: bookingData.meet_link || 'Google Meet (link in calendar invite)',
     });
 
     window.open(`https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`, '_blank');
@@ -126,6 +128,7 @@ Date: ${formatDate(bookingData.start_time)}
 Time: ${formatTime(bookingData.start_time)} - ${formatTime(bookingData.end_time)}
 Duration: ${getDuration()}
 With: ${bookingData.organizer_name || 'Team'}
+${bookingData.meet_link ? `\nGoogle Meet: ${bookingData.meet_link}` : ''}
 ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
     `.trim();
 
@@ -187,6 +190,32 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
             Your meeting has been confirmed
           </p>
         </div>
+
+        {/* Google Meet Link - Featured */}
+        {bookingData.meet_link && (
+          <div className="bg-gradient-to-br from-purple-500 to-blue-500 rounded-3xl shadow-2xl p-8 mb-6 animate-fadeInUp text-white" style={{animationDelay: '0.05s'}}>
+            <div className="flex flex-col items-center text-center">
+              <div className="w-20 h-20 bg-white bg-opacity-20 rounded-full flex items-center justify-center mb-4">
+                <Video className="h-10 w-10 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2">Your Meeting is Ready!</h2>
+              <p className="text-blue-100 mb-6">Join via Google Meet at the scheduled time</p>
+              
+                href={bookingData.meet_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-3 bg-white text-purple-600 px-8 py-4 rounded-xl hover:shadow-2xl hover:scale-105 transition-all font-bold text-lg"
+              >
+                <Video className="h-6 w-6" />
+                Join Google Meet
+                <ExternalLink className="h-5 w-5" />
+              </a>
+              <p className="text-sm text-blue-100 mt-4">
+                💡 This link is also in your calendar invite and email
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Main Booking Details Card */}
         <div className="bg-white rounded-3xl shadow-xl p-8 mb-6 animate-fadeInUp" style={{animationDelay: '0.1s'}}>
@@ -417,7 +446,9 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
               <div>
                 <p className="font-medium text-gray-900">Join at Scheduled Time</p>
                 <p className="text-sm text-gray-600">
-                  Click the Google Meet link in your calendar invite to join the meeting
+                  {bookingData.meet_link 
+                    ? 'Click the Google Meet link above or in your calendar to join'
+                    : 'Click the Google Meet link in your calendar invite to join the meeting'}
                 </p>
               </div>
             </div>
