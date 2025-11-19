@@ -762,12 +762,12 @@ app.put('/api/team-members/:id/availability', authenticateToken, async (req, res
     }
 
     // Update team member settings
-  await pool.query(
+    await pool.query(
   `UPDATE team_members 
    SET buffer_time = $1, 
-       lead_time_hours = $2,
-       booking_horizon_days = $3,
-       daily_booking_cap = $4,
+       lead_time_hours = $2,        // ← ADD THIS
+       booking_horizon_days = $3,   // ← ADD THIS
+       daily_booking_cap = $4,      // ← ADD THIS
        working_hours = $5
    WHERE id = $6`,
   [buffer_time || 0, lead_time_hours || 0, booking_horizon_days || 30, 
