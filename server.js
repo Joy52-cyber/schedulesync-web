@@ -1558,6 +1558,134 @@ app.post('/api/bookings', async (req, res) => {
   }
 });
 
+// ============ REMINDER ENDPOINTS ============
+
+app.get('/api/reminders/status', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const now = new Date();
+    const reminderWindowStart = new Date(now.getTime() + (23 * 60 * 60 * 1000));
+    const reminderWindowEnd = new Date(now.getTime() + (72 * 60 * 60 * 1000));
+    
+    // Pending reminders
+    const pendingResult = await pool.query(
+      `SELECT b.*, tm.name as organizer_name, t.name as team_name
+       FROM bookings b
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN teams t ON b.team_id = t.id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND b.status = 'confirmed'
+         AND b.reminder_sent = false
+         AND b.start_time >= $2
+         AND b.start_time <= $3
+       ORDER BY b.start_time ASC`,
+      [userId, reminderWindowStart, reminderWindowEnd]
+    );
+    
+    // Recently sent reminders
+    const sentResult = await pool.query(
+      `SELECT b.*, tm.name as organizer_name, t.name as team_name
+       FROM bookings b
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN teams t ON b.team_id = t.id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND b.reminder_sent = true
+         AND b.reminder_sent_at >= NOW() - INTERVAL '7 days'
+       ORDER BY b.reminder_sent_at DESC
+       LIMIT 10`,
+      [userId]
+    );
+    
+    // Failed reminders
+    const failedResult = await pool.query(
+      `SELECT DISTINCT b.*, tm.name as organizer_name, t.name as team_name, br.error_message
+       FROM bookings b
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN booking_reminders br ON b.id = br.booking_id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND br.status = 'failed'
+         AND br.sent_at >= NOW() - INTERVAL '7 days'
+       ORDER BY br.sent_at DESC
+       LIMIT 10`,
+      [userId]
+    );
+    
+    res.json({
+      pending: pendingResult.rows,
+      sent: sentResult.rows,
+      failed: failedResult.rows,
+    });
+  } catch (error) {
+    console.error('Get reminder status error:', error);
+    res.status(500).json({ error: 'Failed to get reminder status' });
+  }
+});
+
+app.get('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, res) => {
+  try {
+    const { teamId } = req.params;
+    const userId = req.user.id;
+    
+    const teamCheck = await pool.query(
+      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
+      [teamId, userId]
+    );
+    
+    if (teamCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    
+    const team = teamCheck.rows[0];
+    
+    res.json({
+      reminder_enabled: team.reminder_enabled !== false,
+      reminder_hours_before: team.reminder_hours_before || 24,
+      reminder_template: team.reminder_template || 'default',
+    });
+  } catch (error) {
+    console.error('Get reminder settings error:', error);
+    res.status(500).json({ error: 'Failed to get reminder settings' });
+  }
+});
+
+app.put('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, res) => {
+  try {
+    const { teamId } = req.params;
+    const userId = req.user.id;
+    const { reminder_enabled, reminder_hours_before } = req.body;
+    
+    const teamCheck = await pool.query(
+      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
+      [teamId, userId]
+    );
+    
+    if (teamCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    
+    await pool.query(
+      `UPDATE teams 
+       SET reminder_enabled = $1, 
+           reminder_hours_before = $2
+       WHERE id = $3`,
+      [reminder_enabled, reminder_hours_before, teamId]
+    );
+    
+    console.log(`✅ Updated reminder settings for team ${teamId}`);
+    
+    res.json({ 
+      success: true,
+      reminder_enabled,
+      reminder_hours_before,
+    });
+  } catch (error) {
+    console.error('Update reminder settings error:', error);
+    res.status(500).json({ error: 'Failed to update reminder settings' });
+  }
+});
+
 // ============ SERVE STATIC FILES ============
 
 if (process.env.NODE_ENV === 'production') {
