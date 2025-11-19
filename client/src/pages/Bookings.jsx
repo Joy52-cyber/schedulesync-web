@@ -2,12 +2,11 @@
 import { 
   Calendar, Clock, User, Mail, FileText, Filter, Users, Crown, UserCheck, 
   X, Loader2, AlertCircle, CheckCircle, Search, Download, Trash2, 
-  XCircle, RefreshCw, ChevronDown, Sparkles, TrendingUp, CalendarDays,
-  MapPin, Phone, MessageSquare, Eye
+  XCircle, RefreshCw, ChevronDown, Eye, MoreVertical
 } from 'lucide-react';
 import api from '../utils/api';
 
-export default function Bookings() {
+export default function BookingsCompact() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -22,7 +21,7 @@ export default function Bookings() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedBookings, setSelectedBookings] = useState(new Set());
   const [bulkCancelling, setBulkCancelling] = useState(false);
-  const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'list'
+  const [viewMode, setViewMode] = useState('compact'); // 'compact' or 'cards'
   
   // Modal states
   const [cancelModal, setCancelModal] = useState({ 
@@ -281,7 +280,6 @@ export default function Bookings() {
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
-      weekday: 'short',
       month: 'short',
       day: 'numeric',
       year: 'numeric'
@@ -307,494 +305,405 @@ export default function Bookings() {
   const getStatusLabel = (status, startTime) => {
     const isPast = new Date(startTime) < new Date();
     if (status === 'cancelled') return 'Cancelled';
-    if (isPast) return 'Completed';
-    return 'Confirmed';
+    if (isPast) return 'Done';
+    return 'Active';
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <div className="relative inline-block mb-4">
-            <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200"></div>
-            <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
-          </div>
-          <p className="text-gray-600 font-medium">Loading bookings...</p>
+          <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto mb-2" />
+          <p className="text-sm text-gray-600">Loading bookings...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header Section */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 via-blue-900 to-purple-900 bg-clip-text text-transparent">
-                Bookings
-              </h1>
-              <p className="text-gray-600 mt-2 flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white rounded-full border border-gray-200 text-sm font-medium">
-                  <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-                  {filteredBookings.length} of {bookings.length}
-                  {hasActiveFilters && ' • Filtered'}
-                </span>
-              </p>
-            </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-[1600px] mx-auto">
+        {/* Compact Header */}
+        <div className="bg-white border-b sticky top-0 z-20 shadow-sm">
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">Bookings</h1>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {filteredBookings.length} of {bookings.length}
+                    {hasActiveFilters && ' • Filtered'}
+                  </p>
+                </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3">
-              {selectedBookings.size > 0 && (
+                {/* Compact Stats */}
+                <div className="hidden md:flex items-center gap-2">
+                  <div className="px-3 py-1.5 bg-blue-50 rounded-lg">
+                    <p className="text-xs text-blue-600 font-semibold">{counts.all} Total</p>
+                  </div>
+                  <div className="px-3 py-1.5 bg-green-50 rounded-lg">
+                    <p className="text-xs text-green-600 font-semibold">{counts.upcoming} Upcoming</p>
+                  </div>
+                  <div className="px-3 py-1.5 bg-purple-50 rounded-lg">
+                    <p className="text-xs text-purple-600 font-semibold">{counts.completed} Done</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2">
+                {selectedBookings.size > 0 && (
+                  <button
+                    onClick={handleBulkCancel}
+                    disabled={bulkCancelling}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs font-medium disabled:opacity-50"
+                  >
+                    {bulkCancelling ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Cancelling...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Cancel ({selectedBookings.size})
+                      </>
+                    )}
+                  </button>
+                )}
+                
                 <button
-                  onClick={handleBulkCancel}
-                  disabled={bulkCancelling}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-600/30 font-medium disabled:opacity-50"
+                  onClick={exportToCSV}
+                  disabled={filteredBookings.length === 0}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium disabled:opacity-50"
                 >
-                  {bulkCancelling ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Cancelling...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4" />
-                      Cancel ({selectedBookings.size})
-                    </>
-                  )}
+                  <Download className="h-3.5 w-3.5" />
+                  Export
                 </button>
-              )}
-              
-              <button
-                onClick={exportToCSV}
-                disabled={filteredBookings.length === 0}
-                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:shadow-lg transition-all shadow-md shadow-green-600/30 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Download className="h-4 w-4" />
-                Export
-              </button>
 
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-xs font-medium"
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                    Clear
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium"
+                >
+                  <Filter className="h-3.5 w-3.5" />
+                  Filters
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Compact Filters */}
+        {showFilters && (
+          <div className="bg-white border-b shadow-sm">
+            <div className="px-4 py-3 space-y-3">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Quick Filters */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setTimeFilter('upcoming')}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                    timeFilter === 'upcoming'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Upcoming ({counts.upcoming})
+                </button>
+                <button
+                  onClick={() => setTimeFilter('past')}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                    timeFilter === 'past'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Past ({counts.past})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('confirmed')}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                    statusFilter === 'confirmed'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Active ({counts.confirmed})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('cancelled')}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                    statusFilter === 'cancelled'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Cancelled ({counts.cancelled})
+                </button>
+
+                <div className="ml-auto flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={dateRange.start}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                    className="px-2 py-1 text-xs border border-gray-300 rounded-lg"
+                  />
+                  <span className="text-xs text-gray-500">to</span>
+                  <input
+                    type="date"
+                    value={dateRange.end}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                    className="px-2 py-1 text-xs border border-gray-300 rounded-lg"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Compact Bookings Table */}
+        <div className="px-4 py-3">
+          {filteredBookings.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-lg border">
+              <Search className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">No bookings found</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                {searchQuery ? `No results for "${searchQuery}"` : 'Try adjusting your filters'}
+              </p>
               {hasActiveFilters && (
                 <button
                   onClick={clearFilters}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-gray-200 text-gray-700 rounded-xl hover:border-gray-300 hover:shadow-md transition-all font-medium"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
                 >
-                  <XCircle className="h-4 w-4" />
-                  Clear
+                  <RefreshCw className="h-4 w-4" />
+                  Clear Filters
                 </button>
               )}
             </div>
-          </div>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-xl shadow-blue-500/30">
-            <div className="flex items-center justify-between mb-3">
-              <CalendarDays className="h-8 w-8 opacity-80" />
-              <TrendingUp className="h-5 w-5 opacity-60" />
-            </div>
-            <p className="text-3xl font-bold mb-1">{counts.all}</p>
-            <p className="text-blue-100 text-sm font-medium">Total Bookings</p>
-          </div>
-
-          <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-xl shadow-green-500/30">
-            <div className="flex items-center justify-between mb-3">
-              <CheckCircle className="h-8 w-8 opacity-80" />
-              <Clock className="h-5 w-5 opacity-60" />
-            </div>
-            <p className="text-3xl font-bold mb-1">{counts.upcoming}</p>
-            <p className="text-green-100 text-sm font-medium">Upcoming</p>
-          </div>
-
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-xl shadow-purple-500/30">
-            <div className="flex items-center justify-between mb-3">
-              <Users className="h-8 w-8 opacity-80" />
-              <Sparkles className="h-5 w-5 opacity-60" />
-            </div>
-            <p className="text-3xl font-bold mb-1">{counts.completed}</p>
-            <p className="text-purple-100 text-sm font-medium">Completed</p>
-          </div>
-
-          <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-xl shadow-orange-500/30">
-            <div className="flex items-center justify-between mb-3">
-              <AlertCircle className="h-8 w-8 opacity-80" />
-              <XCircle className="h-5 w-5 opacity-60" />
-            </div>
-            <p className="text-3xl font-bold mb-1">{counts.cancelled}</p>
-            <p className="text-orange-100 text-sm font-medium">Cancelled</p>
-          </div>
-        </div>
-
-        {/* Search & Quick Filters */}
-        <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-6 mb-6">
-          <div className="space-y-4">
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by name, email, notes, or team..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:bg-white focus:outline-none transition-all text-gray-900 placeholder-gray-500"
-              />
-            </div>
-
-            {/* Quick Filter Pills */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => setTimeFilter('upcoming')}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  timeFilter === 'upcoming'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Upcoming ({counts.upcoming})
-              </button>
-              <button
-                onClick={() => setTimeFilter('past')}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  timeFilter === 'past'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Past ({counts.past})
-              </button>
-              <button
-                onClick={() => setStatusFilter('confirmed')}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  statusFilter === 'confirmed'
-                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Active ({counts.confirmed})
-              </button>
-              <button
-                onClick={() => setStatusFilter('cancelled')}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  statusFilter === 'cancelled'
-                    ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Cancelled ({counts.cancelled})
-              </button>
-
-              {/* Advanced Filters Toggle */}
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="ml-auto px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all flex items-center gap-2"
-              >
-                <Filter className="h-4 w-4" />
-                More Filters
-                <ChevronDown className={`h-4 w-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-              </button>
-            </div>
-
-            {/* Advanced Filters Dropdown */}
-            {showFilters && (
-              <div className="pt-4 border-t border-gray-200 animate-fadeIn">
-                <div className="grid md:grid-cols-3 gap-4">
-                  {/* Date Range */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date</label>
+          ) : (
+            <div className="bg-white rounded-lg border overflow-hidden">
+              {/* Table Header */}
+              <div className="bg-gray-50 border-b">
+                <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-semibold text-gray-700">
+                  <div className="col-span-1 flex items-center">
                     <input
-                      type="date"
-                      value={dateRange.start}
-                      onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                      type="checkbox"
+                      checked={selectedBookings.size === filteredBookings.length && filteredBookings.length > 0}
+                      onChange={handleSelectAll}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">End Date</label>
-                    <input
-                      type="date"
-                      value={dateRange.end}
-                      onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Team Type</label>
-                    <select
-                      value={filter}
-                      onChange={(e) => setFilter(e.target.value)}
-                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none bg-white"
-                    >
-                      <option value="all">All Teams</option>
-                      <option value="my-teams">My Teams ({counts.myTeams})</option>
-                      <option value="member-teams">Member Of ({counts.memberTeams})</option>
-                    </select>
-                  </div>
+                  <div className="col-span-2">Date</div>
+                  <div className="col-span-2">Attendee</div>
+                  <div className="col-span-2">Team</div>
+                  <div className="col-span-2">Time</div>
+                  <div className="col-span-2">Status</div>
+                  <div className="col-span-1 text-right">Actions</div>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* Bookings List */}
-        {filteredBookings.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-2xl shadow-md border-2 border-dashed border-gray-300">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full mb-6">
-              <Search className="h-10 w-10 text-blue-600" />
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-3">No bookings found</h3>
-            <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              {searchQuery 
-                ? `No results for "${searchQuery}"`
-                : hasActiveFilters 
-                ? 'Try adjusting your filters to see more results'
-                : 'No bookings match your current filters'}
-            </p>
-            {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Clear All Filters
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Select All Bar */}
-            {filteredBookings.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedBookings.size === filteredBookings.length}
-                    onChange={handleSelectAll}
-                    className="w-5 h-5 text-blue-600 rounded-lg focus:ring-2 focus:ring-blue-500 border-2 border-gray-300"
-                  />
-                  <span className="text-sm font-semibold text-gray-900">
-                    Select All ({filteredBookings.length} bookings)
-                  </span>
-                </label>
-              </div>
-            )}
-
-            {/* Booking Cards */}
-            {filteredBookings.map((booking) => {
-              const statusColor = getStatusColor(booking.status, booking.start_time);
-              const statusLabel = getStatusLabel(booking.status, booking.start_time);
-              
-              return (
-                <div
-                  key={booking.id}
-                  className={`bg-white rounded-2xl shadow-md border-2 transition-all hover:shadow-xl ${
-                    selectedBookings.has(booking.id)
-                      ? 'border-blue-500 ring-4 ring-blue-100'
-                      : 'border-gray-200'
-                  }`}
-                >
-                  <div className="p-6">
-                    <div className="flex items-start gap-4">
+              {/* Table Body */}
+              <div className="divide-y">
+                {filteredBookings.map((booking) => {
+                  const statusColor = getStatusColor(booking.status, booking.start_time);
+                  const statusLabel = getStatusLabel(booking.status, booking.start_time);
+                  const isUpcoming = booking.status !== 'cancelled' && new Date(booking.start_time) > new Date();
+                  
+                  return (
+                    <div
+                      key={booking.id}
+                      className={`grid grid-cols-12 gap-2 px-3 py-2.5 text-sm hover:bg-gray-50 transition-colors ${
+                        selectedBookings.has(booking.id) ? 'bg-blue-50' : ''
+                      }`}
+                    >
                       {/* Checkbox */}
-                      <input
-                        type="checkbox"
-                        checked={selectedBookings.has(booking.id)}
-                        onChange={() => handleSelectBooking(booking.id)}
-                        className="mt-1.5 w-5 h-5 text-blue-600 rounded-lg focus:ring-2 focus:ring-blue-500 border-2 border-gray-300"
-                      />
+                      <div className="col-span-1 flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedBookings.has(booking.id)}
+                          onChange={() => handleSelectBooking(booking.id)}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                      </div>
 
-                      {/* Date Badge */}
-                      <div className="flex-shrink-0 w-16 text-center">
-                        <div className={`bg-gradient-to-br ${
-                          statusColor === 'green' 
-                            ? 'from-green-500 to-emerald-600' 
-                            : statusColor === 'red'
-                            ? 'from-red-500 to-red-600'
-                            : 'from-gray-400 to-gray-500'
-                        } rounded-xl p-3 text-white shadow-lg`}>
-                          <p className="text-xs font-medium opacity-90">
-                            {new Date(booking.start_time).toLocaleDateString('en-US', { month: 'short' })}
-                          </p>
-                          <p className="text-2xl font-bold">
-                            {new Date(booking.start_time).getDate()}
-                          </p>
+                      {/* Date */}
+                      <div className="col-span-2 flex items-center">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center text-white text-xs font-bold ${
+                            statusColor === 'green' ? 'bg-green-500' : statusColor === 'red' ? 'bg-red-500' : 'bg-gray-400'
+                          }`}>
+                            <span className="text-[8px] opacity-75">
+                              {new Date(booking.start_time).toLocaleDateString('en-US', { month: 'short' })}
+                            </span>
+                            <span className="text-base">
+                              {new Date(booking.start_time).getDate()}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900 text-xs">{formatDate(booking.start_time)}</p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(booking.start_time).toLocaleDateString('en-US', { weekday: 'short' })}
+                            </p>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Content */}
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <h3 className="text-xl font-bold text-gray-900">
-                                {booking.attendee_name}
-                              </h3>
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                statusColor === 'green' 
-                                  ? 'bg-green-100 text-green-700' 
-                                  : statusColor === 'red'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'bg-gray-100 text-gray-700'
-                              }`}>
-                                {statusLabel}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-4 text-sm text-gray-600">
-                              <span className="flex items-center gap-1.5">
-                                <Mail className="h-4 w-4" />
-                                {booking.attendee_email}
-                              </span>
-                              <span className="flex items-center gap-1.5">
-                                <Clock className="h-4 w-4" />
-                                {formatTime(booking.start_time)}
-                              </span>
-                            </div>
-                          </div>
+                      {/* Attendee */}
+                      <div className="col-span-2 flex flex-col justify-center">
+                        <p className="font-semibold text-gray-900 truncate text-xs">{booking.attendee_name}</p>
+                        <p className="text-xs text-gray-500 truncate">{booking.attendee_email}</p>
+                      </div>
 
-                          {/* Team Badge */}
-                          {booking.isMyTeam ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 rounded-lg text-xs font-bold">
-                              <Crown className="h-3.5 w-3.5" />
-                              My Team
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold">
-                              <Users className="h-3.5 w-3.5" />
-                              Member
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Team Info */}
-                        <div className="flex items-center gap-2 mb-3 text-sm">
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 rounded-lg font-medium text-gray-700">
-                            <Users className="h-3.5 w-3.5" />
-                            {booking.team_name}
-                          </span>
-                          {booking.member_name && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 rounded-lg font-medium text-gray-700">
-                              <User className="h-3.5 w-3.5" />
-                              {booking.member_name}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Notes */}
-                        {booking.notes && (
-                          <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-xl p-4 mb-4">
-                            <div className="flex items-start gap-2">
-                              <MessageSquare className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
-                              <div>
-                                <p className="text-xs font-semibold text-gray-700 mb-1">Notes</p>
-                                <p className="text-sm text-gray-600">{booking.notes}</p>
-                              </div>
-                            </div>
-                          </div>
+                      {/* Team */}
+                      <div className="col-span-2 flex flex-col justify-center">
+                        <p className="font-medium text-gray-900 truncate text-xs">{booking.team_name}</p>
+                        {booking.member_name && (
+                          <p className="text-xs text-gray-500 truncate">{booking.member_name}</p>
                         )}
+                      </div>
 
-                        {/* Action Buttons */}
-                        {booking.status !== 'cancelled' && new Date(booking.start_time) > new Date() && (
-                          <div className="flex gap-3">
+                      {/* Time */}
+                      <div className="col-span-2 flex items-center">
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5 text-gray-400" />
+                          <span className="font-medium text-gray-900 text-xs">{formatTime(booking.start_time)}</span>
+                        </div>
+                      </div>
+
+                      {/* Status */}
+                      <div className="col-span-2 flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          statusColor === 'green' 
+                            ? 'bg-green-100 text-green-700' 
+                            : statusColor === 'red'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {statusLabel}
+                        </span>
+                        {booking.isMyTeam ? (
+                          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                            Owner
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                            Member
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="col-span-1 flex items-center justify-end gap-1">
+                        {isUpcoming && (
+                          <>
                             <button
                               onClick={() => setDetailsModal({ open: true, booking })}
-                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 rounded-xl hover:shadow-md transition-all font-medium"
+                              className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title="View details"
                             >
-                              <Eye className="h-4 w-4" />
-                              Details
+                              <Eye className="h-3.5 w-3.5" />
                             </button>
                             <button
                               onClick={() => setRescheduleModal({ open: true, booking, newDate: '', newTime: '', submitting: false })}
-                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
+                              className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title="Reschedule"
                             >
-                              <RefreshCw className="h-4 w-4" />
-                              Reschedule
+                              <RefreshCw className="h-3.5 w-3.5" />
                             </button>
                             <button
                               onClick={() => setCancelModal({ open: true, booking, reason: '', submitting: false })}
-                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl hover:shadow-lg transition-all font-medium"
+                              className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="Cancel"
                             >
-                              <XCircle className="h-4 w-4" />
-                              Cancel
+                              <XCircle className="h-3.5 w-3.5" />
                             </button>
-                          </div>
+                          </>
                         )}
                       </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Modals (Cancel, Reschedule, Details) */}
-      {/* Same modal code as before but with updated styling */}
+      {/* Modals - Same as before but more compact */}
       {cancelModal.open && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-gray-900">Cancel Booking</h3>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Cancel Booking</h3>
               <button
                 onClick={() => setCancelModal({ open: false, booking: null, reason: '', submitting: false })}
-                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-lg"
               >
                 <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
 
-            <div className="mb-6">
-              <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 mb-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="mb-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-red-900 mb-1">
-                      Cancel this booking?
-                    </p>
-                    <p className="text-xs text-red-700">
-                      {cancelModal.booking?.attendee_name} will be notified via email.
-                    </p>
+                    <p className="text-sm font-semibold text-red-900">Cancel this booking?</p>
+                    <p className="text-xs text-red-700">{cancelModal.booking?.attendee_name} will be notified.</p>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-2xl p-4 mb-4 text-sm space-y-2">
-                <p className="text-gray-700">
-                  <strong>Date:</strong> {formatDate(cancelModal.booking?.start_time)}
-                </p>
-                <p className="text-gray-700">
-                  <strong>Time:</strong> {formatTime(cancelModal.booking?.start_time)}
-                </p>
-                <p className="text-gray-700">
-                  <strong>Attendee:</strong> {cancelModal.booking?.attendee_name}
-                </p>
+              <div className="bg-gray-50 rounded-lg p-3 mb-3 text-xs space-y-1">
+                <p><strong>Date:</strong> {formatDate(cancelModal.booking?.start_time)}</p>
+                <p><strong>Time:</strong> {formatTime(cancelModal.booking?.start_time)}</p>
+                <p><strong>Attendee:</strong> {cancelModal.booking?.attendee_name}</p>
               </div>
 
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Reason (Optional)
-              </label>
+              <label className="block text-xs font-semibold text-gray-700 mb-2">Reason (Optional)</label>
               <textarea
                 value={cancelModal.reason}
                 onChange={(e) => setCancelModal(prev => ({ ...prev, reason: e.target.value }))}
-                rows="3"
+                rows="2"
                 placeholder="Why are you cancelling?"
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-2xl focus:border-red-500 focus:outline-none resize-none"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-red-500 focus:outline-none resize-none"
               />
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <button
                 onClick={() => setCancelModal({ open: false, booking: null, reason: '', submitting: false })}
                 disabled={cancelModal.submitting}
-                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-semibold disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium"
               >
-                Keep Booking
+                Keep
               </button>
               <button
                 onClick={handleCancelBooking}
                 disabled={cancelModal.submitting}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl hover:shadow-lg transition-all font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium flex items-center justify-center gap-2"
               >
                 {cancelModal.submitting ? (
                   <>
@@ -811,84 +720,65 @@ export default function Bookings() {
       )}
 
       {rescheduleModal.open && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-gray-900">Reschedule Booking</h3>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Reschedule</h3>
               <button
                 onClick={() => setRescheduleModal({ open: false, booking: null, newDate: '', newTime: '', submitting: false })}
-                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-lg"
               >
                 <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
 
-            <div className="mb-6">
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 mb-4">
-                <div className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-blue-900 mb-1">
-                      Choose a new time
-                    </p>
-                    <p className="text-xs text-blue-700">
-                      {rescheduleModal.booking?.attendee_name} will be notified.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-2xl p-4 mb-4 text-sm">
-                <p className="text-gray-700">
+            <div className="mb-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                <p className="text-xs text-blue-900">
                   <strong>Current:</strong> {formatDate(rescheduleModal.booking?.start_time)} at {formatTime(rescheduleModal.booking?.start_time)}
                 </p>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    New Date *
-                  </label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">New Date</label>
                   <input
                     type="date"
                     value={rescheduleModal.newDate}
                     onChange={(e) => setRescheduleModal(prev => ({ ...prev, newDate: e.target.value }))}
                     min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-2xl focus:border-blue-500 focus:outline-none"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    New Time *
-                  </label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">New Time</label>
                   <input
                     type="time"
                     value={rescheduleModal.newTime}
                     onChange={(e) => setRescheduleModal(prev => ({ ...prev, newTime: e.target.value }))}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-2xl focus:border-blue-500 focus:outline-none"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <button
                 onClick={() => setRescheduleModal({ open: false, booking: null, newDate: '', newTime: '', submitting: false })}
-                disabled={rescheduleModal.submitting}
-                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-semibold disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium"
               >
                 Cancel
               </button>
               <button
                 onClick={handleRescheduleBooking}
                 disabled={rescheduleModal.submitting || !rescheduleModal.newDate || !rescheduleModal.newTime}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center justify-center gap-2"
               >
                 {rescheduleModal.submitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Rescheduling...
+                    Saving...
                   </>
                 ) : (
                   'Reschedule'
@@ -899,21 +789,70 @@ export default function Bookings() {
         </div>
       )}
 
-      <style jsx>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out;
-        }
-      `}</style>
+      {/* Details Modal */}
+      {detailsModal.open && detailsModal.booking && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Booking Details</h3>
+              <button
+                onClick={() => setDetailsModal({ open: false, booking: null })}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              <div className="flex items-start gap-3">
+                <User className="h-5 w-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-xs text-gray-500">Attendee</p>
+                  <p className="font-semibold text-gray-900">{detailsModal.booking.attendee_name}</p>
+                  <p className="text-gray-600">{detailsModal.booking.attendee_email}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-xs text-gray-500">Date & Time</p>
+                  <p className="font-semibold text-gray-900">{formatDate(detailsModal.booking.start_time)}</p>
+                  <p className="text-gray-600">{formatTime(detailsModal.booking.start_time)} - {formatTime(detailsModal.booking.end_time)}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Users className="h-5 w-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-xs text-gray-500">Team</p>
+                  <p className="font-semibold text-gray-900">{detailsModal.booking.team_name}</p>
+                  {detailsModal.booking.member_name && (
+                    <p className="text-gray-600">{detailsModal.booking.member_name}</p>
+                  )}
+                </div>
+              </div>
+
+              {detailsModal.booking.notes && (
+                <div className="flex items-start gap-3">
+                  <FileText className="h-5 w-5 text-gray-400 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-gray-500">Notes</p>
+                    <p className="text-gray-900">{detailsModal.booking.notes}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setDetailsModal({ open: false, booking: null })}
+              className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
