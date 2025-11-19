@@ -157,10 +157,9 @@ export default function BookingPage() {
     setSelectedSlot(slot);
   };
 
-  const handleSubmit = async (e) => {
+ const handleSubmit = async (e) => {
   e.preventDefault();
 
-  // No alert needed - button is already hidden without a slot
   if (!selectedSlot) return;
 
   if (!formData.attendee_name || !formData.attendee_email) {
@@ -168,39 +167,42 @@ export default function BookingPage() {
     return;
   }
 
-    if (!formData.attendee_name || !formData.attendee_email) {
-      alert('Please fill in all required fields');
-      return;
-    }
+  try {
+    setSubmitting(true);
+    
+    const response = await bookings.create({
+      token,
+      slot: selectedSlot,
+      attendee_name: formData.attendee_name,
+      attendee_email: formData.attendee_email,
+      notes: formData.notes,
+    });
 
-    try {
-      setSubmitting(true);
-      
-      await bookings.create({
-        token,
-        slot: selectedSlot,
-        attendee_name: formData.attendee_name,
-        attendee_email: formData.attendee_email,
-        notes: formData.notes,
-      });
+    // Prepare booking data for confirmation page
+    const bookingData = {
+      id: response.data.booking.id,
+      start_time: selectedSlot.start,
+      end_time: selectedSlot.end,
+      attendee_name: formData.attendee_name,
+      attendee_email: formData.attendee_email,
+      organizer_name: memberInfo?.name,
+      team_name: teamInfo?.name,
+      notes: formData.notes,
+      meet_link: response.data.booking.meet_link || null,
+      booking_token: response.data.booking.booking_token || token,
+    };
 
-      navigate('/booking-confirmation', {
-        state: {
-          booking: {
-            ...selectedSlot,
-            attendee_name: formData.attendee_name,
-            team_name: teamInfo?.name,
-            member_name: memberInfo?.name,
-          }
-        }
-      });
-    } catch (err) {
-      console.error('Error creating booking:', err);
-      alert(err.response?.data?.error || 'Failed to create booking. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    // Pass as URL parameter (required by BookingConfirmation component)
+    const dataParam = encodeURIComponent(JSON.stringify(bookingData));
+    navigate(`/booking-confirmation?data=${dataParam}`);
+
+  } catch (err) {
+    console.error('Error creating booking:', err);
+    alert(err.response?.data?.error || 'Failed to create booking. Please try again.');
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   if (loading) {
     return (
