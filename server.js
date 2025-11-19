@@ -762,11 +762,16 @@ app.put('/api/team-members/:id/availability', authenticateToken, async (req, res
     }
 
     // Update team member settings
-   await pool.query(
+  await pool.query(
   `UPDATE team_members 
-   SET buffer_time = $1, working_hours = $2 
-   WHERE id = $3`,
-  [buffer_time, JSON.stringify(working_hours), memberId]
+   SET buffer_time = $1, 
+       lead_time_hours = $2,
+       booking_horizon_days = $3,
+       daily_booking_cap = $4,
+       working_hours = $5
+   WHERE id = $6`,
+  [buffer_time || 0, lead_time_hours || 0, booking_horizon_days || 30, 
+   daily_booking_cap, JSON.stringify(working_hours), memberId]
 );
 
     // Update blocked times
@@ -820,8 +825,6 @@ if (blocked_times && blocked_times.length > 0) {
     res.status(500).json({ error: 'Failed to update availability settings' });
   }
 });
-
-// ============ ENHANCED SLOT AVAILABILITY WITH REASONS ============
 
 // ============ ENHANCED SLOT GENERATION WITH ALL AVAILABILITY RULES ============
 
