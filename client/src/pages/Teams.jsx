@@ -1,6 +1,10 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Edit2, Trash2, Mail, Copy, Check, X, Settings, Clock, Send } from 'lucide-react';
+import { 
+  Users, Plus, Edit2, Trash2, Mail, Copy, Check, X, Settings, 
+  Clock, Send, Link2, Calendar, User, AlertCircle, CheckCircle,
+  ChevronRight, Sparkles
+} from 'lucide-react';
 import { teams } from '../utils/api';
 
 export default function Teams() {
@@ -11,10 +15,10 @@ export default function Teams() {
   const [showManageModal, setShowManageModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState(null);
-  const [editingMember, setEditingMember] = useState(null);
   const [newTeam, setNewTeam] = useState({ name: '', description: '' });
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [copiedUrl, setCopiedUrl] = useState(null);
+  const [notification, setNotification] = useState(null);
 
   useEffect(() => {
     loadTeams();
@@ -27,6 +31,7 @@ export default function Teams() {
       setTeamsList(response.data.teams || []);
     } catch (error) {
       console.error('Error loading teams:', error);
+      showNotification('Failed to load teams', 'error');
     } finally {
       setLoading(false);
     }
@@ -42,6 +47,11 @@ export default function Teams() {
     }
   };
 
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
   const handleCreateTeam = async (e) => {
     e.preventDefault();
     try {
@@ -49,8 +59,10 @@ export default function Teams() {
       setShowCreateModal(false);
       setNewTeam({ name: '', description: '' });
       loadTeams();
+      showNotification('Team created successfully!');
     } catch (error) {
       console.error('Error creating team:', error);
+      showNotification('Failed to create team', 'error');
     }
   };
 
@@ -59,8 +71,10 @@ export default function Teams() {
     try {
       await teams.delete(id);
       loadTeams();
+      showNotification('Team deleted successfully');
     } catch (error) {
       console.error('Error deleting team:', error);
+      showNotification('Failed to delete team', 'error');
     }
   };
 
@@ -73,8 +87,10 @@ export default function Teams() {
       });
       setShowEditModal(false);
       loadTeams();
+      showNotification('Team updated successfully!');
     } catch (error) {
       console.error('Error updating team:', error);
+      showNotification('Failed to update team', 'error');
     }
   };
 
@@ -87,14 +103,13 @@ export default function Teams() {
       });
       setNewMemberEmail('');
       
-      // Reload members
       const members = await loadMembers(selectedTeam.id);
       setSelectedTeam({ ...selectedTeam, members });
       
-      alert(`✅ Member added!\n\nBooking URL:\n${response.data.bookingUrl}\n\nAn invitation email has been sent to ${newMemberEmail}`);
+      showNotification(`Member invited! Booking link sent to ${newMemberEmail}`);
     } catch (error) {
       console.error('Error adding member:', error);
-      alert('Failed to add member');
+      showNotification('Failed to add member', 'error');
     }
   };
 
@@ -104,8 +119,10 @@ export default function Teams() {
       await teams.removeMember(selectedTeam.id, memberId);
       const members = await loadMembers(selectedTeam.id);
       setSelectedTeam({ ...selectedTeam, members });
+      showNotification('Member removed successfully');
     } catch (error) {
       console.error('Error removing member:', error);
+      showNotification('Failed to remove member', 'error');
     }
   };
 
@@ -122,24 +139,48 @@ export default function Teams() {
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     setCopiedUrl(text);
+    showNotification('Link copied to clipboard!');
     setTimeout(() => setCopiedUrl(null), 2000);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50">
+      {/* Notification Toast */}
+      {notification && (
+        <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
+          <div className={`flex items-center gap-3 px-6 py-4 rounded-xl shadow-lg ${
+            notification.type === 'error' 
+              ? 'bg-red-500 text-white' 
+              : 'bg-green-500 text-white'
+          }`}>
+            {notification.type === 'error' ? (
+              <AlertCircle className="h-5 w-5" />
+            ) : (
+              <CheckCircle className="h-5 w-5" />
+            )}
+            <span className="font-medium">{notification.message}</span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="bg-white border-b">
+      <div className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
+          <div className="flex justify-between items-center py-8">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Teams</h1>
-              <p className="text-gray-600 mt-1">Manage your scheduling teams</p>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                Teams
+              </h1>
+              <p className="text-gray-600 mt-2 flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Manage your scheduling teams and members
+              </p>
             </div>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all flex items-center gap-2"
+              className="group px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2"
             >
-              <Plus className="h-5 w-5" />
+              <Plus className="h-5 w-5 group-hover:rotate-90 transition-transform" />
               Create Team
             </button>
           </div>
@@ -149,69 +190,103 @@ export default function Teams() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="relative">
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200"></div>
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
+            </div>
+            <p className="mt-4 text-gray-600 font-medium">Loading teams...</p>
           </div>
         ) : teamsList.length === 0 ? (
-          <div className="text-center py-12">
-            <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">No teams yet</h2>
-            <p className="text-gray-600 mb-6">Create your first team to start scheduling</p>
+          <div className="text-center py-20">
+            <div className="bg-gradient-to-br from-blue-100 to-purple-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Users className="h-12 w-12 text-blue-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">No teams yet</h2>
+            <p className="text-gray-600 mb-8 max-w-md mx-auto">
+              Create your first team to start organizing your scheduling and managing bookings
+            </p>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all inline-flex items-center gap-2"
+              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-xl hover:scale-105 transition-all inline-flex items-center gap-3"
             >
-              <Plus className="h-5 w-5" />
+              <Sparkles className="h-5 w-5" />
               Create Your First Team
             </button>
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {teamsList.map((team) => (
-              <div key={team.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+              <div 
+                key={team.id} 
+                className="group bg-white rounded-2xl shadow-sm border border-gray-200 hover:shadow-xl hover:border-blue-300 transition-all duration-300 overflow-hidden"
+              >
+                {/* Card Header with Gradient */}
+                <div className="h-2 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                
                 <div className="p-6">
                   <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-xl font-bold text-gray-900">{team.name}</h3>
-                    <div className="flex gap-2">
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                        {team.name}
+                      </h3>
+                      {team.description && (
+                        <p className="text-gray-600 mt-2 text-sm line-clamp-2">
+                          {team.description}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
                       <button
                         onClick={() => {
                           setSelectedTeam(team);
                           setShowEditModal(true);
                         }}
-                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                         title="Edit Team"
                       >
                         <Edit2 className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteTeam(team.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                         title="Delete Team"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
-                  {team.description && (
-                    <p className="text-gray-600 mb-4 line-clamp-2">{team.description}</p>
-                  )}
-                  <div className="text-sm text-gray-500 mb-4">
-                    Created {new Date(team.created_at).toLocaleDateString()}
+
+                  <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
+                    <Calendar className="h-4 w-4" />
+                    <span>Created {new Date(team.created_at).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      year: 'numeric' 
+                    })}</span>
                   </div>
-                  <div className="flex gap-2">
+
+                  <div className="space-y-2">
                     <button
                       onClick={() => openManageModal(team)}
-                      className="flex-1 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                      className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-between group/btn"
                     >
-                      <Users className="h-4 w-4" />
-                      Members
+                      <span className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Manage Members
+                      </span>
+                      <ChevronRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
                     </button>
+                    
                     <button
                       onClick={() => navigate(`/teams/${team.id}/settings`)}
-                      className="flex-1 px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+                      className="w-full px-4 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-all flex items-center justify-between group/btn"
                     >
-                      <Settings className="h-4 w-4" />
-                      Settings
+                      <span className="flex items-center gap-2">
+                        <Settings className="h-4 w-4" />
+                        Team Settings
+                      </span>
+                      <ChevronRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
                     </button>
                   </div>
                 </div>
@@ -223,35 +298,46 @@ export default function Teams() {
 
       {/* Create Team Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-8 max-w-md w-full">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Create New Team</h2>
-            <form onSubmit={handleCreateTeam} className="space-y-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl animate-scale-in">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
+                <Plus className="h-6 w-6 text-white" />
+              </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <h2 className="text-2xl font-bold text-gray-900">Create New Team</h2>
+                <p className="text-sm text-gray-600">Start organizing your scheduling</p>
+              </div>
+            </div>
+            
+            <form onSubmit={handleCreateTeam} className="space-y-5">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Team Name *
                 </label>
                 <input
                   type="text"
                   value={newTeam.name}
                   onChange={(e) => setNewTeam({ ...newTeam, name: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
-                  placeholder="e.g., Sales Team"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 focus:outline-none transition-all"
+                  placeholder="e.g., Sales Team, Support Team"
                   required
                 />
               </div>
+              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Description
                 </label>
                 <textarea
                   value={newTeam.description}
                   onChange={(e) => setNewTeam({ ...newTeam, description: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
-                  placeholder="Brief team description..."
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 focus:outline-none transition-all resize-none"
+                  placeholder="What does this team do?"
                   rows="3"
                 />
               </div>
+              
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
@@ -259,13 +345,13 @@ export default function Teams() {
                     setShowCreateModal(false);
                     setNewTeam({ name: '', description: '' });
                   }}
-                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-6 py-3 border-2 border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-xl hover:scale-105 transition-all"
                 >
                   Create Team
                 </button>
@@ -277,44 +363,55 @@ export default function Teams() {
 
       {/* Edit Team Modal */}
       {showEditModal && selectedTeam && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-8 max-w-md w-full">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Edit Team</h2>
-            <form onSubmit={handleEditTeam} className="space-y-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl animate-scale-in">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
+                <Edit2 className="h-6 w-6 text-white" />
+              </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <h2 className="text-2xl font-bold text-gray-900">Edit Team</h2>
+                <p className="text-sm text-gray-600">Update team information</p>
+              </div>
+            </div>
+            
+            <form onSubmit={handleEditTeam} className="space-y-5">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Team Name *
                 </label>
                 <input
                   type="text"
                   value={selectedTeam.name}
                   onChange={(e) => setSelectedTeam({ ...selectedTeam, name: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 focus:outline-none transition-all"
                   required
                 />
               </div>
+              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Description
                 </label>
                 <textarea
                   value={selectedTeam.description}
                   onChange={(e) => setSelectedTeam({ ...selectedTeam, description: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 focus:outline-none transition-all resize-none"
                   rows="3"
                 />
               </div>
+              
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-6 py-3 border-2 border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-xl hover:scale-105 transition-all"
                 >
                   Save Changes
                 </button>
@@ -324,50 +421,61 @@ export default function Teams() {
         </div>
       )}
 
-      {/* Manage Team Modal */}
+      {/* Manage Team Modal - Enhanced */}
       {showManageModal && selectedTeam && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-lg mx-auto relative">
-            {/* Header */}
-            <div className="flex justify-between items-center p-4 border-b">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">Manage Team</h2>
-                <p className="text-sm text-gray-600">{selectedTeam.name}</p>
+        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-2xl mx-auto shadow-2xl animate-scale-in">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 rounded-t-2xl">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-white bg-opacity-20 backdrop-blur-lg rounded-xl flex items-center justify-center">
+                    <Users className="h-7 w-7 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">{selectedTeam.name}</h2>
+                    <p className="text-blue-100 text-sm mt-1">
+                      {selectedTeam.members?.length || 0} member{selectedTeam.members?.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowManageModal(false)}
+                  className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-all text-white"
+                >
+                  <X className="h-6 w-6" />
+                </button>
               </div>
-              <button
-                onClick={() => setShowManageModal(false)}
-                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="Close"
-              >
-                <X className="h-5 w-5 text-gray-500" />
-              </button>
             </div>
             
-            {/* Content with scroll */}
-            <div className="max-h-[70vh] overflow-y-auto p-4">
+            {/* Modal Content */}
+            <div className="max-h-[70vh] overflow-y-auto p-6">
               {/* Team Booking URL */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                <h3 className="text-xs font-semibold text-blue-900 mb-2">Team Booking URL</h3>
-                <div className="space-y-2">
+              <div className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-4 mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <Link2 className="h-5 w-5 text-blue-600" />
+                  <h3 className="font-semibold text-gray-900">Team Booking Link</h3>
+                </div>
+                <div className="space-y-3">
                   <input
                     type="text"
                     value={getTeamBookingUrl(selectedTeam.id)}
                     readOnly
-                    className="w-full px-2 py-1.5 bg-white border border-blue-300 rounded text-xs text-gray-700"
+                    className="w-full px-4 py-3 bg-white border-2 border-blue-200 rounded-lg text-sm text-gray-700 font-mono"
                   />
                   <button
                     onClick={() => copyToClipboard(getTeamBookingUrl(selectedTeam.id))}
-                    className="w-full px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5 text-sm"
+                    className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 font-semibold"
                   >
                     {copiedUrl === getTeamBookingUrl(selectedTeam.id) ? (
                       <>
-                        <Check className="h-3.5 w-3.5" />
+                        <Check className="h-5 w-5" />
                         Copied!
                       </>
                     ) : (
                       <>
-                        <Copy className="h-3.5 w-3.5" />
-                        Copy
+                        <Copy className="h-5 w-5" />
+                        Copy Link
                       </>
                     )}
                   </button>
@@ -375,116 +483,119 @@ export default function Teams() {
               </div>
 
               {/* Add Member Section */}
-              <div className="bg-gray-50 rounded-lg p-3 mb-4">
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Add New Member</h3>
-                <form onSubmit={handleAddMember} className="space-y-2">
+              <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-5 mb-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Mail className="h-5 w-5 text-purple-600" />
+                  <h3 className="font-semibold text-gray-900">Invite New Member</h3>
+                </div>
+                <form onSubmit={handleAddMember} className="space-y-3">
                   <div className="relative">
-                    <Mail className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <input
                       type="email"
                       value={newMemberEmail}
                       onChange={(e) => setNewMemberEmail(e.target.value)}
                       placeholder="member@example.com"
-                      className="w-full pl-9 pr-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                      className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:ring-4 focus:ring-purple-100 focus:outline-none transition-all"
                       required
                     />
                   </div>
                   <button
                     type="submit"
-                    className="w-full px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-lg hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm"
+                    className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all flex items-center justify-center gap-2"
                   >
-                    <Send className="h-4 w-4" />
-                    Send Invite
+                    <Send className="h-5 w-5" />
+                    Send Invitation
                   </button>
+                  <p className="text-xs text-gray-600 text-center">
+                    💌 An email with booking link will be sent automatically
+                  </p>
                 </form>
-                <p className="text-xs text-gray-500 mt-2">
-                  💡 An invitation email with booking URL will be sent
-                </p>
               </div>
 
               {/* Members List */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                  Team Members ({selectedTeam.members?.length || 0})
+                <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <User className="h-5 w-5 text-blue-600" />
+                  Team Members
                 </h3>
                 
                 {!selectedTeam.members || selectedTeam.members.length === 0 ? (
-                  <div className="text-center py-4 bg-gray-50 rounded-lg">
-                    <Users className="h-8 w-8 text-gray-300 mx-auto mb-1.5" />
-                    <p className="text-gray-600 text-xs">No members yet. Add your first member above!</p>
+                  <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+                    <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-600 font-medium">No members yet</p>
+                    <p className="text-gray-500 text-sm mt-1">Invite your first member above</p>
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                  <div className="space-y-3">
                     {selectedTeam.members.map((member) => (
                       <div
                         key={member.id}
-                        className="bg-white border border-gray-200 rounded-lg p-2.5 hover:border-blue-300 transition-colors"
+                        className="bg-white border-2 border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-md transition-all"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-start gap-2 flex-1 min-w-0">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
-                              <span className="text-white font-bold text-xs">
-                                {(member.user_email?.[0] || 'U').toUpperCase()}
-                              </span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 text-xs">
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                            <span className="text-white font-bold text-lg">
+                              {(member.user_email?.[0] || 'U').toUpperCase()}
+                            </span>
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-semibold text-gray-900">
                                 {member.user_name || member.user_email}
                               </p>
-                              <p className="text-xs text-gray-600 truncate">{member.user_email}</p>
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                member.user_id 
+                                  ? 'bg-green-100 text-green-700' 
+                                  : 'bg-yellow-100 text-yellow-700'
+                              }`}>
+                                {member.user_id ? '✓ Active' : '⏳ Invited'}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-3">{member.user_email}</p>
+                            
+                            {/* Member Actions */}
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                onClick={() => {
+                                  setShowManageModal(false);
+                                  navigate(`/team-members/${member.id}/availability`);
+                                }}
+                                className="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-all flex items-center gap-2"
+                              >
+                                <Clock className="h-4 w-4" />
+                                Availability
+                              </button>
                               
-                              {/* Member Actions */}
-                              <div className="mt-2 flex flex-wrap gap-1">
-                                {/* Availability Button */}
+                              {member.booking_token && (
                                 <button
-                                  onClick={() => {
-                                    setShowManageModal(false);
-                                    navigate(`/team-members/${member.id}/availability`);
-                                  }}
-                                  className="px-2 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 transition-colors flex items-center gap-1"
-                                  title="Manage Availability"
+                                  onClick={() => copyToClipboard(`${window.location.origin}/book/${member.booking_token}`)}
+                                  className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all flex items-center gap-2"
                                 >
-                                  <Clock className="h-3 w-3" />
-                                  Availability
+                                  {copiedUrl === `${window.location.origin}/book/${member.booking_token}` ? (
+                                    <>
+                                      <Check className="h-4 w-4" />
+                                      Copied
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="h-4 w-4" />
+                                      Copy Link
+                                    </>
+                                  )}
                                 </button>
-                                
-                                {/* Copy Booking Link Button */}
-                                {member.booking_token && (
-                                  <button
-                                    onClick={() => copyToClipboard(`${window.location.origin}/book/${member.booking_token}`)}
-                                    className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 transition-colors flex items-center gap-1"
-                                    title="Copy Booking Link"
-                                  >
-                                    {copiedUrl === `${window.location.origin}/book/${member.booking_token}` ? (
-                                      <>
-                                        <Check className="h-3 w-3" />
-                                        Copied
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Copy className="h-3 w-3" />
-                                        Copy Link
-                                      </>
-                                    )}
-                                  </button>
-                                )}
-                              </div>
-
-                              <div className="mt-1 text-xs text-gray-500">
-                                <span className="inline-flex items-center gap-0.5">
-                                  <span className={`w-1.5 h-1.5 rounded-full ${member.user_id ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
-                                  {member.user_id ? 'Active' : 'Invited'}
-                                </span>
-                              </div>
+                              )}
+                              
+                              <button
+                                onClick={() => handleRemoveMember(member.id)}
+                                className="px-3 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-all flex items-center gap-2 ml-auto"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Remove
+                              </button>
                             </div>
                           </div>
-                          <button
-                            onClick={() => handleRemoveMember(member.id)}
-                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
-                            title="Remove Member"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
                         </div>
                       </div>
                     ))}
@@ -495,6 +606,47 @@ export default function Teams() {
           </div>
         </div>
       )}
+
+      <style jsx>{`
+        @keyframes slide-in-right {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        
+        @keyframes fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        @keyframes scale-in {
+          from {
+            transform: scale(0.9);
+            opacity: 0;
+          }
+          to {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+        
+        .animate-slide-in-right {
+          animation: slide-in-right 0.3s ease-out;
+        }
+        
+        .animate-fade-in {
+          animation: fade-in 0.2s ease-out;
+        }
+        
+        .animate-scale-in {
+          animation: scale-in 0.2s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
