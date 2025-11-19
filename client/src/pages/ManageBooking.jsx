@@ -21,7 +21,6 @@ const ManageBooking = () => {
   useEffect(() => {
     loadBooking();
     
-    // Check if action is in URL params
     const action = searchParams.get('action');
     if (action === 'reschedule') {
       setShowReschedule(true);
@@ -75,7 +74,6 @@ const ManageBooking = () => {
       setShowReschedule(false);
       setSuccessMessage('🎉 Booking rescheduled successfully! Check your email for the updated calendar invite.');
       
-      // Scroll to top to show success message
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       console.error('Error rescheduling:', err);
@@ -160,12 +158,12 @@ const ManageBooking = () => {
           <div className="text-6xl mb-4">😕</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Booking Not Found</h1>
           <p className="text-gray-600 mb-6">{error || 'The booking link is invalid or has expired.'}</p>
-          
-            href="/"
+          <button
+            onClick={() => window.location.href = '/'}
             className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
           >
             Go to Homepage
-          </a>
+          </button>
         </div>
       </div>
     );
@@ -174,16 +172,13 @@ const ManageBooking = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <div className="max-w-4xl mx-auto px-4 py-12">
-        {/* Success Message */}
         {successMessage && (
           <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-6 rounded-lg animate-fade-in">
             <p className="text-green-800">{successMessage}</p>
           </div>
         )}
 
-        {/* Main Card */}
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-8 text-white">
             <div className="flex items-center justify-center mb-4">
               <div className="bg-white bg-opacity-20 p-4 rounded-full">
@@ -202,7 +197,6 @@ const ManageBooking = () => {
             </p>
           </div>
 
-          {/* Booking Details */}
           <div className="p-8">
             {booking.status === 'cancelled' && (
               <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-lg">
@@ -219,7 +213,6 @@ const ManageBooking = () => {
             )}
 
             <div className="space-y-6">
-              {/* Date & Time */}
               <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -243,7 +236,6 @@ const ManageBooking = () => {
                 </div>
               </div>
 
-              {/* Participants */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center text-gray-600 mb-2">
@@ -265,7 +257,6 @@ const ManageBooking = () => {
                 </div>
               </div>
 
-              {/* Notes */}
               {booking.notes && (
                 <div className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center text-gray-600 mb-2">
@@ -276,7 +267,6 @@ const ManageBooking = () => {
                 </div>
               )}
 
-              {/* Action Buttons */}
               {booking.can_modify && booking.status === 'confirmed' && (
                 <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-200">
                   <button
@@ -298,19 +288,18 @@ const ManageBooking = () => {
 
               {booking.status === 'cancelled' && booking.member_booking_token && (
                 <div className="pt-6 border-t border-gray-200">
-                  
-                    href={`/book/${booking.member_booking_token}`}
+                  <button
+                    onClick={() => window.location.href = `/book/${booking.member_booking_token}`}
                     className="block w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors text-center"
                   >
                     📅 Book Another Time
-                  </a>
+                  </button>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Reschedule Modal */}
         {showReschedule && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -348,7 +337,6 @@ const ManageBooking = () => {
           </div>
         )}
 
-        {/* Cancel Modal */}
         {showCancel && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
