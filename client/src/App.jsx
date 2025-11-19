@@ -7,7 +7,7 @@ import Bookings from './pages/Bookings';
 import BookingPage from './pages/BookingPage';
 import OAuthCallback from './pages/OAuthCallback';
 import CalendarSettings from './pages/CalendarSettings';
-import BookingConfirmation from './pages/BookingConfirmation';
+import BookingConfirmation from './components/BookingConfirmation';
 import TeamSettings from './pages/TeamSettings';
 import Layout from './components/Layout';
 import api from './utils/api';
