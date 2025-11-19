@@ -1,12 +1,11 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import { 
-  Calendar, Clock, User, Mail, FileText, Filter, Users, Crown, UserCheck, 
-  X, Loader2, AlertCircle, CheckCircle, Search, Download, Trash2, 
-  XCircle, RefreshCw, ChevronDown, Eye, MoreVertical
+  Calendar, Clock, User, Mail, Filter, Users, X, Loader2, AlertCircle, 
+  Search, Download, Trash2, XCircle, RefreshCw, ChevronDown, Eye
 } from 'lucide-react';
 import api from '../utils/api';
 
-export default function BookingsCompact() {
+export default function Bookings() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -21,7 +20,6 @@ export default function BookingsCompact() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedBookings, setSelectedBookings] = useState(new Set());
   const [bulkCancelling, setBulkCancelling] = useState(false);
-  const [viewMode, setViewMode] = useState('compact'); // 'compact' or 'cards'
   
   // Modal states
   const [cancelModal, setCancelModal] = useState({ 
@@ -80,24 +78,19 @@ export default function BookingsCompact() {
     let filtered = [...bookings];
     const now = new Date();
 
-    // Team filter
     if (filter === 'my-teams') {
       filtered = filtered.filter(b => b.isMyTeam);
     } else if (filter === 'member-teams') {
       filtered = filtered.filter(b => !b.isMyTeam);
     }
 
-    // Status filter takes priority over time filter
     if (statusFilter === 'confirmed') {
       filtered = filtered.filter(b => b.status === 'confirmed' && new Date(b.start_time) >= now);
     } else if (statusFilter === 'cancelled') {
-      // Show ALL cancelled bookings regardless of time
       filtered = filtered.filter(b => b.status === 'cancelled');
     } else if (statusFilter === 'completed') {
-      // Show completed bookings (past meetings that were confirmed)
       filtered = filtered.filter(b => new Date(b.start_time) < now && b.status === 'confirmed');
     } else {
-      // Only apply time filter if no specific status is selected
       if (timeFilter === 'upcoming') {
         filtered = filtered.filter(b => new Date(b.start_time) >= now && b.status !== 'cancelled');
       } else if (timeFilter === 'past') {
@@ -316,9 +309,9 @@ export default function BookingsCompact() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
-          <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto mb-2" />
+          <Loader2 className="h-8 w-8 sm:h-10 sm:w-10 animate-spin text-blue-600 mx-auto mb-2" />
           <p className="text-sm text-gray-600">Loading bookings...</p>
         </div>
       </div>
@@ -326,52 +319,59 @@ export default function BookingsCompact() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       <div className="max-w-[1600px] mx-auto">
-        {/* Compact Header */}
-        <div className="bg-white border-b sticky top-0 z-20 shadow-sm">
-          <div className="px-4 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
+        {/* Header - Responsive */}
+        <div className="bg-white border rounded-lg sticky top-0 z-20 shadow-sm mb-4">
+          <div className="px-3 sm:px-4 py-3 sm:py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              {/* Title & Stats */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                 <div>
-                  <h1 className="text-xl font-bold text-gray-900">Bookings</h1>
+                  <h1 className="text-lg sm:text-xl font-bold text-gray-900">Bookings</h1>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {filteredBookings.length} of {bookings.length}
                     {hasActiveFilters && ' • Filtered'}
                   </p>
                 </div>
 
-                {/* Compact Stats */}
-                <div className="hidden md:flex items-center gap-2">
-                  <div className="px-3 py-1.5 bg-blue-50 rounded-lg">
-                    <p className="text-xs text-blue-600 font-semibold">{counts.all} Total</p>
+                {/* Stats - Hide on small mobile */}
+                <div className="hidden md:flex items-center gap-2 flex-wrap">
+                  <div className="px-2.5 sm:px-3 py-1 sm:py-1.5 bg-blue-50 rounded-lg">
+                    <p className="text-[10px] sm:text-xs text-blue-600 font-semibold whitespace-nowrap">
+                      {counts.all} Total
+                    </p>
                   </div>
-                  <div className="px-3 py-1.5 bg-green-50 rounded-lg">
-                    <p className="text-xs text-green-600 font-semibold">{counts.upcoming} Upcoming</p>
+                  <div className="px-2.5 sm:px-3 py-1 sm:py-1.5 bg-green-50 rounded-lg">
+                    <p className="text-[10px] sm:text-xs text-green-600 font-semibold whitespace-nowrap">
+                      {counts.upcoming} Upcoming
+                    </p>
                   </div>
-                  <div className="px-3 py-1.5 bg-purple-50 rounded-lg">
-                    <p className="text-xs text-purple-600 font-semibold">{counts.completed} Done</p>
+                  <div className="px-2.5 sm:px-3 py-1 sm:py-1.5 bg-purple-50 rounded-lg">
+                    <p className="text-[10px] sm:text-xs text-purple-600 font-semibold whitespace-nowrap">
+                      {counts.completed} Done
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2">
+              {/* Action Buttons - Wrap on mobile */}
+              <div className="flex items-center gap-2 flex-wrap">
                 {selectedBookings.size > 0 && (
                   <button
                     onClick={handleBulkCancel}
                     disabled={bulkCancelling}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs font-medium disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 active:bg-red-800 transition-colors text-xs font-medium disabled:opacity-50 min-h-[36px] sm:min-h-[40px]"
                   >
                     {bulkCancelling ? (
                       <>
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        Cancelling...
+                        <span className="hidden sm:inline">Cancelling...</span>
                       </>
                     ) : (
                       <>
                         <Trash2 className="h-3.5 w-3.5" />
-                        Cancel ({selectedBookings.size})
+                        <span className="hidden xs:inline">Cancel</span> ({selectedBookings.size})
                       </>
                     )}
                   </button>
@@ -380,28 +380,28 @@ export default function BookingsCompact() {
                 <button
                   onClick={exportToCSV}
                   disabled={filteredBookings.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 transition-colors text-xs font-medium disabled:opacity-50 min-h-[36px] sm:min-h-[40px]"
                 >
                   <Download className="h-3.5 w-3.5" />
-                  Export
+                  <span className="hidden sm:inline">Export</span>
                 </button>
 
                 {hasActiveFilters && (
                   <button
                     onClick={clearFilters}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-xs font-medium"
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:bg-gray-300 transition-colors text-xs font-medium min-h-[36px] sm:min-h-[40px]"
                   >
                     <XCircle className="h-3.5 w-3.5" />
-                    Clear
+                    <span className="hidden sm:inline">Clear</span>
                   </button>
                 )}
 
                 <button
                   onClick={() => setShowFilters(!showFilters)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium"
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors text-xs font-medium min-h-[36px] sm:min-h-[40px]"
                 >
                   <Filter className="h-3.5 w-3.5" />
-                  Filters
+                  <span className="hidden sm:inline">Filters</span>
                   <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
                 </button>
               </div>
@@ -409,59 +409,46 @@ export default function BookingsCompact() {
           </div>
         </div>
 
-        {/* Compact Filters */}
+        {/* Filters - Responsive */}
         {showFilters && (
-          <div className="bg-white border-b shadow-sm">
-            <div className="px-4 py-3 space-y-3">
+          <div className="bg-white border rounded-lg shadow-sm mb-4">
+            <div className="px-3 sm:px-4 py-3 space-y-3">
               {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search..."
+                  placeholder="Search bookings..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none min-h-[40px]"
                 />
               </div>
 
-              {/* Quick Filters */}
+              {/* Quick Filters - Wrap on mobile */}
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => {
                     setTimeFilter('upcoming');
                     setStatusFilter('all');
                   }}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                  className={`px-2.5 py-1.5 rounded-full text-xs font-medium transition-all min-h-[32px] whitespace-nowrap ${
                     timeFilter === 'upcoming' && statusFilter === 'all'
                       ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300'
                   }`}
                 >
                   Upcoming ({counts.upcoming})
                 </button>
                 <button
                   onClick={() => {
-                    setTimeFilter('past');
-                    setStatusFilter('all');
-                  }}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                    timeFilter === 'past' && statusFilter === 'all'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Past ({counts.past})
-                </button>
-                <button
-                  onClick={() => {
                     setStatusFilter('confirmed');
                     setTimeFilter('all');
                   }}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                  className={`px-2.5 py-1.5 rounded-full text-xs font-medium transition-all min-h-[32px] whitespace-nowrap ${
                     statusFilter === 'confirmed'
                       ? 'bg-green-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300'
                   }`}
                 >
                   Active ({counts.confirmed})
@@ -471,10 +458,10 @@ export default function BookingsCompact() {
                     setStatusFilter('cancelled');
                     setTimeFilter('all');
                   }}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                  className={`px-2.5 py-1.5 rounded-full text-xs font-medium transition-all min-h-[32px] whitespace-nowrap ${
                     statusFilter === 'cancelled'
                       ? 'bg-red-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300'
                   }`}
                 >
                   Cancelled ({counts.cancelled})
@@ -484,28 +471,29 @@ export default function BookingsCompact() {
                     setStatusFilter('completed');
                     setTimeFilter('all');
                   }}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                  className={`px-2.5 py-1.5 rounded-full text-xs font-medium transition-all min-h-[32px] whitespace-nowrap ${
                     statusFilter === 'completed'
                       ? 'bg-purple-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300'
                   }`}
                 >
                   Completed ({counts.completed})
                 </button>
 
-                <div className="ml-auto flex items-center gap-2">
+                {/* Date Range - Stack on mobile */}
+                <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
                   <input
                     type="date"
                     value={dateRange.start}
                     onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                    className="px-2 py-1 text-xs border border-gray-300 rounded-lg"
+                    className="flex-1 sm:flex-none px-2 py-1.5 text-xs border border-gray-300 rounded-lg min-h-[32px]"
                   />
                   <span className="text-xs text-gray-500">to</span>
                   <input
                     type="date"
                     value={dateRange.end}
                     onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                    className="px-2 py-1 text-xs border border-gray-300 rounded-lg"
+                    className="flex-1 sm:flex-none px-2 py-1.5 text-xs border border-gray-300 rounded-lg min-h-[32px]"
                   />
                 </div>
               </div>
@@ -513,61 +501,138 @@ export default function BookingsCompact() {
           </div>
         )}
 
-        {/* Compact Bookings Table */}
-        <div className="px-4 py-3">
-          {filteredBookings.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg border">
-              <Search className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">No bookings found</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                {searchQuery ? `No results for "${searchQuery}"` : 'Try adjusting your filters'}
-              </p>
-              {hasActiveFilters && (
-                <button
-                  onClick={clearFilters}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Clear Filters
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg border overflow-hidden">
-              {/* Table Header */}
-              <div className="bg-gray-50 border-b">
-                <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-semibold text-gray-700">
-                  <div className="col-span-1 flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedBookings.size === filteredBookings.length && filteredBookings.length > 0}
-                      onChange={handleSelectAll}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="col-span-2">Date</div>
-                  <div className="col-span-2">Attendee</div>
-                  <div className="col-span-2">Team</div>
-                  <div className="col-span-2">Time</div>
-                  <div className="col-span-2">Status</div>
-                  <div className="col-span-1 text-right">Actions</div>
+        {/* Bookings List */}
+        {filteredBookings.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-lg border">
+            <Search className="h-10 w-10 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-3" />
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1">No bookings found</h3>
+            <p className="text-sm text-gray-600 mb-4 px-4">
+              {searchQuery ? `No results for "${searchQuery}"` : 'Try adjusting your filters'}
+            </p>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 text-sm font-medium min-h-[44px]"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Clear Filters
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="bg-white rounded-lg border overflow-hidden">
+            {/* Desktop Table Header - Hidden on mobile */}
+            <div className="hidden lg:block bg-gray-50 border-b">
+              <div className="grid grid-cols-12 gap-2 px-3 py-2.5 text-xs font-semibold text-gray-700">
+                <div className="col-span-1 flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedBookings.size === filteredBookings.length && filteredBookings.length > 0}
+                    onChange={handleSelectAll}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
                 </div>
+                <div className="col-span-2">Date</div>
+                <div className="col-span-2">Attendee</div>
+                <div className="col-span-2">Team</div>
+                <div className="col-span-2">Time</div>
+                <div className="col-span-2">Status</div>
+                <div className="col-span-1 text-right">Actions</div>
               </div>
+            </div>
 
-              {/* Table Body */}
-              <div className="divide-y">
-                {filteredBookings.map((booking) => {
-                  const statusColor = getStatusColor(booking.status, booking.start_time);
-                  const statusLabel = getStatusLabel(booking.status, booking.start_time);
-                  const isUpcoming = booking.status !== 'cancelled' && new Date(booking.start_time) > new Date();
-                  
-                  return (
-                    <div
-                      key={booking.id}
-                      className={`grid grid-cols-12 gap-2 px-3 py-2.5 text-sm hover:bg-gray-50 transition-colors ${
-                        selectedBookings.has(booking.id) ? 'bg-blue-50' : ''
-                      }`}
-                    >
+            {/* Bookings Items */}
+            <div className="divide-y">
+              {filteredBookings.map((booking) => {
+                const statusColor = getStatusColor(booking.status, booking.start_time);
+                const statusLabel = getStatusLabel(booking.status, booking.start_time);
+                const isUpcoming = booking.status !== 'cancelled' && new Date(booking.start_time) > new Date();
+                
+                return (
+                  <div key={booking.id} className={selectedBookings.has(booking.id) ? 'bg-blue-50' : ''}>
+                    {/* Mobile Card View */}
+                    <div className="lg:hidden p-3 sm:p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        {/* Checkbox */}
+                        <input
+                          type="checkbox"
+                          checked={selectedBookings.has(booking.id)}
+                          onChange={() => handleSelectBooking(booking.id)}
+                          className="mt-1 w-4 h-4 text-blue-600 rounded focus:ring-blue-500 flex-shrink-0"
+                        />
+
+                        {/* Main Info */}
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          {/* Date Badge */}
+                          <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-lg flex flex-col items-center justify-center text-white text-xs font-bold flex-shrink-0 ${
+                            statusColor === 'green' ? 'bg-green-500' : statusColor === 'red' ? 'bg-red-500' : 'bg-gray-400'
+                          }`}>
+                            <span className="text-[9px] opacity-75">
+                              {new Date(booking.start_time).toLocaleDateString('en-US', { month: 'short' })}
+                            </span>
+                            <span className="text-base sm:text-lg">
+                              {new Date(booking.start_time).getDate()}
+                            </span>
+                          </div>
+
+                          {/* Details */}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-900 truncate text-sm">
+                              {booking.attendee_name}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate">
+                              {booking.attendee_email}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                              <span className="text-xs text-gray-600 flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {formatTime(booking.start_time)}
+                              </span>
+                              <span className="text-xs text-gray-400">•</span>
+                              <span className="text-xs text-gray-600 truncate">
+                                {booking.team_name}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Status Badge */}
+                        <span className={`px-2 py-1 rounded-full text-[10px] sm:text-xs font-semibold whitespace-nowrap flex-shrink-0 ${
+                          statusColor === 'green' ? 'bg-green-100 text-green-700' : 
+                          statusColor === 'red' ? 'bg-red-100 text-red-700' : 
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {statusLabel}
+                        </span>
+                      </div>
+                      
+                      {/* Action Buttons - Mobile */}
+                      {isUpcoming && (
+                        <div className="flex gap-2 pt-2 border-t">
+                          <button
+                            onClick={() => setDetailsModal({ open: true, booking })}
+                            className="flex-1 p-2 text-xs bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 active:bg-blue-200 font-medium min-h-[36px]"
+                          >
+                            View
+                          </button>
+                          <button
+                            onClick={() => setRescheduleModal({ open: true, booking, newDate: '', newTime: '', submitting: false })}
+                            className="flex-1 p-2 text-xs bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 active:bg-gray-200 font-medium min-h-[36px]"
+                          >
+                            Reschedule
+                          </button>
+                          <button
+                            onClick={() => setCancelModal({ open: true, booking, reason: '', submitting: false })}
+                            className="flex-1 p-2 text-xs bg-red-50 text-red-600 rounded-lg hover:bg-red-100 active:bg-red-200 font-medium min-h-[36px]"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Desktop Table Row */}
+                    <div className="hidden lg:grid grid-cols-12 gap-2 px-3 py-2.5 text-sm hover:bg-gray-50 transition-colors">
                       {/* Checkbox */}
                       <div className="col-span-1 flex items-center">
                         <input
@@ -673,23 +738,23 @@ export default function BookingsCompact() {
                         )}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Modals - Same as before but more compact */}
+      {/* Modals - Cancel Modal */}
       {cancelModal.open && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Cancel Booking</h3>
+              <h3 className="text-base sm:text-lg font-bold text-gray-900">Cancel Booking</h3>
               <button
                 onClick={() => setCancelModal({ open: false, booking: null, reason: '', submitting: false })}
-                className="p-2 hover:bg-gray-100 rounded-lg"
+                className="p-2 hover:bg-gray-100 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center"
               >
                 <X className="h-5 w-5 text-gray-500" />
               </button>
@@ -706,34 +771,28 @@ export default function BookingsCompact() {
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-3 mb-3 text-xs space-y-1">
-                <p><strong>Date:</strong> {formatDate(cancelModal.booking?.start_time)}</p>
-                <p><strong>Time:</strong> {formatTime(cancelModal.booking?.start_time)}</p>
-                <p><strong>Attendee:</strong> {cancelModal.booking?.attendee_name}</p>
-              </div>
-
-              <label className="block text-xs font-semibold text-gray-700 mb-2">Reason (Optional)</label>
+              <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">Reason (Optional)</label>
               <textarea
                 value={cancelModal.reason}
                 onChange={(e) => setCancelModal(prev => ({ ...prev, reason: e.target.value }))}
-                rows="2"
+                rows="3"
                 placeholder="Why are you cancelling?"
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-red-500 focus:outline-none resize-none"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none resize-none"
               />
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
               <button
                 onClick={() => setCancelModal({ open: false, booking: null, reason: '', submitting: false })}
                 disabled={cancelModal.submitting}
-                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium"
+                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:bg-gray-300 text-sm font-medium min-h-[44px]"
               >
                 Keep
               </button>
               <button
                 onClick={handleCancelBooking}
                 disabled={cancelModal.submitting}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 active:bg-red-800 text-sm font-medium flex items-center justify-center gap-2 min-h-[44px]"
               >
                 {cancelModal.submitting ? (
                   <>
@@ -749,14 +808,15 @@ export default function BookingsCompact() {
         </div>
       )}
 
+      {/* Reschedule Modal */}
       {rescheduleModal.open && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Reschedule</h3>
+              <h3 className="text-base sm:text-lg font-bold text-gray-900">Reschedule</h3>
               <button
                 onClick={() => setRescheduleModal({ open: false, booking: null, newDate: '', newTime: '', submitting: false })}
-                className="p-2 hover:bg-gray-100 rounded-lg"
+                className="p-2 hover:bg-gray-100 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center"
               >
                 <X className="h-5 w-5 text-gray-500" />
               </button>
@@ -771,39 +831,39 @@ export default function BookingsCompact() {
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">New Date</label>
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1">New Date</label>
                   <input
                     type="date"
                     value={rescheduleModal.newDate}
                     onChange={(e) => setRescheduleModal(prev => ({ ...prev, newDate: e.target.value }))}
                     min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none min-h-[44px]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">New Time</label>
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1">New Time</label>
                   <input
                     type="time"
                     value={rescheduleModal.newTime}
                     onChange={(e) => setRescheduleModal(prev => ({ ...prev, newTime: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none min-h-[44px]"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
               <button
                 onClick={() => setRescheduleModal({ open: false, booking: null, newDate: '', newTime: '', submitting: false })}
-                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium"
+                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:bg-gray-300 text-sm font-medium min-h-[44px]"
               >
                 Cancel
               </button>
               <button
                 onClick={handleRescheduleBooking}
                 disabled={rescheduleModal.submitting || !rescheduleModal.newDate || !rescheduleModal.newTime}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 text-sm font-medium flex items-center justify-center gap-2 min-h-[44px] disabled:opacity-50"
               >
                 {rescheduleModal.submitting ? (
                   <>
@@ -821,13 +881,13 @@ export default function BookingsCompact() {
 
       {/* Details Modal */}
       {detailsModal.open && detailsModal.booking && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-lg w-full p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Booking Details</h3>
+              <h3 className="text-base sm:text-lg font-bold text-gray-900">Booking Details</h3>
               <button
                 onClick={() => setDetailsModal({ open: false, booking: null })}
-                className="p-2 hover:bg-gray-100 rounded-lg"
+                className="p-2 hover:bg-gray-100 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center"
               >
                 <X className="h-5 w-5 text-gray-500" />
               </button>
@@ -835,37 +895,37 @@ export default function BookingsCompact() {
 
             <div className="space-y-3 text-sm">
               <div className="flex items-start gap-3">
-                <User className="h-5 w-5 text-gray-400 mt-0.5" />
-                <div>
+                <User className="h-5 w-5 text-gray-400 mt-0.5 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
                   <p className="text-xs text-gray-500">Attendee</p>
-                  <p className="font-semibold text-gray-900">{detailsModal.booking.attendee_name}</p>
-                  <p className="text-gray-600">{detailsModal.booking.attendee_email}</p>
+                  <p className="font-semibold text-gray-900 truncate">{detailsModal.booking.attendee_name}</p>
+                  <p className="text-gray-600 truncate">{detailsModal.booking.attendee_email}</p>
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
-                <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
+                <Calendar className="h-5 w-5 text-gray-400 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-xs text-gray-500">Date & Time</p>
                   <p className="font-semibold text-gray-900">{formatDate(detailsModal.booking.start_time)}</p>
-                  <p className="text-gray-600">{formatTime(detailsModal.booking.start_time)} - {formatTime(detailsModal.booking.end_time)}</p>
+                  <p className="text-gray-600">{formatTime(detailsModal.booking.start_time)}</p>
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
-                <Users className="h-5 w-5 text-gray-400 mt-0.5" />
-                <div>
+                <Users className="h-5 w-5 text-gray-400 mt-0.5 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
                   <p className="text-xs text-gray-500">Team</p>
-                  <p className="font-semibold text-gray-900">{detailsModal.booking.team_name}</p>
+                  <p className="font-semibold text-gray-900 truncate">{detailsModal.booking.team_name}</p>
                   {detailsModal.booking.member_name && (
-                    <p className="text-gray-600">{detailsModal.booking.member_name}</p>
+                    <p className="text-gray-600 truncate">{detailsModal.booking.member_name}</p>
                   )}
                 </div>
               </div>
 
               {detailsModal.booking.notes && (
                 <div className="flex items-start gap-3">
-                  <FileText className="h-5 w-5 text-gray-400 mt-0.5" />
+                  <Mail className="h-5 w-5 text-gray-400 mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="text-xs text-gray-500">Notes</p>
                     <p className="text-gray-900">{detailsModal.booking.notes}</p>
@@ -876,7 +936,7 @@ export default function BookingsCompact() {
 
             <button
               onClick={() => setDetailsModal({ open: false, booking: null })}
-              className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+              className="w-full mt-4 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 text-sm font-medium min-h-[44px]"
             >
               Close
             </button>
