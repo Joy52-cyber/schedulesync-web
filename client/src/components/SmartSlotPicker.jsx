@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { Calendar, Clock, Check, Info, Loader2, Eye, EyeOff, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import axios from 'axios';
+import { bookings } from '../utils/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 
   (window.location.hostname === 'localhost' 
@@ -32,16 +33,15 @@ export default function SmartSlotPicker({
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       console.log('🌍 User timezone detected:', userTimezone);
       
-      const response = await axios.post(
-        `${API_URL}/book/${bookingToken}/slots-with-status`,
-        {
-          guestAccessToken: guestCalendar?.accessToken,
-          guestRefreshToken: guestCalendar?.refreshToken,
-          duration: 30,
-          daysAhead: 14,
-          timezone: userTimezone
-        }
-      );
+     const response = await bookings.getSlots(bookingToken, {
+  guestAccessToken: guestCalendar?.accessToken,
+  guestRefreshToken: guestCalendar?.refreshToken,
+  duration: duration || 30,
+  timezone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+});
+
+// Then access the data:
+const slotsData = response.data;
 
       console.log('📊 Loaded slots:', {
         totalDates: Object.keys(response.data.slots).length,
