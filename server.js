@@ -823,6 +823,8 @@ if (blocked_times && blocked_times.length > 0) {
 
 // ============ ENHANCED SLOT AVAILABILITY WITH REASONS ============
 
+// ============ ENHANCED SLOT GENERATION WITH ALL AVAILABILITY RULES ============
+
 app.post('/api/book/:token/slots-with-status', async (req, res) => {
   try {
     const { token } = req.params;
@@ -830,18 +832,26 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       guestAccessToken, 
       guestRefreshToken,
       duration = 30,
-      daysAhead = 14,
       timezone = 'America/New_York'
     } = req.body;
 
-    console.log('📅 Getting slots with status for token:', token);
-    console.log('🔍 Guest calendar:', guestAccessToken ? 'CONNECTED' : 'NOT CONNECTED');
+    console.log('📅 Generating slots with FULL availability rules for:', token);
 
-    // Get organizer info
+    // ========== 1. GET MEMBER & SETTINGS ==========
     const memberResult = await pool.query(
-      `SELECT tm.*, u.google_access_token, u.google_refresh_token, u.name as organizer_name
+      `SELECT tm.*, 
+              tm.buffer_time,
+              tm.working_hours,
+              tm.lead_time_hours,
+              tm.booking_horizon_days,
+              tm.daily_booking_cap,
+              u.google_access_token, 
+              u.google_refresh_token, 
+              u.name as organizer_name,
+              t.id as team_id
        FROM team_members tm
        LEFT JOIN users u ON tm.user_id = u.id
+       LEFT JOIN teams t ON tm.team_id = t.id
        WHERE tm.booking_token = $1`,
       [token]
     );
@@ -851,16 +861,59 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     }
 
     const member = memberResult.rows[0];
+    
+    // Default settings
+    const bufferTime = member.buffer_time || 0; // minutes
+    const leadTimeHours = member.lead_time_hours || 0; // minimum notice
+    const horizonDays = member.booking_horizon_days || 30; // max days ahead
+    const dailyCap = member.daily_booking_cap || null; // max bookings per day
+    
+    const workingHours = member.working_hours || {
+      monday: { enabled: true, start: '09:00', end: '17:00' },
+      tuesday: { enabled: true, start: '09:00', end: '17:00' },
+      wednesday: { enabled: true, start: '09:00', end: '17:00' },
+      thursday: { enabled: true, start: '09:00', end: '17:00' },
+      friday: { enabled: true, start: '09:00', end: '17:00' },
+      saturday: { enabled: false, start: '09:00', end: '17:00' },
+      sunday: { enabled: false, start: '09:00', end: '17:00' },
+    };
 
-    // Get busy times
-    let guestBusy = [];
-    let organizerBusy = [];
+    console.log('⚙️ Settings:', {
+      bufferTime,
+      leadTimeHours,
+      horizonDays,
+      dailyCap
+    });
 
+    // ========== 2. GET BLOCKED TIMES ==========
+    const blockedResult = await pool.query(
+      `SELECT * FROM blocked_times 
+       WHERE team_member_id = $1 
+       AND end_time > NOW()
+       ORDER BY start_time ASC`,
+      [member.id]
+    );
+    const blockedTimes = blockedResult.rows;
+
+    // ========== 3. GET EXISTING BOOKINGS (for buffer & daily cap) ==========
     const now = new Date();
     const endDate = new Date(now);
-    endDate.setDate(endDate.getDate() + daysAhead);
+    endDate.setDate(endDate.getDate() + horizonDays);
 
-    // Fetch organizer's busy times (if connected)
+    const bookingsResult = await pool.query(
+      `SELECT start_time, end_time 
+       FROM bookings 
+       WHERE member_id = $1 
+       AND status = 'confirmed'
+       AND start_time >= $2 
+       AND start_time <= $3
+       ORDER BY start_time ASC`,
+      [member.id, now.toISOString(), endDate.toISOString()]
+    );
+    const existingBookings = bookingsResult.rows;
+
+    // ========== 4. GET ORGANIZER CALENDAR BUSY TIMES ==========
+    let organizerBusy = [];
     if (member.google_access_token && member.google_refresh_token) {
       try {
         const calendar = google.calendar({ version: 'v3' });
@@ -883,13 +936,14 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         });
 
         organizerBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
-        console.log('✅ Organizer busy times loaded:', organizerBusy.length);
+        console.log('✅ Organizer calendar loaded:', organizerBusy.length, 'busy blocks');
       } catch (error) {
         console.error('⚠️ Failed to fetch organizer calendar:', error.message);
       }
     }
 
-    // Fetch guest's busy times (if provided)
+    // ========== 5. GET GUEST CALENDAR BUSY TIMES ==========
+    let guestBusy = [];
     if (guestAccessToken) {
       try {
         const calendar = google.calendar({ version: 'v3' });
@@ -913,109 +967,229 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         });
 
         guestBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
-        console.log('✅ Guest busy times loaded:', guestBusy.length);
+        console.log('✅ Guest calendar loaded:', guestBusy.length, 'busy blocks');
       } catch (error) {
         console.error('⚠️ Failed to fetch guest calendar:', error.message);
       }
     }
 
-    // Generate slots
-    const slots = [];
-    const WORK_START_HOUR = 9;
-    const WORK_END_HOUR = 17;
-
+    // ========== 6. HELPER FUNCTIONS ==========
     const tzOffsetHours = getTimezoneOffset(timezone);
 
-    for (let dayOffset = 0; dayOffset < daysAhead; dayOffset++) {
+    const dayNameMap = {
+      0: 'sunday',
+      1: 'monday',
+      2: 'tuesday',
+      3: 'wednesday',
+      4: 'thursday',
+      5: 'friday',
+      6: 'saturday'
+    };
+
+    const isWithinWorkingHours = (slotStart, dayOfWeek) => {
+      const dayName = dayNameMap[dayOfWeek];
+      const daySettings = workingHours[dayName];
+      
+      if (!daySettings || !daySettings.enabled) {
+        return false;
+      }
+
+      const slotHour = slotStart.getHours();
+      const slotMinute = slotStart.getMinutes();
+      const slotTime = slotHour * 60 + slotMinute;
+
+      const [startHour, startMinute] = daySettings.start.split(':').map(Number);
+      const [endHour, endMinute] = daySettings.end.split(':').map(Number);
+      const startTime = startHour * 60 + startMinute;
+      const endTime = endHour * 60 + endMinute;
+
+      return slotTime >= startTime && slotTime < endTime;
+    };
+
+    const hasConflict = (slotStart, slotEnd, busyTimes) => {
+      return busyTimes.some(busy => {
+        const busyStart = new Date(busy.start);
+        const busyEnd = new Date(busy.end);
+        return (
+          (slotStart >= busyStart && slotStart < busyEnd) ||
+          (slotEnd > busyStart && slotEnd <= busyEnd) ||
+          (slotStart <= busyStart && slotEnd >= busyEnd)
+        );
+      });
+    };
+
+    const isBlocked = (slotStart, slotEnd) => {
+      return blockedTimes.some(block => {
+        const blockStart = new Date(block.start_time);
+        const blockEnd = new Date(block.end_time);
+        return (
+          (slotStart >= blockStart && slotStart < blockEnd) ||
+          (slotEnd > blockStart && slotEnd <= blockEnd) ||
+          (slotStart <= blockStart && slotEnd >= blockEnd)
+        );
+      });
+    };
+
+    const hasBufferViolation = (slotStart, slotEnd) => {
+      if (bufferTime === 0) return false;
+
+      return existingBookings.some(booking => {
+        const bookingStart = new Date(booking.start_time);
+        const bookingEnd = new Date(booking.end_time);
+
+        // Check if slot is too close before booking
+        const beforeBuffer = new Date(bookingStart);
+        beforeBuffer.setMinutes(beforeBuffer.getMinutes() - bufferTime);
+        if (slotEnd > beforeBuffer && slotStart < bookingStart) {
+          return true;
+        }
+
+        // Check if slot is too close after booking
+        const afterBuffer = new Date(bookingEnd);
+        afterBuffer.setMinutes(afterBuffer.getMinutes() + bufferTime);
+        if (slotStart < afterBuffer && slotEnd > bookingEnd) {
+          return true;
+        }
+
+        return false;
+      });
+    };
+
+    // ========== 7. GENERATE SLOTS WITH ALL RULES ==========
+    const slots = [];
+    const dailyBookingCounts = {}; // Track bookings per day for daily cap
+
+    // Calculate earliest bookable time (now + lead time)
+    const earliestBookable = new Date(now);
+    earliestBookable.setHours(earliestBookable.getHours() + leadTimeHours);
+
+    // Calculate latest bookable time (now + horizon)
+    const latestBookable = new Date(now);
+    latestBookable.setDate(latestBookable.getDate() + horizonDays);
+
+    console.log('⏰ Time window:', {
+      earliestBookable: earliestBookable.toISOString(),
+      latestBookable: latestBookable.toISOString()
+    });
+
+    // Generate slots for each day
+    for (let dayOffset = 0; dayOffset < horizonDays; dayOffset++) {
       const checkDate = new Date(now);
       checkDate.setDate(checkDate.getDate() + dayOffset);
-      
-      const baseDateUTC = new Date(checkDate);
-      baseDateUTC.setUTCHours(0, 0, 0, 0);
-      
-      const userTZDate = new Date(baseDateUTC.getTime() + (tzOffsetHours * 60 * 60 * 1000));
-      const dayOfWeek = userTZDate.getUTCDay();
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      checkDate.setHours(0, 0, 0, 0);
 
-      // Generate slots for work hours
-      for (let hour = WORK_START_HOUR; hour < WORK_END_HOUR; hour++) {
+      const dayOfWeek = checkDate.getDay();
+      const dayName = dayNameMap[dayOfWeek];
+      const daySettings = workingHours[dayName];
+
+      // Skip if day is not enabled
+      if (!daySettings || !daySettings.enabled) {
+        continue;
+      }
+
+      // Parse working hours for this day
+      const [startHour, startMinute] = daySettings.start.split(':').map(Number);
+      const [endHour, endMinute] = daySettings.end.split(':').map(Number);
+
+      // Initialize daily booking count
+      const dateKey = checkDate.toISOString().split('T')[0];
+      if (!dailyBookingCounts[dateKey]) {
+        dailyBookingCounts[dateKey] = existingBookings.filter(b => {
+          const bookingDate = new Date(b.start_time).toISOString().split('T')[0];
+          return bookingDate === dateKey;
+        }).length;
+      }
+
+      // Generate 30-minute slots within working hours
+      for (let hour = startHour; hour < endHour; hour++) {
         for (let minute = 0; minute < 60; minute += 30) {
-          const slotLocalTime = new Date(baseDateUTC);
-          slotLocalTime.setUTCHours(hour, minute, 0, 0);
+          // Skip if this time is past the end of working hours
+          if (hour === endHour - 1 && minute + duration > 60) break;
+          if (hour >= endHour) break;
+
+          const slotStart = new Date(checkDate);
+          slotStart.setHours(hour, minute, 0, 0);
           
-          const slotStart = new Date(slotLocalTime.getTime() - (tzOffsetHours * 60 * 60 * 1000));
           const slotEnd = new Date(slotStart);
           slotEnd.setMinutes(slotEnd.getMinutes() + duration);
-
-          const startTime = slotStart.toISOString();
-          const endTime = slotEnd.toISOString();
 
           let status = 'available';
           let reason = null;
           let details = null;
 
-          // Check if time has passed
-          if (slotStart < now) {
-            status = 'unavailable';
-            reason = 'past';
-            details = 'Time has passed';
-          }
-          // Check if weekend
-          else if (isWeekend) {
-            status = 'unavailable';
-            reason = 'weekend';
-            details = 'Weekend';
-          }
-          // Check conflicts
-          else {
-            const organizerConflict = organizerBusy.some(busy => {
-              const busyStart = new Date(busy.start);
-              const busyEnd = new Date(busy.end);
-              return (
-                (slotStart >= busyStart && slotStart < busyEnd) ||
-                (slotEnd > busyStart && slotEnd <= busyEnd) ||
-                (slotStart <= busyStart && slotEnd >= busyEnd)
-              );
-            });
+          // ========== APPLY ALL RULES ==========
 
-            const guestConflict = guestBusy.some(busy => {
-              const busyStart = new Date(busy.start);
-              const busyEnd = new Date(busy.end);
-              return (
-                (slotStart >= busyStart && slotStart < busyEnd) ||
-                (slotEnd > busyStart && slotEnd <= busyEnd) ||
-                (slotStart <= busyStart && slotEnd >= busyEnd)
-              );
-            });
-
-            if (organizerConflict && guestConflict) {
-              status = 'unavailable';
-              reason = 'both_busy';
-              details = 'Both calendars show conflicts';
-            } else if (organizerConflict) {
-              status = 'unavailable';
-              reason = 'organizer_busy';
-              details = `${member.organizer_name || 'Organizer'} has another meeting`;
-            } else if (guestConflict) {
-              status = 'unavailable';
-              reason = 'guest_busy';
-              details = "You have another meeting";
-            }
+          // Rule 1: Lead time
+          if (slotStart < earliestBookable) {
+            status = 'unavailable';
+            reason = 'lead_time';
+            details = `Minimum ${leadTimeHours}h notice required`;
           }
+          // Rule 2: Horizon limit
+          else if (slotStart > latestBookable) {
+            status = 'unavailable';
+            reason = 'horizon';
+            details = `Only ${horizonDays} days ahead available`;
+          }
+          // Rule 3: Working hours (double-check)
+          else if (!isWithinWorkingHours(slotStart, dayOfWeek)) {
+            status = 'unavailable';
+            reason = 'outside_hours';
+            details = 'Outside working hours';
+          }
+          // Rule 4: Blocked times
+          else if (isBlocked(slotStart, slotEnd)) {
+            status = 'unavailable';
+            reason = 'blocked';
+            details = 'Time blocked by organizer';
+          }
+          // Rule 5: Buffer time violations
+          else if (hasBufferViolation(slotStart, slotEnd)) {
+            status = 'unavailable';
+            reason = 'buffer';
+            details = `${bufferTime}min buffer required`;
+          }
+          // Rule 6: Daily cap
+          else if (dailyCap && dailyBookingCounts[dateKey] >= dailyCap) {
+            status = 'unavailable';
+            reason = 'daily_cap';
+            details = `Daily limit (${dailyCap}) reached`;
+          }
+          // Rule 7: Organizer calendar conflicts
+          else if (hasConflict(slotStart, slotEnd, organizerBusy)) {
+            status = 'unavailable';
+            reason = 'organizer_busy';
+            details = `${member.organizer_name || 'Organizer'} has another meeting`;
+          }
+          // Rule 8: Guest calendar conflicts
+          else if (hasConflict(slotStart, slotEnd, guestBusy)) {
+            status = 'unavailable';
+            reason = 'guest_busy';
+            details = "You have another meeting";
+          }
+
+          // Format time for display
+          const time = new Intl.DateTimeFormat('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+            timeZone: timezone
+          }).format(slotStart);
 
           slots.push({
-            start: startTime,
-            end: endTime,
+            start: slotStart.toISOString(),
+            end: slotEnd.toISOString(),
             status,
             reason,
             details,
+            time,
             timestamp: slotStart.getTime()
           });
         }
       }
     }
 
-    // Group slots by date
+    // ========== 8. GROUP BY DATE ==========
     const slotsByDate = {};
     slots.forEach(slot => {
       const slotDate = new Date(slot.start);
@@ -1033,13 +1207,6 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         timeZone: timezone 
       }).format(slotDate);
       
-      const time = new Intl.DateTimeFormat('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-        timeZone: timezone
-      }).format(slotDate);
-      
       if (!slotsByDate[dateKey]) {
         slotsByDate[dateKey] = [];
       }
@@ -1047,12 +1214,12 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       slotsByDate[dateKey].push({
         ...slot,
         date: dateKey,
-        dayOfWeek: dayOfWeek,
-        time: time
+        dayOfWeek: dayOfWeek
       });
     });
 
-    console.log(`✅ Generated ${slots.length} slots (${Object.keys(slotsByDate).length} days)`);
+    console.log(`✅ Generated ${slots.length} slots across ${Object.keys(slotsByDate).length} days`);
+    console.log(`✅ Available: ${slots.filter(s => s.status === 'available').length}`);
 
     res.json({
       slots: slotsByDate,
@@ -1060,16 +1227,22 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         totalSlots: slots.length,
         availableSlots: slots.filter(s => s.status === 'available').length,
         hasGuestCalendar: guestBusy.length > 0,
-        hasOrganizerCalendar: organizerBusy.length > 0
+        hasOrganizerCalendar: organizerBusy.length > 0,
+        settings: {
+          bufferTime,
+          leadTimeHours,
+          horizonDays,
+          dailyCap,
+          workingDays: Object.keys(workingHours).filter(day => workingHours[day].enabled)
+        }
       }
     });
 
   } catch (error) {
-    console.error('❌ Slot status error:', error);
-    res.status(500).json({ error: 'Failed to get slot availability' });
+    console.error('❌ Enhanced slot generation error:', error);
+    res.status(500).json({ error: 'Failed to generate slots' });
   }
 });
-
 // ============ MY BOOKING LINK (PERSONAL BOOKING PAGE) ============
 
 app.get('/api/my-booking-link', authenticateToken, async (req, res) => {
