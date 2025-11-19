@@ -51,6 +51,18 @@ export default function AvailabilitySettings() {
     { value: 60, label: '1 hour' },
   ];
 
+  // Helper: Convert ISO timestamp to datetime-local format
+  const convertISOToDateTimeLocal = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   useEffect(() => {
     loadMemberSettings();
   }, [memberId]);
@@ -68,7 +80,14 @@ export default function AvailabilitySettings() {
         setWorkingHours(data.member.working_hours);
       }
 
-      setBlockedTimes(data.blocked_times || []);
+      // Convert ISO timestamps to datetime-local format
+      const formattedBlockedTimes = (data.blocked_times || []).map(block => ({
+        ...block,
+        start_time: convertISOToDateTimeLocal(block.start_time),
+        end_time: convertISOToDateTimeLocal(block.end_time),
+      }));
+
+      setBlockedTimes(formattedBlockedTimes);
     } catch (error) {
       console.error('Error loading availability:', error);
     } finally {
@@ -77,35 +96,39 @@ export default function AvailabilitySettings() {
   };
 
   const handleSave = async () => {
-  try {
-    setSaving(true);
+    try {
+      setSaving(true);
 
-    // Filter out empty blocked times (ones without dates)
-    const validBlockedTimes = blockedTimes.filter(
-      block => block.start_time && block.end_time
-    );
+      // Filter out empty blocked times and convert to ISO
+      const validBlockedTimes = blockedTimes
+        .filter(block => block.start_time && block.end_time)
+        .map(block => ({
+          start_time: new Date(block.start_time).toISOString(),
+          end_time: new Date(block.end_time).toISOString(),
+          reason: block.reason || null,
+        }));
 
-    console.log('💾 Saving availability:', {
-      buffer_time: bufferTime,
-      working_hours: workingHours,
-      blocked_times: validBlockedTimes
-    });
+      console.log('💾 Saving availability:', {
+        buffer_time: bufferTime,
+        working_hours: workingHours,
+        blocked_times: validBlockedTimes
+      });
 
-    await api.put(`/team-members/${memberId}/availability`, {
-      buffer_time: bufferTime,
-      working_hours: workingHours,
-      blocked_times: validBlockedTimes,
-    });
+      await api.put(`/team-members/${memberId}/availability`, {
+        buffer_time: bufferTime,
+        working_hours: workingHours,
+        blocked_times: validBlockedTimes,
+      });
 
-    console.log('✅ Availability settings saved');
-    navigate(-1);
-  } catch (error) {
-    console.error('Error saving availability:', error);
-    alert('Failed to save settings. Please try again.');
-  } finally {
-    setSaving(false);
-  }
-};
+      console.log('✅ Availability settings saved');
+      navigate(-1);
+    } catch (error) {
+      console.error('Error saving availability:', error);
+      alert('Failed to save settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const toggleDay = (day) => {
     setWorkingHours({
