@@ -1932,7 +1932,7 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
        RETURNING *`,
       [newStartTime, newEndTime, token]
     );
-
+    
     const updatedBooking = updateResult.rows[0];
 
     console.log('✅ Booking rescheduled successfully');
@@ -2679,7 +2679,7 @@ app.put('/api/team-members/:id/timezone', authenticateToken, async (req, res) =>
 
 // ============ PAYMENT ENDPOINTS ============
 
-const stripeService = require('./server/utils/stripe');
+const stripeService = require('./utils/stripe');
 
 // Get Stripe publishable key
 app.get('/api/payments/config', (req, res) => {
