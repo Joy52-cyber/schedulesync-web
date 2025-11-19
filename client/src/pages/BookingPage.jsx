@@ -178,9 +178,14 @@ export default function BookingPage() {
       notes: formData.notes,
     });
 
+    // ADD THIS - See what API returns
+    console.log('🔍 Full API response:', response);
+    console.log('🔍 Response data:', response.data);
+    console.log('🔍 Booking object:', response.data.booking);
+
     // Prepare booking data for confirmation page
     const bookingData = {
-      id: response.data.booking.id,
+      id: response.data.booking?.id,
       start_time: selectedSlot.start,
       end_time: selectedSlot.end,
       attendee_name: formData.attendee_name,
@@ -188,16 +193,20 @@ export default function BookingPage() {
       organizer_name: memberInfo?.name,
       team_name: teamInfo?.name,
       notes: formData.notes,
-      meet_link: response.data.booking.meet_link || null,
-      booking_token: response.data.booking.booking_token || token,
+      meet_link: response.data.booking?.meet_link || null,
+      booking_token: response.data.booking?.booking_token || token,
     };
 
-    // Pass as URL parameter (required by BookingConfirmation component)
+    console.log('📦 Booking data being passed:', bookingData);
+
+    // Pass as URL parameter
     const dataParam = encodeURIComponent(JSON.stringify(bookingData));
+    console.log('🔗 Navigating to:', `/booking-confirmation?data=${dataParam}`);
     navigate(`/booking-confirmation?data=${dataParam}`);
 
   } catch (err) {
-    console.error('Error creating booking:', err);
+    console.error('❌ Full error:', err);
+    console.error('❌ Error response:', err.response);
     alert(err.response?.data?.error || 'Failed to create booking. Please try again.');
   } finally {
     setSubmitting(false);
