@@ -2677,6 +2677,356 @@ app.put('/api/team-members/:id/timezone', authenticateToken, async (req, res) =>
   }
 });
 
+// ============ PAYMENT ENDPOINTS ============
+
+const stripeService = require('./utils/stripe');
+
+// Get pricing for a booking token
+app.get('/api/book/:token/pricing', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const memberResult = await pool.query(
+      `SELECT tm.booking_price, tm.currency, tm.payment_required, tm.name,
+              t.name as team_name
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       WHERE tm.booking_token = $1`,
+      [token]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    const member = memberResult.rows[0];
+
+    res.json({
+      price: member.booking_price || 0,
+      currency: member.currency || 'USD',
+      paymentRequired: member.payment_required || false,
+      memberName: member.name,
+      teamName: member.team_name,
+    });
+  } catch (error) {
+    console.error('❌ Get pricing error:', error);
+    res.status(500).json({ error: 'Failed to get pricing' });
+  }
+});
+
+// Create payment intent
+app.post('/api/payments/create-intent', async (req, res) => {
+  try {
+    const { bookingToken, attendeeName, attendeeEmail } = req.body;
+
+    if (!bookingToken) {
+      return res.status(400).json({ error: 'Booking token required' });
+    }
+
+    // Get member pricing
+    const memberResult = await pool.query(
+      `SELECT tm.booking_price, tm.currency, tm.payment_required, tm.name,
+              t.name as team_name
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       WHERE tm.booking_token = $1`,
+      [bookingToken]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    const member = memberResult.rows[0];
+
+    if (!member.payment_required || member.booking_price <= 0) {
+      return res.status(400).json({ error: 'Payment not required for this booking' });
+    }
+
+    // Create Stripe payment intent
+    const paymentIntent = await stripeService.createPaymentIntent({
+      amount: member.booking_price,
+      currency: member.currency || 'USD',
+      metadata: {
+        booking_token: bookingToken,
+        attendee_name: attendeeName,
+        attendee_email: attendeeEmail,
+        member_name: member.name,
+        team_name: member.team_name,
+      },
+    });
+
+    console.log('✅ Payment intent created:', paymentIntent.id);
+
+    res.json({
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+      amount: member.booking_price,
+      currency: member.currency || 'USD',
+    });
+  } catch (error) {
+    console.error('❌ Create payment intent error:', error);
+    res.status(500).json({ error: 'Failed to create payment intent' });
+  }
+});
+
+// Confirm payment and create booking
+app.post('/api/payments/confirm-booking', async (req, res) => {
+  try {
+    const { paymentIntentId, bookingToken, slot, attendeeName, attendeeEmail, notes } = req.body;
+
+    console.log('💳 Confirming payment and creating booking:', paymentIntentId);
+
+    // Verify payment was successful
+    const paymentIntent = await stripeService.getPaymentIntent(paymentIntentId);
+
+    if (paymentIntent.status !== 'succeeded') {
+      return res.status(400).json({ error: 'Payment not completed' });
+    }
+
+    // Get member details
+    const memberResult = await pool.query(
+      `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
+              u.google_access_token, u.google_refresh_token, 
+              u.email as member_email, u.name as member_name
+       FROM team_members tm 
+       JOIN teams t ON tm.team_id = t.id 
+       LEFT JOIN users u ON tm.user_id = u.id 
+       WHERE tm.booking_token = $1`,
+      [bookingToken]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    const member = memberResult.rows[0];
+
+    // Create booking with payment info
+    const bookingResult = await pool.query(
+      `INSERT INTO bookings (
+        team_id, member_id, user_id, attendee_name, attendee_email, 
+        start_time, end_time, notes, booking_token, status,
+        payment_status, payment_amount, payment_currency, 
+        stripe_payment_intent_id, payment_receipt_url
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
+      RETURNING *`,
+      [
+        member.team_id, member.id, member.user_id, attendeeName, attendeeEmail,
+        slot.start, slot.end, notes || '', bookingToken, 'confirmed',
+        'paid', paymentIntent.amount / 100, paymentIntent.currency,
+        paymentIntentId, paymentIntent.charges?.data[0]?.receipt_url
+      ]
+    );
+
+    const booking = bookingResult.rows[0];
+
+    // Record payment in payments table
+    await pool.query(
+      `INSERT INTO payments (
+        booking_id, stripe_payment_intent_id, amount, currency, 
+        status, payment_method_id, receipt_url, metadata
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        booking.id, paymentIntentId, paymentIntent.amount / 100, paymentIntent.currency,
+        'succeeded', paymentIntent.payment_method, 
+        paymentIntent.charges?.data[0]?.receipt_url,
+        JSON.stringify(paymentIntent.metadata)
+      ]
+    );
+
+    console.log('✅ Booking created with payment:', booking.id);
+
+    // Send confirmation emails (async)
+    (async () => {
+      try {
+        const icsFile = generateICS({
+          id: booking.id,
+          start_time: booking.start_time,
+          end_time: booking.end_time,
+          attendee_name: attendeeName,
+          attendee_email: attendeeEmail,
+          organizer_name: member.member_name || member.name,
+          organizer_email: member.member_email || member.email,
+          team_name: member.team_name,
+          notes: notes,
+        });
+
+        const bookingWithPayment = {
+          ...booking,
+          attendee_name: attendeeName,
+          attendee_email: attendeeEmail,
+          organizer_name: member.member_name || member.name,
+          team_name: member.team_name,
+          notes,
+          payment_amount: booking.payment_amount,
+          payment_currency: booking.payment_currency,
+          payment_receipt_url: booking.payment_receipt_url,
+        };
+
+        await sendBookingEmail({
+          to: attendeeEmail,
+          subject: '✅ Payment Confirmed & Booking Complete - ScheduleSync',
+          html: emailTemplates.bookingConfirmationGuestWithPayment(bookingWithPayment),
+          icsAttachment: icsFile,
+        });
+
+        if (member.member_email || member.email) {
+          await sendBookingEmail({
+            to: member.member_email || member.email,
+            subject: '💰 New Paid Booking Received - ScheduleSync',
+            html: emailTemplates.bookingConfirmationOrganizerWithPayment(bookingWithPayment),
+            icsAttachment: icsFile,
+          });
+        }
+
+        console.log('✅ Payment confirmation emails sent');
+      } catch (emailError) {
+        console.error('⚠️ Failed to send emails:', emailError);
+      }
+    })();
+
+    res.json({
+      success: true,
+      booking: {
+        id: booking.id,
+        start_time: booking.start_time,
+        end_time: booking.end_time,
+        payment_amount: booking.payment_amount,
+        payment_currency: booking.payment_currency,
+        payment_receipt_url: booking.payment_receipt_url,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Confirm booking error:', error);
+    res.status(500).json({ error: 'Failed to confirm booking' });
+  }
+});
+
+// Process refund on cancellation
+app.post('/api/payments/refund', authenticateToken, async (req, res) => {
+  try {
+    const { bookingId, reason } = req.body;
+    const userId = req.user.id;
+
+    console.log('💸 Processing refund for booking:', bookingId);
+
+    // Get booking with payment info
+    const bookingResult = await pool.query(
+      `SELECT b.*, t.owner_id, tm.user_id as member_user_id
+       FROM bookings b
+       JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE b.id = $1`,
+      [bookingId]
+    );
+
+    if (bookingResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    const booking = bookingResult.rows[0];
+
+    // Check permission
+    const hasPermission = booking.owner_id === userId || booking.member_user_id === userId;
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Check if payment exists
+    if (!booking.stripe_payment_intent_id || booking.payment_status !== 'paid') {
+      return res.status(400).json({ error: 'No payment to refund' });
+    }
+
+    // Process refund via Stripe
+    const refund = await stripeService.createRefund({
+      paymentIntentId: booking.stripe_payment_intent_id,
+      reason: reason || 'requested_by_customer',
+    });
+
+    // Update booking
+    await pool.query(
+      `UPDATE bookings 
+       SET payment_status = 'refunded',
+           refund_id = $1,
+           refund_amount = $2,
+           refund_status = $3
+       WHERE id = $4`,
+      [refund.id, refund.amount / 100, refund.status, bookingId]
+    );
+
+    // Record refund
+    await pool.query(
+      `INSERT INTO refunds (booking_id, stripe_refund_id, amount, currency, status, reason)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [bookingId, refund.id, refund.amount / 100, refund.currency, refund.status, reason]
+    );
+
+    console.log('✅ Refund processed:', refund.id);
+
+    res.json({
+      success: true,
+      refund: {
+        id: refund.id,
+        amount: refund.amount / 100,
+        currency: refund.currency,
+        status: refund.status,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Refund error:', error);
+    res.status(500).json({ error: 'Failed to process refund' });
+  }
+});
+
+// Get Stripe publishable key
+app.get('/api/payments/config', (req, res) => {
+  res.json({
+    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+  });
+});
+
+// Webhook endpoint for Stripe events
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const signature = req.headers['stripe-signature'];
+
+  try {
+    const event = stripeService.constructWebhookEvent(req.body, signature);
+
+    console.log('🔔 Stripe webhook event:', event.type);
+
+    switch (event.type) {
+      case 'payment_intent.succeeded':
+        // Payment was successful
+        const paymentIntent = event.data.object;
+        console.log('✅ Payment succeeded:', paymentIntent.id);
+        break;
+
+      case 'payment_intent.payment_failed':
+        // Payment failed
+        const failedPayment = event.data.object;
+        console.log('❌ Payment failed:', failedPayment.id);
+        break;
+
+      case 'charge.refunded':
+        // Refund processed
+        const refund = event.data.object;
+        console.log('💸 Refund processed:', refund.id);
+        break;
+
+      default:
+        console.log('ℹ️ Unhandled event type:', event.type);
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error('❌ Webhook error:', error);
+    res.status(400).send(`Webhook Error: ${error.message}`);
+  }
+});
+
 // ============ START SERVER ============
 
 const port = process.env.PORT || 3000;

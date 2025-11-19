@@ -26,7 +26,8 @@
     "jsonwebtoken": "^9.0.2",
     "node-cron": "^4.2.1",
     "pg": "^8.11.3",
-    "resend": "^3.0.0"
+    "resend": "^3.0.0",
+    "stripe": "^20.0.0"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
