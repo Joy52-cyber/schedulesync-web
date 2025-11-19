@@ -1970,7 +1970,6 @@ console.log('✅ Booking reminder scheduler initialized');
 
 app.post('/api/admin/send-reminders', authenticateToken, async (req, res) => {
   try {
-    // Only allow admins or for development
     console.log('🔔 Manual reminder check triggered by user:', req.user.email);
     await checkAndSendReminders();
     res.json({ success: true, message: 'Reminder check completed' });
