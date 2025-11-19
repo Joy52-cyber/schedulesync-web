@@ -15,6 +15,7 @@ import {
   Plus,
 } from 'lucide-react';
 import api from '../utils/api';
+import ReminderStatus from '../components/ReminderStatus';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -354,8 +355,11 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Upcoming This Week & Team Performance */}
+      {/* Reminder Status & Upcoming This Week */}
       <div className="grid lg:grid-cols-2 gap-4">
+        {/* NEW: Reminder Status Widget */}
+        <ReminderStatus />
+
         {/* Upcoming This Week */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="flex items-center justify-between mb-4">
@@ -408,64 +412,64 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+      </div>
 
-        {/* Team Performance */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-green-600" />
-              Team Performance
-            </h2>
+      {/* Team Performance */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-green-600" />
+            Team Performance
+          </h2>
+          <button
+            onClick={() => navigate('/teams')}
+            className="text-xs text-green-600 hover:text-green-700 font-medium flex items-center gap-1"
+          >
+            Manage
+            <ArrowRight className="h-3 w-3" />
+          </button>
+        </div>
+
+        {teamStats.length === 0 ? (
+          <div className="text-center py-6">
+            <Users className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+            <p className="text-gray-600 text-xs mb-2">No teams yet</p>
             <button
               onClick={() => navigate('/teams')}
-              className="text-xs text-green-600 hover:text-green-700 font-medium flex items-center gap-1"
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium"
             >
-              Manage
-              <ArrowRight className="h-3 w-3" />
+              <Plus className="h-3 w-3" />
+              Create Team
             </button>
           </div>
-
-          {teamStats.length === 0 ? (
-            <div className="text-center py-6">
-              <Users className="h-10 w-10 text-gray-300 mx-auto mb-2" />
-              <p className="text-gray-600 text-xs mb-2">No teams yet</p>
-              <button
-                onClick={() => navigate('/teams')}
-                className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium"
-              >
-                <Plus className="h-3 w-3" />
-                Create Team
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {teamStats.map((team) => (
-                <div key={team.teamId} className="border-b border-gray-100 last:border-0 pb-3 last:pb-0">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold text-sm text-gray-900">{team.teamName}</h3>
-                    <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded-full">
-                      {getBookingModeLabel(team.bookingMode)}
-                    </span>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {teamStats.map((team) => (
+              <div key={team.teamId} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-sm text-gray-900 truncate">{team.teamName}</h3>
+                  <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full whitespace-nowrap">
+                    {getBookingModeLabel(team.bookingMode)}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-blue-50 rounded-lg p-2">
+                    <p className="text-lg font-bold text-blue-600">{team.totalBookings}</p>
+                    <p className="text-xs text-gray-600">Total</p>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="bg-blue-50 rounded-lg p-1.5">
-                      <p className="text-lg font-bold text-blue-600">{team.totalBookings}</p>
-                      <p className="text-xs text-gray-600">Total</p>
-                    </div>
-                    <div className="bg-green-50 rounded-lg p-1.5">
-                      <p className="text-lg font-bold text-green-600">{team.upcomingBookings}</p>
-                      <p className="text-xs text-gray-600">Upcoming</p>
-                    </div>
-                    <div className="bg-purple-50 rounded-lg p-1.5">
-                      <p className="text-lg font-bold text-purple-600">{team.completedBookings}</p>
-                      <p className="text-xs text-gray-600">Done</p>
-                    </div>
+                  <div className="bg-green-50 rounded-lg p-2">
+                    <p className="text-lg font-bold text-green-600">{team.upcomingBookings}</p>
+                    <p className="text-xs text-gray-600">Upcoming</p>
+                  </div>
+                  <div className="bg-purple-50 rounded-lg p-2">
+                    <p className="text-lg font-bold text-purple-600">{team.completedBookings}</p>
+                    <p className="text-xs text-gray-600">Done</p>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Performance Insights */}

@@ -9,9 +9,11 @@ import {
   RefreshCw,
   Zap,
   UserPlus,
-  Info
+  Info,
+  Bell
 } from 'lucide-react';
 import api from '../utils/api';
+import ReminderSettings from '../components/ReminderSettings';
 
 export default function TeamSettings() {
   const { teamId } = useParams();
@@ -296,6 +298,21 @@ export default function TeamSettings() {
           </button>
         </div>
       </form>
+
+      {/* NEW: Reminder Settings Section */}
+      <div className="pt-6 border-t-2 border-gray-200">
+        <div className="mb-4">
+          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Bell className="h-6 w-6 text-blue-600" />
+            Reminder Automation
+          </h2>
+          <p className="text-gray-600 mt-1">
+            Configure automatic meeting reminders for this team
+          </p>
+        </div>
+        
+        <ReminderSettings teamId={parseInt(teamId)} />
+      </div>
     </div>
   );
 }
