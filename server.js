@@ -672,6 +672,126 @@ app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken,
   }
 });
 
+// ============ AVAILABILITY SETTINGS ENDPOINTS ============
+
+// Get team member availability settings
+app.get('/api/team-members/:id/availability', authenticateToken, async (req, res) => {
+  try {
+    const memberId = parseInt(req.params.id);
+    const userId = req.user.id;
+
+    console.log('📋 Getting availability for member:', memberId);
+
+    // Get team member and verify ownership
+    const memberResult = await pool.query(
+      `SELECT tm.*, t.owner_id 
+       FROM team_members tm 
+       JOIN teams t ON tm.team_id = t.id 
+       WHERE tm.id = $1`,
+      [memberId]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Team member not found' });
+    }
+
+    const member = memberResult.rows[0];
+
+    // Verify ownership
+    if (member.owner_id !== userId && member.user_id !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Get blocked times
+    const blockedResult = await pool.query(
+      `SELECT * FROM blocked_times 
+       WHERE team_member_id = $1 
+       ORDER BY start_time ASC`,
+      [memberId]
+    );
+
+    res.json({
+      member: {
+        id: member.id,
+        name: member.name,
+        buffer_time: member.buffer_time || 0,
+        working_hours: member.working_hours || {
+          monday: { enabled: true, start: '09:00', end: '17:00' },
+          tuesday: { enabled: true, start: '09:00', end: '17:00' },
+          wednesday: { enabled: true, start: '09:00', end: '17:00' },
+          thursday: { enabled: true, start: '09:00', end: '17:00' },
+          friday: { enabled: true, start: '09:00', end: '17:00' },
+          saturday: { enabled: false, start: '09:00', end: '17:00' },
+          sunday: { enabled: false, start: '09:00', end: '17:00' },
+        },
+      },
+      blocked_times: blockedResult.rows,
+    });
+  } catch (error) {
+    console.error('Get availability error:', error);
+    res.status(500).json({ error: 'Failed to get availability settings' });
+  }
+});
+
+// Update team member availability settings
+app.put('/api/team-members/:id/availability', authenticateToken, async (req, res) => {
+  try {
+    const memberId = parseInt(req.params.id);
+    const userId = req.user.id;
+    const { buffer_time, working_hours, blocked_times } = req.body;
+
+    console.log('⚙️ Updating availability for member:', memberId);
+
+    // Verify ownership
+    const memberResult = await pool.query(
+      `SELECT tm.*, t.owner_id 
+       FROM team_members tm 
+       JOIN teams t ON tm.team_id = t.id 
+       WHERE tm.id = $1`,
+      [memberId]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Team member not found' });
+    }
+
+    const member = memberResult.rows[0];
+
+    if (member.owner_id !== userId && member.user_id !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Update team member settings
+    await pool.query(
+      `UPDATE team_members 
+       SET buffer_time = $1, working_hours = $2, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $3`,
+      [buffer_time, JSON.stringify(working_hours), memberId]
+    );
+
+    // Update blocked times
+    await pool.query('DELETE FROM blocked_times WHERE team_member_id = $1', [memberId]);
+
+    if (blocked_times && blocked_times.length > 0) {
+      for (const block of blocked_times) {
+        if (block.start_time && block.end_time) {
+          await pool.query(
+            `INSERT INTO blocked_times (team_member_id, start_time, end_time, reason) 
+             VALUES ($1, $2, $3, $4)`,
+            [memberId, block.start_time, block.end_time, block.reason || null]
+          );
+        }
+      }
+    }
+
+    console.log('✅ Availability settings updated');
+    res.json({ success: true, message: 'Availability settings updated' });
+  } catch (error) {
+    console.error('Update availability error:', error);
+    res.status(500).json({ error: 'Failed to update availability settings' });
+  }
+});
+
 // ============ ENHANCED SLOT AVAILABILITY WITH REASONS ============
 
 app.post('/api/book/:token/slots-with-status', async (req, res) => {
