@@ -325,13 +325,13 @@ const ManageBooking = () => {
                     <strong>Current time:</strong> {formatDate(booking.start_time)} at {formatTime(booking.start_time)}
                   </p>
                 </div>
-
                 <SmartSlotPicker
-                  bookingToken={booking.member_booking_token}
-                  onSlotSelect={handleReschedule}
-                  loading={actionLoading}
-                  duration={30}
-                />
+  bookingToken={booking.member_booking_token}
+  onSlotSelected={handleReschedule}  // ✅ Correct prop name (with 'd')
+  loading={actionLoading}
+  duration={30}
+/>
+                
               </div>
             </div>
           </div>
