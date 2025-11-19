@@ -1577,6 +1577,280 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
+
+const cron = require('node-cron');
+
+// ============ REMINDER EMAIL TEMPLATES ============
+
+const reminderEmailTemplate = (booking, hoursUntil) => {
+  const meetingDate = new Date(booking.start_time).toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  
+  const meetingTime = new Date(booking.start_time).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
+        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+        .meeting-details { background: white; border: 2px solid #e5e7eb; border-radius: 10px; padding: 20px; margin: 20px 0; }
+        .detail-row { display: flex; align-items: center; margin: 15px 0; }
+        .icon { margin-right: 10px; }
+        .button { display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 10px 0; }
+        .alert { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 5px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin: 0;">⏰ Meeting Reminder</h1>
+          <p style="margin: 10px 0 0 0; opacity: 0.9;">Your meeting is coming up soon!</p>
+        </div>
+        <div class="content">
+          <div class="alert">
+            <strong>⏰ Reminder:</strong> Your meeting is in ${hoursUntil} hours
+          </div>
+          
+          <div class="meeting-details">
+            <h2 style="margin-top: 0; color: #667eea;">Meeting Details</h2>
+            
+            <div class="detail-row">
+              <span class="icon">📅</span>
+              <div>
+                <strong>Date:</strong><br>
+                ${meetingDate}
+              </div>
+            </div>
+            
+            <div class="detail-row">
+              <span class="icon">🕐</span>
+              <div>
+                <strong>Time:</strong><br>
+                ${meetingTime}
+              </div>
+            </div>
+            
+            <div class="detail-row">
+              <span class="icon">👤</span>
+              <div>
+                <strong>${booking.is_organizer ? 'With' : 'Organizer'}:</strong><br>
+                ${booking.is_organizer ? booking.attendee_name : booking.organizer_name}
+              </div>
+            </div>
+            
+            ${booking.notes ? `
+            <div class="detail-row">
+              <span class="icon">📝</span>
+              <div>
+                <strong>Notes:</strong><br>
+                ${booking.notes}
+              </div>
+            </div>
+            ` : ''}
+          </div>
+          
+          <p style="margin: 20px 0;">
+            Please make sure you're prepared for the meeting. If you need to reschedule or cancel, please contact the other party as soon as possible.
+          </p>
+          
+          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+            This is an automated reminder from ScheduleSync. The meeting was scheduled on ${new Date(booking.created_at).toLocaleDateString()}.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+// ============ REMINDER SENDING FUNCTION ============
+
+async function sendBookingReminder(booking, recipientEmail, recipientName, isOrganizer) {
+  try {
+    // Calculate hours until meeting
+    const now = new Date();
+    const meetingTime = new Date(booking.start_time);
+    const hoursUntil = Math.round((meetingTime - now) / (1000 * 60 * 60));
+    
+    // Prepare email data
+    const bookingWithRecipient = {
+      ...booking,
+      is_organizer: isOrganizer,
+      attendee_name: isOrganizer ? booking.attendee_name : recipientName,
+      organizer_name: isOrganizer ? recipientName : booking.organizer_name,
+    };
+    
+    // Generate ICS attachment
+    const icsFile = generateICS({
+      id: booking.id,
+      start_time: booking.start_time,
+      end_time: booking.end_time,
+      attendee_name: booking.attendee_name,
+      attendee_email: booking.attendee_email,
+      organizer_name: booking.organizer_name || 'ScheduleSync',
+      organizer_email: booking.organizer_email || 'noreply@schedulesync.com',
+      team_name: booking.team_name || 'Meeting',
+      notes: booking.notes,
+    });
+    
+    // Send email
+    await sendBookingEmail({
+      to: recipientEmail,
+      subject: `⏰ Reminder: Meeting in ${hoursUntil} hours`,
+      html: reminderEmailTemplate(bookingWithRecipient, hoursUntil),
+      icsAttachment: icsFile,
+    });
+    
+    console.log(`✅ Reminder sent to ${recipientEmail} for booking ${booking.id}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to send reminder to ${recipientEmail}:`, error);
+    return false;
+  }
+}
+
+// ============ REMINDER CHECKER (RUNS EVERY HOUR) ============
+
+async function checkAndSendReminders() {
+  try {
+    console.log('🔔 Checking for bookings that need reminders...');
+    
+    // Get bookings that:
+    // 1. Are confirmed
+    // 2. Start in 24-26 hours (to catch all bookings in hourly check)
+    // 3. Haven't had reminder sent yet
+    const now = new Date();
+    const reminderWindowStart = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // 24 hours from now
+    const reminderWindowEnd = new Date(now.getTime() + (26 * 60 * 60 * 1000)); // 26 hours from now
+    
+    const bookingsResult = await pool.query(
+      `SELECT b.*, 
+              tm.name as organizer_name,
+              tm.email as organizer_email,
+              t.name as team_name
+       FROM bookings b
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN teams t ON b.team_id = t.id
+       WHERE b.status = 'confirmed'
+         AND b.reminder_sent = false
+         AND b.start_time >= $1
+         AND b.start_time <= $2
+       ORDER BY b.start_time ASC`,
+      [reminderWindowStart, reminderWindowEnd]
+    );
+    
+    const bookings = bookingsResult.rows;
+    console.log(`📋 Found ${bookings.length} booking(s) needing reminders`);
+    
+    for (const booking of bookings) {
+      try {
+        // Send reminder to attendee
+        const attendeeSuccess = await sendBookingReminder(
+          booking,
+          booking.attendee_email,
+          booking.attendee_name,
+          false // attendee
+        );
+        
+        // Send reminder to organizer (if email exists)
+        let organizerSuccess = true;
+        if (booking.organizer_email) {
+          organizerSuccess = await sendBookingReminder(
+            booking,
+            booking.organizer_email,
+            booking.organizer_name,
+            true // organizer
+          );
+        }
+        
+        // Update booking if at least one reminder was sent
+        if (attendeeSuccess || organizerSuccess) {
+          await pool.query(
+            `UPDATE bookings 
+             SET reminder_sent = true, reminder_sent_at = CURRENT_TIMESTAMP 
+             WHERE id = $1`,
+            [booking.id]
+          );
+          
+          // Log to reminder tracking table
+          if (attendeeSuccess) {
+            await pool.query(
+              `INSERT INTO booking_reminders (booking_id, reminder_type, recipient_email, status)
+               VALUES ($1, $2, $3, $4)`,
+              [booking.id, '24h', booking.attendee_email, 'sent']
+            );
+          }
+          
+          if (organizerSuccess && booking.organizer_email) {
+            await pool.query(
+              `INSERT INTO booking_reminders (booking_id, reminder_type, recipient_email, status)
+               VALUES ($1, $2, $3, $4)`,
+              [booking.id, '24h', booking.organizer_email, 'sent']
+            );
+          }
+          
+          console.log(`✅ Reminders processed for booking ${booking.id}`);
+        }
+      } catch (bookingError) {
+        console.error(`❌ Error processing booking ${booking.id}:`, bookingError);
+        
+        // Log failed reminder
+        await pool.query(
+          `INSERT INTO booking_reminders (booking_id, reminder_type, recipient_email, status, error_message)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [booking.id, '24h', booking.attendee_email, 'failed', bookingError.message]
+        );
+      }
+    }
+    
+    console.log('✅ Reminder check completed');
+  } catch (error) {
+    console.error('❌ Error in reminder checker:', error);
+  }
+}
+
+// ============ SCHEDULE REMINDER CHECKER ============
+
+// Run every hour at :00 minutes
+cron.schedule('0 * * * *', () => {
+  console.log('⏰ Running scheduled reminder check...');
+  checkAndSendReminders();
+});
+
+// Also run on server startup (after 1 minute to let everything initialize)
+setTimeout(() => {
+  console.log('🚀 Running initial reminder check...');
+  checkAndSendReminders();
+}, 60000);
+
+console.log('✅ Booking reminder scheduler initialized');
+
+// ============ MANUAL REMINDER ENDPOINT (FOR TESTING) ============
+
+app.post('/api/admin/send-reminders', authenticateToken, async (req, res) => {
+  try {
+    // Only allow admins or for development
+    console.log('🔔 Manual reminder check triggered by user:', req.user.email);
+    await checkAndSendReminders();
+    res.json({ success: true, message: 'Reminder check completed' });
+  } catch (error) {
+    console.error('Manual reminder error:', error);
+    res.status(500).json({ error: 'Failed to send reminders' });
+  }
+});
+
 // ============ START SERVER ============
 
 const port = process.env.PORT || 3000;
