@@ -12,9 +12,10 @@ import TeamSettings from './pages/TeamSettings';
 import Layout from './components/Layout';
 import api from './utils/api';
 import MyBookingLink from './components/MyBookingLink';
-import AvailabilitySettings from './pages/AvailabilitySettings';
+import MemberAvailability from './pages/MemberAvailability';
 import UserSettings from './pages/UserSettings';
 import ManageBooking from './pages/ManageBooking';
+
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -123,8 +124,7 @@ function App() {
           <Route path="bookings" element={<Bookings />} />
           <Route path="my-booking-link" element={<MyBookingLink />} />
           <Route path="settings" element={<CalendarSettings />} />
-          <Route path="team-members/:memberId/availability" element={<AvailabilitySettings />} />
-          <Route path="settings" element={<UserSettings />} />
+<Route path="teams/:teamId/members/:memberId/availability" element={<MemberAvailability />} />          <Route path="settings" element={<UserSettings />} />
         </Route>
         
         {/* Catch all - redirect based on auth status */}
