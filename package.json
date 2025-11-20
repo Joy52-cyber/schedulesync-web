@@ -1,6 +1,6 @@
 {
   "name": "schedulesync-web",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Team scheduling and booking management application",
   "main": "server.js",
   "scripts": {
@@ -32,4 +32,5 @@
     "concurrently": "^8.2.2",
     "nodemon": "^3.0.1"
   }
+
 }
