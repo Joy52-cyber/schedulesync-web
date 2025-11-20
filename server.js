@@ -2652,61 +2652,35 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
 // ============ SERVE STATIC FILES ============
 
 // DEBUG: Check dist files
-
 app.get('/api/debug/files', (req, res) => {
-
   const fs = require('fs');
-
   const path = require('path');
-
   
-
-  const distPath = path.join(__dirname, 'client', 'dist');
-
+  const distPath = path.join(__dirname, 'public');  // ← Changed
   const assetsPath = path.join(distPath, 'assets');
-
   
-
   try {
-
     const distExists = fs.existsSync(distPath);
-
     const distFiles = distExists ? fs.readdirSync(distPath) : [];
-
     const assetsExists = fs.existsSync(assetsPath);
-
     const assetsFiles = assetsExists ? fs.readdirSync(assetsPath) : [];
-
     
-
     res.json({
-
       distPath,
-
       distExists,
-
       distFiles,
-
       assetsPath,
-
       assetsExists,
-
       assetsFiles,
-
       nodeEnv: process.env.NODE_ENV,
-
     });
-
   } catch (error) {
-
     res.json({ error: error.message });
-
   }
-
 });
 
 if (process.env.NODE_ENV === 'production') {
-  const distPath = path.join(__dirname, 'client', 'dist');
+  const distPath = path.join(__dirname, 'public');  // ← Changed from 'client/dist'
   app.use(express.static(distPath));
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'API endpoint not found' });
