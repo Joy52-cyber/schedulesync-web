@@ -437,8 +437,10 @@ export default function Teams() {
                             <p className="text-xs text-gray-600 truncate mb-2">{member.user_email}</p>
                             <div className="flex flex-wrap gap-1">
                               <button
-                                onClick={() => { setShowManageModal(false); navigate(`//teams/${selectedTeam.id}/members/${member.id}/availability`); }}
-                                className="px-2 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 flex items-center gap-1"
+                                onClick={() => { 
+  setShowManageModal(false); 
+  navigate(`/teams/${selectedTeam.id}/members/${member.id}/availability`); 
+}}                                className="px-2 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 flex items-center gap-1"
                               >
                                 <Clock className="h-3 w-3" />
                                 Availability
