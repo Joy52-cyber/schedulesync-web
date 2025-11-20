@@ -100,24 +100,24 @@ function App() {
 
         {/* ========== PROTECTED ROUTES (REQUIRE AUTH) ========== */}
         <Route
-          path="/"
-          element={
-            isAuthenticated ? (
-              <Layout user={user} onLogout={handleLogout} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        >
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="teams" element={<Teams />} />
-          <Route path="teams/:teamId/settings" element={<TeamSettings />} />
-          <Route path="teams/:teamId/members/:memberId/availability" element={<MemberAvailability />} />
-          <Route path="bookings" element={<Bookings />} />
-          <Route path="my-booking-link" element={<MyBookingLink />} />
-          <Route path="settings" element={<UserSettings />} />
-        </Route>
+  path="/"
+  element={
+    isAuthenticated ? (
+      <Layout user={user} onLogout={handleLogout} />
+    ) : (
+      <Navigate to="/login" replace />
+    )
+  }
+>
+  <Route index element={<Navigate to="/dashboard" replace />} />
+  <Route path="dashboard" element={<Dashboard />} />
+  <Route path="teams" element={<Teams />} />
+  <Route path="teams/:teamId/settings" element={<TeamSettings />} />
+  <Route path="teams/:teamId/members/:memberId/availability" element={<MemberAvailability />} />
+  <Route path="bookings" element={<Bookings />} />
+  <Route path="my-booking-link" element={<MyBookingLink />} />
+  <Route path="user-settings" element={<UserSettings />} />
+</Route>
         
         {/* Catch all - redirect based on auth status */}
         <Route
