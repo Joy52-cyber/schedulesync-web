@@ -722,9 +722,6 @@ app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async
     console.error('Update pricing error:', error);
     res.status(500).json({ error: 'Failed to update pricing' });
   }
-});
-
-// ============ AVAILABILITY SETTINGS ENDPOINTS ============  ← Existing section stays here
 
 // ============ AVAILABILITY SETTINGS ENDPOINTS ============
 
