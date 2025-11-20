@@ -352,9 +352,16 @@ export default function Teams() {
                   <h2 className="text-lg font-bold text-white">{selectedTeam.name}</h2>
                   <p className="text-xs text-blue-100">{selectedTeam.members?.length || 0} members</p>
                 </div>
-                <button onClick={() => setShowManageModal(false)} className="p-1 hover:bg-white hover:bg-opacity-20 rounded text-white">
-                  <X className="h-5 w-5" />
-                </button>
+                <button
+  onClick={() => { 
+    setShowManageModal(false); 
+    navigate(`/teams/${selectedTeam.id}/members/${member.id}/availability`); 
+  }}
+  className="px-2 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 flex items-center gap-1"
+>
+  <Clock className="h-3 w-3" />
+  Settings
+</button>
               </div>
             </div>
             
