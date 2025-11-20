@@ -2313,9 +2313,9 @@ app.get('/api/book/:token/pricing', async (req, res) => {
     const member = memberResult.rows[0];
 
     res.json({
-      price: member.booking_price || 0,
+      price: parseFloat(member.booking_price) || 0,
       currency: member.currency || 'USD',
-      paymentRequired: member.payment_required || false,
+      paymentRequired: member.payment_required === true,
       memberName: member.name,
       teamName: member.team_name,
     });
