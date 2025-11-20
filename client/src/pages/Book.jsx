@@ -199,7 +199,7 @@ export default function Book() {
               <div className="flex justify-between">
                 <span className="text-gray-600">Date:</span>
                 <span className="font-semibold text-gray-900">
-                  {new Date(selectedSlot.start).toLocaleDateString('en-US', {
+                  {selectedSlot && new Date(selectedSlot.start).toLocaleDateString('en-US', {
                     weekday: 'long',
                     month: 'long',
                     day: 'numeric',
@@ -210,7 +210,7 @@ export default function Book() {
               <div className="flex justify-between">
                 <span className="text-gray-600">Time:</span>
                 <span className="font-semibold text-gray-900">
-                  {new Date(selectedSlot.start).toLocaleTimeString('en-US', {
+                  {selectedSlot && new Date(selectedSlot.start).toLocaleTimeString('en-US', {
                     hour: 'numeric',
                     minute: '2-digit',
                     hour12: true
@@ -257,35 +257,34 @@ export default function Book() {
   }
 
   // Check if using external booking link
-   
-// Check if using external booking link
-if (bookingData?.member?.external_booking_link) {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full border-2 border-blue-200">
-        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-6">
-          <ExternalLink className="h-8 w-8 text-white" />
+  if (bookingData?.member?.external_booking_link) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full border-2 border-blue-200">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-6">
+            <ExternalLink className="h-8 w-8 text-white" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 text-center mb-4">
+            Redirecting to Booking Page
+          </h2>
+          <p className="text-gray-600 text-center mb-6">
+            This member uses {bookingData.member.external_booking_platform || 'an external platform'} for bookings.
+          </p>
+          
+            href={bookingData.member.external_booking_link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+          >
+            <ExternalLink className="h-5 w-5" />
+            Continue to Booking
+          </a>
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 text-center mb-4">
-          Redirecting to Booking Page
-        </h2>
-        <p className="text-gray-600 text-center mb-6">
-          This member uses {bookingData.member.external_booking_platform || 'an external platform'} for bookings.
-        </p>
-        
-          href={bookingData.member.external_booking_link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
-        >
-          <ExternalLink className="h-5 w-5" />
-          Continue to Booking
-        </a>
       </div>
-    </div>
-  );
-}
- return (
+    );
+  }
+
+  return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       {/* Header */}
       <div className="bg-white border-b shadow-sm">
@@ -298,19 +297,19 @@ if (bookingData?.member?.external_booking_link) {
             Back
           </button>
           <div className="flex items-start gap-4">
-  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg flex-shrink-0">
-    {bookingData.member.name?.[0]?.toUpperCase() || 'U'}
-  </div>
-  <div className="flex-1">
-    <h1 className="text-3xl font-black text-gray-900">
-      Book with {bookingData.member.name || 'Team Member'}
-    </h1>
-    <p className="text-gray-600 mt-1">{bookingData.team.name}</p>
-    {bookingData.team.description && (
-      <p className="text-gray-500 text-sm mt-2">{bookingData.team.description}</p>
-    )}
-  </div>
-</div>
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg flex-shrink-0">
+              {bookingData.member.name?.[0]?.toUpperCase() || 'U'}
+            </div>
+            <div className="flex-1">
+              <h1 className="text-3xl font-black text-gray-900">
+                Book with {bookingData.member.name || 'Team Member'}
+              </h1>
+              <p className="text-gray-600 mt-1">{bookingData.team.name}</p>
+              {bookingData.team.description && (
+                <p className="text-gray-500 text-sm mt-2">{bookingData.team.description}</p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -484,3 +483,25 @@ if (bookingData?.member?.external_booking_link) {
             </div>
             
             <div className="p-6">
+              <Elements stripe={stripePromise}>
+                <PaymentForm
+                  amount={pricingInfo.price}
+                  currency={pricingInfo.currency}
+                  onPaymentSuccess={handlePaymentSuccess}
+                  onCancel={() => setShowPayment(false)}
+                  bookingDetails={{
+                    token,
+                    slot: selectedSlot,
+                    attendee_name: formData.name,
+                    attendee_email: formData.email,
+                    notes: formData.notes,
+                  }}
+                />
+              </Elements>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
