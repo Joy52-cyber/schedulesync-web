@@ -16,7 +16,6 @@ import MemberAvailability from './pages/MemberAvailability';
 import UserSettings from './pages/UserSettings';
 import ManageBooking from './pages/ManageBooking';
 
-
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
@@ -94,16 +93,9 @@ function App() {
           }
         />
         
-        {/* Public booking page */}
         <Route path="/book/:token" element={<BookingPage />} />
-        
-        {/* Booking confirmation */}
         <Route path="/booking-confirmation" element={<BookingConfirmation />} />
-        
-        {/* OAuth callback */}
         <Route path="/oauth/callback" element={<OAuthCallback onLogin={handleLogin} />} />
-        
-        {/* ⭐ BOOKING MANAGEMENT - PUBLIC (NO AUTH) */}
         <Route path="/manage/:token" element={<ManageBooking />} />
 
         {/* ========== PROTECTED ROUTES (REQUIRE AUTH) ========== */}
@@ -121,10 +113,10 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="teams" element={<Teams />} />
           <Route path="teams/:teamId/settings" element={<TeamSettings />} />
+          <Route path="teams/:teamId/members/:memberId/availability" element={<MemberAvailability />} />
           <Route path="bookings" element={<Bookings />} />
           <Route path="my-booking-link" element={<MyBookingLink />} />
-          <Route path="settings" element={<CalendarSettings />} />
-<Route path="teams/:teamId/members/:memberId/availability" element={<MemberAvailability />} />          <Route path="settings" element={<UserSettings />} />
+          <Route path="settings" element={<UserSettings />} />
         </Route>
         
         {/* Catch all - redirect based on auth status */}
