@@ -2789,9 +2789,7 @@ app.get('/api/debug/files', (req, res) => {
   const fs = require('fs');
   const path = require('path');
   
-  const distPath = fs.existsSync('/tmp/schedulesync/public') 
-    ? '/tmp/schedulesync/public' 
-    : path.join(__dirname, 'public');
+  const distPath = path.join(__dirname, 'dist-built');
   const assetsPath = path.join(distPath, 'assets');
   
   try {
@@ -2842,12 +2840,16 @@ app.get('/api/debug/tmp', (req, res) => {
 });
 
 if (process.env.NODE_ENV === 'production') {
-  // Try /tmp/schedulesync first, fallback to local public
-  const distPath = require('fs').existsSync('/tmp/schedulesync/public') 
-    ? '/tmp/schedulesync/public' 
-    : path.join(__dirname, 'public');
+  const fs = require('fs');
+  const distPath = path.join(__dirname, 'dist-built');
   
-  console.log('📂 Serving static files from:', distPath);
+  // Verify dist exists
+  if (!fs.existsSync(distPath)) {
+    console.error('❌ dist-built folder not found!');
+    console.error('Expected path:', distPath);
+  } else {
+    console.log('✅ Serving static files from:', distPath);
+  }
   
   app.use(express.static(distPath));
   app.get('*', (req, res) => {
