@@ -673,28 +673,9 @@ app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken,
   }
 });
 // ============ PRICING SETTINGS ENDPOINT ============
+// ============ PRICING SETTINGS ENDPOINT ============
 
 // Update team member pricing settings
-app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async (req, res) => {
-  try {
-    const { teamId, memberId } = req.params;
-    const { booking_price, currency, payment_required } = req.body;
-    const userId = req.user.id;
-
-    console.log('💰 Updating pricing for member:', memberId);
-
-    // Verify ownership
-    const teamCheck = await pool.query(
-      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
-      [teamId, userId]
-    );
-
-    if (teamCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-
-    // Update member pricing
-   // Update team member pricing settings
 app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async (req, res) => {
   try {
     const { teamId, memberId } = req.params;
@@ -714,7 +695,7 @@ app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Update member pricing - FIXED boolean handling
+    // Update member pricing
     const result = await pool.query(
       `UPDATE team_members 
        SET booking_price = $1, 
@@ -722,13 +703,7 @@ app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async
            payment_required = $3
        WHERE id = $4 AND team_id = $5
        RETURNING *`,
-      [
-        parseFloat(booking_price) || 0, 
-        currency || 'USD', 
-        payment_required === true,  // ← FIXED: Strict boolean check
-        memberId, 
-        teamId
-      ]
+      [parseFloat(booking_price) || 0, currency || 'USD', payment_required === true, memberId, teamId]
     );
 
     if (result.rows.length === 0) {
@@ -747,7 +722,6 @@ app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async
     res.status(500).json({ error: 'Failed to update pricing' });
   }
 });
-
 // ============ AVAILABILITY SETTINGS ENDPOINTS ============
 
 // Get team member availability settings
