@@ -673,8 +673,6 @@ app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken,
   }
 });
 
-});  // ← End of external-link endpoint (line 593)
-
 // ============ PRICING SETTINGS ENDPOINT ============
 
 // Update team member pricing settings
@@ -722,7 +720,7 @@ app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async
     console.error('Update pricing error:', error);
     res.status(500).json({ error: 'Failed to update pricing' });
   }
-
+  });
 // ============ AVAILABILITY SETTINGS ENDPOINTS ============
 
 // Get team member availability settings
