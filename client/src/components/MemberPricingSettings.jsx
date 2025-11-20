@@ -20,24 +20,24 @@ export default function MemberPricingSettings({ teamId, memberId }) {
   }, [memberId]);
 
   const loadSettings = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get(`/teams/${teamId}/members`);
-      const member = response.data.members.find(m => m.id === parseInt(memberId));
-      
-      if (member) {
-        setSettings({
-          booking_price: member.booking_price || 0,
-          currency: member.currency || 'USD',
-          payment_required: member.payment_required || false,
-        });
-      }
-    } catch (error) {
-      console.error('Error loading pricing settings:', error);
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    const response = await api.get(`/teams/${teamId}/members`);
+    const member = response.data.members.find(m => m.id === parseInt(memberId));
+    
+    if (member) {
+      setSettings({
+        booking_price: parseFloat(member.booking_price) || 0,  // ← PARSE TO NUMBER
+        currency: member.currency || 'USD',
+        payment_required: member.payment_required || false,
+      });
     }
-  };
+  } catch (error) {
+    console.error('Error loading pricing settings:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleSave = async () => {
     try {
@@ -68,11 +68,12 @@ export default function MemberPricingSettings({ teamId, memberId }) {
 
   const selectedCurrency = currencies.find(c => c.code === settings.currency) || currencies[0];
 
-  const calculateFees = () => {
-    const stripeFee = settings.booking_price * 0.029 + 0.30;
-    const netAmount = settings.booking_price - stripeFee;
-    return { stripeFee, netAmount };
-  };
+ const calculateFees = () => {
+  const price = parseFloat(settings.booking_price) || 0;  // ← ENSURE NUMBER
+  const stripeFee = price * 0.029 + 0.30;
+  const netAmount = price - stripeFee;
+  return { stripeFee, netAmount };
+};
 
   if (loading) {
     return (
@@ -164,15 +165,15 @@ export default function MemberPricingSettings({ teamId, memberId }) {
                   <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-bold text-xl">
                     {selectedCurrency.symbol}
                   </span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={settings.booking_price}
-                    onChange={(e) => setSettings({ ...settings, booking_price: parseFloat(e.target.value) || 0 })}
-                    className="w-full pl-12 pr-4 py-4 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none text-2xl font-bold text-gray-900"
-                    placeholder="0.00"
-                  />
+                 <input
+  type="number"
+  min="0"
+  step="0.01"
+  value={settings.booking_price}
+  onChange={(e) => setSettings({ ...settings, booking_price: parseFloat(e.target.value) || 0 })}  // ← PARSE
+  className="w-full pl-12 pr-4 py-4 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none text-2xl font-bold text-gray-900"
+  placeholder="0.00"
+/>
                 </div>
                 <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
                   <Info className="h-3 w-3" />
@@ -211,8 +212,9 @@ export default function MemberPricingSettings({ teamId, memberId }) {
                     <div className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200">
                       <span className="text-gray-700 font-medium">Guest Payment</span>
                       <span className="text-xl font-bold text-gray-900">
-                        {selectedCurrency.symbol}{settings.booking_price.toFixed(2)}
-                      </span>
+  {selectedCurrency.symbol}{parseFloat(settings.booking_price).toFixed(2)}
+</span>
+
                     </div>
 
                     {/* Processing Fee */}
@@ -221,9 +223,9 @@ export default function MemberPricingSettings({ teamId, memberId }) {
                         <span className="text-gray-700 font-medium">Stripe Fee</span>
                         <p className="text-xs text-gray-500 mt-0.5">2.9% + {selectedCurrency.symbol}0.30</p>
                       </div>
-                      <span className="text-lg font-semibold text-red-600">
-                        -{selectedCurrency.symbol}{stripeFee.toFixed(2)}
-                      </span>
+                     <span className="text-lg font-semibold text-red-600">
+  -{selectedCurrency.symbol}{stripeFee.toFixed(2)}
+</span>
                     </div>
 
                     {/* Net Revenue */}
@@ -233,8 +235,8 @@ export default function MemberPricingSettings({ teamId, memberId }) {
                         <p className="text-xs text-green-100 mt-1">Per booking</p>
                       </div>
                       <span className="text-2xl font-black">
-                        {selectedCurrency.symbol}{netAmount.toFixed(2)}
-                      </span>
+  {selectedCurrency.symbol}{netAmount.toFixed(2)}
+</span>
                     </div>
                   </div>
                 </div>
