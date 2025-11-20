@@ -3091,6 +3091,7 @@ app.put('/api/team-members/:id/timezone', authenticateToken, async (req, res) =>
   }
 });
 
+// ============ START SERVER ============
 
 // DEBUG: Check dist files
 app.get('/api/debug/files', (req, res) => {
@@ -3119,7 +3120,7 @@ app.get('/api/debug/files', (req, res) => {
     res.json({ error: error.message });
   }
 });
-// ============ START SERVER ============
+
 
 const port = process.env.PORT || 3000;
 const server = app.listen(port, '0.0.0.0', () => {
