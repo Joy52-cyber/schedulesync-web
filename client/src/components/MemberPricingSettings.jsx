@@ -86,7 +86,7 @@ export default function MemberPricingSettings({ teamId, memberId }) {
       </div>
 
       {successMessage && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 animate-fadeIn">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
           <p className="text-green-800 font-medium">{successMessage}</p>
         </div>
       )}
@@ -116,9 +116,9 @@ export default function MemberPricingSettings({ teamId, memberId }) {
           </div>
         </div>
 
-        {/* Pricing Section - Only shown if payment required */}
+        {/* Pricing Section */}
         {settings.payment_required && (
-          <div className="space-y-4 animate-slideDown">
+          <div className="space-y-4">
             {/* Currency Selection */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -214,29 +214,6 @@ export default function MemberPricingSettings({ teamId, memberId }) {
           </button>
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes slideDown {
-          from {
-            opacity: 0;
-            transform: translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-slideDown {
-          animation: slideDown 0.3s ease-out;
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out;
-        }
-      `}</style>
     </div>
   );
 }

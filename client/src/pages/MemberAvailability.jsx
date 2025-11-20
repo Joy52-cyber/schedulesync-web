@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, DollarSign } from 'lucide-react';
 import AvailabilitySettings from '../components/AvailabilitySettings';
