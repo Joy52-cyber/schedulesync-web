@@ -719,21 +719,8 @@ app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async
     console.error('Update pricing error:', error);
     res.status(500).json({ error: 'Failed to update pricing' });
   }
-});  // ← MAKE SURE THIS CLOSING BRACE IS HERE!
+}); 
 
-// ============ AVAILABILITY SETTINGS ENDPOINTS ============
-```
-
-**The key is this closing `});` must be there before the availability section starts!**
-
----
-
-## 🔍 **Or Use Find/Replace to Fix:**
-
-**Press Ctrl + F and search for:**
-```
-res.status(500).json({ error: 'Failed to update pricing' });
-  }
 // ============ AVAILABILITY SETTINGS ENDPOINTS ============
 
 // Get team member availability settings
