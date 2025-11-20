@@ -12,5 +12,9 @@ cmds = [
   "cd client && npm run build"
 ]
 
+[phases.build]
+cmds = ["npm install", "npm run build"]
+cacheDirectories = []
+
 [start]
 cmd = "npm start"
