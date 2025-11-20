@@ -2651,6 +2651,60 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
 
 // ============ SERVE STATIC FILES ============
 
+// DEBUG: Check dist files
+
+app.get('/api/debug/files', (req, res) => {
+
+  const fs = require('fs');
+
+  const path = require('path');
+
+  
+
+  const distPath = path.join(__dirname, 'client', 'dist');
+
+  const assetsPath = path.join(distPath, 'assets');
+
+  
+
+  try {
+
+    const distExists = fs.existsSync(distPath);
+
+    const distFiles = distExists ? fs.readdirSync(distPath) : [];
+
+    const assetsExists = fs.existsSync(assetsPath);
+
+    const assetsFiles = assetsExists ? fs.readdirSync(assetsPath) : [];
+
+    
+
+    res.json({
+
+      distPath,
+
+      distExists,
+
+      distFiles,
+
+      assetsPath,
+
+      assetsExists,
+
+      assetsFiles,
+
+      nodeEnv: process.env.NODE_ENV,
+
+    });
+
+  } catch (error) {
+
+    res.json({ error: error.message });
+
+  }
+
+});
+
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, 'client', 'dist');
   app.use(express.static(distPath));
@@ -3092,35 +3146,6 @@ app.put('/api/team-members/:id/timezone', authenticateToken, async (req, res) =>
 });
 
 // ============ START SERVER ============
-
-// DEBUG: Check dist files
-app.get('/api/debug/files', (req, res) => {
-  const fs = require('fs');
-  const path = require('path');
-  
-  const distPath = path.join(__dirname, 'client', 'dist');
-  const assetsPath = path.join(distPath, 'assets');
-  
-  try {
-    const distExists = fs.existsSync(distPath);
-    const distFiles = distExists ? fs.readdirSync(distPath) : [];
-    const assetsExists = fs.existsSync(assetsPath);
-    const assetsFiles = assetsExists ? fs.readdirSync(assetsPath) : [];
-    
-    res.json({
-      distPath,
-      distExists,
-      distFiles,
-      assetsPath,
-      assetsExists,
-      assetsFiles,
-      nodeEnv: process.env.NODE_ENV,
-    });
-  } catch (error) {
-    res.json({ error: error.message });
-  }
-});
-
 
 const port = process.env.PORT || 3000;
 const server = app.listen(port, '0.0.0.0', () => {
