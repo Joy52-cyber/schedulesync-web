@@ -2681,6 +2681,33 @@ app.get('/api/debug/files', (req, res) => {
   }
 });
 
+app.get('/api/debug/tmp', (req, res) => {
+  const fs = require('fs');
+  try {
+    const tmpExists = fs.existsSync('/tmp/schedulesync');
+    const publicExists = fs.existsSync('/tmp/schedulesync/public');
+    const assetsExists = fs.existsSync('/tmp/schedulesync/public/assets');
+    
+    let files = [];
+    if (assetsExists) {
+      files = fs.readdirSync('/tmp/schedulesync/public/assets');
+    }
+    
+    res.json({
+      tmpExists,
+      publicExists,
+      assetsExists,
+      files,
+      currentDistPath: fs.existsSync('/tmp/schedulesync/public') 
+        ? '/tmp/schedulesync/public' 
+        : 'fallback to /app/public',
+      message: tmpExists ? 'Temp folder exists!' : 'Temp folder was cleared!'
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
 if (process.env.NODE_ENV === 'production') {
   // Try /tmp/schedulesync first, fallback to local public
   const distPath = require('fs').existsSync('/tmp/schedulesync/public') 
