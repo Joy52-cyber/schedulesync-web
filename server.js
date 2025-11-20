@@ -694,6 +694,27 @@ app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async
     }
 
     // Update member pricing
+   // Update team member pricing settings
+app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async (req, res) => {
+  try {
+    const { teamId, memberId } = req.params;
+    const { booking_price, currency, payment_required } = req.body;
+    const userId = req.user.id;
+
+    console.log('💰 Updating pricing for member:', memberId);
+    console.log('📥 Received data:', { booking_price, currency, payment_required });
+
+    // Verify ownership
+    const teamCheck = await pool.query(
+      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
+      [teamId, userId]
+    );
+
+    if (teamCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Update member pricing - FIXED boolean handling
     const result = await pool.query(
       `UPDATE team_members 
        SET booking_price = $1, 
@@ -701,7 +722,13 @@ app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async
            payment_required = $3
        WHERE id = $4 AND team_id = $5
        RETURNING *`,
-      [booking_price || 0, currency || 'USD', payment_required || false, memberId, teamId]
+      [
+        parseFloat(booking_price) || 0, 
+        currency || 'USD', 
+        payment_required === true,  // ← FIXED: Strict boolean check
+        memberId, 
+        teamId
+      ]
     );
 
     if (result.rows.length === 0) {
@@ -719,7 +746,7 @@ app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async
     console.error('Update pricing error:', error);
     res.status(500).json({ error: 'Failed to update pricing' });
   }
-}); 
+});
 
 // ============ AVAILABILITY SETTINGS ENDPOINTS ============
 
@@ -2312,10 +2339,20 @@ app.get('/api/book/:token/pricing', async (req, res) => {
 
     const member = memberResult.rows[0];
 
+    // DEBUG: Log what we get from database
+    console.log('💰 Pricing endpoint - Raw DB value:', {
+      payment_required: member.payment_required,
+      type: typeof member.payment_required,
+      value: member.payment_required,
+      boolean_conversion: Boolean(member.payment_required),
+      strict_true: member.payment_required === true,
+      truthy: !!member.payment_required
+    });
+
     res.json({
       price: parseFloat(member.booking_price) || 0,
       currency: member.currency || 'USD',
-      paymentRequired: member.payment_required === true,
+      paymentRequired: !!member.payment_required,  // ← Double negation for truthy check
       memberName: member.name,
       teamName: member.team_name,
     });
