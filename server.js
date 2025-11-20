@@ -1382,10 +1382,6 @@ slots.sort((a, b) => {
   // Then by timestamp (earliest first)
   return a.timestamp - b.timestamp;
 });
-
-// ========== 8. GROUP BY DATE ==========
-const slotsByDate = {};
-
     // ========== 8. GROUP BY DATE ==========
     const slotsByDate = {};
     slots.forEach(slot => {
