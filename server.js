@@ -2656,7 +2656,9 @@ app.get('/api/debug/files', (req, res) => {
   const fs = require('fs');
   const path = require('path');
   
-  const distPath = path.join(__dirname, 'public');  // ← Changed
+  const distPath = fs.existsSync('/tmp/schedulesync/public') 
+    ? '/tmp/schedulesync/public' 
+    : path.join(__dirname, 'public');
   const assetsPath = path.join(distPath, 'assets');
   
   try {
@@ -2680,7 +2682,13 @@ app.get('/api/debug/files', (req, res) => {
 });
 
 if (process.env.NODE_ENV === 'production') {
-  const distPath = path.join(__dirname, 'public');  // ← Changed from 'client/dist'
+  // Try /tmp/schedulesync first, fallback to local public
+  const distPath = require('fs').existsSync('/tmp/schedulesync/public') 
+    ? '/tmp/schedulesync/public' 
+    : path.join(__dirname, 'public');
+  
+  console.log('📂 Serving static files from:', distPath);
+  
   app.use(express.static(distPath));
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'API endpoint not found' });
