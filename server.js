@@ -883,6 +883,111 @@ if (blocked_times && blocked_times.length > 0) {
   }
 });
 
+// ============ AI SLOT RANKING ALGORITHM ============
+
+function calculateSlotScore(slot, existingBookings, timezone) {
+  let score = 0;
+  const slotStart = new Date(slot.start);
+  const slotHour = slotStart.getHours();
+  const slotMinute = slotStart.getMinutes();
+  const dayOfWeek = slotStart.getDay();
+  
+  // 1. TIME OF DAY QUALITY (25 points)
+  const timeScore = (() => {
+    const totalMinutes = slotHour * 60 + slotMinute;
+    if (totalMinutes >= 600 && totalMinutes < 840) { // 10 AM - 2 PM
+      return 25;
+    } else if ((totalMinutes >= 540 && totalMinutes < 600) || (totalMinutes >= 840 && totalMinutes < 960)) { // 9-10 AM or 2-4 PM
+      return 20;
+    } else if ((totalMinutes >= 480 && totalMinutes < 540) || (totalMinutes >= 960 && totalMinutes < 1020)) { // 8-9 AM or 4-5 PM
+      return 15;
+    } else {
+      return 10;
+    }
+  })();
+  score += timeScore;
+  
+  // 2. MUTUAL AVAILABILITY (30 points)
+  if (slot.status === 'available') {
+    if (slot.reason === null) {
+      score += 30; // Both calendars free
+    } else {
+      score += 21; // Only organizer free
+    }
+  } else {
+    score += 0; // Not available
+  }
+  
+  // 3. BUFFER SPACE (20 points)
+  const bufferScore = (() => {
+    if (!existingBookings || existingBookings.length === 0) {
+      return 20; // No other bookings, perfect buffer
+    }
+    
+    const slotEnd = new Date(slot.end);
+    let minBufferBefore = Infinity;
+    let minBufferAfter = Infinity;
+    
+    existingBookings.forEach(booking => {
+      const bookingStart = new Date(booking.start_time);
+      const bookingEnd = new Date(booking.end_time);
+      
+      if (bookingEnd <= slotStart) {
+        const bufferMinutes = (slotStart - bookingEnd) / (1000 * 60);
+        minBufferBefore = Math.min(minBufferBefore, bufferMinutes);
+      } else if (bookingStart >= slotEnd) {
+        const bufferMinutes = (bookingStart - slotEnd) / (1000 * 60);
+        minBufferAfter = Math.min(minBufferAfter, bufferMinutes);
+      }
+    });
+    
+    const minBuffer = Math.min(minBufferBefore, minBufferAfter);
+    
+    if (minBuffer >= 60) return 20;
+    if (minBuffer >= 30) return 16;
+    if (minBuffer >= 15) return 12;
+    return 8;
+  })();
+  score += bufferScore;
+  
+  // 4. RECENCY SCORE (15 points)
+  const now = new Date();
+  const daysUntil = Math.ceil((slotStart - now) / (1000 * 60 * 60 * 24));
+  const recencyScore = (() => {
+    if (daysUntil <= 3) return 15;
+    if (daysUntil <= 7) return 13;
+    if (daysUntil <= 14) return 12;
+    return 10;
+  })();
+  score += recencyScore;
+  
+  // 5. DAY OF WEEK (10 points)
+  const dayScore = (() => {
+    if (dayOfWeek >= 2 && dayOfWeek <= 4) return 10; // Tue-Thu
+    if (dayOfWeek === 1 || dayOfWeek === 5) return 8; // Mon, Fri
+    return 6; // Sat, Sun
+  })();
+  score += dayScore;
+  
+  return Math.round(score);
+}
+
+function getMatchLabel(score) {
+  if (score >= 90) return 'Excellent Match';
+  if (score >= 80) return 'Great Match';
+  if (score >= 70) return 'Good Match';
+  if (score >= 60) return 'Fair Match';
+  return 'Available';
+}
+
+function getMatchColor(score) {
+  if (score >= 90) return 'green';
+  if (score >= 80) return 'blue';
+  if (score >= 70) return 'purple';
+  if (score >= 60) return 'yellow';
+  return 'gray';
+}
+
 // ============ ENHANCED SLOT GENERATION WITH ALL AVAILABILITY RULES ============
 
 app.post('/api/book/:token/slots-with-status', async (req, res) => {
@@ -1236,18 +1341,50 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
             timeZone: timezone
           }).format(slotStart);
 
-          slots.push({
-            start: slotStart.toISOString(),
-            end: slotEnd.toISOString(),
-            status,
-            reason,
-            details,
-            time,
-            timestamp: slotStart.getTime()
-          });
+          const slotData = {
+  start: slotStart.toISOString(),
+  end: slotEnd.toISOString(),
+  status,
+  reason,
+  details,
+  time,
+  timestamp: slotStart.getTime()
+};
+
+// Calculate match score for available slots
+if (status === 'available') {
+  slotData.matchScore = calculateSlotScore(slotData, existingBookings, timezone);
+  slotData.matchLabel = getMatchLabel(slotData.matchScore);
+  slotData.matchColor = getMatchColor(slotData.matchScore);
+} else {
+  slotData.matchScore = 0;
+  slotData.matchLabel = 'Unavailable';
+  slotData.matchColor = 'gray';
+}
+
+slots.push(slotData);
         }
       }
     }
+
+    // ========== 7.5. SORT BY MATCH SCORE ==========
+console.log('🎯 Sorting slots by match score...');
+slots.sort((a, b) => {
+  // Available slots first
+  if (a.status === 'available' && b.status !== 'available') return -1;
+  if (a.status !== 'available' && b.status === 'available') return 1;
+  
+  // Then by match score (highest first)
+  if (a.matchScore !== b.matchScore) {
+    return b.matchScore - a.matchScore;
+  }
+  
+  // Then by timestamp (earliest first)
+  return a.timestamp - b.timestamp;
+});
+
+// ========== 8. GROUP BY DATE ==========
+const slotsByDate = {};
 
     // ========== 8. GROUP BY DATE ==========
     const slotsByDate = {};
