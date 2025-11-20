@@ -8,6 +8,9 @@ import api from '../utils/api';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import PaymentForm from '../components/PaymentForm';
+// BUILD_TIMESTAMP: 2025-11-20-22:00
+import { useState, useEffect } from 'react';
+
 
 export default function Book() {
   const { token } = useParams();
@@ -504,8 +507,4 @@ export default function Book() {
       )}
     </div>
   );
-}/ /   C a c h e   b u s t :   1 1 / 2 0 / 2 0 2 5   2 0 : 1 8 : 3 0 
- 
- / /   F o r c e   u p d a t e 
- 
- 
+}
