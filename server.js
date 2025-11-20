@@ -3091,6 +3091,34 @@ app.put('/api/team-members/:id/timezone', authenticateToken, async (req, res) =>
   }
 });
 
+
+// DEBUG: Check dist files
+app.get('/api/debug/files', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  
+  const distPath = path.join(__dirname, 'client', 'dist');
+  const assetsPath = path.join(distPath, 'assets');
+  
+  try {
+    const distExists = fs.existsSync(distPath);
+    const distFiles = distExists ? fs.readdirSync(distPath) : [];
+    const assetsExists = fs.existsSync(assetsPath);
+    const assetsFiles = assetsExists ? fs.readdirSync(assetsPath) : [];
+    
+    res.json({
+      distPath,
+      distExists,
+      distFiles,
+      assetsPath,
+      assetsExists,
+      assetsFiles,
+      nodeEnv: process.env.NODE_ENV,
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
 // ============ START SERVER ============
 
 const port = process.env.PORT || 3000;
@@ -3117,6 +3145,3 @@ process.on('unhandledRejection', (err) => {
 });
 
 module.exports = app;
-
- 
- 
