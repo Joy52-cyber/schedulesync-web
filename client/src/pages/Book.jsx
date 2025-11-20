@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Calendar, Clock, User, Mail, MessageSquare, Check, ArrowLeft, 
@@ -131,14 +131,14 @@ export default function Book() {
   const getCurrencySymbol = (currency) => {
     const symbols = {
       USD: '$',
-      EUR: '€',
-      GBP: '£',
+      EUR: '�',
+      GBP: '�',
       AUD: 'A$',
       CAD: 'C$',
       SGD: 'S$',
-      PHP: '₱',
-      JPY: '¥',
-      INR: '₹',
+      PHP: '?',
+      JPY: '�',
+      INR: '?',
     };
     return symbols[currency] || currency;
   };
@@ -504,5 +504,8 @@ export default function Book() {
       )}
     </div>
   );
-}/ /   C a c h e   b u s t :   1 1 / 2 0 / 2 0 2 5   2 0 : 1 8 : 3 0  
+}/ /   C a c h e   b u s t :   1 1 / 2 0 / 2 0 2 5   2 0 : 1 8 : 3 0 
+ 
+ / /   F o r c e   u p d a t e 
+ 
  
