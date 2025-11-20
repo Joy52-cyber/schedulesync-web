@@ -3,14 +3,16 @@
   "version": "1.0.0",
   "description": "Team scheduling and booking management application",
   "main": "server.js",
+ {
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon server.js",
     "client": "cd client && npm run dev",
     "start": "node server.js",
-    "build": "cd client && rm -rf dist node_modules .vite && npm install && npm run build",
+    "build": "cd client && rm -rf dist node_modules .vite package-lock.json && npm install --legacy-peer-deps && npm run build",
     "heroku-postbuild": "cd client && rm -rf node_modules package-lock.json && npm install && npm run build"
-  },
+  } 
+},
   "keywords": [
     "scheduling",
     "booking",
