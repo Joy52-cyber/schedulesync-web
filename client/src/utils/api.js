@@ -126,5 +126,13 @@ export const reminders = {
   sendManual: () => apiClient.post('/admin/send-reminders'),
 };
 
+export const aiScheduler = {
+  sendMessage: (message, conversationHistory) => 
+    apiClient.post('/ai/schedule', { message, conversationHistory }),
+  confirmBooking: (bookingData) => 
+    apiClient.post('/ai/schedule/confirm', { bookingData }),
+};
+
+
 export { API_URL };
 export default apiClient;
