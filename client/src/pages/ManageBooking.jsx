@@ -182,7 +182,7 @@ export default function ManageBooking() {
                 <Video className="h-6 w-6 text-yellow-600 mt-1 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="font-semibold text-gray-900 mb-2">Video Conference</p>
-                  
+                  <a
                     href={booking.meet_link}
                     target="_blank"
                     rel="noopener noreferrer"
