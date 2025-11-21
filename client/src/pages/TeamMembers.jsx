@@ -54,17 +54,33 @@ export default function TeamMembers() {
     }
   };
 
-  const handleAddMember = async (e) => {
-    e.preventDefault();
-    try {
-      await teams.addMember(teamId, newMember);
-      setShowAddModal(false);
-      setNewMember({ email: '', role: 'member' });
-      loadTeamMembers();
-    } catch (error) {
-      console.error('Error adding member:', error);
+  const handleAddMember = async () => {
+  if (!newMember.email) {
+    alert('Email is required');
+    return;
+  }
+  
+  try {
+    const response = await api.post(`/teams/${teamId}/members`, newMember);
+    setMembers([...members, response.data.member]);
+    setShowAddModal(false);
+    setNewMember({ email: '', name: '', external_booking_link: '', external_booking_platform: 'calendly' });
+    
+    // Show success message
+    alert('Member added successfully!');
+  } catch (error) {
+    console.error('Error adding member:', error);
+    
+    // Show specific error message
+    const errorMessage = error.response?.data?.error || 'Failed to add member';
+    
+    if (errorMessage.includes('already exists')) {
+      alert('⚠️ This member already exists in the team!');
+    } else {
+      alert(`Error: ${errorMessage}`);
     }
-  };
+  }
+};
 
   const handleRemoveMember = async (memberId) => {
     if (!confirm('Remove this member from the team?')) return;

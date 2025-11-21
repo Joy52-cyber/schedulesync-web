@@ -77,6 +77,34 @@ try {
   console.log('⚠️ Calendar utilities not available - calendar sync disabled');
 }
 
+// Add this helper function at the top of server.js (after imports)
+async function callAnthropicWithRetry(requestBody, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeout);
+      return response;
+    } catch (error) {
+      console.error(`Anthropic API attempt ${i + 1} failed:`, error.message);
+      if (i === retries) throw error;
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+    }
+  }
+}
+
 // ============ MIDDLEWARE ============
 
 app.use(cors());
@@ -3018,8 +3046,16 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
     })).filter(msg => msg.content.trim() !== '');
 
     // Call Claude API
-    const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
+   const aiResponse = await callAnthropicWithRetry({
+  model: "claude-sonnet-4-20250514",
+  max_tokens: 1500,
+  system: `You are a scheduling assistant for ScheduleSync...`,
+  messages: [
+    ...formattedHistory,
+    { role: "user", content: message.trim() }
+  ]
+});
+    method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-api-key": process.env.ANTHROPIC_API_KEY,

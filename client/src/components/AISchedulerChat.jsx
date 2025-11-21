@@ -171,7 +171,7 @@ export default function AISchedulerChat() {
       }}
     >
       <div className={`w-96 bg-white rounded-3xl shadow-2xl border-2 border-purple-200 overflow-hidden transition-all flex flex-col ${
-        isMinimized ? 'h-16' : 'h-[650px]'
+        isMinimized ? 'h-16' : 'h-[500px]'
       }`}>
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-4 flex items-center justify-between flex-shrink-0">
