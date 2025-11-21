@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Teams from './pages/Teams';
+import TeamMembers from './pages/TeamMembers';  // ← ADD THIS LINE
 import Bookings from './pages/Bookings';
 import BookingPage from './pages/BookingPage';
 import OAuthCallback from './pages/OAuthCallback';
@@ -81,7 +82,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* ========== PUBLIC ROUTES (NO AUTH REQUIRED) ========== */}
+        {/* PUBLIC ROUTES */}
         <Route
           path="/login"
           element={
@@ -98,29 +99,29 @@ function App() {
         <Route path="/oauth/callback" element={<OAuthCallback onLogin={handleLogin} />} />
         <Route path="/manage/:token" element={<ManageBooking />} />
 
-        {/* ========== PROTECTED ROUTES (REQUIRE AUTH) ========== */}
-   
+        {/* PROTECTED ROUTES */}
         <Route
-  path="/"
-  element={
-    isAuthenticated ? (
-      <Layout user={user} onLogout={handleLogout} />
-    ) : (
-      <Navigate to="/login" replace />
-    )
-  }
->
-  <Route index element={<Navigate to="/dashboard" replace />} />
-  <Route path="dashboard" element={<Dashboard />} />
-  <Route path="teams" element={<Teams />} />
-  <Route path="teams/:teamId/members" element={<TeamMembers />} />  {/* ← ADD THIS LINE */}
-  <Route path="teams/:teamId/settings" element={<TeamSettings />} />
-  <Route path="teams/:teamId/members/:memberId/availability" element={<MemberAvailability />} />
-  <Route path="bookings" element={<Bookings />} />
-  <Route path="my-booking-link" element={<MyBookingLink />} />
-  <Route path="user-settings" element={<UserSettings />} />
-</Route>
-        {/* Catch all - redirect based on auth status */}
+          path="/"
+          element={
+            isAuthenticated ? (
+              <Layout user={user} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        >
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="teams" element={<Teams />} />
+          <Route path="teams/:teamId/members" element={<TeamMembers />} />
+          <Route path="teams/:teamId/settings" element={<TeamSettings />} />
+          <Route path="teams/:teamId/members/:memberId/availability" element={<MemberAvailability />} />
+          <Route path="bookings" element={<Bookings />} />
+          <Route path="my-booking-link" element={<MyBookingLink />} />
+          <Route path="user-settings" element={<UserSettings />} />
+        </Route>
+        
+        {/* Catch all */}
         <Route
           path="*"
           element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />}
