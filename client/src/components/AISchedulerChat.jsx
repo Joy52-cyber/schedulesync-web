@@ -79,10 +79,13 @@ export default function AISchedulerChat() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 h-16 w-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full shadow-2xl hover:shadow-3xl transition-all hover:scale-110 flex items-center justify-center group z-50"
+        className="fixed bottom-6 right-6 h-16 w-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full shadow-2xl hover:shadow-3xl transition-all hover:scale-110 flex items-center justify-center group z-50 animate-bounce"
+        style={{ animationDuration: '2s' }}
       >
         <Sparkles className="h-8 w-8 text-white group-hover:rotate-12 transition-transform" />
-        <div className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
+        <div className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 rounded-full border-2 border-white animate-pulse flex items-center justify-center">
+          <span className="text-white text-xs font-bold">AI</span>
+        </div>
       </button>
     );
   }
@@ -102,7 +105,7 @@ export default function AISchedulerChat() {
               <h3 className="text-white font-bold">AI Assistant</h3>
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
-                <p className="text-white/90 text-xs">Online</p>
+                <p className="text-white/90 text-xs">Online • Ready to help</p>
               </div>
             </div>
           </div>
@@ -126,43 +129,43 @@ export default function AISchedulerChat() {
         {!isMinimized && (
           <>
             {/* Messages */}
-            <div className="h-[440px] overflow-y-auto p-4 bg-gray-50 space-y-4">
+            <div className="h-[440px] overflow-y-auto p-4 bg-gradient-to-br from-gray-50 to-purple-50/30 space-y-4">
               {chatHistory.map((msg, index) => (
                 <div
                   key={index}
                   className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   {msg.role === 'assistant' && (
-                    <div className="h-8 w-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <div className="h-8 w-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md">
                       <Sparkles className="h-4 w-4 text-white" />
                     </div>
                   )}
                   
                   <div className="flex flex-col gap-1 max-w-[75%]">
-                    <div className={`p-3 rounded-2xl ${
+                    <div className={`p-3 rounded-2xl shadow-md ${
                       msg.role === 'user'
-                        ? 'bg-blue-600 text-white rounded-br-sm'
-                        : 'bg-white text-gray-900 rounded-bl-sm shadow-sm border border-gray-100'
+                        ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-br-sm'
+                        : 'bg-white text-gray-900 rounded-bl-sm border-2 border-purple-100'
                     }`}>
-                      <p className="text-sm">{msg.content}</p>
+                      <p className="text-sm leading-relaxed">{msg.content}</p>
                       
                       {msg.type === 'confirmation' && msg.data?.bookingData && (
                         <button
                           onClick={() => handleConfirm(msg.data.bookingData)}
-                          className="mt-3 w-full bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700 transition-colors text-sm font-semibold"
+                          className="mt-3 w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-xl hover:shadow-xl transition-all text-sm font-bold flex items-center justify-center gap-2"
                         >
                           ✅ Confirm Booking
                         </button>
                       )}
                     </div>
-                    <p className={`text-xs text-gray-400 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                    <p className={`text-xs text-gray-500 px-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
                       {formatTime(msg.timestamp)}
                     </p>
                   </div>
                   
                   {msg.role === 'user' && (
-                    <div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-                      You
+                    <div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-md">
+                      YOU
                     </div>
                   )}
                 </div>
@@ -170,11 +173,18 @@ export default function AISchedulerChat() {
               
               {loading && (
                 <div className="flex gap-3">
-                  <div className="h-8 w-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                  <div className="h-8 w-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center shadow-md">
                     <Sparkles className="h-4 w-4 text-white animate-pulse" />
                   </div>
-                  <div className="bg-white p-3 rounded-2xl rounded-bl-sm shadow-sm border border-gray-100">
-                    <p className="text-sm text-gray-600">Thinking...</p>
+                  <div className="bg-white p-3 rounded-2xl rounded-bl-sm shadow-md border-2 border-purple-100">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <div className="h-2 w-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="h-2 w-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="h-2 w-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      </div>
+                      <span className="text-sm text-gray-600 font-medium">Thinking...</span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -182,13 +192,18 @@ export default function AISchedulerChat() {
             </div>
 
             {/* Quick Actions */}
-            <div className="px-4 py-2 bg-white border-t border-gray-100">
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                {['This week\'s bookings', 'Find meeting time', 'Tomorrow\'s availability'].map((action) => (
+            <div className="px-4 py-3 bg-white border-t-2 border-purple-100">
+              <p className="text-xs font-bold text-gray-700 mb-2">Quick Actions:</p>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {[
+                  'Show my bookings this week',
+                  'Find time for a meeting',
+                  'Check tomorrow\'s availability'
+                ].map((action) => (
                   <button
                     key={action}
                     onClick={() => setMessage(action)}
-                    className="px-3 py-1.5 text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg whitespace-nowrap transition-colors"
+                    className="px-3 py-1.5 text-xs font-semibold text-purple-600 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 border-2 border-purple-200 rounded-lg whitespace-nowrap transition-all hover:shadow-md"
                   >
                     {action}
                   </button>
@@ -197,25 +212,28 @@ export default function AISchedulerChat() {
             </div>
 
             {/* Input */}
-            <div className="p-4 bg-white border-t border-gray-200">
+            <div className="p-4 bg-white border-t-2 border-purple-200">
               <div className="flex gap-2">
                 <input
                   type="text"
                   placeholder="Type your message..."
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all text-sm"
+                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                  className="flex-1 px-4 py-3 border-2 border-purple-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all text-sm bg-gradient-to-r from-purple-50/50 to-pink-50/50"
                   disabled={loading}
                 />
                 <button 
                   onClick={handleSendMessage}
                   disabled={loading || !message.trim()}
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-5 py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl group"
                 >
-                  <Send className="h-5 w-5" />
+                  <Send className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </button>
               </div>
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                💡 Try: "Schedule a meeting with john@example.com tomorrow at 2pm"
+              </p>
             </div>
           </>
         )}

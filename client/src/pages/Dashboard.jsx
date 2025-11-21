@@ -12,8 +12,6 @@ import {
   TrendingUp,
   BarChart3,
   ChevronRight,
-  Video,
-  MapPin,
   MoreHorizontal
 } from 'lucide-react';
 import api from '../utils/api';
@@ -55,7 +53,7 @@ export default function Dashboard() {
       case 'cancelled':
         return <XCircle className="h-4 w-4" />;
       default:
-        return null;
+        return <CheckCircle2 className="h-4 w-4" />;
     }
   };
 
@@ -68,7 +66,7 @@ export default function Dashboard() {
       case 'cancelled':
         return 'bg-red-100 text-red-700 border-red-200';
       default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+        return 'bg-green-100 text-green-700 border-green-200';
     }
   };
 
@@ -161,133 +159,130 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Main Grid */}
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* Weekly Overview */}
-            <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+          {/* Weekly Overview */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Weekly Overview</h3>
+                  <p className="text-gray-600 text-sm">Your activity this week</p>
+                </div>
+                <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full inline-flex items-center gap-1 border border-blue-200">
+                  <TrendingUp className="h-3 w-3" />
+                  +12% vs last week
+                </span>
+              </div>
+
+              <div className="h-px bg-gray-200"></div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                  <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <Calendar className="h-6 w-6 text-blue-600" />
+                  </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">Weekly Overview</h3>
-                    <p className="text-gray-600 text-sm">Your activity this week</p>
-                  </div>
-                  <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full inline-flex items-center gap-1 border border-blue-200">
-                    <TrendingUp className="h-3 w-3" />
-                    +12% vs last week
-                  </span>
-                </div>
-
-                <div className="h-px bg-gray-200"></div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
-                    <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Calendar className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-gray-500 text-xs font-medium">This Week</p>
-                      <p className="text-gray-900 font-bold text-lg">8 bookings</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl border border-green-100">
-                    <div className="h-10 w-10 bg-green-100 rounded-lg flex items-center justify-center">
-                      <CheckCircle2 className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="text-gray-500 text-xs font-medium">Completed</p>
-                      <p className="text-gray-900 font-bold text-lg">5 meetings</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-xl border border-purple-100">
-                    <div className="h-10 w-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <BarChart3 className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <p className="text-gray-500 text-xs font-medium">Conversion</p>
-                      <p className="text-gray-900 font-bold text-lg">87%</p>
-                    </div>
+                    <p className="text-gray-500 text-xs font-medium">This Week</p>
+                    <p className="text-gray-900 font-bold text-xl">8 bookings</p>
                   </div>
                 </div>
 
-                {/* Chart Visualization */}
-                <div className="pt-4 space-y-3">
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day, i) => {
-                    const meetings = [3, 2, 1, 4, 2][i];
-                    const width = (meetings / 4) * 100;
-                    return (
-                      <div key={day} className="space-y-1">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600 font-medium">{day}</span>
-                          <span className="text-gray-900 font-semibold">{meetings} meetings</span>
-                        </div>
-                        <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all"
-                            style={{ width: `${width}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-100">
+                  <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <CheckCircle2 className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs font-medium">Completed</p>
+                    <p className="text-gray-900 font-bold text-xl">5 meetings</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl border border-purple-100">
+                  <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <BarChart3 className="h-6 w-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs font-medium">Conversion</p>
+                    <p className="text-gray-900 font-bold text-xl">87%</p>
+                  </div>
                 </div>
               </div>
+
+              {/* Chart Visualization */}
+              <div className="pt-4 space-y-3">
+                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day, i) => {
+                  const meetings = [3, 2, 1, 4, 2][i];
+                  const width = (meetings / 4) * 100;
+                  return (
+                    <div key={day} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600 font-medium">{day}</span>
+                        <span className="text-gray-900 font-semibold">{meetings} meetings</span>
+                      </div>
+                      <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all"
+                          style={{ width: `${width}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
+          </div>
 
-            {/* Quick Actions */}
-            <div className="space-y-4">
-              <button
-                onClick={() => navigate('/bookings')}
-                className="w-full p-5 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl hover:shadow-2xl transition-all group"
-              >
-                <div className="space-y-3 text-left">
-                  <div className="h-12 w-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                    <Calendar className="h-6 w-6 text-white" />
-                  </div>
-                  <h4 className="text-white font-bold text-lg">My Bookings</h4>
-                  <p className="text-white/90 text-sm">View and manage all your scheduled meetings</p>
-                  <div className="flex items-center justify-between pt-2">
-                    <span className="text-white/80 text-xs font-semibold">View All</span>
-                    <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform" />
-                  </div>
+          {/* Quick Actions - Below Weekly Overview */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <button
+              onClick={() => navigate('/bookings')}
+              className="p-6 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl hover:shadow-2xl transition-all group"
+            >
+              <div className="space-y-3 text-left">
+                <div className="h-14 w-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <Calendar className="h-7 w-7 text-white" />
                 </div>
-              </button>
+                <h4 className="text-white font-bold text-xl">My Bookings</h4>
+                <p className="text-white/90 text-sm">View and manage all your scheduled meetings</p>
+                <div className="flex items-center justify-between pt-2">
+                  <span className="text-white/90 text-sm font-semibold">View All</span>
+                  <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+            </button>
 
-              <button
-                onClick={() => navigate('/teams')}
-                className="w-full p-5 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-2xl hover:shadow-2xl transition-all group"
-              >
-                <div className="space-y-3 text-left">
-                  <div className="h-12 w-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                    <Users className="h-6 w-6 text-white" />
-                  </div>
-                  <h4 className="text-white font-bold text-lg">Manage Teams</h4>
-                  <p className="text-white/90 text-sm">Add or edit team members and their availability</p>
-                  <div className="flex items-center justify-between pt-2">
-                    <span className="text-white/80 text-xs font-semibold">Manage</span>
-                    <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform" />
-                  </div>
+            <button
+              onClick={() => navigate('/teams')}
+              className="p-6 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-2xl hover:shadow-2xl transition-all group"
+            >
+              <div className="space-y-3 text-left">
+                <div className="h-14 w-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <Users className="h-7 w-7 text-white" />
                 </div>
-              </button>
+                <h4 className="text-white font-bold text-xl">Manage Teams</h4>
+                <p className="text-white/90 text-sm">Add or edit team members and their availability</p>
+                <div className="flex items-center justify-between pt-2">
+                  <span className="text-white/90 text-sm font-semibold">Manage</span>
+                  <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+            </button>
 
-              <button
-                onClick={() => navigate('/my-booking-link')}
-                className="w-full p-5 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-2xl hover:shadow-2xl transition-all group"
-              >
-                <div className="space-y-3 text-left">
-                  <div className="h-12 w-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                    <Sparkles className="h-6 w-6 text-white" />
-                  </div>
-                  <h4 className="text-white font-bold text-lg">My Booking Link</h4>
-                  <p className="text-white/90 text-sm">Share your link and let others book time</p>
-                  <div className="flex items-center justify-between pt-2">
-                    <span className="text-white/80 text-xs font-semibold">Get Link</span>
-                    <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform" />
-                  </div>
+            <button
+              onClick={() => navigate('/my-booking-link')}
+              className="p-6 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-2xl hover:shadow-2xl transition-all group"
+            >
+              <div className="space-y-3 text-left">
+                <div className="h-14 w-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <Sparkles className="h-7 w-7 text-white" />
                 </div>
-              </button>
-            </div>
+                <h4 className="text-white font-bold text-xl">My Booking Link</h4>
+                <p className="text-white/90 text-sm">Share your link and let others book time</p>
+                <div className="flex items-center justify-between pt-2">
+                  <span className="text-white/90 text-sm font-semibold">Get Link</span>
+                  <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+            </button>
           </div>
 
           {/* Recent Bookings */}
@@ -335,8 +330,8 @@ export default function Dashboard() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <p className="text-gray-900 font-bold">{booking.attendee_name || 'Guest'}</p>
-                            <span className={`text-xs font-semibold px-2 py-1 rounded-full border flex items-center gap-1 ${getStatusColor(booking.status)}`}>
-                              {getStatusIcon(booking.status)}
+                            <span className={`text-xs font-semibold px-2 py-1 rounded-full border flex items-center gap-1 ${getStatusColor(booking.status || 'confirmed')}`}>
+                              {getStatusIcon(booking.status || 'confirmed')}
                               {booking.status || 'confirmed'}
                             </span>
                           </div>
