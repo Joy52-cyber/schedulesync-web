@@ -96,8 +96,8 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
                 <Calendar className="h-6 w-6 text-white" />
@@ -108,31 +108,33 @@ export default function Dashboard() {
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
               <button
                 onClick={() => navigate('/bookings')}
-                className="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-semibold flex items-center gap-2"
+                className="flex-1 sm:flex-none px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-semibold flex items-center justify-center gap-2"
               >
                 <Calendar className="h-4 w-4" />
-                View Calendar
+                <span className="hidden sm:inline">View Calendar</span>
+                <span className="sm:hidden">Calendar</span>
               </button>
               <button
                 onClick={() => navigate('/my-booking-link')}
-                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-semibold flex items-center gap-2"
+                className="flex-1 sm:flex-none px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-semibold flex items-center justify-center gap-2"
               >
                 <Sparkles className="h-4 w-4" />
-                New Booking
+                <span className="hidden sm:inline">New Booking</span>
+                <span className="sm:hidden">New</span>
               </button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      {/* Main Content - CENTERED */}
+      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {statCards.map((stat, index) => (
               <div key={index} className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100 hover:shadow-xl transition-all">
                 <div className="flex items-center justify-between">
@@ -162,12 +164,12 @@ export default function Dashboard() {
           {/* Weekly Overview */}
           <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h3 className="text-xl font-bold text-gray-900">Weekly Overview</h3>
                   <p className="text-gray-600 text-sm">Your activity this week</p>
                 </div>
-                <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full inline-flex items-center gap-1 border border-blue-200">
+                <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full inline-flex items-center gap-1 border border-blue-200 self-start">
                   <TrendingUp className="h-3 w-3" />
                   +12% vs last week
                 </span>
@@ -177,7 +179,7 @@ export default function Dashboard() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                  <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                     <Calendar className="h-6 w-6 text-blue-600" />
                   </div>
                   <div>
@@ -187,7 +189,7 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-100">
-                  <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
                     <CheckCircle2 className="h-6 w-6 text-green-600" />
                   </div>
                   <div>
@@ -197,7 +199,7 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl border border-purple-100">
-                  <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
                     <BarChart3 className="h-6 w-6 text-purple-600" />
                   </div>
                   <div>
@@ -232,12 +234,12 @@ export default function Dashboard() {
           </div>
 
           {/* Quick Actions - Below Weekly Overview */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <button
               onClick={() => navigate('/bookings')}
-              className="p-6 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl hover:shadow-2xl transition-all group"
+              className="p-6 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl hover:shadow-2xl transition-all group text-left"
             >
-              <div className="space-y-3 text-left">
+              <div className="space-y-3">
                 <div className="h-14 w-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
                   <Calendar className="h-7 w-7 text-white" />
                 </div>
@@ -252,9 +254,9 @@ export default function Dashboard() {
 
             <button
               onClick={() => navigate('/teams')}
-              className="p-6 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-2xl hover:shadow-2xl transition-all group"
+              className="p-6 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-2xl hover:shadow-2xl transition-all group text-left"
             >
-              <div className="space-y-3 text-left">
+              <div className="space-y-3">
                 <div className="h-14 w-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
                   <Users className="h-7 w-7 text-white" />
                 </div>
@@ -269,9 +271,9 @@ export default function Dashboard() {
 
             <button
               onClick={() => navigate('/my-booking-link')}
-              className="p-6 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-2xl hover:shadow-2xl transition-all group"
+              className="p-6 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-2xl hover:shadow-2xl transition-all group text-left"
             >
-              <div className="space-y-3 text-left">
+              <div className="space-y-3">
                 <div className="h-14 w-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
                   <Sparkles className="h-7 w-7 text-white" />
                 </div>
@@ -288,14 +290,14 @@ export default function Dashboard() {
           {/* Recent Bookings */}
           <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h3 className="text-xl font-bold text-gray-900">Recent Bookings</h3>
                   <p className="text-gray-600 text-sm">Your latest scheduled meetings</p>
                 </div>
                 <button
                   onClick={() => navigate('/bookings')}
-                  className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all font-semibold text-sm flex items-center gap-1"
+                  className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all font-semibold text-sm flex items-center gap-1 self-start"
                 >
                   View All
                   <ChevronRight className="h-4 w-4" />
@@ -320,30 +322,30 @@ export default function Dashboard() {
                   {recentBookings.slice(0, 5).map((booking) => (
                     <div
                       key={booking.id}
-                      className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group gap-4"
                     >
                       <div className="flex items-center gap-4 flex-1">
-                        <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md">
+                        <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md flex-shrink-0">
                           {booking.attendee_name?.charAt(0) || 'G'}
                         </div>
                         
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="text-gray-900 font-bold">{booking.attendee_name || 'Guest'}</p>
-                            <span className={`text-xs font-semibold px-2 py-1 rounded-full border flex items-center gap-1 ${getStatusColor(booking.status || 'confirmed')}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <p className="text-gray-900 font-bold truncate">{booking.attendee_name || 'Guest'}</p>
+                            <span className={`text-xs font-semibold px-2 py-1 rounded-full border flex items-center gap-1 flex-shrink-0 ${getStatusColor(booking.status || 'confirmed')}`}>
                               {getStatusIcon(booking.status || 'confirmed')}
                               {booking.status || 'confirmed'}
                             </span>
                           </div>
-                          <div className="flex items-center gap-3 text-gray-600 text-sm">
-                            <span>{booking.attendee_email}</span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
+                          <div className="flex flex-wrap items-center gap-2 text-gray-600 text-sm">
+                            <span className="truncate">{booking.attendee_email}</span>
+                            <span className="hidden sm:inline">•</span>
+                            <span className="flex items-center gap-1 flex-shrink-0">
                               <Calendar className="h-3 w-3" />
                               {new Date(booking.start_time).toLocaleDateString()}
                             </span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
+                            <span className="hidden sm:inline">•</span>
+                            <span className="flex items-center gap-1 flex-shrink-0">
                               <Clock className="h-3 w-3" />
                               {new Date(booking.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
@@ -351,7 +353,7 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      <button className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-gray-100 rounded-lg">
+                      <button className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-gray-100 rounded-lg self-start sm:self-center">
                         <MoreHorizontal className="h-5 w-5 text-gray-400" />
                       </button>
                     </div>
