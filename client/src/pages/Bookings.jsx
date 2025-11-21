@@ -4,11 +4,9 @@ import {
   Calendar, 
   Clock, 
   User, 
-  Mail,
   Video,
   Filter,
   Search,
-  Download,
   Eye,
   X,
   Loader2,
@@ -91,13 +89,11 @@ export default function Bookings() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">Bookings</h1>
           <p className="text-gray-600">Manage all your scheduled appointments</p>
         </div>
 
-        {/* Filters */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border-2 border-gray-100">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
@@ -126,7 +122,6 @@ export default function Bookings() {
           </div>
         </div>
 
-        {/* Bookings List */}
         {filteredBookings.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-lg p-12 text-center border-2 border-gray-100">
             <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
@@ -201,7 +196,7 @@ export default function Bookings() {
 
                   {booking.notes && (
                     <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-600 italic">"{booking.notes}"</p>
+                      <p className="text-sm text-gray-600 italic">{booking.notes}</p>
                     </div>
                   )}
                 </div>
@@ -211,7 +206,6 @@ export default function Bookings() {
         )}
       </div>
 
-      {/* Booking Detail Modal */}
       {selectedBooking && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -279,7 +273,7 @@ export default function Bookings() {
               {selectedBooking.notes && (
                 <div className="p-4 bg-gray-50 rounded-xl">
                   <p className="font-semibold text-gray-900 mb-2">Notes:</p>
-                  <p className="text-gray-700">"{selectedBooking.notes}"</p>
+                  <p className="text-gray-700">{selectedBooking.notes}</p>
                 </div>
               )}
 
