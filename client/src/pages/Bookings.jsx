@@ -132,10 +132,7 @@ export default function Bookings() {
         ) : (
           <div className="space-y-4">
             {filteredBookings.map((booking) => (
-              <div
-                key={booking.id}
-                className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all border-2 border-gray-100 overflow-hidden"
-              >
+              <div key={booking.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all border-2 border-gray-100 overflow-hidden">
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-4">
@@ -149,10 +146,7 @@ export default function Bookings() {
                     </div>
                     <div className="flex items-center gap-2">
                       {getStatusBadge(booking.status)}
-                      <button
-                        onClick={() => setSelectedBooking(booking)}
-                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                      >
+                      <button onClick={() => setSelectedBooking(booking)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                         <Eye className="h-5 w-5 text-gray-600" />
                       </button>
                     </div>
@@ -162,43 +156,30 @@ export default function Bookings() {
                     <div className="flex items-center gap-2 text-gray-600">
                       <Calendar className="h-4 w-4" />
                       <span className="text-sm">
-                        {new Date(booking.start_time).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
+                        {new Date(booking.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-gray-600">
                       <Clock className="h-4 w-4" />
                       <span className="text-sm">
-                        {new Date(booking.start_time).toLocaleTimeString('en-US', {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          hour12: true
-                        })}
+                        {new Date(booking.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
                       </span>
                     </div>
-                    {booking.meet_link && (
+                    {booking.meet_link ? (
                       <div className="flex items-center gap-2 text-gray-600">
                         <Video className="h-4 w-4" />
-                        
-                          href={booking.meet_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:text-blue-700"
-                        >
+                        <a href={booking.meet_link} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:text-blue-700">
                           Join Meeting
                         </a>
                       </div>
-                    )}
+                    ) : null}
                   </div>
 
-                  {booking.notes && (
+                  {booking.notes ? (
                     <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                       <p className="text-sm text-gray-600 italic">{booking.notes}</p>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -206,15 +187,12 @@ export default function Bookings() {
         )}
       </div>
 
-      {selectedBooking && (
+      {selectedBooking ? (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-purple-600 p-6 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-white">Booking Details</h2>
-              <button
-                onClick={() => setSelectedBooking(null)}
-                className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center hover:bg-white/30"
-              >
+              <button onClick={() => setSelectedBooking(null)} className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center hover:bg-white/30">
                 <X className="h-5 w-5 text-white" />
               </button>
             </div>
@@ -232,63 +210,42 @@ export default function Bookings() {
                 <Calendar className="h-6 w-6 text-purple-600" />
                 <div>
                   <p className="font-semibold text-gray-900">
-                    {new Date(selectedBooking.start_time).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
+                    {new Date(selectedBooking.start_time).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                   </p>
                   <p className="text-sm text-gray-600">
-                    {new Date(selectedBooking.start_time).toLocaleTimeString('en-US', {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                      hour12: true
-                    })} - {new Date(selectedBooking.end_time).toLocaleTimeString('en-US', {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                      hour12: true
-                    })}
+                    {new Date(selectedBooking.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} - {new Date(selectedBooking.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
                   </p>
                 </div>
               </div>
 
-              {selectedBooking.meet_link && (
+              {selectedBooking.meet_link ? (
                 <div className="flex items-start gap-4 p-4 bg-green-50 rounded-xl">
                   <Video className="h-6 w-6 text-green-600 mt-1" />
                   <div className="flex-1">
                     <p className="font-semibold text-gray-900 mb-1">Video Conference</p>
-                    
-                      href={selectedBooking.meet_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-700 text-sm break-all"
-                    >
+                    <a href={selectedBooking.meet_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 text-sm break-all">
                       {selectedBooking.meet_link}
                     </a>
                   </div>
                 </div>
-              )}
+              ) : null}
 
-              {selectedBooking.notes && (
+              {selectedBooking.notes ? (
                 <div className="p-4 bg-gray-50 rounded-xl">
                   <p className="font-semibold text-gray-900 mb-2">Notes:</p>
                   <p className="text-gray-700">{selectedBooking.notes}</p>
                 </div>
-              )}
+              ) : null}
 
               <div className="pt-4">
-                <button
-                  onClick={() => navigate(`/manage-booking/${selectedBooking.token}`)}
-                  className="w-full bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-semibold"
-                >
+                <button onClick={() => navigate(`/manage-booking/${selectedBooking.token}`)} className="w-full bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-semibold">
                   Manage Booking
                 </button>
               </div>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
