@@ -1,47 +1,130 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  Calendar,
-  Clock,
-  Save,
-  Check,
-  Loader2,
-  ArrowLeft
+import {
+  ArrowLeft, Save, Clock, Calendar, Loader2, Plus, Trash2, 
+  Info, AlertCircle, CheckCircle, X, Check, Zap, TrendingUp, Shield
 } from 'lucide-react';
 import { availability as availabilityAPI } from '../utils/api';
 
 export default function MemberAvailability() {
   const { teamId, memberId } = useParams();
   const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [member, setMember] = useState(null);
   
-  const [availability, setAvailability] = useState({
-    timezone: 'America/New_York',
-    schedule: [
-      { day: 'Monday', enabled: true, start: '09:00', end: '17:00' },
-      { day: 'Tuesday', enabled: true, start: '09:00', end: '17:00' },
-      { day: 'Wednesday', enabled: true, start: '09:00', end: '17:00' },
-      { day: 'Thursday', enabled: true, start: '09:00', end: '17:00' },
-      { day: 'Friday', enabled: true, start: '09:00', end: '17:00' },
-      { day: 'Saturday', enabled: false, start: '09:00', end: '17:00' },
-      { day: 'Sunday', enabled: false, start: '09:00', end: '17:00' }
-    ]
+  // Advanced Settings
+  const [bufferTime, setBufferTime] = useState(0);
+  const [leadTimeHours, setLeadTimeHours] = useState(0);
+  const [horizonDays, setHorizonDays] = useState(30);
+  const [dailyCap, setDailyCap] = useState(null);
+  
+  const [workingHours, setWorkingHours] = useState({
+    monday: { enabled: true, start: '09:00', end: '17:00' },
+    tuesday: { enabled: true, start: '09:00', end: '17:00' },
+    wednesday: { enabled: true, start: '09:00', end: '17:00' },
+    thursday: { enabled: true, start: '09:00', end: '17:00' },
+    friday: { enabled: true, start: '09:00', end: '17:00' },
+    saturday: { enabled: false, start: '09:00', end: '17:00' },
+    sunday: { enabled: false, start: '09:00', end: '17:00' },
   });
+  
+  const [blockedTimes, setBlockedTimes] = useState([]);
+  const [notification, setNotification] = useState(null);
+
+  const days = [
+    { key: 'monday', label: 'Mon', full: 'Monday' },
+    { key: 'tuesday', label: 'Tue', full: 'Tuesday' },
+    { key: 'wednesday', label: 'Wed', full: 'Wednesday' },
+    { key: 'thursday', label: 'Thu', full: 'Thursday' },
+    { key: 'friday', label: 'Fri', full: 'Friday' },
+    { key: 'saturday', label: 'Sat', full: 'Saturday' },
+    { key: 'sunday', label: 'Sun', full: 'Sunday' },
+  ];
+
+  const bufferOptions = [
+    { value: 0, label: 'None', desc: 'Back-to-back OK' },
+    { value: 5, label: '5min', desc: 'Quick break' },
+    { value: 10, label: '10min', desc: 'Short buffer' },
+    { value: 15, label: '15min', desc: 'Standard' },
+    { value: 30, label: '30min', desc: 'Extended' },
+    { value: 60, label: '1hr', desc: 'Full hour' },
+  ];
+
+  const leadTimeOptions = [
+    { value: 0, label: 'None', desc: 'Instant booking' },
+    { value: 2, label: '2hrs', desc: 'Same day OK' },
+    { value: 4, label: '4hrs', desc: 'Half day notice' },
+    { value: 24, label: '24hrs', desc: '1 day notice' },
+    { value: 48, label: '48hrs', desc: '2 days notice' },
+    { value: 168, label: '1wk', desc: 'Weekly planning' },
+  ];
+
+  const horizonOptions = [
+    { value: 7, label: '1wk', desc: 'Short term' },
+    { value: 14, label: '2wks', desc: 'Biweekly' },
+    { value: 30, label: '1mo', desc: 'Monthly' },
+    { value: 60, label: '2mo', desc: 'Quarterly' },
+    { value: 90, label: '3mo', desc: 'Long term' },
+    { value: 180, label: '6mo', desc: 'Extended' },
+  ];
+
+  const dailyCapOptions = [
+    { value: null, label: 'Unlimited', desc: 'No limit' },
+    { value: 1, label: '1', desc: 'One per day' },
+    { value: 2, label: '2', desc: 'Two max' },
+    { value: 3, label: '3', desc: 'Three max' },
+    { value: 5, label: '5', desc: 'Five max' },
+    { value: 10, label: '10', desc: 'Ten max' },
+  ];
+
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const convertISOToDateTimeLocal = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
 
   useEffect(() => {
-    loadAvailability();
-  }, [teamId, memberId]);
+    loadMemberSettings();
+  }, [memberId]);
 
-  const loadAvailability = async () => {
+  const loadMemberSettings = async () => {
     try {
+      setLoading(true);
       const response = await availabilityAPI.get(memberId);
-      if (response.data.availability) {
-        setAvailability(response.data.availability);
+      const data = response.data;
+
+      setMember(data.member);
+      setBufferTime(data.member.buffer_time || 0);
+      setLeadTimeHours(data.member.lead_time_hours || 0);
+      setHorizonDays(data.member.booking_horizon_days || 30);
+      setDailyCap(data.member.daily_booking_cap || null);
+      
+      if (data.member.working_hours) {
+        setWorkingHours(data.member.working_hours);
       }
+
+      const formattedBlockedTimes = (data.blocked_times || []).map(block => ({
+        ...block,
+        start_time: convertISOToDateTimeLocal(block.start_time),
+        end_time: convertISOToDateTimeLocal(block.end_time),
+      }));
+
+      setBlockedTimes(formattedBlockedTimes);
     } catch (error) {
       console.error('Error loading availability:', error);
+      showNotification('Failed to load settings', 'error');
     } finally {
       setLoading(false);
     }
@@ -50,165 +133,473 @@ export default function MemberAvailability() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      await availabilityAPI.update(memberId, availability);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+
+      const validBlockedTimes = blockedTimes
+        .filter(block => block.start_time && block.end_time)
+        .map(block => ({
+          start_time: new Date(block.start_time).toISOString(),
+          end_time: new Date(block.end_time).toISOString(),
+          reason: block.reason || null,
+        }));
+
+      await availabilityAPI.update(memberId, {
+        buffer_time: bufferTime,
+        lead_time_hours: leadTimeHours,
+        booking_horizon_days: horizonDays,
+        daily_booking_cap: dailyCap,
+        working_hours: workingHours,
+        blocked_times: validBlockedTimes,
+      });
+
+      showNotification('✅ Availability saved successfully!');
+      setTimeout(() => navigate(`/teams/${teamId}/members`), 1500);
     } catch (error) {
       console.error('Error saving availability:', error);
+      showNotification('Failed to save. Please try again.', 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  const updateSchedule = (index, field, value) => {
-    const newSchedule = [...availability.schedule];
-    newSchedule[index] = { ...newSchedule[index], [field]: value };
-    setAvailability({ ...availability, schedule: newSchedule });
+  const toggleDay = (day) => {
+    setWorkingHours({
+      ...workingHours,
+      [day]: {
+        ...workingHours[day],
+        enabled: !workingHours[day].enabled,
+      },
+    });
+  };
+
+  const updateDayTime = (day, field, value) => {
+    setWorkingHours({
+      ...workingHours,
+      [day]: {
+        ...workingHours[day],
+        [field]: value,
+      },
+    });
+  };
+
+  const addBlockedTime = () => {
+    setBlockedTimes([
+      ...blockedTimes,
+      {
+        id: `temp-${Date.now()}`,
+        start_time: '',
+        end_time: '',
+        reason: '',
+      },
+    ]);
+  };
+
+  const removeBlockedTime = (index) => {
+    setBlockedTimes(blockedTimes.filter((_, i) => i !== index));
+  };
+
+  const updateBlockedTime = (index, field, value) => {
+    const updated = [...blockedTimes];
+    updated[index][field] = value;
+    setBlockedTimes(updated);
+  };
+
+  const setAllDays = () => {
+    const all = { ...workingHours };
+    Object.keys(all).forEach(d => all[d].enabled = true);
+    setWorkingHours(all);
+  };
+
+  const setWeekdaysOnly = () => {
+    const wk = { ...workingHours };
+    wk.saturday.enabled = false;
+    wk.sunday.enabled = false;
+    Object.keys(wk).forEach(d => { 
+      if (d !== 'saturday' && d !== 'sunday') wk[d].enabled = true; 
+    });
+    setWorkingHours(wk);
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading availability settings...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        <div className="mb-8">
-          <button
-            onClick={() => navigate(`/teams/${teamId}/members`)}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 font-semibold"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Members
-          </button>
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">Availability Settings</h1>
-          <p className="text-gray-600">Configure your weekly availability schedule</p>
+      {/* Notification Toast */}
+      {notification && (
+        <div className="fixed top-4 right-4 z-50 animate-slide-in">
+          <div className={`flex items-center gap-2 px-4 py-3 rounded-xl shadow-2xl font-semibold ${
+            notification.type === 'error' 
+              ? 'bg-red-600 text-white' 
+              : 'bg-green-600 text-white'
+          }`}>
+            {notification.type === 'error' ? (
+              <AlertCircle className="h-5 w-5" />
+            ) : (
+              <CheckCircle className="h-5 w-5" />
+            )}
+            {notification.message}
+          </div>
         </div>
+      )}
 
-        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-gray-100">
+      {/* Sticky Header */}
+      <div className="bg-white border-b-2 border-gray-200 shadow-sm sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-4 py-4">
+            <button
+              onClick={() => navigate(`/teams/${teamId}/members`)}
+              className="p-2 hover:bg-gray-100 rounded-xl transition-all"
+            >
+              <ArrowLeft className="h-5 w-5 text-gray-600" />
+            </button>
+            <div className="flex-1">
+              <h1 className="text-2xl font-bold text-gray-900">
+                Availability Settings
+              </h1>
+              <p className="text-sm text-gray-600">{member?.name || 'Team Member'} • Advanced Configuration</p>
+            </div>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2 font-semibold"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-5 w-5" />
+                  Save All
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        
+        {/* Advanced Settings Grid */}
+        <div className="grid lg:grid-cols-2 gap-6">
           
-          <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6">
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-              <Calendar className="h-6 w-6" />
-              Weekly Schedule
-            </h2>
+          {/* Buffer Time */}
+          <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex items-center gap-3">
+              <Clock className="h-6 w-6 text-white" />
+              <div>
+                <h2 className="text-lg font-bold text-white">Buffer Time</h2>
+                <p className="text-blue-100 text-sm">Gap between meetings</p>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-4">
+                <div className="flex items-start gap-2">
+                  <Info className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-blue-900">Prevents back-to-back meetings, gives you time to prep/decompress</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {bufferOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setBufferTime(option.value)}
+                    className={`p-3 rounded-xl border-2 text-left transition-all ${
+                      bufferTime === option.value
+                        ? 'border-blue-500 bg-blue-50 shadow-md'
+                        : 'border-gray-200 bg-white hover:border-blue-300'
+                    }`}
+                  >
+                    <p className="font-bold text-gray-900">{option.label}</p>
+                    <p className="text-xs text-gray-600">{option.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <div className="p-8 space-y-6">
-            
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Timezone</label>
-              <select
-                value={availability.timezone}
-                onChange={(e) => setAvailability({ ...availability, timezone: e.target.value })}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
-              >
-                <option value="America/New_York">Eastern Time (US)</option>
-                <option value="America/Chicago">Central Time (US)</option>
-                <option value="America/Denver">Mountain Time (US)</option>
-                <option value="America/Los_Angeles">Pacific Time (US)</option>
-                <option value="Europe/London">London</option>
-                <option value="Europe/Paris">Paris</option>
-                <option value="Asia/Tokyo">Tokyo</option>
-              </select>
+          {/* Lead Time */}
+          <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-green-600 to-emerald-700 px-6 py-4 flex items-center gap-3">
+              <Zap className="h-6 w-6 text-white" />
+              <div>
+                <h2 className="text-lg font-bold text-white">Lead Time</h2>
+                <p className="text-green-100 text-sm">Minimum notice required</p>
+              </div>
             </div>
+            <div className="p-6">
+              <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 mb-4">
+                <div className="flex items-start gap-2">
+                  <Info className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-green-900">How far in advance people must book (e.g., 24h = must book tomorrow or later)</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {leadTimeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setLeadTimeHours(option.value)}
+                    className={`p-3 rounded-xl border-2 text-left transition-all ${
+                      leadTimeHours === option.value
+                        ? 'border-green-500 bg-green-50 shadow-md'
+                        : 'border-gray-200 bg-white hover:border-green-300'
+                    }`}
+                  >
+                    <p className="font-bold text-gray-900">{option.label}</p>
+                    <p className="text-xs text-gray-600">{option.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
 
+          {/* Booking Horizon */}
+          <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4 flex items-center gap-3">
+              <TrendingUp className="h-6 w-6 text-white" />
+              <div>
+                <h2 className="text-lg font-bold text-white">Booking Horizon</h2>
+                <p className="text-purple-100 text-sm">How far ahead to show</p>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 mb-4">
+                <div className="flex items-start gap-2">
+                  <Info className="h-4 w-4 text-purple-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-purple-900">Maximum days in the future people can book (e.g., 30 days = only show next month)</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {horizonOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setHorizonDays(option.value)}
+                    className={`p-3 rounded-xl border-2 text-left transition-all ${
+                      horizonDays === option.value
+                        ? 'border-purple-500 bg-purple-50 shadow-md'
+                        : 'border-gray-200 bg-white hover:border-purple-300'
+                    }`}
+                  >
+                    <p className="font-bold text-gray-900">{option.label}</p>
+                    <p className="text-xs text-gray-600">{option.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Daily Cap */}
+          <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-orange-600 to-orange-700 px-6 py-4 flex items-center gap-3">
+              <Shield className="h-6 w-6 text-white" />
+              <div>
+                <h2 className="text-lg font-bold text-white">Daily Cap</h2>
+                <p className="text-orange-100 text-sm">Max bookings per day</p>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4 mb-4">
+                <div className="flex items-start gap-2">
+                  <Info className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-orange-900">Prevent burnout by limiting daily meetings (e.g., max 3 per day)</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {dailyCapOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setDailyCap(option.value)}
+                    className={`p-3 rounded-xl border-2 text-left transition-all ${
+                      dailyCap === option.value
+                        ? 'border-orange-500 bg-orange-50 shadow-md'
+                        : 'border-gray-200 bg-white hover:border-orange-300'
+                    }`}
+                  >
+                    <p className="font-bold text-gray-900">{option.label}</p>
+                    <p className="text-xs text-gray-600">{option.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Working Hours */}
+        <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Calendar className="h-6 w-6 text-white" />
+              <div>
+                <h2 className="text-lg font-bold text-white">Working Hours</h2>
+                <p className="text-indigo-100 text-sm">When you're available</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={setAllDays}
+                className="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-medium transition-all"
+              >
+                All Days
+              </button>
+              <button
+                onClick={setWeekdaysOnly}
+                className="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-medium transition-all"
+              >
+                Weekdays Only
+              </button>
+            </div>
+          </div>
+          <div className="p-6">
             <div className="space-y-3">
-              {availability.schedule.map((day, index) => (
+              {days.map((day) => (
                 <div
-                  key={day.day}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    day.enabled 
-                      ? 'bg-blue-50 border-blue-200' 
-                      : 'bg-gray-50 border-gray-200'
+                  key={day.key}
+                  className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
+                    workingHours[day.key].enabled
+                      ? 'bg-indigo-50 border-indigo-200'
+                      : 'bg-gray-50 border-gray-200 opacity-60'
                   }`}
                 >
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-                    
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={day.enabled}
-                        onChange={(e) => updateSchedule(index, 'enabled', e.target.checked)}
-                        className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className="font-bold text-gray-900">{day.day}</span>
-                    </label>
-
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Start</label>
-                      <input
-                        type="time"
-                        value={day.start}
-                        onChange={(e) => updateSchedule(index, 'start', e.target.value)}
-                        disabled={!day.enabled}
-                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">End</label>
-                      <input
-                        type="time"
-                        value={day.end}
-                        onChange={(e) => updateSchedule(index, 'end', e.target.value)}
-                        disabled={!day.enabled}
-                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                    </div>
-
-                    <div className="text-sm text-gray-600">
-                      {day.enabled && (
-                        <>
-                          <Clock className="h-4 w-4 inline mr-1" />
-                          {calculateDuration(day.start, day.end)} hrs
-                        </>
+                  <button
+                    onClick={() => toggleDay(day.key)}
+                    className={`relative flex-shrink-0 w-12 h-7 rounded-full transition-all ${
+                      workingHours[day.key].enabled ? 'bg-green-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform shadow-md ${
+                      workingHours[day.key].enabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}>
+                      {workingHours[day.key].enabled && (
+                        <Check className="h-5 w-5 text-green-600" />
                       )}
                     </div>
+                  </button>
+                  <div className="w-24">
+                    <p className="font-bold text-gray-900">{day.full}</p>
                   </div>
+                  {workingHours[day.key].enabled ? (
+                    <div className="flex items-center gap-3 flex-1">
+                      <input
+                        type="time"
+                        value={workingHours[day.key].start}
+                        onChange={(e) => updateDayTime(day.key, 'start', e.target.value)}
+                        className="px-3 py-2 border-2 border-gray-300 rounded-lg font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
+                      />
+                      <span className="text-gray-400 font-bold">→</span>
+                      <input
+                        type="time"
+                        value={workingHours[day.key].end}
+                        onChange={(e) => updateDayTime(day.key, 'end', e.target.value)}
+                        className="px-3 py-2 border-2 border-gray-300 rounded-lg font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-gray-500 font-medium">Day off</span>
+                  )}
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="mt-6">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2 font-bold text-lg disabled:opacity-50"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Saving...
-              </>
-            ) : saved ? (
-              <>
-                <Check className="h-5 w-5" />
-                Saved!
-              </>
+        {/* Blocked Times */}
+        <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-red-600 to-red-700 px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <X className="h-6 w-6 text-white" />
+              <div>
+                <h2 className="text-lg font-bold text-white">Blocked Times</h2>
+                <p className="text-red-100 text-sm">Specific unavailable periods</p>
+              </div>
+            </div>
+            <button
+              onClick={addBlockedTime}
+              className="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
+            >
+              <Plus className="h-4 w-4" />
+              Add Block
+            </button>
+          </div>
+          <div className="p-6">
+            {blockedTimes.length === 0 ? (
+              <div className="text-center py-12 bg-red-50 rounded-xl border-2 border-dashed border-red-300">
+                <X className="h-12 w-12 text-red-300 mx-auto mb-3" />
+                <p className="text-gray-600 mb-4">No blocked times</p>
+                <button
+                  onClick={addBlockedTime}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
+                >
+                  Add Blocked Time
+                </button>
+              </div>
             ) : (
-              <>
-                <Save className="h-5 w-5" />
-                Save Availability
-              </>
+              <div className="space-y-3">
+                {blockedTimes.map((block, index) => (
+                  <div key={block.id} className="flex items-center gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Start</label>
+                        <input
+                          type="datetime-local"
+                          value={block.start_time}
+                          onChange={(e) => updateBlockedTime(index, 'start_time', e.target.value)}
+                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-sm focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">End</label>
+                        <input
+                          type="datetime-local"
+                          value={block.end_time}
+                          onChange={(e) => updateBlockedTime(index, 'end_time', e.target.value)}
+                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-sm focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Reason (optional)</label>
+                        <input
+                          type="text"
+                          placeholder="Vacation, meeting, etc."
+                          value={block.reason || ''}
+                          onChange={(e) => updateBlockedTime(index, 'reason', e.target.value)}
+                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-sm focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeBlockedTime(index)}
+                      className="p-3 bg-red-600 text-white hover:bg-red-700 rounded-xl transition-colors"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
-          </button>
+          </div>
         </div>
+
       </div>
+
+      <style jsx>{`
+        @keyframes slide-in {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        .animate-slide-in {
+          animation: slide-in 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
-}
-
-function calculateDuration(start, end) {
-  const [startHour, startMin] = start.split(':').map(Number);
-  const [endHour, endMin] = end.split(':').map(Number);
-  const duration = (endHour * 60 + endMin - (startHour * 60 + startMin)) / 60;
-  return duration.toFixed(1);
 }
