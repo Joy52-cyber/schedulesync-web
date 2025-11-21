@@ -442,7 +442,7 @@ app.post('/api/book/auth/google', async (req, res) => {
 // ============ TEAM ROUTES ============
 
 // Get all teams for current user
-// Get all teams for current user
+
 app.get('/api/teams', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -1447,6 +1447,8 @@ slots.sort((a, b) => {
 });
 // ============ MY BOOKING LINK (PERSONAL BOOKING PAGE) ============
 
+// ============ MY BOOKING LINK (PERSONAL BOOKING PAGE) ============
+
 app.get('/api/my-booking-link', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -1487,7 +1489,7 @@ app.get('/api/my-booking-link', authenticateToken, async (req, res) => {
       [team.id, userId]
     );
 
-    // Add user as member if not already
+    // Add user as member if not already OR regenerate token if it's malformed
     if (memberResult.rows.length === 0) {
       console.log('➕ Adding user as member of their personal team');
       
@@ -1498,12 +1500,29 @@ app.get('/api/my-booking-link', authenticateToken, async (req, res) => {
         [team.id, userId, userEmail, userName, bookingToken, userId]
       );
       memberResult = insertResult;
+      console.log('✅ Created member with token:', bookingToken);
+    } else {
+      const member = memberResult.rows[0];
+      
+      // Check if token is valid (32 hex characters)
+      if (!member.booking_token || member.booking_token.length !== 32 || !/^[a-f0-9]{32}$/i.test(member.booking_token)) {
+        console.log('🔄 Regenerating invalid booking token for member:', member.id);
+        const newBookingToken = crypto.randomBytes(16).toString('hex');
+        
+        const updateResult = await pool.query(
+          `UPDATE team_members SET booking_token = $1 WHERE id = $2 RETURNING *`,
+          [newBookingToken, member.id]
+        );
+        memberResult = updateResult;
+        console.log('✅ Updated member with new token:', newBookingToken);
+      }
     }
 
     const member = memberResult.rows[0];
     const bookingUrl = `${process.env.FRONTEND_URL}/book/${member.booking_token}`;
 
     console.log('✅ Personal booking link generated:', bookingUrl);
+    console.log('📋 Token:', member.booking_token);
 
     res.json({
       success: true,
