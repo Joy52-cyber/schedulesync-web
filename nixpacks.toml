@@ -1,17 +1,16 @@
 [phases.setup]
-nixPkgs = ["nodejs-18_x", "npm-9_x"]
+nixPkgs = ["nodejs-18_x"]
 
 [phases.install]
 cmds = [
-  "npm ci",
-  "cd client && rm -rf dist node_modules .vite && npm install && cd .."
+  "rm -f package-lock.json client/package-lock.json",
+  "npm install",
+  "cd client && npm install && cd .."
 ]
 
 [phases.build]
 cmds = [
-  "cd client && npm run build && cd ..",
-  "mkdir -p /app/dist-built",
-  "cp -r client/dist/* /app/dist-built/"
+  "npm run build"
 ]
 
 [start]
