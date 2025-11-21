@@ -79,8 +79,8 @@ export default function AISchedulerChat() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 h-16 w-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full shadow-2xl hover:shadow-3xl transition-all hover:scale-110 flex items-center justify-center group z-50 animate-bounce"
-        style={{ animationDuration: '2s' }}
+        className="fixed bottom-6 right-6 h-16 w-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full shadow-2xl hover:shadow-3xl transition-all hover:scale-110 flex items-center justify-center group z-[9999] animate-bounce"
+        style={{ animationDuration: '2s', zIndex: 9999 }}
       >
         <Sparkles className="h-8 w-8 text-white group-hover:rotate-12 transition-transform" />
         <div className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 rounded-full border-2 border-white animate-pulse flex items-center justify-center">
@@ -91,7 +91,7 @@ export default function AISchedulerChat() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-6 right-6 z-[9998]" style={{ zIndex: 9998 }}>
       <div className={`w-96 bg-white rounded-3xl shadow-2xl border-2 border-purple-200 overflow-hidden transition-all flex flex-col ${
         isMinimized ? 'h-16' : 'h-[650px]'
       }`}>
