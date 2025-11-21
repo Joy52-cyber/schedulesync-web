@@ -92,6 +92,7 @@ export const teams = {
   addMember: (teamId, data) => apiClient.post(`/teams/${teamId}/members`, data),
   removeMember: (teamId, memberId) => apiClient.delete(`/teams/${teamId}/members/${memberId}`),
   updateMember: (teamId, memberId, data) => apiClient.patch(`/teams/${teamId}/members/${memberId}`, data),
+  updateMemberStatus: (teamId, memberId, isActive) => apiClient.patch(`/teams/${teamId}/members/${memberId}/status`, { is_active: isActive }), // ← ADD THIS LINE
   updateMemberExternalLink: (teamId, memberId, data) => apiClient.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
 };
 

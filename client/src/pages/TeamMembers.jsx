@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Users, 
@@ -76,14 +76,14 @@ export default function TeamMembers() {
     }
   };
 
-  const handleToggleActive = async (memberId, isActive) => {
-    try {
-      await teams.updateMember(teamId, memberId, { is_active: !isActive });
-      loadTeamMembers();
-    } catch (error) {
-      console.error('Error updating member:', error);
-    }
-  };
+ const handleToggleActive = async (memberId, isActive) => {
+  try {
+    await teams.updateMemberStatus(teamId, memberId, !isActive); // ← CHANGE THIS LINE
+    loadTeamMembers();
+  } catch (error) {
+    console.error('Error updating member:', error);
+  }
+};
 
   const handleSaveExternalLink = async (data) => {
     try {
