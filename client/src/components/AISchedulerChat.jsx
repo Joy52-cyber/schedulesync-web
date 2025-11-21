@@ -92,11 +92,11 @@ export default function AISchedulerChat() {
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      <div className={`w-96 bg-white rounded-3xl shadow-2xl border-2 border-purple-200 overflow-hidden transition-all ${
-        isMinimized ? 'h-16' : 'h-[600px]'
+      <div className={`w-96 bg-white rounded-3xl shadow-2xl border-2 border-purple-200 overflow-hidden transition-all flex flex-col ${
+        isMinimized ? 'h-16' : 'h-[650px]'
       }`}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-4 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-4 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
               <Sparkles className="h-5 w-5 text-white" />
@@ -128,8 +128,8 @@ export default function AISchedulerChat() {
 
         {!isMinimized && (
           <>
-            {/* Messages */}
-            <div className="h-[440px] overflow-y-auto p-4 bg-gradient-to-br from-gray-50 to-purple-50/30 space-y-4">
+            {/* Messages - FIXED HEIGHT */}
+            <div className="flex-1 overflow-y-auto p-4 bg-gradient-to-br from-gray-50 to-purple-50/30 space-y-4">
               {chatHistory.map((msg, index) => (
                 <div
                   key={index}
@@ -192,18 +192,18 @@ export default function AISchedulerChat() {
             </div>
 
             {/* Quick Actions */}
-            <div className="px-4 py-3 bg-white border-t-2 border-purple-100">
+            <div className="px-4 py-3 bg-white border-t-2 border-purple-100 flex-shrink-0">
               <p className="text-xs font-bold text-gray-700 mb-2">Quick Actions:</p>
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {[
-                  'Show my bookings this week',
-                  'Find time for a meeting',
-                  'Check tomorrow\'s availability'
+                  'Show bookings',
+                  'Find meeting time',
+                  'Tomorrow availability'
                 ].map((action) => (
                   <button
                     key={action}
                     onClick={() => setMessage(action)}
-                    className="px-3 py-1.5 text-xs font-semibold text-purple-600 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 border-2 border-purple-200 rounded-lg whitespace-nowrap transition-all hover:shadow-md"
+                    className="px-3 py-1.5 text-xs font-semibold text-purple-600 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 border-2 border-purple-200 rounded-lg whitespace-nowrap transition-all hover:shadow-md flex-shrink-0"
                   >
                     {action}
                   </button>
@@ -212,7 +212,7 @@ export default function AISchedulerChat() {
             </div>
 
             {/* Input */}
-            <div className="p-4 bg-white border-t-2 border-purple-200">
+            <div className="p-4 bg-white border-t-2 border-purple-200 flex-shrink-0">
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -226,13 +226,13 @@ export default function AISchedulerChat() {
                 <button 
                   onClick={handleSendMessage}
                   disabled={loading || !message.trim()}
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl group"
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl group flex-shrink-0"
                 >
                   <Send className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-2 text-center">
-                💡 Try: "Schedule a meeting with john@example.com tomorrow at 2pm"
+                💡 Try: "Schedule meeting with john@example.com tomorrow"
               </p>
             </div>
           </>

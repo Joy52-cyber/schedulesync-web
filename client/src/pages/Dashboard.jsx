@@ -96,8 +96,8 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+  <div className="w-full max-w-7xl mx-auto px-8 py-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
                 <Calendar className="h-6 w-6 text-white" />
@@ -131,8 +131,9 @@ export default function Dashboard() {
       </header>
 
       {/* Main Content - CENTERED */}
-      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="space-y-6">
+      <main className="w-full">
+  <div className="max-w-7xl mx-auto px-8 py-8">
+    <div className="space-y-6">
           {/* Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {statCards.map((stat, index) => (
