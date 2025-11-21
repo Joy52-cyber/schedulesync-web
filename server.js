@@ -3604,13 +3604,11 @@ If information is missing, set intent to "clarify" and ask a specific question.`
   }
 });
 
-// Confirm and create booking
 app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
   try {
     const { bookingData } = req.body;
     const userId = req.user.id;
 
-    // Get user's personal booking token
     const memberResult = await pool.query(
       `SELECT tm.booking_token, tm.id, t.id as team_id
        FROM team_members tm
@@ -3630,7 +3628,6 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
 
     const member = memberResult.rows[0];
 
-    // Create booking using existing logic
     const booking = await pool.query(
       `INSERT INTO bookings (
         team_id, member_id, user_id, 
@@ -3670,7 +3667,6 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
   }
 });
 
-// ============ START SERVER ============
 
 // ============ START SERVER ============
 
