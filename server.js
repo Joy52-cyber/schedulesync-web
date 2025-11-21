@@ -441,25 +441,27 @@ app.post('/api/book/auth/google', async (req, res) => {
 
 // ============ TEAM ROUTES ============
 
-// Get all teams for current user
+
 
 // Get all teams for current user
 app.get('/api/teams', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT * FROM teams 
-       WHERE owner_id = $1 
+      `SELECT 
+         t.*,
+         tm.booking_token,
+         COUNT(DISTINCT tm.id) as member_count,
+         COUNT(DISTINCT b.id) as booking_count
+       FROM teams t
+       LEFT JOIN team_members tm ON t.id = tm.team_id AND tm.user_id = t.owner_id
+       LEFT JOIN bookings b ON t.id = b.team_id
+       WHERE t.owner_id = $1
+       GROUP BY t.id, tm.booking_token
        ORDER BY 
-         CASE 
-           WHEN name LIKE '%Personal Bookings%' THEN 0 
-           ELSE 1 
-         END,
-         created_at DESC`,
+         CASE WHEN t.name LIKE '%Personal Bookings%' THEN 0 ELSE 1 END,
+         t.created_at DESC`,
       [req.user.id]
     );
-    
-    console.log('📋 Teams loaded:', result.rows.map(t => ({ id: t.id, name: t.name })));
-    
     res.json({ teams: result.rows });
   } catch (error) {
     console.error('Get teams error:', error);
