@@ -11,7 +11,6 @@ const path = require('path');
 const { google } = require('googleapis');
 const crypto = require('crypto');
 
-
 const app = express();
 
 const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
@@ -47,6 +46,8 @@ const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
     throw error;
   }
 };
+
+
 // ============ CONDITIONAL IMPORTS ============
 
 let sendTeamInvitation, sendBookingConfirmation, sendOrganizerNotification, isEmailAvailable;
