@@ -442,10 +442,18 @@ app.post('/api/book/auth/google', async (req, res) => {
 // ============ TEAM ROUTES ============
 
 // Get all teams for current user
+// Get all teams for current user
 app.get('/api/teams', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM teams WHERE owner_id = $1 ORDER BY created_at DESC', 
+      `SELECT * FROM teams 
+       WHERE owner_id = $1 
+       ORDER BY 
+         CASE 
+           WHEN name LIKE '%Personal Bookings' THEN 0 
+           ELSE 1 
+         END,
+         created_at DESC`,
       [req.user.id]
     );
     res.json({ teams: result.rows });
