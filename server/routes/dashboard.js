@@ -7,24 +7,30 @@ router.get('/stats', authenticateToken, async (req, res) => {
   const client = await pool.connect();
   try {
     const userId = req.user.id;
+    
     const totalBookings = await client.query(
       'SELECT COUNT(*) as count FROM bookings WHERE user_id = $1',
       [userId]
     );
+    
     const upcomingBookings = await client.query(
       'SELECT COUNT(*) as count FROM bookings WHERE user_id = $1 AND start_time > NOW()',
       [userId]
     );
+    
+    // FIXED: Removed t.is_active check
     const activeTeams = await client.query(
       `SELECT COUNT(DISTINCT t.id) as count FROM teams t
        JOIN team_members tm ON t.id = tm.team_id
-       WHERE tm.user_id = $1 AND t.is_active = true`,
+       WHERE tm.user_id = $1 AND tm.is_active = true`,
       [userId]
     );
+    
     const recentBookings = await client.query(
       'SELECT * FROM bookings WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5',
       [userId]
     );
+    
     res.json({
       stats: {
         totalBookings: parseInt(totalBookings.rows[0].count),

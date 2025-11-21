@@ -1,8 +1,6 @@
 ﻿const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
-
-// Use existing auth middleware
 const { authenticateToken } = require('../middleware/auth');
 
 // GET /api/my-booking-link
@@ -25,10 +23,11 @@ router.get('/my-booking-link', authenticateToken, async (req, res) => {
     const user = userResult.rows[0];
     const username = user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
     
+    // Get user's teams (REMOVED t.is_active check)
     const teamsResult = await client.query(
       `SELECT t.* FROM teams t
        JOIN team_members tm ON t.id = tm.team_id
-       WHERE tm.user_id = $1 AND t.is_active = true
+       WHERE tm.user_id = $1 AND tm.is_active = true
        ORDER BY t.created_at DESC
        LIMIT 1`,
       [userId]
@@ -43,7 +42,7 @@ router.get('/my-booking-link', authenticateToken, async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
     const bookingUrl = `${frontendUrl}/book/${bookingToken}`;
     
-    console.log('✅ Booking link generated:', bookingUrl);
+    console.log('✅ Booking URL:', bookingUrl);
     
     res.json({
       bookingUrl,
@@ -52,7 +51,7 @@ router.get('/my-booking-link', authenticateToken, async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Error in GET /my-booking-link:', error);
+    console.error('❌ Error:', error);
     res.status(500).json({ 
       error: 'Failed to generate booking link',
       message: error.message
