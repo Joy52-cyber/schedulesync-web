@@ -607,8 +607,44 @@ app.patch('/api/teams/:teamId/members/:memberId', authenticateToken, async (req,
   }
 });
 
-// ============ TEAM MEMBER ROUTES ============
+// Toggle team member active status
+app.patch('/api/teams/:teamId/members/:memberId/status', authenticateToken, async (req, res) => {
+  const { teamId, memberId } = req.params;
+  const { is_active } = req.body;
 
+  try {
+    // Verify ownership
+    const teamCheck = await pool.query(
+      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2', 
+      [teamId, req.user.id]
+    );
+    
+    if (teamCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Update member status
+    const result = await pool.query(
+      `UPDATE team_members 
+       SET is_active = $1
+       WHERE id = $2 AND team_id = $3 
+       RETURNING *`,
+      [is_active, memberId, teamId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Member not found' });
+    }
+
+    console.log(`✅ Member ${memberId} status updated to ${is_active ? 'active' : 'inactive'}`);
+    res.json({ success: true, member: result.rows[0] });
+  } catch (error) {
+    console.error('Update member status error:', error);
+    res.status(500).json({ error: 'Failed to update member status' });
+  }
+});
+
+// ============ TEAM MEMBER ROUTES ============
 app.get('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
   const { teamId } = req.params;
   try {
@@ -616,7 +652,10 @@ app.get('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
     if (teamCheck.rows.length === 0) return res.status(403).json({ error: 'Not authorized' });
 
     const result = await pool.query(
-      `SELECT tm.*, u.name as user_name, u.email as user_email 
+      `SELECT tm.*, 
+              tm.is_active,  -- Add this line
+              u.name as user_name, 
+              u.email as user_email 
        FROM team_members tm
        LEFT JOIN users u ON tm.user_id = u.id 
        WHERE tm.team_id = $1 
