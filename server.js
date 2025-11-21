@@ -570,7 +570,7 @@ app.delete('/api/teams/:id', authenticateToken, async (req, res) => {
 });
 
 // Update team member (general info: name, email, etc.)
-app.put('/api/teams/:teamId/members/:memberId', authenticateToken, async (req, res) => {
+app.patch('/api/teams/:teamId/members/:memberId', authenticateToken, async (req, res) => {
   const { teamId, memberId } = req.params;
   const { email, name } = req.body;
 
