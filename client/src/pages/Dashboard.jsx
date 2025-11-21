@@ -4,14 +4,14 @@ import {
   Calendar, 
   Users, 
   DollarSign, 
-  TrendingUp, 
   Clock,
-  Plus,
   Link as LinkIcon,
   BarChart3,
-  Sparkles
+  Sparkles,
+  TrendingUp
 } from 'lucide-react';
 import api from '../utils/api';
+import AIScheduler from '../components/AIScheduler';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -30,7 +30,6 @@ export default function Dashboard() {
 
   const loadDashboardData = async () => {
     try {
-      // Use api instance which includes auth token
       const response = await api.get('/dashboard/stats');
       setStats(response.data.stats);
       setRecentBookings(response.data.recentBookings || []);
@@ -75,6 +74,7 @@ export default function Dashboard() {
                 <Calendar className="h-6 w-6 text-blue-600" />
               </div>
               <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                <TrendingUp className="h-3 w-3 inline mr-1" />
                 +12%
               </span>
             </div>
@@ -103,6 +103,7 @@ export default function Dashboard() {
                 <DollarSign className="h-6 w-6 text-green-600" />
               </div>
               <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                <TrendingUp className="h-3 w-3 inline mr-1" />
                 +8%
               </span>
             </div>
@@ -122,8 +123,26 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* AI Scheduler - Featured Section */}
+        <div className="mb-8">
+          <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-3xl p-1 shadow-2xl">
+            <div className="bg-white rounded-[22px] p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <Sparkles className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">AI Scheduling Assistant</h2>
+                  <p className="text-gray-600 text-sm">Schedule meetings with natural language - just type what you need!</p>
+                </div>
+              </div>
+              <AIScheduler />
+            </div>
+          </div>
+        </div>
+
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
           <button
             onClick={() => navigate('/my-booking-link')}
             className="bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-2xl p-6 shadow-lg hover:shadow-2xl hover:scale-105 transition-all"
@@ -141,7 +160,7 @@ export default function Dashboard() {
 
           <button
             onClick={() => navigate('/teams')}
-            className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all border-2 border-gray-200"
+            className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all border-2 border-purple-200"
           >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
@@ -156,7 +175,7 @@ export default function Dashboard() {
 
           <button
             onClick={() => navigate('/bookings')}
-            className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all border-2 border-gray-200"
+            className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all border-2 border-green-200"
           >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
@@ -176,20 +195,24 @@ export default function Dashboard() {
             <h2 className="text-xl font-bold text-gray-900">Recent Bookings</h2>
             <button
               onClick={() => navigate('/bookings')}
-              className="text-blue-600 hover:text-blue-700 text-sm font-semibold"
+              className="text-blue-600 hover:text-blue-700 text-sm font-semibold flex items-center gap-1 group"
             >
-              View all →
+              View all 
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
             </button>
           </div>
 
           {recentBookings.length === 0 ? (
             <div className="text-center py-12">
-              <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 mb-4">No bookings yet</p>
+              <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Calendar className="h-10 w-10 text-gray-300" />
+              </div>
+              <p className="text-gray-500 mb-4 font-medium">No bookings yet</p>
               <button
                 onClick={() => navigate('/my-booking-link')}
-                className="text-blue-600 hover:text-blue-700 font-semibold"
+                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold bg-blue-50 px-4 py-2 rounded-xl hover:bg-blue-100 transition-colors"
               >
+                <LinkIcon className="h-4 w-4" />
                 Share your booking link to get started
               </button>
             </div>
@@ -198,22 +221,30 @@ export default function Dashboard() {
               {recentBookings.slice(0, 5).map((booking) => (
                 <div
                   key={booking.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                  className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl hover:from-blue-50 hover:to-purple-50 transition-all cursor-pointer border border-gray-100 hover:border-blue-200"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Calendar className="h-5 w-5 text-blue-600" />
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                      <Calendar className="h-6 w-6 text-white" />
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900">{booking.attendee_name}</p>
+                      <p className="font-bold text-gray-900">{booking.attendee_name}</p>
                       <p className="text-sm text-gray-600">{booking.attendee_email}</p>
+                      {booking.team_name && (
+                        <p className="text-xs text-purple-600 bg-purple-50 inline-block px-2 py-0.5 rounded-full mt-1">
+                          {booking.team_name}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">
-                      {new Date(booking.start_time).toLocaleDateString()}
+                    <p className="text-sm font-bold text-gray-900">
+                      {new Date(booking.start_time).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric'
+                      })}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-600 font-medium">
                       {new Date(booking.start_time).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit'
