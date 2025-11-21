@@ -5,13 +5,19 @@ import {
   Users, 
   DollarSign, 
   Clock,
-  Link as LinkIcon,
-  BarChart3,
   Sparkles,
-  TrendingUp
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  TrendingUp,
+  BarChart3,
+  ChevronRight,
+  Video,
+  MapPin,
+  MoreHorizontal
 } from 'lucide-react';
 import api from '../utils/api';
-import AIScheduler from '../components/AIScheduler';
+import AISchedulerChat from '../components/AISchedulerChat';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -40,9 +46,35 @@ export default function Dashboard() {
     }
   };
 
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'confirmed':
+        return <CheckCircle2 className="h-4 w-4" />;
+      case 'pending':
+        return <AlertCircle className="h-4 w-4" />;
+      case 'cancelled':
+        return <XCircle className="h-4 w-4" />;
+      default:
+        return null;
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'confirmed':
+        return 'bg-green-100 text-green-700 border-green-200';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'cancelled':
+        return 'bg-red-100 text-red-700 border-red-200';
+      default:
+        return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 flex items-center justify-center">
         <div className="text-center">
           <div className="relative w-20 h-20 mx-auto mb-4">
             <div className="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
@@ -55,208 +87,289 @@ export default function Dashboard() {
     );
   }
 
+  const statCards = [
+    { label: 'Total Bookings', value: stats.totalBookings, icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50', change: '+12%' },
+    { label: 'Upcoming', value: stats.upcomingBookings, icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50', badge: 'This week' },
+    { label: 'Revenue', value: `$${stats.revenue}`, icon: DollarSign, color: 'text-green-600', bg: 'bg-green-50', change: '+8%' },
+    { label: 'Active Teams', value: stats.activeTeams, icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' }
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">Dashboard</h1>
-          <p className="text-gray-600">Welcome back! Here's what's happening today.</p>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
-          {/* Total Bookings */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-blue-100 hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-blue-600" />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
+                <Calendar className="h-6 w-6 text-white" />
               </div>
-              <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                <TrendingUp className="h-3 w-3 inline mr-1" />
-                +12%
-              </span>
-            </div>
-            <h3 className="text-gray-600 text-sm font-medium mb-1">Total Bookings</h3>
-            <p className="text-3xl font-bold text-gray-900">{stats.totalBookings}</p>
-          </div>
-
-          {/* Upcoming */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-purple-100 hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <Clock className="h-6 w-6 text-purple-600" />
-              </div>
-              <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
-                This week
-              </span>
-            </div>
-            <h3 className="text-gray-600 text-sm font-medium mb-1">Upcoming</h3>
-            <p className="text-3xl font-bold text-gray-900">{stats.upcomingBookings}</p>
-          </div>
-
-          {/* Revenue */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-green-100 hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-green-600" />
-              </div>
-              <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                <TrendingUp className="h-3 w-3 inline mr-1" />
-                +8%
-              </span>
-            </div>
-            <h3 className="text-gray-600 text-sm font-medium mb-1">Revenue</h3>
-            <p className="text-3xl font-bold text-gray-900">${stats.revenue}</p>
-          </div>
-
-          {/* Active Teams */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-orange-100 hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                <Users className="h-6 w-6 text-orange-600" />
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+                <p className="text-gray-500 text-sm">Welcome back! Here's what's happening today.</p>
               </div>
             </div>
-            <h3 className="text-gray-600 text-sm font-medium mb-1">Active Teams</h3>
-            <p className="text-3xl font-bold text-gray-900">{stats.activeTeams}</p>
-          </div>
-        </div>
-
-        {/* AI Scheduler - Featured Section */}
-        <div className="mb-8">
-          <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-3xl p-1 shadow-2xl">
-            <div className="bg-white rounded-[22px] p-4">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-                  <Sparkles className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">AI Scheduling Assistant</h2>
-                  <p className="text-gray-600 text-sm">Schedule meetings with natural language - just type what you need!</p>
-                </div>
-              </div>
-              <AIScheduler />
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
-          <button
-            onClick={() => navigate('/my-booking-link')}
-            className="bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-2xl p-6 shadow-lg hover:shadow-2xl hover:scale-105 transition-all"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <LinkIcon className="h-6 w-6" />
-              </div>
-              <div className="text-left">
-                <h3 className="font-bold text-lg">My Booking Link</h3>
-                <p className="text-blue-100 text-sm">Share your link</p>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => navigate('/teams')}
-            className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all border-2 border-purple-200"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <Users className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="text-left">
-                <h3 className="font-bold text-lg text-gray-900">Manage Teams</h3>
-                <p className="text-gray-600 text-sm">View all teams</p>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => navigate('/bookings')}
-            className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all border-2 border-green-200"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <BarChart3 className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="text-left">
-                <h3 className="font-bold text-lg text-gray-900">View Bookings</h3>
-                <p className="text-gray-600 text-sm">All appointments</p>
-              </div>
-            </div>
-          </button>
-        </div>
-
-        {/* Recent Bookings */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-gray-100">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900">Recent Bookings</h2>
-            <button
-              onClick={() => navigate('/bookings')}
-              className="text-blue-600 hover:text-blue-700 text-sm font-semibold flex items-center gap-1 group"
-            >
-              View all 
-              <span className="group-hover:translate-x-1 transition-transform">→</span>
-            </button>
-          </div>
-
-          {recentBookings.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Calendar className="h-10 w-10 text-gray-300" />
-              </div>
-              <p className="text-gray-500 mb-4 font-medium">No bookings yet</p>
+            
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate('/bookings')}
+                className="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-semibold flex items-center gap-2"
+              >
+                <Calendar className="h-4 w-4" />
+                View Calendar
+              </button>
               <button
                 onClick={() => navigate('/my-booking-link')}
-                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold bg-blue-50 px-4 py-2 rounded-xl hover:bg-blue-100 transition-colors"
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-semibold flex items-center gap-2"
               >
-                <LinkIcon className="h-4 w-4" />
-                Share your booking link to get started
+                <Sparkles className="h-4 w-4" />
+                New Booking
               </button>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {recentBookings.slice(0, 5).map((booking) => (
-                <div
-                  key={booking.id}
-                  className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl hover:from-blue-50 hover:to-purple-50 transition-all cursor-pointer border border-gray-100 hover:border-blue-200"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
-                      <Calendar className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-gray-900">{booking.attendee_name}</p>
-                      <p className="text-sm text-gray-600">{booking.attendee_email}</p>
-                      {booking.team_name && (
-                        <p className="text-xs text-purple-600 bg-purple-50 inline-block px-2 py-0.5 rounded-full mt-1">
-                          {booking.team_name}
-                        </p>
-                      )}
-                    </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        <div className="space-y-6">
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {statCards.map((stat, index) => (
+              <div key={index} className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100 hover:shadow-xl transition-all">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-gray-600 text-sm font-medium">{stat.label}</p>
+                    <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
+                    {stat.change && (
+                      <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full inline-flex items-center gap-1">
+                        <TrendingUp className="h-3 w-3" />
+                        {stat.change}
+                      </span>
+                    )}
+                    {stat.badge && (
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full inline-block ${stat.bg} ${stat.color}`}>
+                        {stat.badge}
+                      </span>
+                    )}
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-gray-900">
-                      {new Date(booking.start_time).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </p>
-                    <p className="text-xs text-gray-600 font-medium">
-                      {new Date(booking.start_time).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
+                  <div className={`${stat.bg} h-14 w-14 rounded-xl flex items-center justify-center shadow-md`}>
+                    <stat.icon className={`h-7 w-7 ${stat.color}`} />
                   </div>
                 </div>
-              ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Main Grid */}
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* Weekly Overview */}
+            <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Weekly Overview</h3>
+                    <p className="text-gray-600 text-sm">Your activity this week</p>
+                  </div>
+                  <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full inline-flex items-center gap-1 border border-blue-200">
+                    <TrendingUp className="h-3 w-3" />
+                    +12% vs last week
+                  </span>
+                </div>
+
+                <div className="h-px bg-gray-200"></div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                    <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Calendar className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs font-medium">This Week</p>
+                      <p className="text-gray-900 font-bold text-lg">8 bookings</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl border border-green-100">
+                    <div className="h-10 w-10 bg-green-100 rounded-lg flex items-center justify-center">
+                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs font-medium">Completed</p>
+                      <p className="text-gray-900 font-bold text-lg">5 meetings</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-xl border border-purple-100">
+                    <div className="h-10 w-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <BarChart3 className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs font-medium">Conversion</p>
+                      <p className="text-gray-900 font-bold text-lg">87%</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chart Visualization */}
+                <div className="pt-4 space-y-3">
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day, i) => {
+                    const meetings = [3, 2, 1, 4, 2][i];
+                    const width = (meetings / 4) * 100;
+                    return (
+                      <div key={day} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600 font-medium">{day}</span>
+                          <span className="text-gray-900 font-semibold">{meetings} meetings</span>
+                        </div>
+                        <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all"
+                            style={{ width: `${width}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-          )}
+
+            {/* Quick Actions */}
+            <div className="space-y-4">
+              <button
+                onClick={() => navigate('/bookings')}
+                className="w-full p-5 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl hover:shadow-2xl transition-all group"
+              >
+                <div className="space-y-3 text-left">
+                  <div className="h-12 w-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                    <Calendar className="h-6 w-6 text-white" />
+                  </div>
+                  <h4 className="text-white font-bold text-lg">My Bookings</h4>
+                  <p className="text-white/90 text-sm">View and manage all your scheduled meetings</p>
+                  <div className="flex items-center justify-between pt-2">
+                    <span className="text-white/80 text-xs font-semibold">View All</span>
+                    <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => navigate('/teams')}
+                className="w-full p-5 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-2xl hover:shadow-2xl transition-all group"
+              >
+                <div className="space-y-3 text-left">
+                  <div className="h-12 w-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                    <Users className="h-6 w-6 text-white" />
+                  </div>
+                  <h4 className="text-white font-bold text-lg">Manage Teams</h4>
+                  <p className="text-white/90 text-sm">Add or edit team members and their availability</p>
+                  <div className="flex items-center justify-between pt-2">
+                    <span className="text-white/80 text-xs font-semibold">Manage</span>
+                    <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => navigate('/my-booking-link')}
+                className="w-full p-5 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-2xl hover:shadow-2xl transition-all group"
+              >
+                <div className="space-y-3 text-left">
+                  <div className="h-12 w-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                    <Sparkles className="h-6 w-6 text-white" />
+                  </div>
+                  <h4 className="text-white font-bold text-lg">My Booking Link</h4>
+                  <p className="text-white/90 text-sm">Share your link and let others book time</p>
+                  <div className="flex items-center justify-between pt-2">
+                    <span className="text-white/80 text-xs font-semibold">Get Link</span>
+                    <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Recent Bookings */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Recent Bookings</h3>
+                  <p className="text-gray-600 text-sm">Your latest scheduled meetings</p>
+                </div>
+                <button
+                  onClick={() => navigate('/bookings')}
+                  className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all font-semibold text-sm flex items-center gap-1"
+                >
+                  View All
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+
+              {recentBookings.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Calendar className="h-10 w-10 text-gray-300" />
+                  </div>
+                  <p className="text-gray-500 mb-4 font-medium">No bookings yet</p>
+                  <button
+                    onClick={() => navigate('/my-booking-link')}
+                    className="text-blue-600 hover:text-blue-700 font-semibold"
+                  >
+                    Share your booking link to get started
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentBookings.slice(0, 5).map((booking) => (
+                    <div
+                      key={booking.id}
+                      className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md">
+                          {booking.attendee_name?.charAt(0) || 'G'}
+                        </div>
+                        
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-gray-900 font-bold">{booking.attendee_name || 'Guest'}</p>
+                            <span className={`text-xs font-semibold px-2 py-1 rounded-full border flex items-center gap-1 ${getStatusColor(booking.status)}`}>
+                              {getStatusIcon(booking.status)}
+                              {booking.status || 'confirmed'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-gray-600 text-sm">
+                            <span>{booking.attendee_email}</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {new Date(booking.start_time).toLocaleDateString()}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {new Date(booking.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-gray-100 rounded-lg">
+                        <MoreHorizontal className="h-5 w-5 text-gray-400" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      </main>
+
+      {/* AI Chat Widget */}
+      <AISchedulerChat />
     </div>
   );
 }
