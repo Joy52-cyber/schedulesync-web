@@ -2982,49 +2982,69 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
     };
 
     // Call Claude API for intent extraction
-    const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        system: `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages.
-
-User context: ${JSON.stringify(userContext)}
-
-Return ONLY valid JSON with this structure:
-{
-  "intent": "create_meeting" | "reschedule" | "cancel" | "availability_query" | "clarify",
-  "confidence": 0-100,
-  "extracted": {
-    "title": "string or null",
-    "attendees": ["email@example.com"],
-    "datetime": "ISO format or null",
-    "duration_minutes": number or null,
-    "notes": "string or null",
-    "time_window": "tomorrow morning" | "this week" etc
+    // Around line 3000 in your server.js
+const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": process.env.ANTHROPIC_API_KEY,
+    "anthropic-version": "2023-06-01"
   },
-  "missing_fields": ["field1", "field2"],
-  "clarifying_question": "What time tomorrow works for you?"
+  body: JSON.stringify({
+    model: "claude-3-sonnet-20240229",  // ← FIXED MODEL NAME
+    max_tokens: 1000,
+    system: `You are a scheduling assistant...`, // rest of your system prompt
+    messages: [
+      ...conversationHistory.slice(-5).map(msg => ({
+        role: msg.from === 'user' ? 'user' : 'assistant',
+        content: msg.text
+      })),
+      { role: "user", content: message }
+    ]
+  })
+});
+
+// Add proper error handling (the fix from my previous message)
+const aiData = await aiResponse.json();
+
+if (!aiData || !aiData.content || !aiData.content[0] || !aiData.content[0].text) {
+  console.error('Invalid AI response:', aiData);
+  
+  if (aiData.error) {
+    console.error('Anthropic API error:', aiData.error);
+    return res.status(500).json({
+      type: 'error',
+      message: aiData.error.message || 'AI service error. Please try again.'
+    });
+  }
+  
+  return res.status(500).json({
+    type: 'error',
+    message: 'AI service is temporarily unavailable. Please try again.'
+  });
 }
 
-If information is missing, set intent to "clarify" and ask a specific question.`,
-        messages: [
-          ...conversationHistory.slice(-5).map(msg => ({
-            role: msg.from === 'user' ? 'user' : 'assistant',
-            content: msg.text
-          })),
-          { role: "user", content: message }
-        ]
-      })
-    });
+const aiText = aiData.content[0].text;
 
-    const aiData = await aiResponse.json();
-    const aiText = aiData.content[0].text;
+// Parse JSON response
+let parsedIntent;
+try {
+  const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch || !jsonMatch[0]) {
+    console.error('No valid JSON found in AI response:', aiText);
+    return res.json({
+      type: 'error',
+      message: 'I had trouble understanding that. Could you rephrase?'
+    });
+  }
+  parsedIntent = JSON.parse(jsonMatch[0]);
+} catch (e) {
+  console.error('Failed to parse AI response JSON:', e.message, aiText);
+  return res.json({
+    type: 'error',
+    message: 'I had trouble understanding that. Could you rephrase?'
+  });
+}
     
     // Parse JSON response
     let parsedIntent;
