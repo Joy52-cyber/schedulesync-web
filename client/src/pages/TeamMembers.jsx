@@ -8,12 +8,17 @@ import {
   Mail,
   Shield,
   Crown,
-  User,
   Loader2,
   CheckCircle,
-  XCircle
+  XCircle,
+  Calendar,
+  Settings,
+  DollarSign,
+  Link2
 } from 'lucide-react';
 import { teams } from '../utils/api';
+import MemberExternalLinkModal from '../components/MemberExternalLinkModal';
+import MemberPricingSettings from '../components/MemberPricingSettings';
 
 export default function TeamMembers() {
   const { teamId } = useParams();
@@ -22,6 +27,9 @@ export default function TeamMembers() {
   const [team, setTeam] = useState(null);
   const [members, setMembers] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showExternalLinkModal, setShowExternalLinkModal] = useState(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [selectedMember, setSelectedMember] = useState(null);
   const [newMember, setNewMember] = useState({ email: '', role: 'member' });
 
   useEffect(() => {
@@ -77,6 +85,27 @@ export default function TeamMembers() {
     }
   };
 
+  const handleSaveExternalLink = async (data) => {
+    try {
+      await teams.updateMemberExternalLink(teamId, selectedMember.id, data);
+      loadTeamMembers();
+      setShowExternalLinkModal(false);
+    } catch (error) {
+      console.error('Error saving external link:', error);
+      throw error;
+    }
+  };
+
+  const openExternalLinkModal = (member) => {
+    setSelectedMember(member);
+    setShowExternalLinkModal(true);
+  };
+
+  const openPricingModal = (member) => {
+    setSelectedMember(member);
+    setShowPricingModal(true);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
@@ -97,18 +126,27 @@ export default function TeamMembers() {
             <ArrowLeft className="h-4 w-4" />
             Back to Teams
           </button>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">Team Members</h1>
               <p className="text-gray-600">{team?.name} - Manage your team members</p>
             </div>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 font-semibold"
-            >
-              <Plus className="h-5 w-5" />
-              Add Member
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => navigate(`/teams/${teamId}/settings`)}
+                className="bg-white border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-xl hover:bg-gray-50 transition-all flex items-center gap-2 font-semibold"
+              >
+                <Settings className="h-5 w-5" />
+                Team Settings
+              </button>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 font-semibold"
+              >
+                <Plus className="h-5 w-5" />
+                Add Member
+              </button>
+            </div>
           </div>
         </div>
 
@@ -176,11 +214,36 @@ export default function TeamMembers() {
 
                   <div className="space-y-2">
                     <button
+                      onClick={() => navigate(`/teams/${teamId}/members/${member.id}/availability`)}
+                      className="w-full bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors text-sm font-semibold flex items-center justify-center gap-2"
+                    >
+                      <Calendar className="h-4 w-4" />
+                      Availability
+                    </button>
+                    
+                    <button
+                      onClick={() => openPricingModal(member)}
+                      className="w-full bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700 transition-colors text-sm font-semibold flex items-center justify-center gap-2"
+                    >
+                      <DollarSign className="h-4 w-4" />
+                      Pricing
+                    </button>
+
+                    <button
+                      onClick={() => openExternalLinkModal(member)}
+                      className="w-full bg-purple-600 text-white px-4 py-2 rounded-xl hover:bg-purple-700 transition-colors text-sm font-semibold flex items-center justify-center gap-2"
+                    >
+                      <Link2 className="h-4 w-4" />
+                      External Link
+                    </button>
+
+                    <button
                       onClick={() => handleToggleActive(member.id, member.is_active)}
-                      className="w-full bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors text-sm font-semibold"
+                      className="w-full bg-gray-600 text-white px-4 py-2 rounded-xl hover:bg-gray-700 transition-colors text-sm font-semibold"
                     >
                       {member.is_active ? 'Deactivate' : 'Activate'}
                     </button>
+                    
                     <button
                       onClick={() => handleRemoveMember(member.id)}
                       className="w-full bg-red-50 text-red-600 px-4 py-2 rounded-xl hover:bg-red-100 transition-colors text-sm font-semibold flex items-center justify-center gap-2"
@@ -196,6 +259,7 @@ export default function TeamMembers() {
         )}
       </div>
 
+      {/* Add Member Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl">
@@ -252,6 +316,38 @@ export default function TeamMembers() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* External Link Modal */}
+      {showExternalLinkModal && selectedMember && (
+        <MemberExternalLinkModal
+          member={selectedMember}
+          onSave={handleSaveExternalLink}
+          onClose={() => setShowExternalLinkModal(false)}
+        />
+      )}
+
+      {/* Pricing Modal */}
+      {showPricingModal && selectedMember && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-4xl w-full my-8 shadow-2xl">
+            <div className="sticky top-0 bg-white border-b-2 border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-3xl">
+              <h2 className="text-2xl font-bold text-gray-900">Pricing Settings</h2>
+              <button
+                onClick={() => setShowPricingModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <XCircle className="h-6 w-6 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+              <MemberPricingSettings
+                teamId={teamId}
+                memberId={selectedMember.id}
+              />
+            </div>
           </div>
         </div>
       )}
