@@ -2956,6 +2956,209 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
   }
 });
 
+// ============ AI SCHEDULING ASSISTANT ============
+
+app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
+  try {
+    const { message, conversationHistory = [] } = req.body;
+    const userId = req.user.id;
+    const userEmail = req.user.email;
+
+    console.log('🤖 AI Scheduling request:', message);
+
+    // Build context from user's data
+    const teamsResult = await pool.query(
+      `SELECT t.*, COUNT(tm.id) as member_count
+       FROM teams t
+       LEFT JOIN team_members tm ON t.id = tm.team_id
+       WHERE t.owner_id = $1
+       GROUP BY t.id`,
+      [userId]
+    );
+
+    const userContext = {
+      email: userEmail,
+      teams: teamsResult.rows.map(t => ({ id: t.id, name: t.name, members: t.member_count }))
+    };
+
+    // Call Claude API for intent extraction
+    const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        system: `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages.
+
+User context: ${JSON.stringify(userContext)}
+
+Return ONLY valid JSON with this structure:
+{
+  "intent": "create_meeting" | "reschedule" | "cancel" | "availability_query" | "clarify",
+  "confidence": 0-100,
+  "extracted": {
+    "title": "string or null",
+    "attendees": ["email@example.com"],
+    "datetime": "ISO format or null",
+    "duration_minutes": number or null,
+    "notes": "string or null",
+    "time_window": "tomorrow morning" | "this week" etc
+  },
+  "missing_fields": ["field1", "field2"],
+  "clarifying_question": "What time tomorrow works for you?"
+}
+
+If information is missing, set intent to "clarify" and ask a specific question.`,
+        messages: [
+          ...conversationHistory.slice(-5).map(msg => ({
+            role: msg.from === 'user' ? 'user' : 'assistant',
+            content: msg.text
+          })),
+          { role: "user", content: message }
+        ]
+      })
+    });
+
+    const aiData = await aiResponse.json();
+    const aiText = aiData.content[0].text;
+    
+    // Parse JSON response
+    let parsedIntent;
+    try {
+      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+      parsedIntent = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      return res.json({
+        type: 'error',
+        message: 'I had trouble understanding that. Could you rephrase?'
+      });
+    }
+
+    console.log('🎯 Parsed intent:', parsedIntent);
+
+    // Handle based on intent
+    if (parsedIntent.intent === 'clarify') {
+      return res.json({
+        type: 'clarification',
+        message: parsedIntent.clarifying_question,
+        parsedData: parsedIntent.extracted
+      });
+    }
+
+    if (parsedIntent.intent === 'create_meeting') {
+      const { extracted } = parsedIntent;
+      
+      // If we have exact datetime, suggest confirmation
+      if (extracted.datetime) {
+        return res.json({
+          type: 'confirmation',
+          message: `I'll schedule "${extracted.title || 'Meeting'}" ${extracted.attendees?.length ? `with ${extracted.attendees.join(', ')}` : ''} on ${new Date(extracted.datetime).toLocaleString()}. Confirm?`,
+          bookingData: extracted
+        });
+      }
+
+      // If only time window, suggest slots
+      if (extracted.time_window) {
+        return res.json({
+          type: 'slot_suggestion',
+          message: `Let me find the best times for "${extracted.title || 'your meeting'}"${extracted.attendees?.length ? ` with ${extracted.attendees.join(', ')}` : ''} ${extracted.time_window}...`,
+          needsSlots: true,
+          searchParams: extracted
+        });
+      }
+    }
+
+    if (parsedIntent.intent === 'availability_query') {
+      return res.json({
+        type: 'availability',
+        message: 'Let me check your availability...',
+        needsAvailability: true,
+        searchParams: parsedIntent.extracted
+      });
+    }
+
+    // Fallback
+    res.json({
+      type: 'clarification',
+      message: 'I can help you schedule meetings, check availability, or reschedule. What would you like to do?'
+    });
+
+  } catch (error) {
+    console.error('❌ AI scheduling error:', error);
+    res.status(500).json({ 
+      type: 'error',
+      message: 'Sorry, I encountered an error. Please try again.' 
+    });
+  }
+});
+
+app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
+  try {
+    const { bookingData } = req.body;
+    const userId = req.user.id;
+
+    const memberResult = await pool.query(
+      `SELECT tm.booking_token, tm.id, t.id as team_id
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       WHERE tm.user_id = $1
+       AND t.name LIKE '%Personal Bookings%'
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(400).json({ 
+        type: 'error',
+        message: 'Please set up your personal booking link first.' 
+      });
+    }
+
+    const member = memberResult.rows[0];
+
+    const booking = await pool.query(
+      `INSERT INTO bookings (
+        team_id, member_id, user_id, 
+        attendee_name, attendee_email, 
+        start_time, end_time, notes, 
+        booking_token, status
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+      RETURNING *`,
+      [
+        member.team_id,
+        member.id,
+        userId,
+        bookingData.attendees?.[0]?.split('@')[0] || 'Guest',
+        bookingData.attendees?.[0] || '',
+        bookingData.datetime,
+        new Date(new Date(bookingData.datetime).getTime() + (bookingData.duration_minutes || 30) * 60000).toISOString(),
+        bookingData.notes || bookingData.title || '',
+        member.booking_token,
+        'confirmed'
+      ]
+    );
+
+    console.log('✅ AI booking created:', booking.rows[0].id);
+
+    res.json({
+      type: 'success',
+      message: '✅ Meeting scheduled successfully!',
+      booking: booking.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Booking confirmation error:', error);
+    res.status(500).json({ 
+      type: 'error',
+      message: 'Failed to create booking. Please try again.' 
+    });
+  }
+});
+
 // ============ SERVE STATIC FILES ============
 
 // DEBUG: Check dist files
@@ -3462,211 +3665,6 @@ app.put('/api/team-members/:id/timezone', authenticateToken, async (req, res) =>
     res.status(500).json({ error: 'Failed to update timezone' });
   }
 });
-
-
-// ============ AI SCHEDULING ASSISTANT ============
-
-app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
-  try {
-    const { message, conversationHistory = [] } = req.body;
-    const userId = req.user.id;
-    const userEmail = req.user.email;
-
-    console.log('🤖 AI Scheduling request:', message);
-
-    // Build context from user's data
-    const teamsResult = await pool.query(
-      `SELECT t.*, COUNT(tm.id) as member_count
-       FROM teams t
-       LEFT JOIN team_members tm ON t.id = tm.team_id
-       WHERE t.owner_id = $1
-       GROUP BY t.id`,
-      [userId]
-    );
-
-    const userContext = {
-      email: userEmail,
-      teams: teamsResult.rows.map(t => ({ id: t.id, name: t.name, members: t.member_count }))
-    };
-
-    // Call Claude API for intent extraction
-    const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        system: `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages.
-
-User context: ${JSON.stringify(userContext)}
-
-Return ONLY valid JSON with this structure:
-{
-  "intent": "create_meeting" | "reschedule" | "cancel" | "availability_query" | "clarify",
-  "confidence": 0-100,
-  "extracted": {
-    "title": "string or null",
-    "attendees": ["email@example.com"],
-    "datetime": "ISO format or null",
-    "duration_minutes": number or null,
-    "notes": "string or null",
-    "time_window": "tomorrow morning" | "this week" etc
-  },
-  "missing_fields": ["field1", "field2"],
-  "clarifying_question": "What time tomorrow works for you?"
-}
-
-If information is missing, set intent to "clarify" and ask a specific question.`,
-        messages: [
-          ...conversationHistory.slice(-5).map(msg => ({
-            role: msg.from === 'user' ? 'user' : 'assistant',
-            content: msg.text
-          })),
-          { role: "user", content: message }
-        ]
-      })
-    });
-
-    const aiData = await aiResponse.json();
-    const aiText = aiData.content[0].text;
-    
-    // Parse JSON response
-    let parsedIntent;
-    try {
-      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-      parsedIntent = JSON.parse(jsonMatch[0]);
-    } catch (e) {
-      return res.json({
-        type: 'error',
-        message: 'I had trouble understanding that. Could you rephrase?'
-      });
-    }
-
-    console.log('🎯 Parsed intent:', parsedIntent);
-
-    // Handle based on intent
-    if (parsedIntent.intent === 'clarify') {
-      return res.json({
-        type: 'clarification',
-        message: parsedIntent.clarifying_question,
-        parsedData: parsedIntent.extracted
-      });
-    }
-
-    if (parsedIntent.intent === 'create_meeting') {
-      const { extracted } = parsedIntent;
-      
-      // If we have exact datetime, suggest confirmation
-      if (extracted.datetime) {
-        return res.json({
-          type: 'confirmation',
-          message: `I'll schedule "${extracted.title || 'Meeting'}" ${extracted.attendees?.length ? `with ${extracted.attendees.join(', ')}` : ''} on ${new Date(extracted.datetime).toLocaleString()}. Confirm?`,
-          bookingData: extracted
-        });
-      }
-
-      // If only time window, suggest slots
-      if (extracted.time_window) {
-        return res.json({
-          type: 'slot_suggestion',
-          message: `Let me find the best times for "${extracted.title || 'your meeting'}"${extracted.attendees?.length ? ` with ${extracted.attendees.join(', ')}` : ''} ${extracted.time_window}...`,
-          needsSlots: true,
-          searchParams: extracted
-        });
-      }
-    }
-
-    if (parsedIntent.intent === 'availability_query') {
-      return res.json({
-        type: 'availability',
-        message: 'Let me check your availability...',
-        needsAvailability: true,
-        searchParams: parsedIntent.extracted
-      });
-    }
-
-    // Fallback
-    res.json({
-      type: 'clarification',
-      message: 'I can help you schedule meetings, check availability, or reschedule. What would you like to do?'
-    });
-
-  } catch (error) {
-    console.error('❌ AI scheduling error:', error);
-    res.status(500).json({ 
-      type: 'error',
-      message: 'Sorry, I encountered an error. Please try again.' 
-    });
-  }
-});
-
-app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
-  try {
-    const { bookingData } = req.body;
-    const userId = req.user.id;
-
-    const memberResult = await pool.query(
-      `SELECT tm.booking_token, tm.id, t.id as team_id
-       FROM team_members tm
-       JOIN teams t ON tm.team_id = t.id
-       WHERE tm.user_id = $1
-       AND t.name LIKE '%Personal Bookings%'
-       LIMIT 1`,
-      [userId]
-    );
-
-    if (memberResult.rows.length === 0) {
-      return res.status(400).json({ 
-        type: 'error',
-        message: 'Please set up your personal booking link first.' 
-      });
-    }
-
-    const member = memberResult.rows[0];
-
-    const booking = await pool.query(
-      `INSERT INTO bookings (
-        team_id, member_id, user_id, 
-        attendee_name, attendee_email, 
-        start_time, end_time, notes, 
-        booking_token, status
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
-      RETURNING *`,
-      [
-        member.team_id,
-        member.id,
-        userId,
-        bookingData.attendees?.[0]?.split('@')[0] || 'Guest',
-        bookingData.attendees?.[0] || '',
-        bookingData.datetime,
-        new Date(new Date(bookingData.datetime).getTime() + (bookingData.duration_minutes || 30) * 60000).toISOString(),
-        bookingData.notes || bookingData.title || '',
-        member.booking_token,
-        'confirmed'
-      ]
-    );
-
-    console.log('✅ AI booking created:', booking.rows[0].id);
-
-    res.json({
-      type: 'success',
-      message: '✅ Meeting scheduled successfully!',
-      booking: booking.rows[0]
-    });
-  } catch (error) {
-    console.error('❌ Booking confirmation error:', error);
-    res.status(500).json({ 
-      type: 'error',
-      message: 'Failed to create booking. Please try again.' 
-    });
-  }
-});
-
 
 // ============ START SERVER ============
 
