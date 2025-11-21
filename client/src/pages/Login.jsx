@@ -118,11 +118,21 @@ export default function Login() {
           </div>
 
           {/* Footer */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-500">
-              Secure authentication powered by Google
-            </p>
-          </div>
+         
+<div className="mt-6 text-center space-y-3">
+  <p className="text-sm text-gray-600">
+    Don't have an account?{' '}
+    <button
+      onClick={handleGoogleAuth}
+      className="text-blue-600 hover:text-blue-700 font-semibold"
+    >
+      Sign up with Google
+    </button>
+  </p>
+  <p className="text-xs text-gray-500">
+    🔒 Secure authentication powered by Google
+  </p>
+</div>
         </div>
       </div>
 
