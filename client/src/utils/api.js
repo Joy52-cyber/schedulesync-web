@@ -92,7 +92,7 @@ export const teams = {
   addMember: (teamId, data) => apiClient.post(`/teams/${teamId}/members`, data),
   removeMember: (teamId, memberId) => apiClient.delete(`/teams/${teamId}/members/${memberId}`),
   updateMember: (teamId, memberId, data) => apiClient.patch(`/teams/${teamId}/members/${memberId}`, data),
-  updateMemberStatus: (teamId, memberId, isActive) => apiClient.patch(`/teams/${teamId}/members/${memberId}/status`, { is_active: isActive }), // ← ADD THIS LINE
+  updateMemberStatus: (teamId, memberId, isActive) => apiClient.patch(`/teams/${teamId}/members/${memberId}/status`, { is_active: isActive }),
   updateMemberExternalLink: (teamId, memberId, data) => apiClient.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
 };
 
@@ -126,13 +126,34 @@ export const reminders = {
   sendManual: () => apiClient.post('/admin/send-reminders'),
 };
 
+// ✅ FIXED: AI Scheduler with explicit URL construction
 export const aiScheduler = {
-  sendMessage: (message, conversationHistory) => 
-    apiClient.post('/ai/schedule', { message, conversationHistory }),
-  confirmBooking: (bookingData) => 
-    apiClient.post('/ai/schedule/confirm', { bookingData }),
+  sendMessage: async (message, conversationHistory) => {
+    const token = localStorage.getItem('token');
+    console.log('🤖 AI Scheduler - Sending message to:', `${API_URL}/ai/schedule`);
+    return axios.post(`${API_URL}/ai/schedule`, {
+      message,
+      conversationHistory
+    }, {
+      headers: { 
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}` 
+      }
+    });
+  },
+  confirmBooking: async (bookingData) => {
+    const token = localStorage.getItem('token');
+    console.log('🤖 AI Scheduler - Confirming booking to:', `${API_URL}/ai/schedule/confirm`);
+    return axios.post(`${API_URL}/ai/schedule/confirm`, {
+      bookingData
+    }, {
+      headers: { 
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}` 
+      }
+    });
+  }
 };
-
 
 export { API_URL };
 export default apiClient;
