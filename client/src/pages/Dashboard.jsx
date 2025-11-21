@@ -11,6 +11,7 @@ import {
   BarChart3,
   Sparkles
 } from 'lucide-react';
+import api from '../utils/api';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -29,13 +30,10 @@ export default function Dashboard() {
 
   const loadDashboardData = async () => {
     try {
-      // Load your actual stats from API
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/dashboard/stats`, {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      setStats(data.stats);
-      setRecentBookings(data.recentBookings || []);
+      // Use api instance which includes auth token
+      const response = await api.get('/dashboard/stats');
+      setStats(response.data.stats);
+      setRecentBookings(response.data.recentBookings || []);
     } catch (error) {
       console.error('Error loading dashboard:', error);
     } finally {
