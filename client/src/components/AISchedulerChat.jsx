@@ -1,6 +1,7 @@
 ﻿import { useState, useRef, useEffect } from 'react';
 import { Sparkles, Send, X, Minimize2 } from 'lucide-react';
 import { aiScheduler } from '../utils/api';
+import api from '../utils/api';
 
 export default function AISchedulerChat() {
   const [isOpen, setIsOpen] = useState(false);
@@ -43,6 +44,11 @@ export default function AISchedulerChat() {
         data: data,
         timestamp: new Date() 
       }]);
+
+      // If AI wants to fetch slots, do it automatically
+      if (data.needsSlots) {
+        await fetchAndShowSlots(data.searchParams);
+      }
     } catch (error) {
       console.error('AI error:', error);
       setChatHistory(prev => [...prev, { 
@@ -52,6 +58,63 @@ export default function AISchedulerChat() {
       }]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAndShowSlots = async (searchParams) => {
+    try {
+      // Get user's personal booking token
+      const linkResponse = await api.get('/my-booking-link');
+      const bookingToken = linkResponse.data.bookingToken;
+
+      // Calculate date range
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+
+      const endDate = new Date(tomorrow);
+      endDate.setDate(endDate.getDate() + 7); // Next 7 days
+
+      // Fetch available slots
+      const slotsResponse = await api.post(`/book/${bookingToken}/slots-with-status`, {
+        duration: searchParams?.duration_minutes || 30,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      });
+
+      const allSlots = Object.values(slotsResponse.data.slots).flat();
+      const availableSlots = allSlots
+        .filter(slot => slot.status === 'available')
+        .sort((a, b) => b.matchScore - a.matchScore)
+        .slice(0, 5);
+
+      if (availableSlots.length === 0) {
+        setChatHistory(prev => [...prev, {
+          role: 'assistant',
+          content: 'I couldn\'t find any available slots in the next 7 days. Would you like to check a different time range?',
+          timestamp: new Date()
+        }]);
+        return;
+      }
+
+      const slotsList = availableSlots.map((slot, i) => {
+        const start = new Date(slot.start);
+        return `${i + 1}. **${start.toLocaleDateString()}** at **${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}** (${slot.matchLabel})`;
+      }).join('\n');
+
+      setChatHistory(prev => [...prev, {
+        role: 'assistant',
+        content: `Here are the best available times:\n\n${slotsList}\n\nWould you like to book one of these slots?`,
+        type: 'slot_list',
+        data: { slots: availableSlots },
+        timestamp: new Date()
+      }]);
+    } catch (error) {
+      console.error('Error fetching slots:', error);
+      setChatHistory(prev => [...prev, {
+        role: 'assistant',
+        content: 'I had trouble checking your availability. Please try again.',
+        timestamp: new Date()
+      }]);
     }
   };
 
@@ -66,15 +129,15 @@ export default function AISchedulerChat() {
       }]);
     } catch (error) {
       console.error('Confirmation error:', error);
+      setChatHistory(prev => [...prev, {
+        role: 'assistant',
+        content: 'Failed to create booking. Please try again.',
+        timestamp: new Date()
+      }]);
     } finally {
       setLoading(false);
     }
   };
-
-  const handleQuickAction = (action) => {
-  setMessage(action);
-  handleSendMessage();
-};
 
   const formatTime = (date) => {
     return new Date(date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -84,8 +147,12 @@ export default function AISchedulerChat() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 h-16 w-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full shadow-2xl hover:shadow-3xl transition-all hover:scale-110 flex items-center justify-center group z-[9999] animate-bounce"
-        style={{ animationDuration: '2s', zIndex: 9999 }}
+        className="fixed bottom-6 right-6 h-16 w-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full shadow-2xl hover:shadow-3xl transition-all hover:scale-110 flex items-center justify-center group animate-bounce"
+        style={{ 
+          animationDuration: '2s', 
+          zIndex: 99999,
+          position: 'fixed'
+        }}
       >
         <Sparkles className="h-8 w-8 text-white group-hover:rotate-12 transition-transform" />
         <div className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 rounded-full border-2 border-white animate-pulse flex items-center justify-center">
@@ -96,7 +163,13 @@ export default function AISchedulerChat() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9998]" style={{ zIndex: 9998 }}>
+    <div 
+      className="fixed bottom-6 right-6"
+      style={{ 
+        zIndex: 99998,
+        position: 'fixed'
+      }}
+    >
       <div className={`w-96 bg-white rounded-3xl shadow-2xl border-2 border-purple-200 overflow-hidden transition-all flex flex-col ${
         isMinimized ? 'h-16' : 'h-[650px]'
       }`}>
@@ -106,13 +179,15 @@ export default function AISchedulerChat() {
             <div className="h-10 w-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
               <Sparkles className="h-5 w-5 text-white" />
             </div>
-            <div>
-              <h3 className="text-white font-bold">AI Assistant</h3>
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
-                <p className="text-white/90 text-xs">Online • Ready to help</p>
+            {!isMinimized && (
+              <div>
+                <h3 className="text-white font-bold">AI Assistant</h3>
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <p className="text-white/90 text-xs">Online • Ready to help</p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
           
           <div className="flex items-center gap-2">
@@ -133,7 +208,7 @@ export default function AISchedulerChat() {
 
         {!isMinimized && (
           <>
-            {/* Messages - FIXED HEIGHT */}
+            {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 bg-gradient-to-br from-gray-50 to-purple-50/30 space-y-4">
               {chatHistory.map((msg, index) => (
                 <div
@@ -152,27 +227,17 @@ export default function AISchedulerChat() {
                         ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-br-sm'
                         : 'bg-white text-gray-900 rounded-bl-sm border-2 border-purple-100'
                     }`}>
-                      <p className="text-sm leading-relaxed">{msg.content}</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-line">{msg.content}</p>
                       
-                     {msg.type === 'confirmation' && msg.data?.bookingData && (
-  <button
-    onClick={() => handleConfirm(msg.data.bookingData)}
-    disabled={loading}
-    className="mt-3 w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-xl hover:shadow-xl transition-all text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-  >
-    ✅ Confirm Booking
-  </button>
-)}
-
-{msg.type === 'booking_list' && msg.data?.bookings && (
-  <div className="mt-3 space-y-2">
-    {msg.data.bookings.slice(0, 3).map((booking, i) => (
-      <div key={i} className="text-xs p-2 bg-purple-50 rounded-lg border border-purple-200">
-        <strong>{booking.attendee_name}</strong> - {new Date(booking.start_time).toLocaleString()}
-      </div>
-    ))}
-  </div>
-)}
+                      {msg.type === 'confirmation' && msg.data?.bookingData && (
+                        <button
+                          onClick={() => handleConfirm(msg.data.bookingData)}
+                          disabled={loading}
+                          className="mt-3 w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-xl hover:shadow-xl transition-all text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          ✅ Confirm Booking
+                        </button>
+                      )}
                     </div>
                     <p className={`text-xs text-gray-500 px-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
                       {formatTime(msg.timestamp)}
