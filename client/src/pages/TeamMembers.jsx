@@ -14,7 +14,8 @@ import {
   Calendar,
   Settings,
   DollarSign,
-  Link2
+  Link2,
+  Copy
 } from 'lucide-react';
 import { teams } from '../utils/api';
 import MemberExternalLinkModal from '../components/MemberExternalLinkModal';
@@ -76,14 +77,20 @@ export default function TeamMembers() {
     }
   };
 
- const handleToggleActive = async (memberId, isActive) => {
-  try {
-    await teams.updateMemberStatus(teamId, memberId, !isActive); // ← CHANGE THIS LINE
-    loadTeamMembers();
-  } catch (error) {
-    console.error('Error updating member:', error);
-  }
-};
+  const handleToggleActive = async (memberId, isActive) => {
+    try {
+      await teams.updateMemberStatus(teamId, memberId, !isActive);
+      loadTeamMembers();
+    } catch (error) {
+      console.error('Error updating member:', error);
+    }
+  };
+
+  const handleCopyBookingLink = (bookingToken) => {
+    const bookingUrl = `${window.location.origin}/book/${bookingToken}`;
+    navigator.clipboard.writeText(bookingUrl);
+    alert('Booking link copied to clipboard!');
+  };
 
   const handleSaveExternalLink = async (data) => {
     try {
@@ -170,16 +177,16 @@ export default function TeamMembers() {
                 <div className="p-6">
                   <div className="flex items-center gap-4 mb-4">
                     <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-xl">
-                      {member.user_name?.charAt(0) || 'U'}
+                      {member.user_name?.charAt(0) || member.name?.charAt(0) || 'U'}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-bold text-gray-900">{member.user_name || 'Unknown'}</h3>
+                        <h3 className="font-bold text-gray-900">{member.user_name || member.name || 'Unknown'}</h3>
                         {member.role === 'admin' && (
                           <Crown className="h-4 w-4 text-yellow-500" />
                         )}
                       </div>
-                      <p className="text-sm text-gray-600">{member.user_email}</p>
+                      <p className="text-sm text-gray-600">{member.user_email || member.email}</p>
                     </div>
                   </div>
 
@@ -197,7 +204,7 @@ export default function TeamMembers() {
                     )}
                     <span className="flex items-center gap-1 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
                       <Shield className="h-3 w-3" />
-                      {member.role}
+                      {member.role || 'member'}
                     </span>
                   </div>
 
@@ -211,6 +218,25 @@ export default function TeamMembers() {
                       <p className="text-xs text-gray-600">Priority</p>
                     </div>
                   </div>
+
+                  {/* Booking Link Section */}
+                  {member.booking_token && (
+                    <div className="mb-4 p-3 bg-blue-50 rounded-xl border-2 border-blue-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-blue-900">Booking Link:</p>
+                        <button
+                          onClick={() => handleCopyBookingLink(member.booking_token)}
+                          className="flex items-center gap-1 text-xs bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                        >
+                          <Copy className="h-3 w-3" />
+                          Copy
+                        </button>
+                      </div>
+                      <p className="text-xs text-blue-700 break-all font-mono">
+                        {window.location.origin}/book/{member.booking_token.substring(0, 8)}...
+                      </p>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <button
