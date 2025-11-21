@@ -113,26 +113,11 @@ export const teams = {
   getMembers: (teamId) => apiClient.get(`/teams/${teamId}/members`),
   addMember: (teamId, data) => apiClient.post(`/teams/${teamId}/members`, data),
   removeMember: (teamId, memberId) => apiClient.delete(`/teams/${teamId}/members/${memberId}`),
+  updateMember: (teamId, memberId, data) => apiClient.patch(`/teams/${teamId}/members/${memberId}`, data),
   updateMemberExternalLink: (teamId, memberId, data) => 
     apiClient.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
 };
 
-// ============================================
-// TEAMS API
-// ============================================
-
-export const teams = {
-  getAll: () => apiClient.get('/teams'),
-  create: (data) => apiClient.post('/teams', data),
-  update: (id, data) => apiClient.put(`/teams/${id}`, data),
-  delete: (id) => apiClient.delete(`/teams/${id}`),
-  getMembers: (teamId) => apiClient.get(`/teams/${teamId}/members`),
-  addMember: (teamId, data) => apiClient.post(`/teams/${teamId}/members`, data),
-  removeMember: (teamId, memberId) => apiClient.delete(`/teams/${teamId}/members/${memberId}`),
-  updateMember: (teamId, memberId, data) => apiClient.patch(`/teams/${teamId}/members/${memberId}`, data),  // ← ADD ONLY THIS LINE
-  updateMemberExternalLink: (teamId, memberId, data) => 
-    apiClient.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
-};
 // ============================================
 // BOOKINGS API
 // ============================================
