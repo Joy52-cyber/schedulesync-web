@@ -1,15 +1,38 @@
 import { useState, useEffect } from 'react';
-import { Save, Loader2, CheckCircle, Globe, User, Bell } from 'lucide-react';
-import api from '../utils/api';
-import TimezoneSelector from '../components/TimezoneSelector';
-import { getBrowserTimezone, formatInTimezone } from '../utils/timezone';
+import { 
+  User, 
+  Mail, 
+  Globe,
+  Bell,
+  Calendar,
+  Clock,
+  Save,
+  Check,
+  Loader2
+} from 'lucide-react';
 
 export default function UserSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [settings, setSettings] = useState({
-    timezone: 'America/New_York',
+  const [activeTab, setActiveTab] = useState('profile');
+  
+  const [profile, setProfile] = useState({
+    name: '',
+    email: '',
+    timezone: 'America/New_York'
+  });
+
+  const [availability, setAvailability] = useState({
+    workingHours: { start: '09:00', end: '17:00' },
+    bufferTime: 15,
+    leadTime: 60
+  });
+
+  const [notifications, setNotifications] = useState({
+    emailNotifications: true,
+    bookingReminders: true,
+    dailySummary: false
   });
 
   useEffect(() => {
@@ -18,17 +41,15 @@ export default function UserSettings() {
 
   const loadSettings = async () => {
     try {
-      setLoading(true);
-      const response = await api.get('/user/timezone');
-      setSettings({
-        timezone: response.data.timezone || getBrowserTimezone(),
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/user/settings`, {
+        credentials: 'include'
       });
+      const data = await response.json();
+      setProfile(data.profile || profile);
+      setAvailability(data.availability || availability);
+      setNotifications(data.notifications || notifications);
     } catch (error) {
-      console.error('Failed to load settings:', error);
-      // Use browser timezone as fallback
-      setSettings({
-        timezone: getBrowserTimezone(),
-      });
+      console.error('Error loading settings:', error);
     } finally {
       setLoading(false);
     }
@@ -37,14 +58,16 @@ export default function UserSettings() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      await api.put('/user/timezone', { timezone: settings.timezone });
+      await fetch(`${import.meta.env.VITE_API_URL}/api/user/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ profile, availability, notifications })
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-      
-      // Save to localStorage for immediate use
-      localStorage.setItem('userTimezone', settings.timezone);
     } catch (error) {
-      alert('Failed to save settings: ' + error.message);
+      console.error('Error saving:', error);
     } finally {
       setSaving(false);
     }
@@ -52,127 +75,199 @@ export default function UserSettings() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
       </div>
     );
   }
 
-  const now = new Date();
-
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600 mt-1">Manage your account preferences</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <div className="mb-8">
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">Settings</h1>
+          <p className="text-gray-600">Manage your account and preferences</p>
+        </div>
 
-      {/* Timezone Settings */}
-      <div className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-            <Globe className="h-5 w-5 text-blue-600" />
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-gray-100">
+          <div className="flex border-b-2 border-gray-100 overflow-x-auto">
+            {[
+              { id: 'profile', icon: User, label: 'Profile' },
+              { id: 'availability', icon: Calendar, label: 'Availability' },
+              { id: 'notifications', icon: Bell, label: 'Notifications' }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-6 py-4 font-semibold transition-colors whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <tab.icon className="h-4 w-4" />
+                  {tab.label}
+                </div>
+              </button>
+            ))}
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Timezone Preferences</h2>
-            <p className="text-sm text-gray-600">Set your default timezone for bookings</p>
+
+          <div className="p-8">
+            {activeTab === 'profile' && (
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Full Name
+                    </div>
+                  </label>
+                  <input
+                    type="text"
+                    value={profile.name}
+                    onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Email
+                    </div>
+                  </label>
+                  <input
+                    type="email"
+                    value={profile.email}
+                    onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-4 w-4" />
+                      Timezone
+                    </div>
+                  </label>
+                  <select
+                    value={profile.timezone}
+                    onChange={(e) => setProfile({ ...profile, timezone: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
+                  >
+                    <option value="America/New_York">Eastern Time</option>
+                    <option value="America/Chicago">Central Time</option>
+                    <option value="America/Denver">Mountain Time</option>
+                    <option value="America/Los_Angeles">Pacific Time</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'availability' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        Start Time
+                      </div>
+                    </label>
+                    <input
+                      type="time"
+                      value={availability.workingHours.start}
+                      onChange={(e) => setAvailability({
+                        ...availability,
+                        workingHours: { ...availability.workingHours, start: e.target.value }
+                      })}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">End Time</label>
+                    <input
+                      type="time"
+                      value={availability.workingHours.end}
+                      onChange={(e) => setAvailability({
+                        ...availability,
+                        workingHours: { ...availability.workingHours, end: e.target.value }
+                      })}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Buffer Time (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    value={availability.bufferTime}
+                    onChange={(e) => setAvailability({ ...availability, bufferTime: parseInt(e.target.value) })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'notifications' && (
+              <div className="space-y-4">
+                {[
+                  { key: 'emailNotifications', icon: Mail, title: 'Email Notifications', desc: 'Receive booking confirmations' },
+                  { key: 'bookingReminders', icon: Bell, title: 'Booking Reminders', desc: 'Get reminded before meetings' },
+                  { key: 'dailySummary', icon: Calendar, title: 'Daily Summary', desc: 'Daily booking summary' }
+                ].map((notif) => (
+                  <label key={notif.key} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 cursor-pointer">
+                    <div className="flex items-center gap-3">
+                      <notif.icon className="h-5 w-5 text-gray-600" />
+                      <div>
+                        <p className="font-semibold text-gray-900">{notif.title}</p>
+                        <p className="text-sm text-gray-600">{notif.desc}</p>
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifications[notif.key]}
+                      onChange={(e) => setNotifications({ ...notifications, [notif.key]: e.target.checked })}
+                      className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Timezone Selector */}
-        <div className="mb-6">
-          <TimezoneSelector
-            value={settings.timezone}
-            onChange={(timezone) => setSettings({ ...settings, timezone })}
-          />
-        </div>
-
-        {/* Preview */}
-        <div className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-200 rounded-xl">
-          <div className="flex items-start gap-2">
-            <Globe className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-blue-900 mb-2">Preview</p>
-              <p className="text-sm text-blue-800">
-                Current time in your timezone:
-              </p>
-              <p className="text-lg font-bold text-blue-900 mt-1">
-                {formatInTimezone(now, settings.timezone, 'long')}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Info */}
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <div className="flex items-start gap-2 text-sm text-gray-700">
-            <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="font-medium mb-1">How timezone settings work:</p>
-              <ul className="space-y-1 text-xs text-gray-600">
-                <li>• All meeting times are displayed in your selected timezone</li>
-                <li>• Booking pages automatically show times in guest's timezone</li>
-                <li>• Email reminders include times in both timezones</li>
-                <li>• Database stores all times in UTC for accuracy</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${
-            saved
-              ? 'bg-green-600 text-white'
-              : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
-        >
-          {saving ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Saving...
-            </>
-          ) : saved ? (
-            <>
-              <CheckCircle className="h-5 w-5" />
-              Saved!
-            </>
-          ) : (
-            <>
-              <Save className="h-5 w-5" />
-              Save Settings
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* Additional Settings Placeholder */}
-      <div className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-6 opacity-50">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-            <Bell className="h-5 w-5 text-gray-400" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Notification Preferences</h2>
-            <p className="text-sm text-gray-600">Coming soon...</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-6 opacity-50">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-            <User className="h-5 w-5 text-gray-400" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Profile Settings</h2>
-            <p className="text-sm text-gray-600">Coming soon...</p>
-          </div>
+        <div className="mt-6">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2 font-bold text-lg disabled:opacity-50"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Saving...
+              </>
+            ) : saved ? (
+              <>
+                <Check className="h-5 w-5" />
+                Saved!
+              </>
+            ) : (
+              <>
+                <Save className="h-5 w-5" />
+                Save Changes
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>

@@ -1,210 +1,216 @@
-﻿import { useState, useEffect, useRef } from 'react';
-import { Calendar, Check, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
-import { getOrganizerOAuthUrl, handleOrganizerOAuthCallback } from '../utils/api';
+﻿import { useState, useEffect } from 'react';
+import { 
+  Calendar,
+  RefreshCw,
+  Trash2,
+  Plus,
+  Check,
+  Loader2,
+  ExternalLink,
+  AlertCircle,
+  CheckCircle
+} from 'lucide-react';
 
 export default function CalendarSettings() {
-  const [calendarConnected, setCalendarConnected] = useState(false);
-  const [calendarEmail, setCalendarEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState('');
-  const didProcessRef = useRef(false);
+  const [loading, setLoading] = useState(true);
+  const [calendars, setCalendars] = useState([]);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    checkCalendarStatus();
-    handleOAuthCallback();
+    loadCalendars();
   }, []);
 
-  const checkCalendarStatus = () => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user.calendar_sync_enabled) {
-      setCalendarConnected(true);
-      setCalendarEmail(user.email);
-    }
-  };
-
-  const handleOAuthCallback = async () => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-
-    if (!code || didProcessRef.current) return;
-    didProcessRef.current = true;
-
-    setProcessing(true);
-    setLoading(true);
-
-    // Clean URL
-    window.history.replaceState({}, document.title, '/settings');
-
+  const loadCalendars = async () => {
     try {
-      const response = await handleOrganizerOAuthCallback(code);
-      
-      // Update user in localStorage
-      localStorage.setItem('user', JSON.stringify(response.user));
-      localStorage.setItem('token', response.token);
-      
-      setCalendarConnected(true);
-      setCalendarEmail(response.user.email);
-      setError('');
-    } catch (err) {
-      console.error('❌ Calendar connection failed:', err);
-      setError('Failed to connect calendar. Please try again.');
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/calendars`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      setCalendars(data.calendars || []);
+    } catch (error) {
+      console.error('Error loading calendars:', error);
     } finally {
-      setProcessing(false);
       setLoading(false);
     }
   };
 
-  const handleConnectCalendar = async () => {
+  const handleConnectGoogle = () => {
+    window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/google/calendar`;
+  };
+
+  const handleSync = async (calendarId) => {
     try {
-      setLoading(true);
-      setError('');
-      
-      const response = await getOrganizerOAuthUrl();
-      window.location.href = response.url;
-    } catch (err) {
-      console.error('❌ Failed to get OAuth URL:', err);
-      setError('Failed to initiate calendar connection. Please try again.');
-      setLoading(false);
+      setSyncing(true);
+      await fetch(`${import.meta.env.VITE_API_URL}/api/calendars/${calendarId}/sync`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      loadCalendars();
+    } catch (error) {
+      console.error('Error syncing calendar:', error);
+    } finally {
+      setSyncing(false);
     }
   };
 
-  const handleDisconnectCalendar = () => {
-    if (!confirm('Disconnect your Google Calendar? You won\'t be able to create calendar events automatically.')) return;
+  const handleDisconnect = async (calendarId) => {
+    if (!confirm('Disconnect this calendar? Your availability will no longer sync.')) return;
     
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    user.calendar_sync_enabled = false;
-    localStorage.setItem('user', JSON.stringify(user));
-    
-    setCalendarConnected(false);
-    setCalendarEmail('');
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/calendars/${calendarId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      loadCalendars();
+    } catch (error) {
+      console.error('Error disconnecting calendar:', error);
+    }
   };
 
-  if (processing) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center animate-fadeIn">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-700 text-lg font-medium">Connecting your calendar...</p>
-          <p className="text-gray-500 text-sm mt-2">Please wait</p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-6">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
-                <Calendar className="h-8 w-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-white">Calendar Settings</h1>
-                <p className="text-blue-100 mt-1">Connect your Google Calendar to enable automatic event creation</p>
-              </div>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">Calendar Settings</h1>
+          <p className="text-gray-600">Connect and manage your calendar integrations</p>
+        </div>
+
+        {/* Connected Calendars */}
+        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-gray-100 mb-6">
+          <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+              <Calendar className="h-6 w-6" />
+              Connected Calendars
+            </h2>
           </div>
 
-          {/* Content */}
           <div className="p-8">
-            {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 animate-fadeIn">
-                <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-red-800 font-medium">Connection Failed</p>
-                  <p className="text-red-600 text-sm mt-1">{error}</p>
-                </div>
+            {calendars.length === 0 ? (
+              <div className="text-center py-12">
+                <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-gray-900 mb-2">No calendars connected</h3>
+                <p className="text-gray-600 mb-6">Connect your calendar to sync availability</p>
+                <button
+                  onClick={handleConnectGoogle}
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-xl hover:shadow-lg transition-all inline-flex items-center gap-2 font-semibold"
+                >
+                  <svg className="h-5 w-5" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                  Connect Google Calendar
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {calendars.map((calendar) => (
+                  <div
+                    key={calendar.id}
+                    className="flex items-center justify-between p-6 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                        <Calendar className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                          {calendar.calendar_name || 'Primary Calendar'}
+                          {calendar.is_primary && (
+                            <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-semibold">
+                              Primary
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-sm text-gray-600">{calendar.email}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {calendar.sync_status === 'active' ? (
+                            <span className="flex items-center gap-1 text-xs text-green-600">
+                              <CheckCircle className="h-3 w-3" />
+                              Synced
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-xs text-yellow-600">
+                              <AlertCircle className="h-3 w-3" />
+                              Sync pending
+                            </span>
+                          )}
+                          {calendar.last_sync && (
+                            <span className="text-xs text-gray-500">
+                              Last sync: {new Date(calendar.last_sync).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleSync(calendar.id)}
+                        disabled={syncing}
+                        className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50"
+                        title="Sync now"
+                      >
+                        <RefreshCw className={`h-5 w-5 ${syncing ? 'animate-spin' : ''}`} />
+                      </button>
+                      <button
+                        onClick={() => handleDisconnect(calendar.id)}
+                        className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                        title="Disconnect"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  onClick={handleConnectGoogle}
+                  className="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all text-gray-600 hover:text-blue-600 font-semibold flex items-center justify-center gap-2"
+                >
+                  <Plus className="h-5 w-5" />
+                  Add Another Calendar
+                </button>
               </div>
             )}
-
-            {/* Calendar Status */}
-            <div className="mb-8">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Connection Status</h2>
-              
-              {calendarConnected ? (
-                <div className="bg-green-50 border-2 border-green-200 rounded-xl p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
-                      <Check className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-green-900 mb-1">✅ Calendar Connected</h3>
-                      <p className="text-green-700 mb-3">
-                        Connected as <strong>{calendarEmail}</strong>
-                      </p>
-                      <p className="text-green-600 text-sm mb-4">
-                        Calendar events will be automatically created when guests book meetings with you.
-                      </p>
-                      <button
-                        onClick={handleDisconnectCalendar}
-                        className="px-4 py-2 bg-white border-2 border-green-600 text-green-700 font-semibold rounded-lg hover:bg-green-50 transition-colors"
-                      >
-                        Disconnect Calendar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center flex-shrink-0">
-                      <AlertCircle className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-yellow-900 mb-1">⚠️ Calendar Not Connected</h3>
-                      <p className="text-yellow-700 mb-4">
-                        Connect your Google Calendar to automatically create events when guests book with you.
-                      </p>
-                      <button
-                        onClick={handleConnectCalendar}
-                        disabled={loading}
-                        className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                      >
-                        {loading ? (
-                          <>
-                            <Loader2 className="h-5 w-5 animate-spin" />
-                            Connecting...
-                          </>
-                        ) : (
-                          <>
-                            <Calendar className="h-5 w-5" />
-                            Connect Google Calendar
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Features List */}
-            <div className="bg-gray-50 rounded-xl p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">What happens when you connect?</h3>
-              <ul className="space-y-3">
-                <li className="flex items-start gap-3">
-                  <Check className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Automatic calendar events created when guests book</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Check className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Calendar invites sent to guests automatically</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Check className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Automatic reminders (24 hours and 30 minutes before)</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Check className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Meeting details and notes included in event description</span>
-                </li>
-              </ul>
-            </div>
           </div>
+        </div>
+
+        {/* Info Card */}
+        <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-6">
+          <h3 className="font-bold text-blue-900 mb-3 flex items-center gap-2">
+            <AlertCircle className="h-5 w-5" />
+            How Calendar Sync Works
+          </h3>
+          <ul className="space-y-2 text-sm text-blue-800">
+            <li className="flex items-start gap-2">
+              <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>We only check if you're free or busy - event details stay private</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>Bookings are automatically synced to your calendar</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>Changes update in real-time to prevent double-booking</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>You can disconnect at any time from this page</span>
+            </li>
+          </ul>
         </div>
       </div>
     </div>

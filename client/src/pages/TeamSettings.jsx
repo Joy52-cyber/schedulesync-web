@@ -1,31 +1,36 @@
 ﻿import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  ArrowLeft, 
-  Save, 
-  Loader2, 
+  Settings, 
   Users, 
-  Settings,
-  RefreshCw,
-  Zap,
-  UserPlus,
-  Info,
-  Bell
+  Clock,
+  Link as LinkIcon,
+  Save,
+  Trash2,
+  ArrowLeft,
+  Check,
+  Loader2,
+  DollarSign,
+  Calendar,
+  Zap
 } from 'lucide-react';
-import api from '../utils/api';
-import ReminderSettings from '../components/ReminderSettings';
 
 export default function TeamSettings() {
   const { teamId } = useParams();
   const navigate = useNavigate();
-  
-  const [team, setTeam] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({
+  const [saved, setSaved] = useState(false);
+  
+  const [team, setTeam] = useState({
     name: '',
     description: '',
-    booking_mode: 'individual',
+    duration: 30,
+    mode: 'round-robin',
+    bufferTime: 0,
+    leadTime: 60,
+    price: 0,
+    currency: 'USD'
   });
 
   useEffect(() => {
@@ -34,16 +39,11 @@ export default function TeamSettings() {
 
   const loadTeam = async () => {
     try {
-      setLoading(true);
-      const response = await api.get(`/teams/${teamId}`);
-      const teamData = response.data.team;
-      
-      setTeam(teamData);
-      setFormData({
-        name: teamData.name || '',
-        description: teamData.description || '',
-        booking_mode: teamData.booking_mode || 'individual',
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/teams/${teamId}`, {
+        credentials: 'include'
       });
+      const data = await response.json();
+      setTeam(data.team || team);
     } catch (error) {
       console.error('Error loading team:', error);
     } finally {
@@ -51,267 +51,258 @@ export default function TeamSettings() {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
+  const handleSave = async () => {
     try {
       setSaving(true);
-      await api.put(`/teams/${teamId}`, formData);
-      console.log('✅ Team settings saved');
-      
-      // Go back to teams page
-      navigate('/teams');
+      await fetch(`${import.meta.env.VITE_API_URL}/api/teams/${teamId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(team)
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
     } catch (error) {
       console.error('Error saving team:', error);
-      alert('Failed to save team settings. Please try again.');
     } finally {
       setSaving(false);
     }
   };
 
-  const bookingModes = [
-    {
-      id: 'individual',
-      name: 'Individual',
-      icon: Users,
-      description: 'Guest selects a specific team member to book with',
-      color: 'blue',
-      badge: 'Default'
-    },
-    {
-      id: 'round_robin',
-      name: 'Round-robin',
-      icon: RefreshCw,
-      description: 'Automatically rotate bookings evenly among all team members',
-      color: 'purple',
-      badge: 'Auto-assign'
-    },
-    {
-      id: 'first_available',
-      name: 'First Available',
-      icon: Zap,
-      description: 'Assign to the first team member who has availability',
-      color: 'green',
-      badge: 'Fastest'
-    },
-    {
-      id: 'collective',
-      name: 'Collective',
-      icon: UserPlus,
-      description: 'Book a meeting with all team members at once',
-      color: 'orange',
-      badge: 'Group'
-    },
-  ];
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this team? This cannot be undone.')) return;
+    
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/teams/${teamId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      navigate('/teams');
+    } catch (error) {
+      console.error('Error deleting team:', error);
+    }
+  };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => navigate('/teams')}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <ArrowLeft className="h-6 w-6 text-gray-600" />
-        </button>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Team Settings</h1>
-          <p className="text-gray-600 mt-1">Configure how your team accepts bookings</p>
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Basic Info Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Basic Information
-          </h2>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Team Name *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
-                placeholder="Sales Team"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description
-              </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows="3"
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none resize-none"
-                placeholder="Describe what this team does..."
-              />
-            </div>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={() => navigate('/teams')}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 font-semibold"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Teams
+          </button>
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">Team Settings</h1>
+          <p className="text-gray-600">Configure your team's booking preferences</p>
         </div>
 
-        {/* Booking Mode Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="mb-4">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Booking Mode
-            </h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Choose how bookings are assigned to team members
-            </p>
-          </div>
-
-          {/* Info Banner */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <div className="flex items-start gap-3">
-              <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-800">
-                <p className="font-medium mb-1">How booking modes work:</p>
-                <ul className="space-y-1 text-xs">
-                  <li>• <strong>Individual:</strong> Guests choose who they want to meet with</li>
-                  <li>• <strong>Round-robin:</strong> System automatically distributes bookings fairly</li>
-                  <li>• <strong>First Available:</strong> System picks the first free team member</li>
-                  <li>• <strong>Collective:</strong> Books everyone for a group meeting</li>
-                </ul>
+        {/* Settings Form */}
+        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-gray-100">
+          
+          {/* Header Section */}
+          <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-8">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+                <Settings className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-white">{team.name}</h2>
+                <p className="text-blue-100">{team.description}</p>
               </div>
             </div>
           </div>
 
-          {/* Booking Mode Options */}
-          <div className="grid md:grid-cols-2 gap-4">
-            {bookingModes.map((mode) => {
-              const Icon = mode.icon;
-              const isSelected = formData.booking_mode === mode.id;
+          {/* Form Content */}
+          <div className="p-8 space-y-8">
+            
+            {/* Basic Info */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Users className="h-5 w-5 text-blue-600" />
+                Basic Information
+              </h3>
               
-              const colorClasses = {
-                blue: {
-                  border: 'border-blue-500',
-                  bg: 'bg-blue-50',
-                  badge: 'bg-blue-600',
-                  icon: 'text-blue-600',
-                  hover: 'hover:border-blue-300'
-                },
-                purple: {
-                  border: 'border-purple-500',
-                  bg: 'bg-purple-50',
-                  badge: 'bg-purple-600',
-                  icon: 'text-purple-600',
-                  hover: 'hover:border-purple-300'
-                },
-                green: {
-                  border: 'border-green-500',
-                  bg: 'bg-green-50',
-                  badge: 'bg-green-600',
-                  icon: 'text-green-600',
-                  hover: 'hover:border-green-300'
-                },
-                orange: {
-                  border: 'border-orange-500',
-                  bg: 'bg-orange-50',
-                  badge: 'bg-orange-600',
-                  icon: 'text-orange-600',
-                  hover: 'hover:border-orange-300'
-                }
-              };
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Team Name</label>
+                <input
+                  type="text"
+                  value={team.name}
+                  onChange={(e) => setTeam({ ...team, name: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                  placeholder="Sales Team"
+                />
+              </div>
 
-              const colors = colorClasses[mode.color];
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Description</label>
+                <textarea
+                  value={team.description}
+                  onChange={(e) => setTeam({ ...team, description: e.target.value })}
+                  rows="3"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none resize-none transition-all"
+                  placeholder="Book time with our sales team"
+                />
+              </div>
+            </div>
 
-              return (
-                <button
-                  key={mode.id}
-                  type="button"
-                  onClick={() => setFormData({ ...formData, booking_mode: mode.id })}
-                  className={`relative p-5 rounded-xl border-2 text-left transition-all ${
-                    isSelected
-                      ? `${colors.border} ${colors.bg} shadow-lg`
-                      : `border-gray-200 hover:shadow-md ${colors.hover}`
-                  }`}
-                >
-                  {/* Badge */}
-                  <span className={`absolute top-3 right-3 px-2 py-1 ${colors.badge} text-white text-xs font-bold rounded-full`}>
-                    {mode.badge}
-                  </span>
+            {/* Scheduling Settings */}
+            <div className="space-y-6 pt-6 border-t-2 border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Clock className="h-5 w-5 text-purple-600" />
+                Scheduling Settings
+              </h3>
 
-                  {/* Icon */}
-                  <div className={`w-12 h-12 rounded-lg ${colors.bg} flex items-center justify-center mb-3`}>
-                    <Icon className={`h-6 w-6 ${colors.icon}`} />
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Meeting Duration (minutes)</label>
+                  <input
+                    type="number"
+                    value={team.duration}
+                    onChange={(e) => setTeam({ ...team, duration: parseInt(e.target.value) })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                  />
+                </div>
 
-                  {/* Content */}
-                  <h3 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
-                    {mode.name}
-                    {isSelected && (
-                      <span className="text-green-600">✓</span>
-                    )}
-                  </h3>
-                  <p className="text-sm text-gray-600 leading-relaxed">
-                    {mode.description}
-                  </p>
-                </button>
-              );
-            })}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Scheduling Mode</label>
+                  <select
+                    value={team.mode}
+                    onChange={(e) => setTeam({ ...team, mode: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                  >
+                    <option value="round-robin">Round Robin</option>
+                    <option value="collective">Collective</option>
+                    <option value="first-available">First Available</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Buffer Time (minutes)</label>
+                  <input
+                    type="number"
+                    value={team.bufferTime}
+                    onChange={(e) => setTeam({ ...team, bufferTime: parseInt(e.target.value) })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Lead Time (minutes)</label>
+                  <input
+                    type="number"
+                    value={team.leadTime}
+                    onChange={(e) => setTeam({ ...team, leadTime: parseInt(e.target.value) })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Pricing */}
+            <div className="space-y-6 pt-6 border-t-2 border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-green-600" />
+                Pricing (Optional)
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Price</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={team.price}
+                    onChange={(e) => setTeam({ ...team, price: parseFloat(e.target.value) })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Currency</label>
+                  <select
+                    value={team.currency}
+                    onChange={(e) => setTeam({ ...team, currency: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                  >
+                    <option value="USD">USD - US Dollar</option>
+                    <option value="EUR">EUR - Euro</option>
+                    <option value="GBP">GBP - British Pound</option>
+                    <option value="JPY">JPY - Japanese Yen</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Mode Explanation */}
+            <div className="bg-blue-50 border-2 border-blue-100 rounded-xl p-6">
+              <h4 className="font-bold text-blue-900 mb-3 flex items-center gap-2">
+                <Zap className="h-4 w-4" />
+                Scheduling Mode Explained
+              </h4>
+              <ul className="space-y-2 text-sm text-blue-800">
+                <li className="flex items-start gap-2">
+                  <span className="font-bold">Round Robin:</span>
+                  <span>Distributes bookings evenly among team members</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold">Collective:</span>
+                  <span>All team members must be available for the meeting</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold">First Available:</span>
+                  <span>Books with the first available team member</span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
 
-        {/* Save Button */}
-        <div className="flex justify-end gap-3">
+        {/* Action Buttons */}
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <button
-            type="button"
-            onClick={() => navigate('/teams')}
-            className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
+            onClick={handleSave}
             disabled={saving}
-            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-medium disabled:opacity-50 flex items-center gap-2"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2 font-bold disabled:opacity-50"
           >
             {saving ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
                 Saving...
               </>
+            ) : saved ? (
+              <>
+                <Check className="h-5 w-5" />
+                Saved!
+              </>
             ) : (
               <>
                 <Save className="h-5 w-5" />
-                Save Settings
+                Save Changes
               </>
             )}
           </button>
-        </div>
-      </form>
 
-      {/* NEW: Reminder Settings Section */}
-      <div className="pt-6 border-t-2 border-gray-200">
-        <div className="mb-4">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Bell className="h-6 w-6 text-blue-600" />
-            Reminder Automation
-          </h2>
-          <p className="text-gray-600 mt-1">
-            Configure automatic meeting reminders for this team
-          </p>
+          <button
+            onClick={handleDelete}
+            className="bg-white border-2 border-red-500 text-red-600 px-8 py-4 rounded-xl hover:bg-red-50 transition-all flex items-center justify-center gap-2 font-bold"
+          >
+            <Trash2 className="h-5 w-5" />
+            Delete Team
+          </button>
         </div>
-        
-        <ReminderSettings teamId={parseInt(teamId)} />
       </div>
     </div>
   );
