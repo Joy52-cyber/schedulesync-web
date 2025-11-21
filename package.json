@@ -22,8 +22,6 @@
     "redis": "^4.7.1",
     "resend": "^3.5.0",
     "stripe": "^20.0.0"
-  }
-}
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
