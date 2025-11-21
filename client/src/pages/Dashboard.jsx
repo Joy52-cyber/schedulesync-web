@@ -277,30 +277,6 @@ export default function Dashboard() {
   </div>
 )}
             
-                {/* Chart Visualization */}
-                <div className="pt-4 space-y-3">
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day, i) => {
-                    const meetings = [3, 2, 1, 4, 2][i];
-                    const width = (meetings / 4) * 100;
-                    return (
-                      <div key={day} className="space-y-1">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600 font-medium">{day}</span>
-                          <span className="text-gray-900 font-semibold">{meetings} meetings</span>
-                        </div>
-                        <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all"
-                            style={{ width: `${width}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
             {/* Quick Actions */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <button
