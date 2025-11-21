@@ -3046,29 +3046,20 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
     })).filter(msg => msg.content.trim() !== '');
 
     // Call Claude API
-   const aiResponse = await callAnthropicWithRetry({
+
+    const aiResponse = await callAnthropicWithRetry({
   model: "claude-sonnet-4-20250514",
   max_tokens: 1500,
-  system: `You are a scheduling assistant for ScheduleSync...`,
-  messages: [
-    ...formattedHistory,
-    { role: "user", content: message.trim() }
-  ]
-});
-    method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1500,
-        system: `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
+  system: `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
 
 User context: ${JSON.stringify(userContext)}
 
-Current date/time: ${new Date().toISOString()}
+**IMPORTANT: Current date/time is ${new Date().toISOString()}**
+**When parsing dates:**
+- "Monday December 1" means the NEXT occurrence of Monday, December 1
+- Always use year 2025 or later for future dates
+- "2 pm" = "14:00" in 24-hour format
+- If only day/month given, assume current year or next year if date has passed
 
 Return JSON structure:
 {
@@ -3077,8 +3068,8 @@ Return JSON structure:
   "extracted": {
     "title": "string or null",
     "attendees": ["email@example.com"],
-    "date": "YYYY-MM-DD or null",
-    "time": "HH:MM or null", 
+    "date": "YYYY-MM-DD (always use 2025 or later)",
+    "time": "HH:MM in 24-hour format", 
     "duration_minutes": number or null,
     "notes": "string or null",
     "time_window": "tomorrow morning" | "next week" | "this afternoon" etc
@@ -3088,17 +3079,22 @@ Return JSON structure:
   "action": "create" | "list" | "suggest_slots" | "cancel" | null
 }
 
+Examples:
+- "2 pm monday december 1" → date: "2025-12-01", time: "14:00"
+- "tomorrow at 3pm" → calculate tomorrow's date, time: "15:00"
+
 For "show bookings" intent, set action to "list".
 For "find time" or vague scheduling, set action to "suggest_slots".
 For specific time/date provided, set action to "create".
 If missing info, set intent to "clarify".`,
-        messages: [
-          ...formattedHistory,
-          { role: "user", content: message.trim() }
-        ]
-      })
-    });
+  messages: [
+    ...formattedHistory,
+    { role: "user", content: message.trim() }
+  ]
+});
 
+
+   
     const aiData = await aiResponse.json();
 
     if (!aiData || !aiData.content || !aiData.content[0] || !aiData.content[0].text) {
