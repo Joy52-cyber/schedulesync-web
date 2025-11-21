@@ -601,6 +601,44 @@ app.delete('/api/teams/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Update team member (general info: name, email, etc.)
+app.put('/api/teams/:teamId/members/:memberId', authenticateToken, async (req, res) => {
+  const { teamId, memberId } = req.params;
+  const { email, name } = req.body;
+
+  try {
+    // Verify ownership
+    const teamCheck = await pool.query(
+      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2', 
+      [teamId, req.user.id]
+    );
+    
+    if (teamCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Update member
+    const result = await pool.query(
+      `UPDATE team_members 
+       SET email = COALESCE($1, email),
+           name = COALESCE($2, name)
+       WHERE id = $3 AND team_id = $4 
+       RETURNING *`,
+      [email, name, memberId, teamId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Member not found' });
+    }
+
+    console.log(`✅ Member ${memberId} updated`);
+    res.json({ member: result.rows[0] });
+  } catch (error) {
+    console.error('Update member error:', error);
+    res.status(500).json({ error: 'Failed to update member' });
+  }
+});
+
 // ============ TEAM MEMBER ROUTES ============
 
 app.get('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
