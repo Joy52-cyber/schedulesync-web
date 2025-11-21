@@ -20,8 +20,10 @@
     "nodemailer": "^6.10.1",
     "pg": "^8.11.3",
     "redis": "^4.7.1",
-    "resend": "^3.0.0",
+    "resend": "^3.5.0",
     "stripe": "^20.0.0"
+  }
+}
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
