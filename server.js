@@ -3004,7 +3004,7 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
         "anthropic-version": "2023-06-01"
       },
       body: JSON.stringify({
-        model: "claude-3-sonnet-20240229",
+        model: "claude-sonnet-4-20250514",
         max_tokens: 1000,
         system: `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages.
 
