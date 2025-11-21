@@ -9,6 +9,7 @@ import {
   Loader2,
   MoreVertical
 } from 'lucide-react';
+import { getTeams, createTeam } from '../utils/api';
 
 export default function Teams() {
   const navigate = useNavigate();
@@ -24,9 +25,7 @@ export default function Teams() {
 
   const loadTeams = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/teams`, {
-        credentials: 'include'
-      });
+      const response = await getTeams();
       const data = await response.json();
       setTeams(data.teams || []);
     } catch (error) {
@@ -46,12 +45,7 @@ export default function Teams() {
   const handleCreateTeam = async (e) => {
     e.preventDefault();
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/teams`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(newTeam)
-      });
+      await createTeam(newTeam);
       setShowCreateModal(false);
       setNewTeam({ name: '', description: '' });
       loadTeams();
