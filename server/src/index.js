@@ -2,8 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const pool = require('./config/database');
-
+const pool = require('../config/database');  // ← Fixed
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -26,24 +25,24 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API Routes
-const authRoutes = require('./routes/auth');
-const teamRoutes = require('./routes/teams');
-const bookingRoutes = require('./routes/bookings');
-const availabilityRoutes = require('./routes/availability');
-const dashboardRoutes = require('./routes/dashboard');
-const aiRoutes = require('./routes/ai');
-const bookingLinksRoutes = require('./routes/bookingLinks');
+// API Routes - FIXED PATHS
+const authRoutes = require('../routes/auth');
+const teamRoutes = require('../routes/teams');
+const bookingRoutes = require('../routes/bookings');
+const availabilityRoutes = require('../routes/availability');
+const dashboardRoutes = require('../routes/dashboard');
+const aiRoutes = require('../routes/ai');
+const bookingLinksRoutes = require('../routes/bookingLinks');  // ← Fixed
 
 // Register routes
 app.use('/api/auth', authRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/bookings', bookingRoutes);
-app.use('/api', bookingRoutes); // For /api/book/:token endpoints
+app.use('/api', bookingRoutes);
 app.use('/api/availability', availabilityRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/ai', aiRoutes);
-app.use('/api', bookingLinksRoutes); // For /api/my-booking-link
+app.use('/api', bookingLinksRoutes);
 
 console.log('✅ Routes registered:');
 console.log('  - /api/auth/*');
@@ -53,18 +52,15 @@ console.log('  - /api/book/:token');
 console.log('  - /api/availability/*');
 console.log('  - /api/dashboard/*');
 console.log('  - /api/ai/*');
-console.log('  - /api/my-booking-link');
+console.log('  - /api/my-booking-link ✨');
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '../../dist-built');
   console.log('📁 Serving static files from:', distPath);
-  
   app.use(express.static(distPath));
   
-  // Handle client-side routing
   app.get('*', (req, res) => {
-    // Don't serve index.html for API routes
     if (req.path.startsWith('/api/')) {
       return res.status(404).json({ error: 'API endpoint not found' });
     }
