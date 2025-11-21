@@ -16,10 +16,11 @@ import {
   XCircle,
   AlertCircle
 } from 'lucide-react';
+import { bookings } from '../utils/api';
 
 export default function Bookings() {
   const navigate = useNavigate();
-  const [bookings, setBookings] = useState([]);
+  const [bookingsList, setBookingsList] = useState([]);
   const [filteredBookings, setFilteredBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,15 +33,12 @@ export default function Bookings() {
 
   useEffect(() => {
     filterBookings();
-  }, [bookings, searchTerm, statusFilter]);
+  }, [bookingsList, searchTerm, statusFilter]);
 
   const loadBookings = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/bookings`, {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      setBookings(data.bookings || []);
+      const response = await bookings.getAll();
+      setBookingsList(response.data.bookings || []);
     } catch (error) {
       console.error('Error loading bookings:', error);
     } finally {
@@ -49,7 +47,7 @@ export default function Bookings() {
   };
 
   const filterBookings = () => {
-    let filtered = [...bookings];
+    let filtered = [...bookingsList];
 
     if (searchTerm) {
       filtered = filtered.filter(b => 
@@ -189,7 +187,7 @@ export default function Bookings() {
                     {booking.meet_link && (
                       <div className="flex items-center gap-2 text-gray-600">
                         <Video className="h-4 w-4" />
-                        <a
+                        
                           href={booking.meet_link}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -266,7 +264,7 @@ export default function Bookings() {
                   <Video className="h-6 w-6 text-green-600 mt-1" />
                   <div className="flex-1">
                     <p className="font-semibold text-gray-900 mb-1">Video Conference</p>
-                    <a
+                    
                       href={selectedBooking.meet_link}
                       target="_blank"
                       rel="noopener noreferrer"
