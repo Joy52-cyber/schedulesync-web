@@ -71,6 +71,11 @@ export default function AISchedulerChat() {
     }
   };
 
+  const handleQuickAction = (action) => {
+  setMessage(action);
+  handleSendMessage();
+};
+
   const formatTime = (date) => {
     return new Date(date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   };
@@ -149,14 +154,25 @@ export default function AISchedulerChat() {
                     }`}>
                       <p className="text-sm leading-relaxed">{msg.content}</p>
                       
-                      {msg.type === 'confirmation' && msg.data?.bookingData && (
-                        <button
-                          onClick={() => handleConfirm(msg.data.bookingData)}
-                          className="mt-3 w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-xl hover:shadow-xl transition-all text-sm font-bold flex items-center justify-center gap-2"
-                        >
-                          ✅ Confirm Booking
-                        </button>
-                      )}
+                     {msg.type === 'confirmation' && msg.data?.bookingData && (
+  <button
+    onClick={() => handleConfirm(msg.data.bookingData)}
+    disabled={loading}
+    className="mt-3 w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-xl hover:shadow-xl transition-all text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+  >
+    ✅ Confirm Booking
+  </button>
+)}
+
+{msg.type === 'booking_list' && msg.data?.bookings && (
+  <div className="mt-3 space-y-2">
+    {msg.data.bookings.slice(0, 3).map((booking, i) => (
+      <div key={i} className="text-xs p-2 bg-purple-50 rounded-lg border border-purple-200">
+        <strong>{booking.attendee_name}</strong> - {new Date(booking.start_time).toLocaleString()}
+      </div>
+    ))}
+  </div>
+)}
                     </div>
                     <p className={`text-xs text-gray-500 px-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
                       {formatTime(msg.timestamp)}

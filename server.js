@@ -2974,7 +2974,7 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
       });
     }
 
-    // Build context from user's data
+    // Get user's teams and bookings for context
     const teamsResult = await pool.query(
       `SELECT t.*, COUNT(tm.id) as member_count
        FROM teams t
@@ -2984,18 +2984,40 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
       [userId]
     );
 
+    const bookingsResult = await pool.query(
+      `SELECT b.*, tm.name as organizer_name, t.name as team_name
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND b.start_time > NOW()
+         AND b.status = 'confirmed'
+       ORDER BY b.start_time ASC
+       LIMIT 10`,
+      [userId]
+    );
+
     const userContext = {
       email: userEmail,
-      teams: teamsResult.rows.map(t => ({ id: t.id, name: t.name, members: t.member_count }))
+      teams: teamsResult.rows.map(t => ({ 
+        id: t.id, 
+        name: t.name, 
+        members: t.member_count 
+      })),
+      upcomingBookings: bookingsResult.rows.map(b => ({
+        title: `${b.attendee_name} - ${b.team_name}`,
+        start: b.start_time,
+        end: b.end_time
+      }))
     };
 
-    // Format messages properly
+    // Format conversation history
     const formattedHistory = conversationHistory.slice(-5).map(msg => ({
-      role: msg.from === 'user' ? 'user' : 'assistant',
-      content: msg.text || '' // Ensure content exists
-    })).filter(msg => msg.content.trim() !== ''); // Remove empty messages
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: msg.content || ''
+    })).filter(msg => msg.content.trim() !== '');
 
-    // Call Claude API for intent extraction
+    // Call Claude API
     const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -3005,28 +3027,35 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        system: `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages.
+        max_tokens: 1500,
+        system: `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
 
 User context: ${JSON.stringify(userContext)}
 
-Return ONLY valid JSON with this structure:
+Current date/time: ${new Date().toISOString()}
+
+Return JSON structure:
 {
-  "intent": "create_meeting" | "reschedule" | "cancel" | "availability_query" | "clarify",
+  "intent": "create_meeting" | "show_bookings" | "find_time" | "cancel_booking" | "reschedule" | "check_availability" | "clarify",
   "confidence": 0-100,
   "extracted": {
     "title": "string or null",
     "attendees": ["email@example.com"],
-    "datetime": "ISO format or null",
+    "date": "YYYY-MM-DD or null",
+    "time": "HH:MM or null", 
     "duration_minutes": number or null,
     "notes": "string or null",
-    "time_window": "tomorrow morning" | "this week" etc
+    "time_window": "tomorrow morning" | "next week" | "this afternoon" etc
   },
   "missing_fields": ["field1", "field2"],
-  "clarifying_question": "What time tomorrow works for you?"
+  "clarifying_question": "What time works best for you?",
+  "action": "create" | "list" | "suggest_slots" | "cancel" | null
 }
 
-If information is missing, set intent to "clarify" and ask a specific question.`,
+For "show bookings" intent, set action to "list".
+For "find time" or vague scheduling, set action to "suggest_slots".
+For specific time/date provided, set action to "create".
+If missing info, set intent to "clarify".`,
         messages: [
           ...formattedHistory,
           { role: "user", content: message.trim() }
@@ -3036,10 +3065,8 @@ If information is missing, set intent to "clarify" and ask a specific question.`
 
     const aiData = await aiResponse.json();
 
-    // Check if the API response is valid
     if (!aiData || !aiData.content || !aiData.content[0] || !aiData.content[0].text) {
       console.error('Invalid AI response:', aiData);
-      
       if (aiData.error) {
         console.error('Anthropic API error:', aiData.error);
         return res.status(500).json({
@@ -3047,10 +3074,9 @@ If information is missing, set intent to "clarify" and ask a specific question.`
           message: aiData.error.message || 'AI service error. Please try again.'
         });
       }
-      
       return res.status(500).json({
         type: 'error',
-        message: 'AI service is temporarily unavailable. Please try again.'
+        message: 'AI service temporarily unavailable.'
       });
     }
 
@@ -3060,8 +3086,7 @@ If information is missing, set intent to "clarify" and ask a specific question.`
     let parsedIntent;
     try {
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch || !jsonMatch[0]) {
-        console.error('No valid JSON found in AI response:', aiText);
+      if (!jsonMatch) {
         return res.json({
           type: 'error',
           message: 'I had trouble understanding that. Could you rephrase?'
@@ -3069,7 +3094,7 @@ If information is missing, set intent to "clarify" and ask a specific question.`
       }
       parsedIntent = JSON.parse(jsonMatch[0]);
     } catch (e) {
-      console.error('Failed to parse AI response JSON:', e.message, aiText);
+      console.error('Failed to parse AI JSON:', e.message);
       return res.json({
         type: 'error',
         message: 'I had trouble understanding that. Could you rephrase?'
@@ -3078,51 +3103,92 @@ If information is missing, set intent to "clarify" and ask a specific question.`
 
     console.log('🎯 Parsed intent:', parsedIntent);
 
-    // Handle based on intent
+    // ========== HANDLE DIFFERENT INTENTS ==========
+
+    // INTENT: Show bookings
+    if (parsedIntent.intent === 'show_bookings' || parsedIntent.action === 'list') {
+      const upcomingBookings = bookingsResult.rows.slice(0, 5);
+      
+      if (upcomingBookings.length === 0) {
+        return res.json({
+          type: 'info',
+          message: 'You have no upcoming bookings. Would you like to schedule a new meeting?'
+        });
+      }
+
+      const bookingsList = upcomingBookings.map((b, i) => {
+        const start = new Date(b.start_time);
+        return `${i + 1}. **${b.attendee_name}** - ${start.toLocaleDateString()} at ${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+      }).join('\n');
+
+      return res.json({
+        type: 'booking_list',
+        message: `Here are your upcoming bookings:\n\n${bookingsList}`,
+        bookings: upcomingBookings
+      });
+    }
+
+    // INTENT: Clarification needed
     if (parsedIntent.intent === 'clarify') {
       return res.json({
         type: 'clarification',
-        message: parsedIntent.clarifying_question,
+        message: parsedIntent.clarifying_question || 'Could you provide more details?',
         parsedData: parsedIntent.extracted
       });
     }
 
-    if (parsedIntent.intent === 'create_meeting') {
+    // INTENT: Create meeting with specific time
+    if (parsedIntent.intent === 'create_meeting' && parsedIntent.action === 'create') {
       const { extracted } = parsedIntent;
       
-      // If we have exact datetime, suggest confirmation
-      if (extracted.datetime) {
+      // Validate we have date and time
+      if (!extracted.date || !extracted.time) {
         return res.json({
-          type: 'confirmation',
-          message: `I'll schedule "${extracted.title || 'Meeting'}" ${extracted.attendees?.length ? `with ${extracted.attendees.join(', ')}` : ''} on ${new Date(extracted.datetime).toLocaleString()}. Confirm?`,
-          bookingData: extracted
+          type: 'clarification',
+          message: 'What date and time would you like to schedule this meeting?',
+          parsedData: extracted
         });
       }
 
-      // If only time window, suggest slots
-      if (extracted.time_window) {
+      // Build datetime
+      const startDateTime = new Date(`${extracted.date}T${extracted.time}:00`);
+      const endDateTime = new Date(startDateTime.getTime() + (extracted.duration_minutes || 30) * 60000);
+
+      // Check if time is in the past
+      if (startDateTime < new Date()) {
         return res.json({
-          type: 'slot_suggestion',
-          message: `Let me find the best times for "${extracted.title || 'your meeting'}"${extracted.attendees?.length ? ` with ${extracted.attendees.join(', ')}` : ''} ${extracted.time_window}...`,
-          needsSlots: true,
-          searchParams: extracted
+          type: 'error',
+          message: 'That time is in the past. Please choose a future time.'
         });
       }
+
+      return res.json({
+        type: 'confirmation',
+        message: `I'll schedule **"${extracted.title || 'Meeting'}"**${extracted.attendees?.length ? ` with ${extracted.attendees.join(', ')}` : ''} on **${startDateTime.toLocaleDateString()}** at **${startDateTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}** for **${extracted.duration_minutes || 30} minutes**.\n\nShall I confirm this booking?`,
+        bookingData: {
+          title: extracted.title || 'Meeting',
+          attendees: extracted.attendees || [],
+          datetime: startDateTime.toISOString(),
+          duration_minutes: extracted.duration_minutes || 30,
+          notes: extracted.notes || ''
+        }
+      });
     }
 
-    if (parsedIntent.intent === 'availability_query') {
+    // INTENT: Find available slots (vague time)
+    if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slots') {
       return res.json({
-        type: 'availability',
-        message: 'Let me check your availability...',
-        needsAvailability: true,
+        type: 'slot_suggestion',
+        message: `Let me find the best available times${parsedIntent.extracted.time_window ? ` for ${parsedIntent.extracted.time_window}` : ''}. I'll analyze your calendar and suggest optimal slots.`,
+        needsSlots: true,
         searchParams: parsedIntent.extracted
       });
     }
 
-    // Fallback
-    res.json({
+    // Default fallback
+    return res.json({
       type: 'clarification',
-      message: 'I can help you schedule meetings, check availability, or reschedule. What would you like to do?'
+      message: 'I can help you schedule meetings, check availability, or view your bookings. What would you like to do?'
     });
 
   } catch (error) {
@@ -3133,12 +3199,14 @@ If information is missing, set intent to "clarify" and ask a specific question.`
     });
   }
 });
-
 app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
   try {
     const { bookingData } = req.body;
     const userId = req.user.id;
 
+    console.log('✅ Confirming AI booking:', bookingData);
+
+    // Get user's personal booking token
     const memberResult = await pool.query(
       `SELECT tm.booking_token, tm.id, t.id as team_id
        FROM team_members tm
@@ -3152,12 +3220,14 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
     if (memberResult.rows.length === 0) {
       return res.status(400).json({ 
         type: 'error',
-        message: 'Please set up your personal booking link first.' 
+        message: 'Please set up your personal booking link first from the dashboard.' 
       });
     }
 
     const member = memberResult.rows[0];
+    const endDateTime = new Date(new Date(bookingData.datetime).getTime() + bookingData.duration_minutes * 60000);
 
+    // Create booking
     const booking = await pool.query(
       `INSERT INTO bookings (
         team_id, member_id, user_id, 
@@ -3174,18 +3244,19 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
         bookingData.attendees?.[0]?.split('@')[0] || 'Guest',
         bookingData.attendees?.[0] || '',
         bookingData.datetime,
-        new Date(new Date(bookingData.datetime).getTime() + (bookingData.duration_minutes || 30) * 60000).toISOString(),
+        endDateTime.toISOString(),
         bookingData.notes || bookingData.title || '',
         member.booking_token,
         'confirmed'
       ]
     );
 
+    const startDate = new Date(bookingData.datetime);
     console.log('✅ AI booking created:', booking.rows[0].id);
 
     res.json({
       type: 'success',
-      message: '✅ Meeting scheduled successfully!',
+      message: `✅ **Booking confirmed!**\n\n"${bookingData.title}" scheduled for **${startDate.toLocaleDateString()}** at **${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}**`,
       booking: booking.rows[0]
     });
   } catch (error) {
