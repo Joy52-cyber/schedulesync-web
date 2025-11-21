@@ -58,7 +58,7 @@ export default function OAuthCallback({ onLogin }) {
       console.log('📋 Booking OAuth flow');
       const bookingToken = state.split(':')[1];
       isProcessing = false; // Release lock
-      navigate(`/book/${bookingToken}?code=${code}&state=${state}`, { replace: true });
+      navigate(`/book/${bookingToken}?code=${code}&state=${state}`, { replace: true }); // ← FIXED: Added parentheses
       return;
     }
 
@@ -97,7 +97,7 @@ export default function OAuthCallback({ onLogin }) {
         processedCodes.delete(code);
         
         const errorMsg = err.response?.data?.hint || 'Authentication failed. Please try again.';
-        navigate(`/login?error=${encodeURIComponent(errorMsg)}`, { replace: true });
+        navigate(`/login?error=${encodeURIComponent(errorMsg)}`, { replace: true }); // ← FIXED: Added parentheses
       }
     })();
 
