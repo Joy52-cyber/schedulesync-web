@@ -14,9 +14,14 @@ import {
   ArrowRight,
   Star,
   Check,
+  DollarSign,
+  CreditCard,
 } from 'lucide-react';
 import { bookings } from '../utils/api';
 import SmartSlotPicker from '../components/SmartSlotPicker';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
+import PaymentForm from '../components/PaymentForm';
 
 export default function BookingPage() {
   const { token } = useParams();
@@ -41,8 +46,15 @@ export default function BookingPage() {
   
   const [selectedSlot, setSelectedSlot] = useState(null);
 
+  // Payment states
+  const [pricingInfo, setPricingInfo] = useState(null);
+  const [showPayment, setShowPayment] = useState(false);
+  const [stripePromise, setStripePromise] = useState(null);
+  const [paymentIntentId, setPaymentIntentId] = useState(null);
+
   useEffect(() => {
     loadBookingInfo();
+    loadPricingInfo();
   }, [token]);
 
   useEffect(() => {
@@ -125,6 +137,41 @@ export default function BookingPage() {
     }
   };
 
+  const loadPricingInfo = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/book/${token}/pricing`);
+      const data = await response.json();
+      
+      console.log('💰 Pricing info loaded:', data);
+      setPricingInfo(data);
+
+      // Load Stripe if payment required
+      if (data.paymentRequired && data.price > 0) {
+        const configResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/payments/config`);
+        const config = await configResponse.json();
+        setStripePromise(loadStripe(config.publishableKey));
+        console.log('💳 Stripe loaded for payment');
+      }
+    } catch (error) {
+      console.error('❌ Error loading pricing:', error);
+    }
+  };
+
+  const getCurrencySymbol = (currency) => {
+    const symbols = {
+      USD: '$',
+      EUR: '€',
+      GBP: '£',
+      AUD: 'A$',
+      CAD: 'C$',
+      SGD: 'S$',
+      PHP: '₱',
+      JPY: '¥',
+      INR: '₹',
+    };
+    return symbols[currency] || currency;
+  };
+
   const handleCalendarConnect = (provider) => {
     if (provider === 'google') {
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -157,61 +204,120 @@ export default function BookingPage() {
     setSelectedSlot(slot);
   };
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
-
-  if (!selectedSlot) return;
-
-  if (!formData.attendee_name || !formData.attendee_email) {
-    alert('Please fill in all required fields');
-    return;
-  }
-
-  try {
-    setSubmitting(true);
+  const handlePaymentSuccess = async (paymentIntentId) => {
+    setPaymentIntentId(paymentIntentId);
     
-    const response = await bookings.create({
-      token,
-      slot: selectedSlot,
-      attendee_name: formData.attendee_name,
-      attendee_email: formData.attendee_email,
-      notes: formData.notes,
-    });
+    try {
+      setSubmitting(true);
+      
+      // Create booking with payment
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/payments/confirm-booking`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          paymentIntentId,
+          bookingToken: token,
+          slot: selectedSlot,
+          attendeeName: formData.attendee_name,
+          attendeeEmail: formData.attendee_email,
+          notes: formData.notes,
+        }),
+      });
 
-    // ADD THIS - See what API returns
-    console.log('🔍 Full API response:', response);
-    console.log('🔍 Response data:', response.data);
-    console.log('🔍 Booking object:', response.data.booking);
+      const data = await response.json();
 
-    // Prepare booking data for confirmation page
-    const bookingData = {
-      id: response.data.booking?.id,
-      start_time: selectedSlot.start,
-      end_time: selectedSlot.end,
-      attendee_name: formData.attendee_name,
-      attendee_email: formData.attendee_email,
-      organizer_name: memberInfo?.name,
-      team_name: teamInfo?.name,
-      notes: formData.notes,
-      meet_link: response.data.booking?.meet_link || null,
-      booking_token: response.data.booking?.booking_token || token,
-    };
+      if (data.success) {
+        console.log('✅ Paid booking created successfully');
+        setShowPayment(false);
 
-    console.log('📦 Booking data being passed:', bookingData);
+        // Prepare booking data for confirmation
+        const bookingData = {
+          id: data.booking?.id,
+          start_time: selectedSlot.start,
+          end_time: selectedSlot.end,
+          attendee_name: formData.attendee_name,
+          attendee_email: formData.attendee_email,
+          organizer_name: memberInfo?.name,
+          team_name: teamInfo?.name,
+          notes: formData.notes,
+          payment_amount: pricingInfo.price,
+          payment_currency: pricingInfo.currency,
+          payment_receipt_url: data.booking?.payment_receipt_url,
+        };
 
-    // Pass as URL parameter
-    const dataParam = encodeURIComponent(JSON.stringify(bookingData));
-    console.log('🔗 Navigating to:', `/booking-confirmation?data=${dataParam}`);
-    navigate(`/booking-confirmation?data=${dataParam}`);
+        const dataParam = encodeURIComponent(JSON.stringify(bookingData));
+        navigate(`/booking-confirmation?data=${dataParam}`);
+      } else {
+        throw new Error('Payment processed but booking failed');
+      }
+    } catch (error) {
+      console.error('❌ Post-payment booking error:', error);
+      alert('Payment successful but booking creation failed. Please contact support.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-  } catch (err) {
-    console.error('❌ Full error:', err);
-    console.error('❌ Error response:', err.response);
-    alert(err.response?.data?.error || 'Failed to create booking. Please try again.');
-  } finally {
-    setSubmitting(false);
-  }
-};
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!selectedSlot) return;
+
+    if (!formData.attendee_name || !formData.attendee_email) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    // Check if payment required
+    if (pricingInfo?.paymentRequired && pricingInfo?.price > 0) {
+      console.log('💳 Payment required, showing payment modal');
+      setShowPayment(true);
+      return;
+    }
+
+    // Free booking - proceed as normal
+    try {
+      setSubmitting(true);
+      
+      const response = await bookings.create({
+        token,
+        slot: selectedSlot,
+        attendee_name: formData.attendee_name,
+        attendee_email: formData.attendee_email,
+        notes: formData.notes,
+      });
+
+      console.log('🔍 Full API response:', response);
+
+      // Prepare booking data for confirmation page
+      const bookingData = {
+        id: response.data.booking?.id,
+        start_time: selectedSlot.start,
+        end_time: selectedSlot.end,
+        attendee_name: formData.attendee_name,
+        attendee_email: formData.attendee_email,
+        organizer_name: memberInfo?.name,
+        team_name: teamInfo?.name,
+        notes: formData.notes,
+        meet_link: response.data.booking?.meet_link || null,
+        booking_token: response.data.booking?.booking_token || token,
+      };
+
+      console.log('📦 Booking data being passed:', bookingData);
+
+      // Pass as URL parameter
+      const dataParam = encodeURIComponent(JSON.stringify(bookingData));
+      navigate(`/booking-confirmation?data=${dataParam}`);
+
+    } catch (err) {
+      console.error('❌ Full error:', err);
+      alert(err.response?.data?.error || 'Failed to create booking. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -310,6 +416,32 @@ export default function BookingPage() {
             )}
           </div>
         </div>
+
+        {/* Pricing Banner - Show if payment required */}
+        {pricingInfo?.paymentRequired && pricingInfo?.price > 0 && (
+          <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-3xl shadow-xl p-6 sm:p-8 mb-6 text-white">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-white bg-opacity-20 rounded-2xl flex items-center justify-center flex-shrink-0">
+                  <DollarSign className="h-7 w-7" />
+                </div>
+                <div>
+                  <p className="text-sm opacity-90 mb-1">Session Price</p>
+                  <p className="text-3xl sm:text-4xl font-black">
+                    {getCurrencySymbol(pricingInfo.currency)}{pricingInfo.price.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+              <div className="text-center sm:text-right">
+                <div className="flex items-center justify-center sm:justify-end gap-2 text-sm opacity-90 mb-1">
+                  <CreditCard className="h-4 w-4" />
+                  <span className="font-semibold">Payment Required</span>
+                </div>
+                <p className="text-xs opacity-75">Secure checkout with Stripe</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Calendar Choice Step */}
         {step === 'calendar-choice' && (
@@ -561,7 +693,13 @@ export default function BookingPage() {
                   {submitting ? (
                     <>
                       <Loader2 className="h-6 w-6 animate-spin" />
-                      <span>Confirming Your Booking...</span>
+                      <span>Processing...</span>
+                    </>
+                  ) : pricingInfo?.paymentRequired && pricingInfo?.price > 0 ? (
+                    <>
+                      <CreditCard className="h-6 w-6" />
+                      <span>Pay {getCurrencySymbol(pricingInfo.currency)}{pricingInfo.price.toFixed(2)} & Confirm</span>
+                      <ArrowRight className="h-6 w-6" />
                     </>
                   ) : (
                     <>
@@ -577,8 +715,38 @@ export default function BookingPage() {
         )}
       </div>
 
+      {/* Payment Modal */}
+      {showPayment && pricingInfo && stripePromise && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-6 rounded-t-3xl">
+              <h2 className="text-2xl font-bold text-white">Complete Payment</h2>
+              <p className="text-blue-100 text-sm mt-1">Secure payment to confirm your booking</p>
+            </div>
+            
+            <div className="p-6">
+              <Elements stripe={stripePromise}>
+                <PaymentForm
+                  amount={pricingInfo.price}
+                  currency={pricingInfo.currency}
+                  onPaymentSuccess={handlePaymentSuccess}
+                  onCancel={() => setShowPayment(false)}
+                  bookingDetails={{
+                    token,
+                    slot: selectedSlot,
+                    attendee_name: formData.attendee_name,
+                    attendee_email: formData.attendee_email,
+                    notes: formData.notes,
+                  }}
+                />
+              </Elements>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Custom Animations */}
-      <style jsx>{`
+      <style>{`
         @keyframes fadeIn {
           from {
             opacity: 0;
