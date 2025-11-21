@@ -2966,6 +2966,14 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
 
     console.log('🤖 AI Scheduling request:', message);
 
+    // Validate message
+    if (!message || typeof message !== 'string' || message.trim() === '') {
+      return res.status(400).json({
+        type: 'error',
+        message: 'Please enter a message'
+      });
+    }
+
     // Build context from user's data
     const teamsResult = await pool.query(
       `SELECT t.*, COUNT(tm.id) as member_count
@@ -2980,6 +2988,12 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
       email: userEmail,
       teams: teamsResult.rows.map(t => ({ id: t.id, name: t.name, members: t.member_count }))
     };
+
+    // Format messages properly
+    const formattedHistory = conversationHistory.slice(-5).map(msg => ({
+      role: msg.from === 'user' ? 'user' : 'assistant',
+      content: msg.text || '' // Ensure content exists
+    })).filter(msg => msg.content.trim() !== ''); // Remove empty messages
 
     // Call Claude API for intent extraction
     const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
@@ -3014,11 +3028,8 @@ Return ONLY valid JSON with this structure:
 
 If information is missing, set intent to "clarify" and ask a specific question.`,
         messages: [
-          ...conversationHistory.slice(-5).map(msg => ({
-            role: msg.from === 'user' ? 'user' : 'assistant',
-            content: msg.text
-          })),
-          { role: "user", content: message }
+          ...formattedHistory,
+          { role: "user", content: message.trim() }
         ]
       })
     });
