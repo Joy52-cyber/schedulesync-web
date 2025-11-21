@@ -9,11 +9,11 @@ import {
   Loader2,
   MoreVertical
 } from 'lucide-react';
-import { getTeams, createTeam } from '../utils/api';
+import { teams } from '../utils/api';
 
 export default function Teams() {
   const navigate = useNavigate();
-  const [teams, setTeams] = useState([]);
+  const [teamsList, setTeamsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
@@ -25,9 +25,8 @@ export default function Teams() {
 
   const loadTeams = async () => {
     try {
-      const response = await getTeams();
-      const data = await response.json();
-      setTeams(data.teams || []);
+      const response = await teams.getAll();
+      setTeamsList(response.data.teams || []);
     } catch (error) {
       console.error('Error loading teams:', error);
     } finally {
@@ -45,7 +44,7 @@ export default function Teams() {
   const handleCreateTeam = async (e) => {
     e.preventDefault();
     try {
-      await createTeam(newTeam);
+      await teams.create(newTeam);
       setShowCreateModal(false);
       setNewTeam({ name: '', description: '' });
       loadTeams();
@@ -80,7 +79,7 @@ export default function Teams() {
           </button>
         </div>
 
-        {teams.length === 0 ? (
+        {teamsList.length === 0 ? (
           <div className="bg-white rounded-3xl shadow-xl p-12 text-center border-2 border-gray-100">
             <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <Users className="h-10 w-10 text-blue-600" />
@@ -99,7 +98,7 @@ export default function Teams() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {teams.map((team) => (
+            {teamsList.map((team) => (
               <div
                 key={team.id}
                 className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all border-2 border-gray-100 overflow-hidden"
