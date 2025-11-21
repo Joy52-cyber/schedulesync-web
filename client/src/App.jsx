@@ -3,11 +3,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Teams from './pages/Teams';
-import TeamMembers from './pages/TeamMembers';  // ← ADD THIS LINE
+import TeamMembers from './pages/TeamMembers';
 import Bookings from './pages/Bookings';
 import BookingPage from './pages/BookingPage';
 import OAuthCallback from './pages/OAuthCallback';
-import CalendarSettings from './pages/CalendarSettings';
 import BookingConfirmation from './components/BookingConfirmation';
 import TeamSettings from './pages/TeamSettings';
 import Layout from './components/Layout';
@@ -23,40 +22,52 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initAuth = () => {
-      const token = localStorage.getItem('token');
-      const storedUser = localStorage.getItem('user');
-      
-      console.log('🔍 Checking stored auth:', { hasToken: !!token, hasUser: !!storedUser });
-      
-      if (token && storedUser) {
-        try {
-          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-          const userData = JSON.parse(storedUser);
-          setUser(userData);
-          setIsAuthenticated(true);
-          console.log('✅ Auto-login successful for:', userData.email);
-        } catch (error) {
-          console.error('❌ Invalid stored user data, clearing...');
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+    const initAuth = async () => {
+      try {
+        console.log('🔄 Starting auth initialization...');
+        const token = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+        
+        console.log('🔍 Stored auth:', { hasToken: !!token, hasUser: !!storedUser });
+        
+        if (token && storedUser) {
+          try {
+            const userData = JSON.parse(storedUser);
+            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            setUser(userData);
+            setIsAuthenticated(true);
+            console.log('✅ Auto-login successful for:', userData.email);
+          } catch (error) {
+            console.error('❌ Invalid stored data:', error);
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+          }
+        } else {
+          console.log('ℹ️ No stored auth found');
         }
+      } catch (error) {
+        console.error('❌ Auth init error:', error);
+      } finally {
+        console.log('✅ Auth init complete, setting loading to false');
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
     
     initAuth();
   }, []);
 
   const handleLogin = (token, userData) => {
-    console.log('🔐 Saving login:', userData.email);
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
-    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    setUser(userData);
-    setIsAuthenticated(true);
-    console.log('✅ Login saved successfully');
+    console.log('🔐 handleLogin called:', userData?.email);
+    try {
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setUser(userData);
+      setIsAuthenticated(true);
+      console.log('✅ Login saved successfully');
+    } catch (error) {
+      console.error('❌ Login save error:', error);
+    }
   };
 
   const handleLogout = () => {
@@ -68,12 +79,15 @@ function App() {
     setIsAuthenticated(false);
   };
 
+  console.log('🎨 App render:', { loading, isAuthenticated, hasUser: !!user });
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-white border-t-transparent mx-auto mb-4"></div>
           <p className="text-white text-lg font-medium">Loading ScheduleSync...</p>
+          <p className="text-white text-sm mt-2 opacity-75">Checking authentication...</p>
         </div>
       </div>
     );
@@ -82,7 +96,6 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* PUBLIC ROUTES */}
         <Route
           path="/login"
           element={
@@ -99,7 +112,6 @@ function App() {
         <Route path="/oauth/callback" element={<OAuthCallback onLogin={handleLogin} />} />
         <Route path="/manage/:token" element={<ManageBooking />} />
 
-        {/* PROTECTED ROUTES */}
         <Route
           path="/"
           element={
@@ -121,7 +133,6 @@ function App() {
           <Route path="user-settings" element={<UserSettings />} />
         </Route>
         
-        {/* Catch all */}
         <Route
           path="*"
           element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />}
