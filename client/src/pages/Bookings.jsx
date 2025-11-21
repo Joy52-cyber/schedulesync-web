@@ -189,7 +189,7 @@ export default function Bookings() {
                     {booking.meet_link && (
                       <div className="flex items-center gap-2 text-gray-600">
                         <Video className="h-4 w-4" />
-                        
+                        <a
                           href={booking.meet_link}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -266,7 +266,7 @@ export default function Bookings() {
                   <Video className="h-6 w-6 text-green-600 mt-1" />
                   <div className="flex-1">
                     <p className="font-semibold text-gray-900 mb-1">Video Conference</p>
-                    
+                    <a
                       href={selectedBooking.meet_link}
                       target="_blank"
                       rel="noopener noreferrer"
