@@ -1,20 +1,13 @@
 ﻿import axios from 'axios';
 
-// Determine API URL - Clean and simple
 const getApiUrl = () => {
   const viteUrl = import.meta.env.VITE_API_URL;
-  
   if (viteUrl) {
-    // Remove trailing slash and /api suffix if present
     return viteUrl.replace(/\/+$/, '').replace(/\/api$/, '');
   }
-  
-  // Fallback for local development
   if (window.location.hostname === 'localhost') {
     return 'http://localhost:3000';
   }
-  
-  // Production fallback
   return window.location.origin;
 };
 
@@ -27,15 +20,11 @@ console.log('🔌 API Configuration:', {
   API_URL 
 });
 
-// Create axios instance
 const apiClient = axios.create({
   baseURL: API_URL,
-  headers: { 
-    'Content-Type': 'application/json' 
-  },
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// Add auth interceptor
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -45,7 +34,6 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 errors
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -66,14 +54,9 @@ apiClient.interceptors.response.use(
   }
 );
 
-// ============================================
-// AUTH API
-// ============================================
-
 export const auth = {
   googleLogin: (codeOrPayload) => {
     let payload;
-    
     if (typeof codeOrPayload === 'string') {
       payload = { 
         code: codeOrPayload,
@@ -82,7 +65,6 @@ export const auth = {
     } else {
       payload = codeOrPayload;
     }
-    
     return apiClient.post('/auth/google', payload);
   },
   getCurrentUser: () => apiClient.get('/auth/me'),
@@ -101,10 +83,6 @@ export const handleOrganizerOAuthCallback = async (code) => {
   return response.data;
 };
 
-// ============================================
-// TEAMS API
-// ============================================
-
 export const teams = {
   getAll: () => apiClient.get('/teams'),
   create: (data) => apiClient.post('/teams', data),
@@ -114,76 +92,38 @@ export const teams = {
   addMember: (teamId, data) => apiClient.post(`/teams/${teamId}/members`, data),
   removeMember: (teamId, memberId) => apiClient.delete(`/teams/${teamId}/members/${memberId}`),
   updateMember: (teamId, memberId, data) => apiClient.patch(`/teams/${teamId}/members/${memberId}`, data),
-  updateMemberExternalLink: (teamId, memberId, data) => 
-    apiClient.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
+  updateMemberExternalLink: (teamId, memberId, data) => apiClient.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
 };
-
-// ============================================
-// BOOKINGS API
-// ============================================
 
 export const bookings = {
   getAll: () => apiClient.get('/bookings'),
   getByToken: (token) => apiClient.get(`/book/${encodeURIComponent(token)}`),
   create: (data) => apiClient.post('/bookings', data),
-  getAvailability: (token, date) => 
-    apiClient.get(`/book/${encodeURIComponent(token)}/availability`, { 
-      params: { date } 
-    }),
-  
-  // ⭐ NEW: Slots endpoint for SmartSlotPicker
-  getSlots: (token, data) => 
-    apiClient.post(`/book/${encodeURIComponent(token)}/slots-with-status`, data),
-  
-  // Management endpoints (no auth required - use axios directly)
-  getByManagementToken: (token) => 
-    axios.get(`${API_URL}/bookings/manage/${token}`),
-  rescheduleByToken: (token, data) => 
-    axios.post(`${API_URL}/bookings/manage/${token}/reschedule`, data),
-  cancelByToken: (token, data) => 
-    axios.post(`${API_URL}/bookings/manage/${token}/cancel`, data),
+  getAvailability: (token, date) => apiClient.get(`/book/${encodeURIComponent(token)}/availability`, { params: { date } }),
+  getSlots: (token, data) => apiClient.post(`/book/${encodeURIComponent(token)}/slots-with-status`, data),
+  getByManagementToken: (token) => axios.get(`${API_URL}/bookings/manage/${token}`),
+  rescheduleByToken: (token, data) => axios.post(`${API_URL}/bookings/manage/${token}/reschedule`, data),
+  cancelByToken: (token, data) => axios.post(`${API_URL}/bookings/manage/${token}/cancel`, data),
 };
-
-// ============================================
-// ANALYTICS API
-// ============================================
 
 export const analytics = {
-  getStats: () => Promise.resolve({ 
-    totalUsers: 0, 
-    totalBookings: 0 
-  }),
+  getStats: () => Promise.resolve({ totalUsers: 0, totalBookings: 0 }),
 };
-
-// ============================================
-// AVAILABILITY API
-// ============================================
 
 export const availability = {
   get: (memberId) => apiClient.get(`/team-members/${memberId}/availability`),
   update: (memberId, data) => apiClient.put(`/team-members/${memberId}/availability`, data),
 };
 
-// ============================================
-// USER API
-// ============================================
-
 export const user = {
   getTimezone: () => apiClient.get('/user/timezone'),
   updateTimezone: (timezone) => apiClient.put('/user/timezone', { timezone }),
 };
-
-// ============================================
-// REMINDERS API
-// ============================================
 
 export const reminders = {
   getStatus: () => apiClient.get('/reminders/status'),
   sendManual: () => apiClient.post('/admin/send-reminders'),
 };
 
-// Export API_URL for components that need it
 export { API_URL };
-
-// Default export
 export default apiClient;
