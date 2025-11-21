@@ -43,7 +43,7 @@ export default function Teams() {
         return a.name.localeCompare(b.name);
       });
       
-      setTeamsList(sortedTeams);
+      setTeamsList(allTeams);
     } catch (error) {
       console.error('Error loading teams:', error);
     } finally {
