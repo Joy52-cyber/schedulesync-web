@@ -2782,6 +2782,82 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
   }
 });
 
+
+// ============ DASHBOARD STATS ENDPOINT ============
+
+app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Total bookings for user's teams
+    const totalBookingsResult = await pool.query(
+      `SELECT COUNT(*) as count
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE t.owner_id = $1 OR tm.user_id = $1`,
+      [userId]
+    );
+    
+    // Upcoming bookings (future bookings)
+    const upcomingResult = await pool.query(
+      `SELECT COUNT(*) as count
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND b.start_time > NOW()
+         AND b.status = 'confirmed'`,
+      [userId]
+    );
+    
+    // Revenue (sum of paid bookings)
+    const revenueResult = await pool.query(
+      `SELECT COALESCE(SUM(b.payment_amount), 0) as revenue
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND b.payment_status = 'paid'`,
+      [userId]
+    );
+    
+    // Active teams
+    const teamsResult = await pool.query(
+      `SELECT COUNT(*) as count
+       FROM teams
+       WHERE owner_id = $1`,
+      [userId]
+    );
+    
+    // Recent bookings
+    const recentBookingsResult = await pool.query(
+      `SELECT b.*, tm.name as organizer_name, t.name as team_name
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE t.owner_id = $1 OR tm.user_id = $1
+       ORDER BY b.created_at DESC
+       LIMIT 5`,
+      [userId]
+    );
+    
+    res.json({
+      stats: {
+        totalBookings: parseInt(totalBookingsResult.rows[0].count),
+        upcomingBookings: parseInt(upcomingResult.rows[0].count),
+        revenue: parseFloat(revenueResult.rows[0].revenue).toFixed(2),
+        activeTeams: parseInt(teamsResult.rows[0].count)
+      },
+      recentBookings: recentBookingsResult.rows
+    });
+    
+  } catch (error) {
+    console.error('Dashboard stats error:', error);
+    res.status(500).json({ error: 'Failed to load dashboard stats' });
+  }
+});
+
 // ============ SERVE STATIC FILES ============
 
 // DEBUG: Check dist files
