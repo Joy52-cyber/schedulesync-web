@@ -1,90 +1,84 @@
 ﻿const express = require('express');
 const router = express.Router();
-const pool = require('../db');
+const pool = require('../config/database');
+const { authenticateToken } = require('../middleware/auth');
 
-// ============================================
-// GET BOOKING PAGE INFO BY TOKEN
-// ============================================
-router.get('/:token', async (req, res) => {
+// GET all bookings for the user
+router.get('/', authenticateToken, async (req, res) => {
+  const client = await pool.connect();
   try {
-    const { token } = req.params;
-    console.log('📋 Loading booking info for token:', token);
-    
-    const result = await pool.query(
-      `SELECT tm.*, t.name as team_name, t.description as team_description, 
-       u.name as member_name, u.email as member_email
-       FROM team_members tm 
-       JOIN teams t ON tm.team_id = t.id 
-       LEFT JOIN users u ON tm.user_id = u.id
-       WHERE tm.booking_token = $1`,
-      [token]
+    const result = await client.query(
+      'SELECT * FROM bookings WHERE user_id = $1 ORDER BY start_time DESC',
+      [req.user.id]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Booking link not found' });
-    }
-
-    const member = result.rows[0];
-    
-    res.json({
-      success: true,
-      data: {
-        team: { 
-          id: member.team_id, 
-          name: member.team_name, 
-          description: member.team_description 
-        },
-        member: { 
-          name: member.name || member.member_name || member.email, 
-          email: member.email || member.member_email, 
-          external_booking_link: member.external_booking_link, 
-          external_booking_platform: member.external_booking_platform 
-        }
-      }
-    });
+    res.json(result.rows);
   } catch (error) {
-    console.error('❌ Error loading booking info:', error);
-    res.status(500).json({ error: 'Failed to fetch booking details' });
+    console.error('Error fetching bookings:', error);
+    res.status(500).json({ error: 'Failed to fetch bookings' });
+  } finally {
+    client.release();
   }
 });
 
-// ============================================
-// GET PRICING INFO
-// ============================================
-router.get('/:token/pricing', async (req, res) => {
+// GET booking by token (public endpoint)
+router.get('/book/:token', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { token } = req.params;
-    console.log('💰 Loading pricing for token:', token);
-
-    const memberResult = await pool.query(
-      `SELECT tm.booking_price, tm.currency, tm.payment_required, tm.name,
-              t.name as team_name
-       FROM team_members tm
-       JOIN teams t ON tm.team_id = t.id
-       WHERE tm.booking_token = $1`,
+    const result = await client.query(
+      'SELECT * FROM teams WHERE slug = $1 OR name = $1',
       [token]
     );
-
-    if (memberResult.rows.length === 0) {
-      return res.json({ 
-        price: 0,
-        currency: 'USD',
-        paymentRequired: false
-      });
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking page not found' });
     }
-
-    const member = memberResult.rows[0];
-
-    res.json({
-      price: parseFloat(member.booking_price) || 0,
-      currency: member.currency || 'USD',
-      paymentRequired: !!member.payment_required,
-      memberName: member.name,
-      teamName: member.team_name,
-    });
+    
+    res.json(result.rows[0]);
   } catch (error) {
-    console.error('❌ Error loading pricing:', error);
-    res.status(500).json({ error: 'Failed to get pricing' });
+    console.error('Error fetching booking page:', error);
+    res.status(500).json({ error: 'Failed to fetch booking page' });
+  } finally {
+    client.release();
+  }
+});
+
+// POST create a new booking
+router.post('/', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { attendee_name, attendee_email, start_time, end_time, user_id, team_id } = req.body;
+    
+    const result = await client.query(
+      `INSERT INTO bookings (attendee_name, attendee_email, start_time, end_time, user_id, team_id, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'confirmed')
+       RETURNING *`,
+      [attendee_name, attendee_email, start_time, end_time, user_id, team_id]
+    );
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating booking:', error);
+    res.status(500).json({ error: 'Failed to create booking' });
+  } finally {
+    client.release();
+  }
+});
+
+// GET booking availability
+router.get('/book/:token/availability', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { token } = req.params;
+    const { date } = req.query;
+    
+    // Return empty availability for now
+    res.json({ slots: [] });
+  } catch (error) {
+    console.error('Error fetching availability:', error);
+    res.status(500).json({ error: 'Failed to fetch availability' });
+  } finally {
+    client.release();
   }
 });
 
