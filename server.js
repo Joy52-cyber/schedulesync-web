@@ -448,30 +448,36 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT 
-         t.*,
-         (
-           SELECT tm.booking_token 
-           FROM team_members tm 
-           WHERE tm.team_id = t.id 
-           ORDER BY 
-             CASE WHEN tm.user_id = t.owner_id THEN 0 ELSE 1 END,
-             tm.id ASC
-           LIMIT 1
-         ) as booking_token,
+         t.id,
+         t.name,
+         t.description,
+         t.booking_mode,
+         t.owner_id,
+         t.created_at,
+         t.updated_at,
+         MAX(tm.booking_token) as booking_token,
          COUNT(DISTINCT tm.id) as member_count,
          COUNT(DISTINCT b.id) as booking_count
        FROM teams t
-       LEFT JOIN team_members tm ON t.id = tm.team_id
+       LEFT JOIN team_members tm ON t.id = tm.team_id 
+           AND (tm.user_id = t.owner_id OR tm.id = (
+               SELECT id FROM team_members WHERE team_id = t.id ORDER BY id ASC LIMIT 1
+           ))
        LEFT JOIN bookings b ON t.id = b.team_id
        WHERE t.owner_id = $1
-       GROUP BY t.id
+       GROUP BY t.id, t.name, t.description, t.booking_mode, t.owner_id, t.created_at, t.updated_at
        ORDER BY 
          CASE WHEN t.name LIKE '%Personal Bookings%' THEN 0 ELSE 1 END,
          t.created_at DESC`,
       [req.user.id]
     );
     
-    console.log('📋 Teams loaded:', result.rows.map(t => ({ id: t.id, name: t.name, token: t.booking_token })));
+    console.log('📋 Teams loaded with tokens:', result.rows.map(t => ({ 
+      id: t.id, 
+      name: t.name, 
+      token: t.booking_token,
+      token_length: t.booking_token?.length 
+    })));
     
     res.json({ teams: result.rows });
   } catch (error) {
