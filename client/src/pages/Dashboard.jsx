@@ -160,54 +160,123 @@ export default function Dashboard() {
               ))}
             </div>
 
-            {/* Weekly Overview */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900">Weekly Overview</h3>
-                    <p className="text-gray-600 text-sm">Your activity this week</p>
-                  </div>
-                  <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full inline-flex items-center gap-1 border border-blue-200">
-                    <TrendingUp className="h-3 w-3" />
-                    +12% vs last week
-                  </span>
+            {/* Weekly Overview - Only show if there are bookings */}
+{stats.totalBookings > 0 && (
+  <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-xl font-bold text-gray-900">Weekly Overview</h3>
+          <p className="text-gray-600 text-sm">Your activity this week</p>
+        </div>
+        <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full inline-flex items-center gap-1 border border-blue-200">
+          <TrendingUp className="h-3 w-3" />
+          +{stats.upcomingBookings > 0 ? Math.round((stats.upcomingBookings / stats.totalBookings) * 100) : 0}% activity
+        </span>
+      </div>
+
+      <div className="h-px bg-gray-200"></div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+          <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+            <Calendar className="h-6 w-6 text-blue-600" />
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs font-medium">This Week</p>
+            <p className="text-gray-900 font-bold text-xl">{stats.upcomingBookings} bookings</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-100">
+          <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+            <CheckCircle2 className="h-6 w-6 text-green-600" />
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Total</p>
+            <p className="text-gray-900 font-bold text-xl">{stats.totalBookings} meetings</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl border border-purple-100">
+          <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
+            <BarChart3 className="h-6 w-6 text-purple-600" />
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Active Teams</p>
+            <p className="text-gray-900 font-bold text-xl">{stats.activeTeams}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Chart Visualization - Only show if there are bookings */}
+      {recentBookings.length > 0 && (
+        <div className="pt-4 space-y-3">
+          <p className="text-sm font-semibold text-gray-700 mb-3">Recent Activity</p>
+          {recentBookings.slice(0, 5).map((booking, i) => {
+            const date = new Date(booking.start_time);
+            const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+            return (
+              <div key={booking.id} className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600 font-medium">{dayName}</span>
+                  <span className="text-gray-900 font-semibold">{date.toLocaleDateString()}</span>
                 </div>
-
-                <div className="h-px bg-gray-200"></div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                    <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Calendar className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-gray-500 text-xs font-medium">This Week</p>
-                      <p className="text-gray-900 font-bold text-xl">8 bookings</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-100">
-                    <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
-                      <CheckCircle2 className="h-6 w-6 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="text-gray-500 text-xs font-medium">Completed</p>
-                      <p className="text-gray-900 font-bold text-xl">5 meetings</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl border border-purple-100">
-                    <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <BarChart3 className="h-6 w-6 text-purple-600" />
-                    </div>
-                    <div>
-                      <p className="text-gray-500 text-xs font-medium">Conversion</p>
-                      <p className="text-gray-900 font-bold text-xl">87%</p>
-                    </div>
-                  </div>
+                <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all"
+                    style={{ width: '100%' }}
+                  ></div>
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  </div>
+)}
 
+{/* Welcome Message for New Users - Show when no bookings */}
+{stats.totalBookings === 0 && (
+  <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg p-8 text-white">
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="h-14 w-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+          <Sparkles className="h-7 w-7 text-white" />
+        </div>
+        <div>
+          <h3 className="text-2xl font-bold text-white">Welcome to ScheduleSync!</h3>
+          <p className="text-white/90 text-sm">Get started by sharing your booking link</p>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+          <p className="text-white/80 text-xs font-medium mb-1">Step 1</p>
+          <p className="text-white font-bold">Set your availability</p>
+        </div>
+        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+          <p className="text-white/80 text-xs font-medium mb-1">Step 2</p>
+          <p className="text-white font-bold">Get your booking link</p>
+        </div>
+        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+          <p className="text-white/80 text-xs font-medium mb-1">Step 3</p>
+          <p className="text-white font-bold">Share with clients</p>
+        </div>
+      </div>
+
+      <button
+        onClick={() => navigate('/my-booking-link')}
+        className="w-full bg-white text-blue-600 px-6 py-3 rounded-xl hover:shadow-xl transition-all font-bold flex items-center justify-center gap-2 mt-6"
+      >
+        <Sparkles className="h-5 w-5" />
+        Get Your Booking Link
+      </button>
+    </div>
+  </div>
+)}
+            
                 {/* Chart Visualization */}
                 <div className="pt-4 space-y-3">
                   {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day, i) => {
