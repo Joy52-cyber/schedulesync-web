@@ -3,13 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Calendar,
   Clock,
-  Plus,
-  Trash2,
   Save,
   Check,
   Loader2,
   ArrowLeft
 } from 'lucide-react';
+import { availability as availabilityAPI } from '../utils/api';
 
 export default function MemberAvailability() {
   const { teamId, memberId } = useParams();
@@ -37,13 +36,9 @@ export default function MemberAvailability() {
 
   const loadAvailability = async () => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/teams/${teamId}/members/${memberId}/availability`,
-        { credentials: 'include' }
-      );
-      const data = await response.json();
-      if (data.availability) {
-        setAvailability(data.availability);
+      const response = await availabilityAPI.get(memberId);
+      if (response.data.availability) {
+        setAvailability(response.data.availability);
       }
     } catch (error) {
       console.error('Error loading availability:', error);
@@ -55,15 +50,7 @@ export default function MemberAvailability() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      await fetch(
-        `${import.meta.env.VITE_API_URL}/api/teams/${teamId}/members/${memberId}/availability`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(availability)
-        }
-      );
+      await availabilityAPI.update(memberId, availability);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (error) {
@@ -91,7 +78,6 @@ export default function MemberAvailability() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        {/* Header */}
         <div className="mb-8">
           <button
             onClick={() => navigate(`/teams/${teamId}/members`)}
@@ -104,7 +90,6 @@ export default function MemberAvailability() {
           <p className="text-gray-600">Configure your weekly availability schedule</p>
         </div>
 
-        {/* Availability Form */}
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-gray-100">
           
           <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6">
@@ -116,7 +101,6 @@ export default function MemberAvailability() {
 
           <div className="p-8 space-y-6">
             
-            {/* Timezone */}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Timezone</label>
               <select
@@ -134,7 +118,6 @@ export default function MemberAvailability() {
               </select>
             </div>
 
-            {/* Schedule Grid */}
             <div className="space-y-3">
               {availability.schedule.map((day, index) => (
                 <div
@@ -147,7 +130,6 @@ export default function MemberAvailability() {
                 >
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
                     
-                    {/* Day Toggle */}
                     <label className="flex items-center gap-3 cursor-pointer">
                       <input
                         type="checkbox"
@@ -158,7 +140,6 @@ export default function MemberAvailability() {
                       <span className="font-bold text-gray-900">{day.day}</span>
                     </label>
 
-                    {/* Start Time */}
                     <div>
                       <label className="block text-xs text-gray-600 mb-1">Start</label>
                       <input
@@ -170,7 +151,6 @@ export default function MemberAvailability() {
                       />
                     </div>
 
-                    {/* End Time */}
                     <div>
                       <label className="block text-xs text-gray-600 mb-1">End</label>
                       <input
@@ -182,7 +162,6 @@ export default function MemberAvailability() {
                       />
                     </div>
 
-                    {/* Duration Display */}
                     <div className="text-sm text-gray-600">
                       {day.enabled && (
                         <>
@@ -198,7 +177,6 @@ export default function MemberAvailability() {
           </div>
         </div>
 
-        {/* Save Button */}
         <div className="mt-6">
           <button
             onClick={handleSave}

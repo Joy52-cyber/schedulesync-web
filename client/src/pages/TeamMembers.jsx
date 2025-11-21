@@ -13,6 +13,7 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react';
+import { teams } from '../utils/api';
 
 export default function TeamMembers() {
   const { teamId } = useParams();
@@ -30,15 +31,13 @@ export default function TeamMembers() {
   const loadTeamMembers = async () => {
     try {
       const [teamRes, membersRes] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL}/api/teams/${teamId}`, { credentials: 'include' }),
-        fetch(`${import.meta.env.VITE_API_URL}/api/teams/${teamId}/members`, { credentials: 'include' })
+        teams.getAll(),
+        teams.getMembers(teamId)
       ]);
       
-      const teamData = await teamRes.json();
-      const membersData = await membersRes.json();
-      
-      setTeam(teamData.team);
-      setMembers(membersData.members || []);
+      const teamData = teamRes.data.teams.find(t => t.id === parseInt(teamId));
+      setTeam(teamData);
+      setMembers(membersRes.data.members || []);
     } catch (error) {
       console.error('Error loading team members:', error);
     } finally {
@@ -49,12 +48,7 @@ export default function TeamMembers() {
   const handleAddMember = async (e) => {
     e.preventDefault();
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/teams/${teamId}/members`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(newMember)
-      });
+      await teams.addMember(teamId, newMember);
       setShowAddModal(false);
       setNewMember({ email: '', role: 'member' });
       loadTeamMembers();
@@ -67,10 +61,7 @@ export default function TeamMembers() {
     if (!confirm('Remove this member from the team?')) return;
     
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/teams/${teamId}/members/${memberId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+      await teams.removeMember(teamId, memberId);
       loadTeamMembers();
     } catch (error) {
       console.error('Error removing member:', error);
@@ -79,12 +70,7 @@ export default function TeamMembers() {
 
   const handleToggleActive = async (memberId, isActive) => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/teams/${teamId}/members/${memberId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ is_active: !isActive })
-      });
+      await teams.updateMember(teamId, memberId, { is_active: !isActive });
       loadTeamMembers();
     } catch (error) {
       console.error('Error updating member:', error);
@@ -103,7 +89,6 @@ export default function TeamMembers() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        {/* Header */}
         <div className="mb-8">
           <button
             onClick={() => navigate('/teams')}
@@ -127,7 +112,6 @@ export default function TeamMembers() {
           </div>
         </div>
 
-        {/* Members List */}
         {members.length === 0 ? (
           <div className="bg-white rounded-3xl shadow-xl p-12 text-center border-2 border-gray-100">
             <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
@@ -144,12 +128,8 @@ export default function TeamMembers() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {members.map((member) => (
-              <div
-                key={member.id}
-                className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all border-2 border-gray-100 overflow-hidden"
-              >
+              <div key={member.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all border-2 border-gray-100 overflow-hidden">
                 <div className="p-6">
-                  {/* Member Avatar */}
                   <div className="flex items-center gap-4 mb-4">
                     <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-xl">
                       {member.user_name?.charAt(0) || 'U'}
@@ -165,7 +145,6 @@ export default function TeamMembers() {
                     </div>
                   </div>
 
-                  {/* Status Badge */}
                   <div className="flex items-center gap-2 mb-4">
                     {member.is_active ? (
                       <span className="flex items-center gap-1 bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-semibold">
@@ -184,7 +163,6 @@ export default function TeamMembers() {
                     </span>
                   </div>
 
-                  {/* Stats */}
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
                       <p className="text-2xl font-bold text-gray-900">{member.booking_count || 0}</p>
@@ -196,7 +174,6 @@ export default function TeamMembers() {
                     </div>
                   </div>
 
-                  {/* Actions */}
                   <div className="space-y-2">
                     <button
                       onClick={() => handleToggleActive(member.id, member.is_active)}
@@ -219,7 +196,6 @@ export default function TeamMembers() {
         )}
       </div>
 
-      {/* Add Member Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl">

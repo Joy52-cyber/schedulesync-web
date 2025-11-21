@@ -4,16 +4,15 @@ import {
   Settings, 
   Users, 
   Clock,
-  Link as LinkIcon,
   Save,
   Trash2,
   ArrowLeft,
   Check,
   Loader2,
   DollarSign,
-  Calendar,
   Zap
 } from 'lucide-react';
+import { teams } from '../utils/api';
 
 export default function TeamSettings() {
   const { teamId } = useParams();
@@ -39,11 +38,9 @@ export default function TeamSettings() {
 
   const loadTeam = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/teams/${teamId}`, {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      setTeam(data.team || team);
+      const response = await teams.getAll();
+      const teamData = response.data.teams.find(t => t.id === parseInt(teamId));
+      setTeam(teamData || team);
     } catch (error) {
       console.error('Error loading team:', error);
     } finally {
@@ -54,12 +51,7 @@ export default function TeamSettings() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      await fetch(`${import.meta.env.VITE_API_URL}/api/teams/${teamId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(team)
-      });
+      await teams.update(teamId, team);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (error) {
@@ -73,10 +65,7 @@ export default function TeamSettings() {
     if (!confirm('Are you sure you want to delete this team? This cannot be undone.')) return;
     
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/teams/${teamId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+      await teams.delete(teamId);
       navigate('/teams');
     } catch (error) {
       console.error('Error deleting team:', error);
@@ -95,7 +84,6 @@ export default function TeamSettings() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        {/* Header */}
         <div className="mb-8">
           <button
             onClick={() => navigate('/teams')}
@@ -108,10 +96,8 @@ export default function TeamSettings() {
           <p className="text-gray-600">Configure your team's booking preferences</p>
         </div>
 
-        {/* Settings Form */}
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-gray-100">
           
-          {/* Header Section */}
           <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-8">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
@@ -124,10 +110,8 @@ export default function TeamSettings() {
             </div>
           </div>
 
-          {/* Form Content */}
           <div className="p-8 space-y-8">
             
-            {/* Basic Info */}
             <div className="space-y-6">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Users className="h-5 w-5 text-blue-600" />
@@ -157,7 +141,6 @@ export default function TeamSettings() {
               </div>
             </div>
 
-            {/* Scheduling Settings */}
             <div className="space-y-6 pt-6 border-t-2 border-gray-100">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Clock className="h-5 w-5 text-purple-600" />
@@ -210,7 +193,6 @@ export default function TeamSettings() {
               </div>
             </div>
 
-            {/* Pricing */}
             <div className="space-y-6 pt-6 border-t-2 border-gray-100">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <DollarSign className="h-5 w-5 text-green-600" />
@@ -246,7 +228,6 @@ export default function TeamSettings() {
               </div>
             </div>
 
-            {/* Mode Explanation */}
             <div className="bg-blue-50 border-2 border-blue-100 rounded-xl p-6">
               <h4 className="font-bold text-blue-900 mb-3 flex items-center gap-2">
                 <Zap className="h-4 w-4" />
@@ -270,7 +251,6 @@ export default function TeamSettings() {
           </div>
         </div>
 
-        {/* Action Buttons */}
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <button
             onClick={handleSave}
