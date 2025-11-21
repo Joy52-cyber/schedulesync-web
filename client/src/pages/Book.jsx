@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+ï»¿import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Calendar, Clock, User, Mail, MessageSquare, Check, ArrowLeft, 
@@ -30,6 +30,9 @@ export default function Book() {
   
   // Payment states
   const [pricingInfo, setPricingInfo] = useState(null);
+  useEffect(() => {
+  console.log('ðŸ” PRICING INFO:', pricingInfo);
+}, [pricingInfo]);
   const [showPayment, setShowPayment] = useState(false);
   const [stripePromise, setStripePromise] = useState(null);
   const [paymentIntentId, setPaymentIntentId] = useState(null);
@@ -134,13 +137,13 @@ export default function Book() {
   const getCurrencySymbol = (currency) => {
     const symbols = {
       USD: '$',
-      EUR: '€',
-      GBP: '£',
+      EUR: 'â‚¬',
+      GBP: 'Â£',
       AUD: 'A$',
       CAD: 'C$',
       SGD: 'S$',
       PHP: '?',
-      JPY: '¥',
+      JPY: 'Â¥',
       INR: '?',
     };
     return symbols[currency] || currency;
