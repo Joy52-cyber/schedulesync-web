@@ -553,38 +553,6 @@ app.put('/api/teams/:id', authenticateToken, async (req, res) => {
 });
 
 // Create new team
-app.post('/api/teams', authenticateToken, async (req, res) => {
-  const { name, description } = req.body;
-  try {
-    // Generate unique team booking token
-    const teamBookingToken = crypto.randomBytes(16).toString('hex');
-    
-    const result = await pool.query(
-      'INSERT INTO teams (name, description, owner_id, team_booking_token) VALUES ($1, $2, $3, $4) RETURNING *', 
-      [name, description || '', req.user.id, teamBookingToken]
-    );
-    res.json({ team: result.rows[0] });
-  } catch (error) {
-    console.error('Create team error:', error);
-    res.status(500).json({ error: 'Failed to create team' });
-  }
-});
-
-app.put('/api/teams/:id', authenticateToken, async (req, res) => {
-  const { id } = req.params;
-  const { name, description } = req.body;
-  try {
-    const result = await pool.query(
-      'UPDATE teams SET name = $1, description = $2, updated_at = NOW() WHERE id = $3 AND owner_id = $4 RETURNING *', 
-      [name, description, id, req.user.id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Team not found' });
-    res.json({ team: result.rows[0] });
-  } catch (error) {
-    console.error('Update team error:', error);
-    res.status(500).json({ error: 'Failed to update team' });
-  }
-});
 
 app.delete('/api/teams/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
