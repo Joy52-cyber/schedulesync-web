@@ -26,30 +26,31 @@ export default function Teams() {
   }, []);
 
   const loadTeams = async () => {
-    try {
-      const response = await teams.getAll();
-      const allTeams = response.data.teams || [];
+  try {
+    const response = await teams.getAll();
+    const allTeams = response.data.teams || [];
+    
+    console.log('📊 Teams loaded:', allTeams.length);
+    console.log('📊 Sample team data:', allTeams[0]);
+    
+    // Sort: Personal booking first, then alphabetically
+    const sortedTeams = [...allTeams].sort((a, b) => {
+      const aIsPersonal = a.is_personal || a.member_count === 1;
+      const bIsPersonal = b.is_personal || b.member_count === 1;
       
-      console.log('📊 Teams loaded:', allTeams.length);
-      console.log('📊 Sample team data:', allTeams[0]);
-      
-      // Sort: Personal booking first, then alphabetically
-      const sortedTeams = allTeams.sort((a, b) => {
-        const aIsPersonal = a.is_personal || a.member_count === 1;
-        const bIsPersonal = b.is_personal || b.member_count === 1;
-        
-        if (aIsPersonal && !bIsPersonal) return -1;
-        if (!aIsPersonal && bIsPersonal) return 1;
-        return a.name.localeCompare(b.name);
-      });
-      
-      setTeamsList(allTeams);
-    } catch (error) {
-      console.error('Error loading teams:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (aIsPersonal && !bIsPersonal) return -1;
+      if (!aIsPersonal && bIsPersonal) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    
+    setTeamsList(sortedTeams); // ← use the sorted list
+  } catch (error) {
+    console.error('Error loading teams:', error);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleCopyLink = (teamId, bookingToken) => {
     if (!bookingToken) {
