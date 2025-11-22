@@ -2,20 +2,45 @@
 import axios from "axios";
 
 // --------------------------------------------------
+// Environment-safe helpers
+// --------------------------------------------------
+const isBrowser = typeof window !== "undefined";
+
+// Safely read from localStorage
+const safeGetItem = (key) => {
+  if (!isBrowser) return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const safeRemoveItem = (key) => {
+  if (!isBrowser) return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+};
+
+// --------------------------------------------------
 // Resolve correct API base URL
 // --------------------------------------------------
 const getApiUrl = () => {
   const viteUrl = import.meta.env.VITE_API_URL;
 
   if (viteUrl) {
+    // strip trailing slashes and an optional /api suffix
     return viteUrl.replace(/\/+$/, "").replace(/\/api$/, "");
   }
 
-  if (window.location.hostname === "localhost") {
+  if (isBrowser && window.location.hostname === "localhost") {
     return "http://localhost:3000";
   }
 
-  return window.location.origin;
+  return isBrowser ? window.location.origin : "http://localhost:3000";
 };
 
 const API_BASE = getApiUrl();
@@ -35,22 +60,23 @@ const apiClient = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// Attach Authorization header
+// Attach Authorization header if token exists
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token = safeGetItem("token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// Handle Unauthorized globally
+// Global 401 handler
 apiClient.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
+    if (err.response?.status === 401 && isBrowser) {
+      console.error("❌ 401 Unauthorized – clearing session");
+      safeRemoveItem("token");
+      safeRemoveItem("user");
       window.location.href = "/login";
     }
     return Promise.reject(err);
@@ -61,55 +87,64 @@ apiClient.interceptors.response.use(
 // AUTH
 // --------------------------------------------------
 export const auth = {
+  // Google OAuth login – supports string code or full payload
   googleLogin: (codeOrPayload) => {
     let payload = codeOrPayload;
 
     if (typeof codeOrPayload === "string") {
       payload = {
         code: codeOrPayload,
-        redirectUri: `${window.location.origin}/login`,
+        redirectUri: isBrowser
+          ? `${window.location.origin}/login`
+          : undefined,
       };
     }
 
     return apiClient.post("/auth/google", payload);
   },
 
+  // Email/password auth
   register: (data) => apiClient.post("/auth/register", data),
   login: (data) => apiClient.post("/auth/login", data),
 
+  // Password reset
   forgotPassword: (email) =>
     apiClient.post("/auth/forgot-password", { email }),
 
   resetPassword: (token, newPassword) =>
     apiClient.post("/auth/reset-password", { token, newPassword }),
 
+  // Email verification
   verifyEmail: (token) =>
     apiClient.get(`/auth/verify-email?token=${token}`),
 
   resendVerification: (email) =>
     apiClient.post("/auth/resend-verification", { email }),
 
+  // Session
   getCurrentUser: () => apiClient.get("/auth/me"),
   logout: () => apiClient.post("/auth/logout"),
 
+  // Test user helper (if backend supports it)
   createTestUser: () => apiClient.get("/auth/create-test-user"),
 };
 
+// old imports still work: import { googleLogin } from '../utils/api'
 export const googleLogin = auth.googleLogin;
 
-// --------------------------------------------------
-// ORGANIZER OAUTH CALLBACK
-// --------------------------------------------------
+// Organizer OAuth callback (used by OAuthCallback.jsx)
 export const handleOrganizerOAuthCallback = async (code) => {
   const payload = {
     code,
-    redirectUri: `${window.location.origin}/oauth/callback`,
+    redirectUri: isBrowser
+      ? `${window.location.origin}/oauth/callback`
+      : undefined,
   };
   const res = await apiClient.post("/auth/google", payload);
-  return res.data;
+  return res.data; // expecting { token, user, ... }
 };
 
-// Get Google OAuth URL
+// Organizer OAuth URL (for “Connect calendar” buttons etc.)
 export const getOrganizerOAuthUrl = async () => {
   const res = await apiClient.get("/auth/google/url");
   return res.data;
@@ -125,6 +160,10 @@ export const teams = {
   update: (id, data) => apiClient.put(`/teams/${id}`, data),
   remove: (id) => apiClient.delete(`/teams/${id}`),
 
+  // Used by /teams/:id/members page
+  getMembers: (teamId) =>
+    apiClient.get(`/teams/${teamId}/members`),
+
   inviteMember: (teamId, data) =>
     apiClient.post(`/teams/${teamId}/invite`, data),
 };
@@ -138,7 +177,9 @@ export const bookings = {
   cancel: (id, data) => apiClient.post(`/bookings/${id}/cancel`, data),
   updateStatus: (id, data) =>
     apiClient.post(`/bookings/${id}/status`, data),
-  getPublic: (token) =>
+
+  // Public booking page /book/:token
+  getByToken: (token) =>
     apiClient.get(`/bookings/public/${token}`),
 };
 
@@ -166,7 +207,7 @@ export const bookingLinks = {
 };
 
 // --------------------------------------------------
-// DASHBOARD
+// DASHBOARD / ANALYTICS
 // --------------------------------------------------
 export const dashboard = {
   getOverview: () => apiClient.get("/dashboard/overview"),
@@ -180,7 +221,6 @@ export const dashboard = {
 export const ai = {
   schedulerChat: (payload) =>
     apiClient.post("/ai/scheduler/chat", payload),
-
   suggestSlots: (payload) =>
     apiClient.post("/ai/suggest-slots", payload),
 };
