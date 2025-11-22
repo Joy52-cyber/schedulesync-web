@@ -34,10 +34,14 @@ export default function Teams() {
     console.log('📊 Teams loaded:', allTeams.length);
     console.log('📊 Sample team data:', allTeams[0]);
 
-    // Sort: TRUE personal team first, then alphabetically
+    const isPersonalTeam = (team) => {
+      return !!team.is_personal || team.member_count === 1;
+    };
+
+    // ✅ Personal first (by our logic), then alphabetical
     const sortedTeams = [...allTeams].sort((a, b) => {
-      const aIsPersonal = !!a.is_personal;
-      const bIsPersonal = !!b.is_personal;
+      const aIsPersonal = isPersonalTeam(a);
+      const bIsPersonal = isPersonalTeam(b);
 
       if (aIsPersonal && !bIsPersonal) return -1;
       if (!aIsPersonal && bIsPersonal) return 1;
@@ -53,6 +57,7 @@ export default function Teams() {
     setLoading(false);
   }
 };
+
 
 
   const handleCopyLink = (teamId, bookingToken) => {
