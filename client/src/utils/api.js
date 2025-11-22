@@ -131,14 +131,15 @@ export const bookings = {
   list: (params) => apiClient.get("/bookings", { params }),
   getById: (id) => apiClient.get(`/bookings/${id}`),
 
-  // ✅ BookingPage uses this: bookings.getByToken(token)
-  getByToken: (token) => apiClient.get(`/bookings/token/${token}`),
+  // ✅ Used by BookingPage → should hit /api/book/:token
+  getByToken: (token) => apiClient.get(`/book/${token}`),
 
   cancel: (id, data) => apiClient.post(`/bookings/${id}/cancel`, data),
 
-  // ✅ BookingPage uses this: bookings.create({ token, slot, ... })
+  // ✅ Used by BookingPage for creating a booking
   create: (data) => apiClient.post("/bookings", data),
 };
+
 
 // ------------------------------------------------------
 // AVAILABILITY
