@@ -12,7 +12,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import PaymentForm from '../components/PaymentForm';
 
-console.log('MODERN UI VERSION: PURPLE-GRADIENTS-2024-11-22');
+console.log('LOADING PURPLE UI VERSION - BUILD 2024-11-22-V3');
 
 export default function Book() {
   const { token } = useParams();
