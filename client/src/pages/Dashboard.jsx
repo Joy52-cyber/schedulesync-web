@@ -1,9 +1,9 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Calendar, 
-  Users, 
-  DollarSign, 
+import {
+  Calendar,
+  Users,
+  DollarSign,
   Clock,
   Sparkles,
   CheckCircle2,
@@ -12,7 +12,7 @@ import {
   TrendingUp,
   BarChart3,
   ChevronRight,
-  MoreHorizontal
+  MoreHorizontal,
 } from 'lucide-react';
 import api from '../utils/api';
 import AISchedulerChat from '../components/AISchedulerChat';
@@ -23,7 +23,7 @@ export default function Dashboard() {
     totalBookings: 0,
     upcomingBookings: 0,
     revenue: 0,
-    activeTeams: 0
+    activeTeams: 0,
   });
   const [recentBookings, setRecentBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -72,12 +72,12 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 flex items-center justify-center">
+      <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30 flex items-center justify-center">
         <div className="text-center">
           <div className="relative w-20 h-20 mx-auto mb-4">
-            <div className="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
-            <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
-            <Sparkles className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-8 w-8 text-blue-600" />
+            <div className="absolute inset-0 border-4 border-blue-200 rounded-full" />
+            <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin" />
+            <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 text-blue-600" />
           </div>
           <p className="text-gray-600 font-medium">Loading your dashboard...</p>
         </div>
@@ -86,17 +86,44 @@ export default function Dashboard() {
   }
 
   const statCards = [
-    { label: 'Total Bookings', value: stats.totalBookings, icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50', change: '+12%' },
-    { label: 'Upcoming', value: stats.upcomingBookings, icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50', badge: 'This week' },
-    { label: 'Revenue', value: `$${stats.revenue}`, icon: DollarSign, color: 'text-green-600', bg: 'bg-green-50', change: '+8%' },
-    { label: 'Active Teams', value: stats.activeTeams, icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' }
+    {
+      label: 'Total Bookings',
+      value: stats.totalBookings,
+      icon: Calendar,
+      color: 'text-blue-600',
+      bg: 'bg-blue-50',
+      change: '+12%',
+    },
+    {
+      label: 'Upcoming',
+      value: stats.upcomingBookings,
+      icon: Clock,
+      color: 'text-yellow-600',
+      bg: 'bg-yellow-50',
+      badge: 'This week',
+    },
+    {
+      label: 'Revenue',
+      value: `$${stats.revenue}`,
+      icon: DollarSign,
+      color: 'text-green-600',
+      bg: 'bg-green-50',
+      change: '+8%',
+    },
+    {
+      label: 'Active Teams',
+      value: stats.activeTeams,
+      icon: Users,
+      color: 'text-purple-600',
+      bg: 'bg-purple-50',
+    },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30">
+    <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="w-full max-w-6xl mx-auto px-6 py-4">
+        <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
@@ -104,10 +131,12 @@ export default function Dashboard() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-gray-500 text-sm">Welcome back! Here's what's happening today.</p>
+                <p className="text-gray-500 text-sm">
+                  Welcome back! Here's what's happening today.
+                </p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate('/bookings')}
@@ -128,18 +157,25 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Main Content - CENTERED WITH max-w-6xl */}
+      {/* Main Content */}
       <main className="w-full">
-        <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8">
           <div className="space-y-6">
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {statCards.map((stat, index) => (
-                <div key={index} className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100 hover:shadow-xl transition-all">
+                <div
+                  key={index}
+                  className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100 hover:shadow-xl transition-all"
+                >
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                      <p className="text-gray-600 text-sm font-medium">{stat.label}</p>
-                      <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
+                      <p className="text-gray-600 text-sm font-medium">
+                        {stat.label}
+                      </p>
+                      <p className={`text-3xl font-bold ${stat.color}`}>
+                        {stat.value}
+                      </p>
                       {stat.change && (
                         <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full inline-flex items-center gap-1">
                           <TrendingUp className="h-3 w-3" />
@@ -147,12 +183,16 @@ export default function Dashboard() {
                         </span>
                       )}
                       {stat.badge && (
-                        <span className={`text-xs font-semibold px-2 py-1 rounded-full inline-block ${stat.bg} ${stat.color}`}>
+                        <span
+                          className={`text-xs font-semibold px-2 py-1 rounded-full inline-block ${stat.bg} ${stat.color}`}
+                        >
                           {stat.badge}
                         </span>
                       )}
                     </div>
-                    <div className={`${stat.bg} h-14 w-14 rounded-xl flex items-center justify-center shadow-md`}>
+                    <div
+                      className={`${stat.bg} h-14 w-14 rounded-xl flex items-center justify-center shadow-md`}
+                    >
                       <stat.icon className={`h-7 w-7 ${stat.color}`} />
                     </div>
                   </div>
@@ -161,122 +201,163 @@ export default function Dashboard() {
             </div>
 
             {/* Weekly Overview - Only show if there are bookings */}
-{stats.totalBookings > 0 && (
-  <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-xl font-bold text-gray-900">Weekly Overview</h3>
-          <p className="text-gray-600 text-sm">Your activity this week</p>
-        </div>
-        <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full inline-flex items-center gap-1 border border-blue-200">
-          <TrendingUp className="h-3 w-3" />
-          +{stats.upcomingBookings > 0 ? Math.round((stats.upcomingBookings / stats.totalBookings) * 100) : 0}% activity
-        </span>
-      </div>
+            {stats.totalBookings > 0 && (
+              <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">
+                        Weekly Overview
+                      </h3>
+                      <p className="text-gray-600 text-sm">
+                        Your activity this week
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full inline-flex items-center gap-1 border border-blue-200">
+                      <TrendingUp className="h-3 w-3" />
+                      +
+                      {stats.upcomingBookings > 0
+                        ? Math.round(
+                            (stats.upcomingBookings / stats.totalBookings) *
+                              100,
+                          )
+                        : 0}
+                      % activity
+                    </span>
+                  </div>
 
-      <div className="h-px bg-gray-200"></div>
+                  <div className="h-px bg-gray-200" />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
-          <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-            <Calendar className="h-6 w-6 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">This Week</p>
-            <p className="text-gray-900 font-bold text-xl">{stats.upcomingBookings} bookings</p>
-          </div>
-        </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                      <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <Calendar className="h-6 w-6 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs font-medium">
+                          This Week
+                        </p>
+                        <p className="text-gray-900 font-bold text-xl">
+                          {stats.upcomingBookings} bookings
+                        </p>
+                      </div>
+                    </div>
 
-        <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-100">
-          <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
-            <CheckCircle2 className="h-6 w-6 text-green-600" />
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Total</p>
-            <p className="text-gray-900 font-bold text-xl">{stats.totalBookings} meetings</p>
-          </div>
-        </div>
+                    <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-100">
+                      <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+                        <CheckCircle2 className="h-6 w-6 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs font-medium">
+                          Total
+                        </p>
+                        <p className="text-gray-900 font-bold text-xl">
+                          {stats.totalBookings} meetings
+                        </p>
+                      </div>
+                    </div>
 
-        <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl border border-purple-100">
-          <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
-            <BarChart3 className="h-6 w-6 text-purple-600" />
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Active Teams</p>
-            <p className="text-gray-900 font-bold text-xl">{stats.activeTeams}</p>
-          </div>
-        </div>
-      </div>
+                    <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl border border-purple-100">
+                      <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <BarChart3 className="h-6 w-6 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs font-medium">
+                          Active Teams
+                        </p>
+                        <p className="text-gray-900 font-bold text-xl">
+                          {stats.activeTeams}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
-      {/* Chart Visualization - Only show if there are bookings */}
-      {recentBookings.length > 0 && (
-        <div className="pt-4 space-y-3">
-          <p className="text-sm font-semibold text-gray-700 mb-3">Recent Activity</p>
-          {recentBookings.slice(0, 5).map((booking, i) => {
-            const date = new Date(booking.start_time);
-            const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-            return (
-              <div key={booking.id} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600 font-medium">{dayName}</span>
-                  <span className="text-gray-900 font-semibold">{date.toLocaleDateString()}</span>
-                </div>
-                <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all"
-                    style={{ width: '100%' }}
-                  ></div>
+                  {/* Chart Visualization - Only show if there are bookings */}
+                  {recentBookings.length > 0 && (
+                    <div className="pt-4 space-y-3">
+                      <p className="text-sm font-semibold text-gray-700 mb-3">
+                        Recent Activity
+                      </p>
+                      {recentBookings.slice(0, 5).map((booking) => {
+                        const date = new Date(booking.start_time);
+                        const dayName = date.toLocaleDateString('en-US', {
+                          weekday: 'long',
+                        });
+                        return (
+                          <div key={booking.id} className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-600 font-medium">
+                                {dayName}
+                              </span>
+                              <span className="text-gray-900 font-semibold">
+                                {date.toLocaleDateString()}
+                              </span>
+                            </div>
+                            <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all"
+                                style={{ width: '100%' }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  </div>
-)}
+            )}
 
-{/* Welcome Message for New Users - Show when no bookings */}
-{stats.totalBookings === 0 && (
-  <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg p-8 text-white">
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="h-14 w-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-          <Sparkles className="h-7 w-7 text-white" />
-        </div>
-        <div>
-          <h3 className="text-2xl font-bold text-white">Welcome to ScheduleSync!</h3>
-          <p className="text-white/90 text-sm">Get started by sharing your booking link</p>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-          <p className="text-white/80 text-xs font-medium mb-1">Step 1</p>
-          <p className="text-white font-bold">Set your availability</p>
-        </div>
-        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-          <p className="text-white/80 text-xs font-medium mb-1">Step 2</p>
-          <p className="text-white font-bold">Get your booking link</p>
-        </div>
-        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-          <p className="text-white/80 text-xs font-medium mb-1">Step 3</p>
-          <p className="text-white font-bold">Share with clients</p>
-        </div>
-      </div>
+            {/* Welcome Message for New Users - Show when no bookings */}
+            {stats.totalBookings === 0 && (
+              <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg p-8 text-white">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-14 w-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                      <Sparkles className="h-7 w-7 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-white">
+                        Welcome to ScheduleSync!
+                      </h3>
+                      <p className="text-white/90 text-sm">
+                        Get started by sharing your booking link
+                      </p>
+                    </div>
+                  </div>
 
-      <button
-        onClick={() => navigate('/my-booking-link')}
-        className="w-full bg-white text-blue-600 px-6 py-3 rounded-xl hover:shadow-xl transition-all font-bold flex items-center justify-center gap-2 mt-6"
-      >
-        <Sparkles className="h-5 w-5" />
-        Get Your Booking Link
-      </button>
-    </div>
-  </div>
-)}
-            
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                    <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                      <p className="text-white/80 text-xs font-medium mb-1">
+                        Step 1
+                      </p>
+                      <p className="text-white font-bold">Set your availability</p>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                      <p className="text-white/80 text-xs font-medium mb-1">
+                        Step 2
+                      </p>
+                      <p className="text-white font-bold">Get your booking link</p>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                      <p className="text-white/80 text-xs font-medium mb-1">
+                        Step 3
+                      </p>
+                      <p className="text-white font-bold">Share with clients</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => navigate('/my-booking-link')}
+                    className="w-full bg-white text-blue-600 px-6 py-3 rounded-xl hover:shadow-xl transition-all font-bold flex items-center justify-center gap-2 mt-6"
+                  >
+                    <Sparkles className="h-5 w-5" />
+                    Get Your Booking Link
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Quick Actions */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <button
@@ -288,9 +369,13 @@ export default function Dashboard() {
                     <Calendar className="h-7 w-7 text-white" />
                   </div>
                   <h4 className="text-white font-bold text-xl">My Bookings</h4>
-                  <p className="text-white/90 text-sm">View and manage all your scheduled meetings</p>
+                  <p className="text-white/90 text-sm">
+                    View and manage all your scheduled meetings
+                  </p>
                   <div className="flex items-center justify-between pt-2">
-                    <span className="text-white/90 text-sm font-semibold">View All</span>
+                    <span className="text-white/90 text-sm font-semibold">
+                      View All
+                    </span>
                     <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform" />
                   </div>
                 </div>
@@ -305,9 +390,13 @@ export default function Dashboard() {
                     <Users className="h-7 w-7 text-white" />
                   </div>
                   <h4 className="text-white font-bold text-xl">Manage Teams</h4>
-                  <p className="text-white/90 text-sm">Add or edit team members and their availability</p>
+                  <p className="text-white/90 text-sm">
+                    Add or edit team members and their availability
+                  </p>
                   <div className="flex items-center justify-between pt-2">
-                    <span className="text-white/90 text-sm font-semibold">Manage</span>
+                    <span className="text-white/90 text-sm font-semibold">
+                      Manage
+                    </span>
                     <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform" />
                   </div>
                 </div>
@@ -322,9 +411,13 @@ export default function Dashboard() {
                     <Sparkles className="h-7 w-7 text-white" />
                   </div>
                   <h4 className="text-white font-bold text-xl">My Booking Link</h4>
-                  <p className="text-white/90 text-sm">Share your link and let others book time</p>
+                  <p className="text-white/90 text-sm">
+                    Share your link and let others book time
+                  </p>
                   <div className="flex items-center justify-between pt-2">
-                    <span className="text-white/90 text-sm font-semibold">Get Link</span>
+                    <span className="text-white/90 text-sm font-semibold">
+                      Get Link
+                    </span>
                     <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform" />
                   </div>
                 </div>
@@ -336,8 +429,12 @@ export default function Dashboard() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">Recent Bookings</h3>
-                    <p className="text-gray-600 text-sm">Your latest scheduled meetings</p>
+                    <h3 className="text-xl font-bold text-gray-900">
+                      Recent Bookings
+                    </h3>
+                    <p className="text-gray-600 text-sm">
+                      Your latest scheduled meetings
+                    </p>
                   </div>
                   <button
                     onClick={() => navigate('/bookings')}
@@ -353,7 +450,9 @@ export default function Dashboard() {
                     <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                       <Calendar className="h-10 w-10 text-gray-300" />
                     </div>
-                    <p className="text-gray-500 mb-4 font-medium">No bookings yet</p>
+                    <p className="text-gray-500 mb-4 font-medium">
+                      No bookings yet
+                    </p>
                     <button
                       onClick={() => navigate('/my-booking-link')}
                       className="text-blue-600 hover:text-blue-700 font-semibold"
@@ -368,30 +467,45 @@ export default function Dashboard() {
                         key={booking.id}
                         className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group"
                       >
-                        <div className="flex items-center gap-4 flex-1">
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
                           <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md">
                             {booking.attendee_name?.charAt(0) || 'G'}
                           </div>
-                          
+
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <p className="text-gray-900 font-bold">{booking.attendee_name || 'Guest'}</p>
-                              <span className={`text-xs font-semibold px-2 py-1 rounded-full border flex items-center gap-1 ${getStatusColor(booking.status || 'confirmed')}`}>
+                              <p className="text-gray-900 font-bold">
+                                {booking.attendee_name || 'Guest'}
+                              </p>
+                              <span
+                                className={`text-xs font-semibold px-2 py-1 rounded-full border flex items-center gap-1 ${getStatusColor(
+                                  booking.status || 'confirmed',
+                                )}`}
+                              >
                                 {getStatusIcon(booking.status || 'confirmed')}
                                 {booking.status || 'confirmed'}
                               </span>
                             </div>
-                            <div className="flex items-center gap-3 text-gray-600 text-sm">
-                              <span className="truncate">{booking.attendee_email}</span>
+                            <div className="flex flex-wrap items-center gap-2 text-gray-600 text-sm">
+                              <span className="truncate max-w-[140px] sm:max-w-none">
+                                {booking.attendee_email}
+                              </span>
                               <span>•</span>
                               <span className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
-                                {new Date(booking.start_time).toLocaleDateString()}
+                                {new Date(
+                                  booking.start_time,
+                                ).toLocaleDateString()}
                               </span>
                               <span>•</span>
                               <span className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
-                                {new Date(booking.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {new Date(
+                                  booking.start_time,
+                                ).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
                               </span>
                             </div>
                           </div>
