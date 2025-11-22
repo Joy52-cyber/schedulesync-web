@@ -409,22 +409,29 @@ export default function AvailabilitySettingsEnhanced() {
                 </div>
               </div>
 
-              {/* FIX 1: wider cards + consistent height so "Unlimited" fits */}
+              {/* FIX: Unlimited spans 2 columns on mobile so it fits comfortably */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {dailyCapOptions.map((option) => (
-                  <button
-                    key={option.value === null ? 'unlimited' : option.value}
-                    onClick={() => setDailyCap(option.value)}
-                    className={`min-h-[72px] p-2.5 rounded-lg border-2 flex flex-col justify-center text-left transition-all break-words ${
-                      dailyCap === option.value
-                        ? 'border-orange-500 bg-orange-50 shadow-md'
-                        : 'border-gray-200 bg-white hover:border-orange-300'
-                    }`}
-                  >
-                    <p className="text-sm font-bold text-gray-900">{option.label}</p>
-                    <p className="text-xs text-gray-600">{option.desc}</p>
-                  </button>
-                ))}
+                {dailyCapOptions.map((option) => {
+                  const isUnlimited = option.value === null;
+                  const baseClasses =
+                    'min-h-[72px] p-2.5 rounded-lg border-2 flex flex-col justify-center text-left transition-all break-words';
+                  const stateClasses =
+                    dailyCap === option.value
+                      ? 'border-orange-500 bg-orange-50 shadow-md'
+                      : 'border-gray-200 bg-white hover:border-orange-300';
+                  const spanClasses = isUnlimited ? 'col-span-2 sm:col-span-1' : '';
+
+                  return (
+                    <button
+                      key={option.value === null ? 'unlimited' : option.value}
+                      onClick={() => setDailyCap(option.value)}
+                      className={`${baseClasses} ${stateClasses} ${spanClasses}`}
+                    >
+                      <p className="text-sm font-bold text-gray-900">{option.label}</p>
+                      <p className="text-xs text-gray-600">{option.desc}</p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -479,7 +486,7 @@ export default function AvailabilitySettingsEnhanced() {
                       : 'bg-gray-50 border-gray-200 opacity-60'
                   }`}
                 >
-                  {/* Left side: toggle + labels */}
+                  {/* Left: toggle + label */}
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => toggleDay(day.key)}
@@ -506,7 +513,7 @@ export default function AvailabilitySettingsEnhanced() {
                     </div>
                   </div>
 
-                  {/* Right side: time range */}
+                  {/* Right: time range */}
                   {workingHours[day.key].enabled && (
                     <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
                       <input
@@ -631,7 +638,7 @@ export default function AvailabilitySettingsEnhanced() {
           }
           to {
             transform: translateX(0);
-            opacity: 1);
+            opacity: 1;
           }
         }
         .animate-slide-in {
