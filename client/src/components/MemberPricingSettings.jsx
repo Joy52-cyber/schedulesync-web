@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+﻿import { useState, useMemo } from 'react';
 import { X, DollarSign, ShieldCheck } from 'lucide-react';
-import api from '../utils/api'; // adjust if your api import is different
+import api from '../utils/api';
 
 export default function MemberPricingSettings({ member, teamId, onClose, onSaved }) {
   const [requirePayment, setRequirePayment] = useState(
@@ -13,14 +13,12 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  // Parse numeric price safely
   const numericPrice = useMemo(() => {
     const n = parseFloat(sessionPrice || '0');
     return Number.isNaN(n) ? 0 : n;
   }, [sessionPrice]);
 
   const stripeFee = useMemo(() => {
-    // 2.9% + 0.30 (approx)
     return numericPrice > 0 ? numericPrice * 0.029 + 0.3 : 0;
   }, [numericPrice]);
 
@@ -30,21 +28,14 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
 
   const handleSessionPriceChange = (e) => {
     let val = e.target.value;
-
-    // allow empty
     if (val === '') {
       setSessionPrice('');
       return;
     }
-
-    // prevent multiple dots
     if ((val.match(/\./g) || []).length > 1) {
       return;
     }
-
-    // remove leading zeros before digits (keep "0.xxx")
     val = val.replace(/^0+(?=\d)/, '');
-
     setSessionPrice(val);
   };
 
@@ -67,25 +58,26 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
       setSaving(true);
 
       const payload = {
-        // ?? match backend expectation:
-        booking_price: numericPrice,           // goes to booking_price
-        currency,                              // goes to currency
-        payment_required: requirePayment,      // goes to payment_required
+        booking_price: numericPrice,
+        currency,
+        payment_required: requirePayment,
       };
 
-      // ? match your backend route: /api/teams/:teamId/members/:memberId/pricing
-      await api.post(
+      // ✅ FIXED: Use PUT method instead of POST
+      const response = await api.put(
         `/teams/${teamId}/members/${member.id}/pricing`,
         payload
       );
 
+      console.log('✅ Pricing saved:', response.data);
+      
       if (onSaved) onSaved();
       onClose();
     } catch (err) {
-      console.error(err);
+      console.error('❌ Save error:', err);
       setError(
         err.response?.data?.error ||
-          'Something went wrong while saving pricing settings.'
+        'Something went wrong while saving pricing settings.'
       );
     } finally {
       setSaving(false);
@@ -93,20 +85,14 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
   };
 
   const currencySymbol =
-    currency === 'USD'
-      ? '$'
-      : currency === 'EUR'
-      ? '�'
-      : currency === 'GBP'
-      ? '�'
-      : currency === 'PHP'
-      ? '?'
-      : '';
+    currency === 'USD' ? '$' :
+    currency === 'EUR' ? '€' :
+    currency === 'GBP' ? '£' :
+    currency === 'PHP' ? '₱' : '';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-green-600" />
@@ -121,13 +107,11 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
           </button>
         </div>
 
-        {/* Body */}
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
           <p className="text-sm text-gray-600">
             {member.user_name || member.name || 'Member'}
           </p>
 
-          {/* Require payment toggle card */}
           <div className="rounded-2xl border border-green-200 bg-green-50/60 p-4 flex items-start gap-3">
             <div className="mt-1">
               <ShieldCheck className="h-5 w-5 text-green-600" />
@@ -152,13 +136,11 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
                 </button>
               </div>
               <p className="text-xs text-gray-600">
-                When enabled, guests must complete payment before confirming
-                their booking.
+                When enabled, guests must complete payment before confirming their booking.
               </p>
             </div>
           </div>
 
-          {/* Currency */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Currency
@@ -170,13 +152,12 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
               disabled={!requirePayment}
             >
               <option value="USD">$ USD - US Dollar</option>
-              <option value="EUR">� EUR - Euro</option>
-              <option value="GBP">� GBP - British Pound</option>
-              <option value="PHP">? PHP - Philippine Peso</option>
+              <option value="EUR">€ EUR - Euro</option>
+              <option value="GBP">£ GBP - British Pound</option>
+              <option value="PHP">₱ PHP - Philippine Peso</option>
             </select>
           </div>
 
-          {/* Session Price */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Session Price
@@ -202,7 +183,6 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
             </p>
           </div>
 
-          {/* Revenue breakdown */}
           <div className="mt-2 rounded-2xl border border-gray-200 overflow-hidden">
             <div className="bg-slate-800 text-white px-4 py-2 text-sm font-semibold">
               Revenue Breakdown
@@ -246,7 +226,6 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
             </p>
           )}
 
-          {/* Footer */}
           <div className="flex gap-3 pt-2">
             <button
               type="button"
@@ -260,7 +239,7 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
               disabled={saving}
               className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {saving ? 'Saving�' : 'Save Settings'}
+              {saving ? 'Saving…' : 'Save Settings'}
             </button>
           </div>
         </form>
@@ -268,4 +247,3 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
     </div>
   );
 }
-
