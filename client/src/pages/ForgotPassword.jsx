@@ -1,6 +1,6 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../utils/api';
+import { auth } from '../utils/api';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -8,29 +8,34 @@ export default function ForgotPassword() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError('');
-  setLoading(true);
-  
-  try {
-    // ? FIXED: Remove /api prefix (it's already in baseURL)
-    const response = await api.post('/auth/forgot-password', { email });
-    console.log('? Reset email sent:', response.data);
-    setSuccess(true);
-  } catch (err) {
-    console.error('? Forgot password error:', err);
-    setError(err.response?.data?.error || 'Failed to send reset email. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    
+    console.log('📧 Requesting password reset for:', email);
+    
+    try {
+      // Use the auth.forgotPassword method
+      const response = await auth.forgotPassword(email);
+      console.log('✅ Reset email sent:', response.data);
+      setSuccess(true);
+    } catch (err) {
+      console.error('❌ Forgot password error:', err);
+      setError(
+        err.response?.data?.error || 
+        'Failed to send reset email. Please try again.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (success) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8 text-center">
-          <div className="text-6xl mb-4">??</div>
+          <div className="text-6xl mb-4">✉️</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h2>
           <p className="text-gray-600 mb-6">
             If an account exists for {email}, you'll receive a password reset link shortly.
@@ -74,13 +79,14 @@ export default function ForgotPassword() {
               placeholder="you@example.com"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
               required
+              autoComplete="email"
             />
           </div>
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-bold hover:shadow-xl transition disabled:opacity-50"
+            disabled={loading || !email}
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-bold hover:shadow-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Sending...' : 'Send Reset Link'}
           </button>
@@ -99,4 +105,3 @@ export default function ForgotPassword() {
     </div>
   );
 }
-

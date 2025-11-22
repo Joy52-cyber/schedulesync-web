@@ -409,17 +409,20 @@ export default function AvailabilitySettingsEnhanced() {
                 </div>
               </div>
 
-              {/* FIX: Unlimited spans 2 columns on mobile so it fits comfortably */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {/* New responsive grid: Unlimited gets full row on mobile */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {dailyCapOptions.map((option) => {
                   const isUnlimited = option.value === null;
+
                   const baseClasses =
-                    'min-h-[72px] p-2.5 rounded-lg border-2 flex flex-col justify-center text-left transition-all break-words';
+                    'min-h-[80px] w-full p-3 rounded-lg border-2 flex flex-col items-center justify-center text-center transition-all break-words';
+
                   const stateClasses =
                     dailyCap === option.value
                       ? 'border-orange-500 bg-orange-50 shadow-md'
                       : 'border-gray-200 bg-white hover:border-orange-300';
-                  const spanClasses = isUnlimited ? 'col-span-2 sm:col-span-1' : '';
+
+                  const spanClasses = isUnlimited ? 'col-span-2 md:col-span-1' : '';
 
                   return (
                     <button
@@ -516,19 +519,25 @@ export default function AvailabilitySettingsEnhanced() {
                   {/* Right: time range */}
                   {workingHours[day.key].enabled && (
                     <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
-                      <input
-                        type="time"
-                        value={workingHours[day.key].start}
-                        onChange={(e) => updateDayTime(day.key, 'start', e.target.value)}
-                        className="px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium flex-1 min-w-[110px] max-w-[140px]"
-                      />
-                      <span className="text-gray-400 text-sm font-bold text-center w-6">→</span>
-                      <input
-                        type="time"
-                        value={workingHours[day.key].end}
-                        onChange={(e) => updateDayTime(day.key, 'end', e.target.value)}
-                        className="px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium flex-1 min-w-[110px] max-w-[140px]"
-                      />
+                      <div className="flex-1 min-w-[120px]">
+                        <input
+                          type="time"
+                          value={workingHours[day.key].start}
+                          onChange={(e) => updateDayTime(day.key, 'start', e.target.value)}
+                          className="w-full px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium"
+                        />
+                      </div>
+
+                      <span className="text-gray-400 text-sm font-bold text-center w-6">–</span>
+
+                      <div className="flex-1 min-w-[120px]">
+                        <input
+                          type="time"
+                          value={workingHours[day.key].end}
+                          onChange={(e) => updateDayTime(day.key, 'end', e.target.value)}
+                          className="w-full px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
