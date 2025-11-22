@@ -1,4 +1,6 @@
-﻿import { useState, useEffect } from 'react';
+﻿
+// BUILD VERSION: 2024-11-22-PURPLE-UI-FORCE
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Calendar, Clock, User, Mail, MessageSquare, Check, ArrowLeft, 
