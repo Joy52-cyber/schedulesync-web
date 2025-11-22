@@ -1,6 +1,5 @@
 ﻿import { useState, useRef, useEffect } from 'react';
 import { Sparkles, Send, X, Minimize2 } from 'lucide-react';
-import { aiScheduler } from '../utils/api';
 import api from '../utils/api';
 
 export default function AISchedulerChat() {
