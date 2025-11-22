@@ -25,6 +25,7 @@ export default function Teams() {
     loadTeams();
   }, []);
 
+  
   const loadTeams = async () => {
   try {
     const response = await teams.getAll();
@@ -32,18 +33,20 @@ export default function Teams() {
     
     console.log('📊 Teams loaded:', allTeams.length);
     console.log('📊 Sample team data:', allTeams[0]);
-    
-    // Sort: Personal booking first, then alphabetically
+
+    // Sort: TRUE personal team first, then alphabetically
     const sortedTeams = [...allTeams].sort((a, b) => {
-      const aIsPersonal = a.is_personal || a.member_count === 1;
-      const bIsPersonal = b.is_personal || b.member_count === 1;
-      
+      const aIsPersonal = !!a.is_personal;
+      const bIsPersonal = !!b.is_personal;
+
       if (aIsPersonal && !bIsPersonal) return -1;
       if (!aIsPersonal && bIsPersonal) return 1;
+
+      // fallback: alphabetical
       return a.name.localeCompare(b.name);
     });
-    
-    setTeamsList(sortedTeams); // ← use the sorted list
+
+    setTeamsList(sortedTeams);
   } catch (error) {
     console.error('Error loading teams:', error);
   } finally {
