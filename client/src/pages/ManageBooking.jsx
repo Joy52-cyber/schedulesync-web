@@ -42,18 +42,28 @@ export default function ManageBooking() {
     try {
       setProcessing(true);
       await fetch(`${import.meta.env.VITE_API_URL}/api/bookings/manage/${token}/cancel`, {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reason: 'Cancelled by guest' })
       });
-      loadBooking();
+      await loadBooking();
     } catch (error) {
       console.error('Error cancelling booking:', error);
+      alert('Failed to cancel booking. Please try again.');
     } finally {
       setProcessing(false);
     }
   };
 
   const handleReschedule = () => {
-    navigate(`/book/${booking.team_booking_token}?reschedule=${token}`);
+    // Use member_booking_token to create a new booking
+    if (booking.member_booking_token) {
+      navigate(`/book/${booking.member_booking_token}`);
+    } else {
+      alert('Unable to reschedule. Please contact the organizer.');
+    }
   };
 
   if (loading) {
@@ -182,7 +192,7 @@ export default function ManageBooking() {
                 <Video className="h-6 w-6 text-yellow-600 mt-1 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="font-semibold text-gray-900 mb-2">Video Conference</p>
-                  <a
+                  
                     href={booking.meet_link}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -198,7 +208,7 @@ export default function ManageBooking() {
             {booking.notes && (
               <div className="p-4 bg-gray-50 rounded-xl">
                 <p className="font-semibold text-gray-900 mb-2">Notes:</p>
-                <p className="text-gray-700 italic">"{booking.notes}"</p>
+                <p className="text-gray-700 whitespace-pre-wrap">{booking.notes}</p>
               </div>
             )}
           </div>
@@ -210,7 +220,7 @@ export default function ManageBooking() {
             <button
               onClick={handleReschedule}
               disabled={processing}
-              className="bg-blue-600 text-white px-6 py-4 rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 font-bold disabled:opacity-50"
+              className="bg-blue-600 text-white px-6 py-4 rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RefreshCw className="h-5 w-5" />
               Reschedule
@@ -218,7 +228,7 @@ export default function ManageBooking() {
             <button
               onClick={handleCancel}
               disabled={processing}
-              className="bg-red-600 text-white px-6 py-4 rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center gap-2 font-bold disabled:opacity-50"
+              className="bg-red-600 text-white px-6 py-4 rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center gap-2 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {processing ? (
                 <>
