@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
+import VerifyEmail from './pages/VerifyEmail';
 import Dashboard from './pages/Dashboard';
 import Teams from './pages/Teams';
 import TeamMembers from './pages/TeamMembers';
@@ -17,6 +18,7 @@ import MyBookingLink from './components/MyBookingLink';
 import MemberAvailability from './pages/MemberAvailability';
 import UserSettings from './pages/UserSettings';
 import ManageBooking from './pages/ManageBooking';
+
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
