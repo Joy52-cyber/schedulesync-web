@@ -1019,7 +1019,65 @@ app.put('/api/teams/:id', authenticateToken, async (req, res) => {
   }
 });
 
+
+
 // Create new team
+app.post('/api/teams', authenticateToken, async (req, res) => {
+  try {
+    const { name, description, booking_mode } = req.body;
+    const userId = req.user.id;
+    const userName = req.user.name;
+    const userEmail = req.user.email;
+    
+    console.log('➕ Creating new team:', name);
+
+    if (!name || name.trim() === '') {
+      return res.status(400).json({ error: 'Team name is required' });
+    }
+
+    // Validate booking mode
+    const validModes = ['individual', 'round_robin', 'first_available', 'collective'];
+    const mode = booking_mode || 'individual';
+    
+    if (!validModes.includes(mode)) {
+      return res.status(400).json({ error: 'Invalid booking mode' });
+    }
+
+    // Generate team booking token
+    const teamBookingToken = crypto.randomBytes(16).toString('hex');
+
+    // Create team
+    const result = await pool.query(
+      `INSERT INTO teams (name, description, owner_id, booking_mode, team_booking_token, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+       RETURNING *`,
+      [name.trim(), description || '', userId, mode, teamBookingToken]
+    );
+
+    const team = result.rows[0];
+
+    // Create owner as first team member
+    const memberToken = crypto.randomBytes(16).toString('hex');
+    
+    await pool.query(
+      `INSERT INTO team_members (team_id, user_id, email, name, booking_token, invited_by)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [team.id, userId, userEmail, userName, memberToken, userId]
+    );
+
+    console.log('✅ Team created:', team.id);
+
+    res.json({ 
+      success: true,
+      team: team,
+      message: 'Team created successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Create team error:', error);
+    res.status(500).json({ error: 'Failed to create team' });
+  }
+});
 
 app.delete('/api/teams/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
@@ -1035,6 +1093,7 @@ app.delete('/api/teams/:id', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete team' });
   }
 });
+
 
 // Update team member (general info: name, email, etc.)
 app.patch('/api/teams/:teamId/members/:memberId', authenticateToken, async (req, res) => {
