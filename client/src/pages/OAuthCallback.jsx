@@ -32,13 +32,13 @@ export default function OAuthCallback({ onLogin }) {
       return;
     }
 
-    // CRITICAL: Check if already processing ANY code
+    // Already processing any code
     if (isProcessing) {
       console.log('⚠️ Already processing a request, ignoring duplicate');
       return;
     }
 
-    // CRITICAL: Check if THIS code was already processed
+    // This code already processed
     if (processedCodes.has(code)) {
       console.log('⚠️ This code already processed, redirecting to dashboard');
       navigate('/dashboard', { replace: true });
@@ -53,55 +53,86 @@ export default function OAuthCallback({ onLogin }) {
     // Clear URL immediately
     window.history.replaceState({}, '', '/oauth/callback');
 
-    // Handle booking flow
+    // Booking flow
     if (state?.startsWith('booking:')) {
       console.log('📋 Booking OAuth flow');
       const bookingToken = state.split(':')[1];
       isProcessing = false; // Release lock
-      navigate(`/book/${bookingToken}?code=${code}&state=${state}`, { replace: true }); // ← FIXED: Added parentheses
+      navigate(`/book/${bookingToken}?code=${code}&state=${state}`, { replace: true });
       return;
     }
 
     // Dashboard login flow
     console.log('🏠 Dashboard OAuth flow - processing login');
-    
+
     (async () => {
       try {
-        console.log('📡 Calling backend...');
+        console.log('📡 Calling backend /auth/google/callback ...');
         const response = await handleOrganizerOAuthCallback(code);
-        
-        console.log('✅ OAuth successful:', response.user.email);
-        
-        if (!response.token || !response.user) {
-          throw new Error('Invalid response: missing token or user data');
+
+        console.log('✅ Raw OAuth backend response:', response);
+
+        // Try to normalize different possible backend shapes
+        let token =
+          response?.token ??
+          response?.accessToken ??
+          response?.jwt ??
+          response?.data?.token ??
+          null;
+
+        let user =
+          response?.user ??
+          response?.data?.user ??
+          response?.currentUser ??
+          null;
+
+        if (!user) {
+          console.error('❌ Backend did not return a user object:', response);
+
+          isProcessing = false;
+          processedCodes.delete(code);
+
+          const msg =
+            response?.message ||
+            response?.error ||
+            'Authentication failed. Please sign in again.';
+          navigate(`/login?error=${encodeURIComponent(msg)}`, { replace: true });
+          return;
         }
-        
-        // Update app state
-        console.log('🔐 Updating app state...');
-        onLogin(response.token, response.user);
-        
-        console.log('✅ Redirecting to dashboard...');
-        
+
+        // If token is missing but backend uses httpOnly cookies,
+        // we can still proceed; /auth/me should work later.
+        if (!token) {
+          console.warn('⚠️ No token in OAuth response, proceeding with user only');
+        }
+
+        console.log('🔐 Updating app state via onLogin...');
+        if (typeof onLogin === 'function') {
+          onLogin(token || '', user);
+        } else {
+          console.warn('⚠️ onLogin prop is not a function');
+        }
+
         // Release lock and redirect
         isProcessing = false;
-        window.location.href = '/dashboard';
-        
+        navigate('/dashboard', { replace: true });
       } catch (err) {
         console.error('❌ OAuth failed:', {
           message: err.message,
-          response: err.response?.data
+          response: err.response?.data,
         });
-        
-        // Release lock and remove code on error
+
         isProcessing = false;
         processedCodes.delete(code);
-        
-        const errorMsg = err.response?.data?.hint || 'Authentication failed. Please try again.';
-        navigate(`/login?error=${encodeURIComponent(errorMsg)}`, { replace: true }); // ← FIXED: Added parentheses
+
+        const errorMsg =
+          err.response?.data?.hint ||
+          err.response?.data?.error ||
+          'Authentication failed. Please try again.';
+        navigate(`/login?error=${encodeURIComponent(errorMsg)}`, { replace: true });
       }
     })();
 
-    // Cleanup function
     return () => {
       console.log('🧹 OAuthCallback unmounting');
     };
@@ -112,7 +143,9 @@ export default function OAuthCallback({ onLogin }) {
       <div className="text-center">
         <Loader2 className="h-12 w-12 text-white animate-spin mx-auto mb-4" />
         <p className="text-white text-lg font-medium">Signing you in...</p>
-        <p className="text-white text-sm mt-2 opacity-80">This should only take a moment</p>
+        <p className="text-white text-sm mt-2 opacity-80">
+          This should only take a moment
+        </p>
       </div>
     </div>
   );
