@@ -3675,6 +3675,8 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
   try {
     const { bookingData } = req.body;
     const userId = req.user.id;
+    const userName = req.user.name;
+    const userEmail = req.user.email;
 
     console.log('✅ Confirming AI booking:', bookingData);
 
@@ -3703,9 +3705,11 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
 
     // Get user's personal booking token
     const memberResult = await pool.query(
-      `SELECT tm.booking_token, tm.id, t.id as team_id
+      `SELECT tm.booking_token, tm.id, tm.name, t.id as team_id, t.name as team_name,
+              u.google_access_token, u.google_refresh_token
        FROM team_members tm
        JOIN teams t ON tm.team_id = t.id
+       JOIN users u ON tm.user_id = u.id
        WHERE tm.user_id = $1
        AND t.name LIKE '%Personal Bookings%'
        LIMIT 1`,
@@ -3724,10 +3728,11 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
     // Extract attendee name from email if not provided
     const attendeeName = bookingData.attendees?.[0]?.split('@')[0] || 'Guest';
     
-    const endDateTime = new Date(new Date(bookingData.datetime).getTime() + bookingData.duration_minutes * 60000);
+    const startTime = new Date(bookingData.datetime);
+    const endTime = new Date(startTime.getTime() + bookingData.duration_minutes * 60000);
 
     // Create booking
-    const booking = await pool.query(
+    const bookingResult = await pool.query(
       `INSERT INTO bookings (
         team_id, member_id, user_id, 
         attendee_name, attendee_email, 
@@ -3741,25 +3746,147 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
         member.id,
         userId,
         attendeeName,
-        email.toLowerCase(), // Store in lowercase
-        bookingData.datetime,
-        endDateTime.toISOString(),
+        email.toLowerCase(),
+        startTime.toISOString(),
+        endTime.toISOString(),
         bookingData.notes || bookingData.title || '',
         member.booking_token,
         'confirmed'
       ]
     );
 
-    const startDate = new Date(bookingData.datetime);
-    console.log('✅ AI booking created:', booking.rows[0].id);
+    const booking = bookingResult.rows[0];
+    console.log('✅ AI booking created:', booking.id);
 
+    // ========== SEND CONFIRMATION EMAILS (ASYNC) ==========
+    (async () => {
+      try {
+        let meetLink = null;
+
+        // Create Google Calendar event with Meet link
+        if (member.google_access_token && member.google_refresh_token) {
+          try {
+            console.log('📅 Creating calendar event with Meet link...');
+
+            const oauth2Client = new google.auth.OAuth2(
+              process.env.GOOGLE_CLIENT_ID,
+              process.env.GOOGLE_CLIENT_SECRET,
+              process.env.GOOGLE_REDIRECT_URI
+            );
+
+            oauth2Client.setCredentials({
+              access_token: member.google_access_token,
+              refresh_token: member.google_refresh_token
+            });
+
+            const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+            const event = {
+              summary: bookingData.title || `Meeting with ${attendeeName}`,
+              description: bookingData.notes || 'Scheduled via ScheduleSync AI Assistant',
+              start: {
+                dateTime: startTime.toISOString(),
+                timeZone: 'UTC',
+              },
+              end: {
+                dateTime: endTime.toISOString(),
+                timeZone: 'UTC',
+              },
+              attendees: [
+                { email: email, displayName: attendeeName },
+                { email: userEmail, displayName: userName }
+              ],
+              conferenceData: {
+                createRequest: {
+                  requestId: `schedulesync-ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  conferenceSolutionKey: {
+                    type: 'hangoutsMeet'
+                  }
+                }
+              },
+              reminders: {
+                useDefault: false,
+                overrides: [
+                  { method: 'email', minutes: 24 * 60 },
+                  { method: 'popup', minutes: 30 }
+                ]
+              }
+            };
+
+            const calendarResponse = await calendar.events.insert({
+              calendarId: 'primary',
+              resource: event,
+              conferenceDataVersion: 1,
+              sendUpdates: 'all'
+            });
+
+            meetLink = calendarResponse.data.hangoutLink || null;
+
+            // Update booking with meet link
+            await pool.query(
+              `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
+              [meetLink, calendarResponse.data.id, booking.id]
+            );
+
+            console.log('✅ Calendar event created with Meet link:', meetLink);
+          } catch (calendarError) {
+            console.error('⚠️ Calendar event creation failed:', calendarError.message);
+          }
+        }
+
+        // Generate ICS file
+        const icsFile = generateICS({
+          id: booking.id,
+          start_time: booking.start_time,
+          end_time: booking.end_time,
+          attendee_name: attendeeName,
+          attendee_email: email,
+          organizer_name: userName,
+          organizer_email: userEmail,
+          team_name: member.team_name,
+          notes: bookingData.notes || bookingData.title || '',
+        });
+
+        const bookingWithDetails = {
+          ...booking,
+          attendee_name: attendeeName,
+          attendee_email: email,
+          organizer_name: userName,
+          team_name: member.team_name,
+          notes: bookingData.notes || bookingData.title || '',
+          meet_link: meetLink,
+        };
+
+        // Send confirmation email to attendee
+        await sendBookingEmail({
+          to: email,
+          subject: '✅ Meeting Confirmed - ScheduleSync',
+          html: emailTemplates.bookingConfirmationGuest(bookingWithDetails),
+          icsAttachment: icsFile,
+        });
+
+        // Send notification to organizer
+        await sendBookingEmail({
+          to: userEmail,
+          subject: '📅 New Meeting Scheduled via AI - ScheduleSync',
+          html: emailTemplates.bookingConfirmationOrganizer(bookingWithDetails),
+          icsAttachment: icsFile,
+        });
+
+        console.log('✅ Confirmation emails sent');
+      } catch (emailError) {
+        console.error('⚠️ Failed to send emails:', emailError);
+      }
+    })();
+
+    // ========== RESPOND IMMEDIATELY ==========
     res.json({
       type: 'success',
-      message: `✅ **Booking confirmed!**\n\n"${bookingData.title}" scheduled for **${startDate.toLocaleDateString()}** at **${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}**\n\n📧 Confirmation sent to: **${email}**`,
-      booking: booking.rows[0]
+      message: `✅ **Meeting confirmed!**\n\n"${bookingData.title}" scheduled for **${startTime.toLocaleDateString()}** at **${startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}**\n\n📧 Confirmation emails sent to:\n• **${email}** (attendee)\n• **${userEmail}** (you)\n\n📅 Calendar invite with Google Meet link will arrive shortly.`,
+      booking: booking
     });
   } catch (error) {
-    console.error('❌ Booking confirmation error:', error);
+    console.error('❌ AI booking confirmation error:', error);
     res.status(500).json({ 
       type: 'error',
       message: 'Failed to create booking. Please try again.' 
