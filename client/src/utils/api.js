@@ -1,30 +1,44 @@
-﻿import axios from 'axios';
+﻿// client/src/utils/api.js
+import axios from 'axios';
 
+/**
+ * Resolve the base API URL.
+ * Priority:
+ *   1. VITE_API_URL (without trailing /api or slashes)
+ *   2. localhost:3000 when running locally
+ *   3. window.location.origin (same host as frontend)
+ */
 const getApiUrl = () => {
   const viteUrl = import.meta.env.VITE_API_URL;
+
   if (viteUrl) {
+    // strip trailing slashes and any /api suffix
     return viteUrl.replace(/\/+$/, '').replace(/\/api$/, '');
   }
+
   if (window.location.hostname === 'localhost') {
     return 'http://localhost:3000';
   }
+
   return window.location.origin;
 };
 
 const API_BASE = getApiUrl();
 const API_URL = `${API_BASE}/api`;
 
-console.log('🔌 API Configuration:', { 
+console.log('🔌 API Configuration:', {
   VITE_API_URL: import.meta.env.VITE_API_URL,
   API_BASE,
-  API_URL 
+  API_URL,
 });
 
+// Base axios client used everywhere
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
+// Attach auth token if present
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -34,6 +48,7 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Global error handling
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -41,61 +56,137 @@ apiClient.interceptors.response.use(
       console.error('❌ 401 Unauthorized - Token expired, logging out');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      delete apiClient.defaults.headers.common['Authorization'];
+      delete apiClient.defaults.headers.common.Authorization;
       window.location.href = '/login';
     } else {
       console.error('🔴 API Error:', {
         status: error.response?.status,
         url: error.config?.url,
-        message: error.response?.data?.error || error.message
+        message: error.response?.data?.error || error.message,
       });
     }
     return Promise.reject(error);
   }
 );
 
-// ✅ COMPLETE AUTH OBJECT WITH ALL METHODS
+//
+// AUTH
+//
 export const auth = {
+  // Google OAuth login – supports string code or full payload
   googleLogin: (codeOrPayload) => {
     let payload;
+
     if (typeof codeOrPayload === 'string') {
-      payload = { 
+      payload = {
         code: codeOrPayload,
-        redirectUri: `${window.location.origin}/login`
+        redirectUri: `${window.location.origin}/login`,
       };
     } else {
       payload = codeOrPayload;
     }
+
     return apiClient.post('/auth/google', payload);
   },
-  
+
   // Email/Password Authentication
   register: (data) => apiClient.post('/auth/register', data),
   login: (data) => apiClient.post('/auth/login', data),
-  
+
   // Password Reset
   forgotPassword: (email) => apiClient.post('/auth/forgot-password', { email }),
-  resetPassword: (token, newPassword) => apiClient.post('/auth/reset-password', { token, newPassword }),
-  
+  resetPassword: (token, newPassword) =>
+    apiClient.post('/auth/reset-password', { token, newPassword }),
+
   // Email Verification
   verifyEmail: (token) => apiClient.get(`/auth/verify-email?token=${token}`),
-  resendVerification: (email) => apiClient.post('/auth/resend-verification', { email }),
-  
+  resendVerification: (email) =>
+    apiClient.post('/auth/resend-verification', { email }),
+
   // Session
   getCurrentUser: () => apiClient.get('/auth/me'),
   logout: () => apiClient.post('/auth/logout'),
-  
-  // Test User
+
+  // Test user helper (if your backend supports it)
   createTestUser: () => apiClient.get('/auth/create-test-user'),
 };
 
-// Keep other exports...
+// Convenience export for places that imported `googleLogin` directly
 export const googleLogin = auth.googleLogin;
+
+// Organizer OAuth URL (for connecting calendar, etc.)
 export const getOrganizerOAuthUrl = async () => {
   const response = await apiClient.get('/auth/google/url');
   return response.data;
 };
-// ... rest of your exports stay the same
 
+//
+// TEAMS
+// (matches usage: import { teams } from '../utils/api'; teams.getAll())
+//
+export const teams = {
+  getAll: () => apiClient.get('/teams'),
+  getById: (id) => apiClient.get(`/teams/${id}`),
+  create: (data) => apiClient.post('/teams', data),
+  update: (id, data) => apiClient.put(`/teams/${id}`, data),
+  remove: (id) => apiClient.delete(`/teams/${id}`),
+
+  // optional helpers if your API supports them:
+  inviteMember: (teamId, data) =>
+    apiClient.post(`/teams/${teamId}/invite`, data),
+};
+
+//
+// BOOKINGS
+//
+export const bookings = {
+  list: (params) => apiClient.get('/bookings', { params }),
+  getById: (id) => apiClient.get(`/bookings/${id}`),
+  cancel: (id, data) => apiClient.post(`/bookings/${id}/cancel`, data),
+  updateStatus: (id, data) =>
+    apiClient.post(`/bookings/${id}/status`, data),
+
+  // public booking actions (if needed)
+  getPublic: (token) => apiClient.get(`/bookings/public/${token}`),
+};
+
+//
+// AVAILABILITY
+//
+export const availability = {
+  getMemberAvailability: (memberId) =>
+    apiClient.get(`/team-members/${memberId}/availability`),
+  updateMemberAvailability: (memberId, data) =>
+    apiClient.put(`/team-members/${memberId}/availability`, data),
+};
+
+//
+// BOOKING LINKS
+//
+export const bookingLinks = {
+  getMyLinks: () => apiClient.get('/booking-links'),
+  create: (data) => apiClient.post('/booking-links', data),
+  update: (id, data) => apiClient.put(`/booking-links/${id}`, data),
+  remove: (id) => apiClient.delete(`/booking-links/${id}`),
+};
+
+//
+// DASHBOARD / ANALYTICS
+//
+export const dashboard = {
+  getOverview: () => apiClient.get('/dashboard/overview'),
+  getRevenue: () => apiClient.get('/dashboard/revenue'),
+  getActivity: () => apiClient.get('/dashboard/activity'),
+};
+
+//
+// AI / Smart Slot / Assistant (if used)
+//
+export const ai = {
+  schedulerChat: (payload) => apiClient.post('/ai/scheduler/chat', payload),
+  suggestSlots: (payload) => apiClient.post('/ai/suggest-slots', payload),
+};
+
+// Export base URL + default client
 export { API_URL };
 export default apiClient;
