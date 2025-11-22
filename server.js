@@ -3231,12 +3231,36 @@ If missing info, set intent to "clarify".`,
     });
   }
 });
+
 app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
   try {
     const { bookingData } = req.body;
     const userId = req.user.id;
 
     console.log('✅ Confirming AI booking:', bookingData);
+
+    // ========== VALIDATE EMAIL ==========
+    const email = bookingData.attendees?.[0] || '';
+    
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      return res.status(400).json({ 
+        type: 'error',
+        message: '❌ Please provide a valid email address for the attendee.' 
+      });
+    }
+
+    // Optional: Check if email is from a disposable/temporary email service
+    const disposableDomains = ['tempmail.com', '10minutemail.com', 'guerrillamail.com', 'throwaway.email'];
+    const emailDomain = email.split('@')[1]?.toLowerCase();
+    
+    if (disposableDomains.includes(emailDomain)) {
+      return res.status(400).json({ 
+        type: 'error',
+        message: '⚠️ Temporary email addresses are not allowed. Please use a permanent email address.' 
+      });
+    }
 
     // Get user's personal booking token
     const memberResult = await pool.query(
@@ -3257,6 +3281,10 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
     }
 
     const member = memberResult.rows[0];
+    
+    // Extract attendee name from email if not provided
+    const attendeeName = bookingData.attendees?.[0]?.split('@')[0] || 'Guest';
+    
     const endDateTime = new Date(new Date(bookingData.datetime).getTime() + bookingData.duration_minutes * 60000);
 
     // Create booking
@@ -3273,8 +3301,8 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
         member.team_id,
         member.id,
         userId,
-        bookingData.attendees?.[0]?.split('@')[0] || 'Guest',
-        bookingData.attendees?.[0] || '',
+        attendeeName,
+        email.toLowerCase(), // Store in lowercase
         bookingData.datetime,
         endDateTime.toISOString(),
         bookingData.notes || bookingData.title || '',
@@ -3288,7 +3316,7 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
 
     res.json({
       type: 'success',
-      message: `✅ **Booking confirmed!**\n\n"${bookingData.title}" scheduled for **${startDate.toLocaleDateString()}** at **${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}**`,
+      message: `✅ **Booking confirmed!**\n\n"${bookingData.title}" scheduled for **${startDate.toLocaleDateString()}** at **${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}**\n\n📧 Confirmation sent to: **${email}**`,
       booking: booking.rows[0]
     });
   } catch (error) {
@@ -3300,6 +3328,61 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
   }
 });
 
+app.get('/api/debug/env', authenticateToken, (req, res) => {
+  res.json({
+    hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+    keyLength: process.env.ANTHROPIC_API_KEY?.length || 0,
+    keyPrefix: process.env.ANTHROPIC_API_KEY?.substring(0, 10) || 'missing'
+  });
+});
+
+app.get('/api/debug/env', authenticateToken, (req, res) => {
+  res.json({
+    hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+    keyLength: process.env.ANTHROPIC_API_KEY?.length || 0,
+    keyPrefix: process.env.ANTHROPIC_API_KEY?.substring(0, 10) || 'missing'
+  });
+});
+
+// Test Anthropic API connection
+app.get('/api/test/anthropic', authenticateToken, async (req, res) => {
+  try {
+    console.log('Testing Anthropic API...');
+    console.log('API Key exists:', !!process.env.ANTHROPIC_API_KEY);
+    console.log('API Key length:', process.env.ANTHROPIC_API_KEY?.length);
+    console.log('API Key prefix:', process.env.ANTHROPIC_API_KEY?.substring(0, 15));
+    
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 100,
+        messages: [
+          { role: "user", content: "Say 'API test successful' if you can read this." }
+        ]
+      })
+    });
+
+    const data = await response.json();
+    console.log('Anthropic response:', data);
+
+    res.json({
+      success: response.ok,
+      status: response.status,
+      data: data
+    });
+  } catch (error) {
+    console.error('Anthropic test error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============ SERVE STATIC FILES ============
 // ============ SERVE STATIC FILES ============
 
 // DEBUG: Check dist files
@@ -3375,6 +3458,8 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
+
+
 
 // ============ ERROR HANDLING ============
 
