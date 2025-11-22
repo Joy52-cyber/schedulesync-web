@@ -408,12 +408,14 @@ export default function AvailabilitySettingsEnhanced() {
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+
+              {/* FIX 1: make options wider on mobile and allow long labels */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {dailyCapOptions.map((option) => (
                   <button
-                    key={option.value}
+                    key={option.value ?? 'unlimited'}
                     onClick={() => setDailyCap(option.value)}
-                    className={`p-2.5 rounded-lg border-2 text-left transition-all ${
+                    className={`min-h-[72px] p-2.5 rounded-lg border-2 flex flex-col justify-center text-left transition-all break-words ${
                       dailyCap === option.value
                         ? 'border-orange-500 bg-orange-50 shadow-md'
                         : 'border-gray-200 bg-white hover:border-orange-300'
@@ -428,7 +430,7 @@ export default function AvailabilitySettingsEnhanced() {
           </div>
         </div>
 
-                {/* Working Hours */}
+        {/* Working Hours */}
         <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
           <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -471,13 +473,13 @@ export default function AvailabilitySettingsEnhanced() {
               {days.map((day) => (
                 <div
                   key={day.key}
-                  className={`w-full flex flex-col sm:flex-row sm:items-center gap-3 p-2.5 rounded-lg border-2 transition-all ${
+                  className={`w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-2.5 rounded-lg border-2 transition-all min-h-[72px] ${
                     workingHours[day.key].enabled
                       ? 'bg-indigo-50 border-indigo-200'
                       : 'bg-gray-50 border-gray-200 opacity-60'
                   }`}
                 >
-                  {/* Top row: toggle + label + "Day off" text */}
+                  {/* Left: toggle + labels */}
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => toggleDay(day.key)}
@@ -504,7 +506,7 @@ export default function AvailabilitySettingsEnhanced() {
                     </div>
                   </div>
 
-                  {/* Bottom row (on mobile): time range */}
+                  {/* Right: time range (only when enabled) */}
                   {workingHours[day.key].enabled && (
                     <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
                       <input
@@ -527,7 +529,6 @@ export default function AvailabilitySettingsEnhanced() {
             </div>
           </div>
         </div>
-
 
         {/* Blocked Times */}
         <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
