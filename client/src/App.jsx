@@ -22,7 +22,7 @@ import TeamSettings from './pages/TeamSettings';
 import Bookings from './pages/Bookings';
 import UserSettings from './pages/UserSettings';
 import CalendarSettings from './pages/CalendarSettings';
-import Settings from './pages/Settings'; // legacy/general settings page
+import Settings from './pages/Settings'; // optional / legacy
 
 // Booking / public pages
 import BookingPage from './pages/BookingPage';
@@ -71,107 +71,30 @@ function App() {
           <Route path="/member-availability/:id" element={<MemberAvailability />} />
           <Route path="/book" element={<Book />} />
 
-          {/* ---------- Protected dashboard routes (with Layout + navbar) ---------- */}
+          {/* ---------- Protected dashboard routes (Layout + Navbar + Outlet) ---------- */}
           <Route
-            path="/dashboard"
             element={
               <ProtectedRoute>
-                <Layout>
-                  <Dashboard />
-                </Layout>
+                <Layout />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route path="/dashboard" element={<Dashboard />} />
 
-          <Route
-            path="/teams"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <Teams />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
+            <Route path="/teams" element={<Teams />} />
+            <Route path="/teams/:id" element={<TeamMembers />} />
+            <Route path="/teams/:id/settings" element={<TeamSettings />} />
 
-          <Route
-            path="/teams/:id"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <TeamMembers />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
+            <Route path="/bookings" element={<Bookings />} />
 
-          <Route
-            path="/teams/:id/settings"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <TeamSettings />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
+            <Route path="/settings" element={<UserSettings />} />
+            <Route path="/settings/calendar" element={<CalendarSettings />} />
 
-          <Route
-            path="/bookings"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <Bookings />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
+            {/* Optional: expose legacy settings page */}
+            <Route path="/settings-legacy" element={<Settings />} />
 
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <UserSettings />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/settings/calendar"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <CalendarSettings />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Optional: expose legacy Settings.jsx somewhere */}
-          <Route
-            path="/settings-legacy"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <Settings />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* My booking link (component, not in pages) */}
-          <Route
-            path="/my-booking-link"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <MyBookingLink />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
+            <Route path="/my-booking-link" element={<MyBookingLink />} />
+          </Route>
 
           {/* ---------- Default ---------- */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
