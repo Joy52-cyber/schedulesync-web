@@ -16,10 +16,12 @@ export default function AISchedulerChat() {
     },
   ]);
   const [loading, setLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const chatEndRef = useRef(null);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [chatHistory]);
 
   const handleSendMessage = async () => {
@@ -47,7 +49,7 @@ export default function AISchedulerChat() {
           role: 'assistant',
           content: data.message,
           type: data.type,
-          data: data,
+          data,
           timestamp: new Date(),
         },
       ]);
@@ -70,17 +72,17 @@ export default function AISchedulerChat() {
     }
   };
 
-  const fetchAndShowSlots = async (searchParams?: { duration_minutes?: number }) => {
+  const fetchAndShowSlots = async (searchParams) => {
     try {
       const linkResponse = await api.get('/my-booking-link');
       const bookingToken = linkResponse.data.bookingToken;
 
       const slotsResponse = await api.post(`/book/${bookingToken}/slots-with-status`, {
-        duration: searchParams?.duration_minutes || 30,
+        duration: (searchParams && searchParams.duration_minutes) || 30,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
 
-      const allSlots = Object.values(slotsResponse.data.slots).flat() as any[];
+      const allSlots = Object.values(slotsResponse.data.slots).flat();
       const availableSlots = allSlots
         .filter((slot) => slot.status === 'available')
         .sort((a, b) => b.matchScore - a.matchScore)
@@ -102,10 +104,13 @@ export default function AISchedulerChat() {
       const slotsList = availableSlots
         .map((slot, i) => {
           const start = new Date(slot.start);
-          return `${i + 1}. **${start.toLocaleDateString()}** at **${start.toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-          })}** (${slot.matchLabel})`;
+          return `${i + 1}. **${start.toLocaleDateString()}** at **${start.toLocaleTimeString(
+            'en-US',
+            {
+              hour: 'numeric',
+              minute: '2-digit',
+            }
+          )}** (${slot.matchLabel})`;
         })
         .join('\n');
 
@@ -132,7 +137,7 @@ export default function AISchedulerChat() {
     }
   };
 
-  const handleConfirm = async (bookingData: any) => {
+  const handleConfirm = async (bookingData) => {
     setLoading(true);
     try {
       const response = await aiScheduler.confirmBooking(bookingData);
@@ -159,15 +164,14 @@ export default function AISchedulerChat() {
     }
   };
 
-  const formatTime = (date: Date) => {
+  const formatTime = (date) => {
     return new Date(date).toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
     });
   };
 
-  /* ───────────────── Floating button (closed) ───────────────── */
-
+  // ───────── Floating button (closed) ─────────
   if (!isOpen) {
     return (
       <button
@@ -183,8 +187,7 @@ export default function AISchedulerChat() {
     );
   }
 
-  /* ───────────────── Chat window (open) ───────────────── */
-
+  // ───────── Chat window (open) ─────────
   return (
     <div
       className="fixed inset-x-2 bottom-4 md:bottom-6 md:right-6 md:left-auto"
@@ -231,7 +234,7 @@ export default function AISchedulerChat() {
 
         {!isMinimized && (
           <>
-            {/* Messages area (scrolls) */}
+            {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 md:p-4 bg-gradient-to-br from-gray-50 to-purple-50/30 space-y-3 md:space-y-4">
               {chatHistory.map((msg, index) => (
                 <div
@@ -256,7 +259,7 @@ export default function AISchedulerChat() {
                     >
                       <p className="leading-relaxed whitespace-pre-line">{msg.content}</p>
 
-                      {msg.type === 'confirmation' && msg.data?.bookingData && (
+                      {msg.type === 'confirmation' && msg.data && msg.data.bookingData && (
                         <button
                           onClick={() => handleConfirm(msg.data.bookingData)}
                           disabled={loading}
@@ -271,7 +274,7 @@ export default function AISchedulerChat() {
                         msg.role === 'user' ? 'text-right' : 'text-left'
                       }`}
                     >
-                      {formatTime(msg.timestamp as any)}
+                      {formatTime(msg.timestamp)}
                     </p>
                   </div>
 
