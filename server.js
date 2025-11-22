@@ -791,6 +791,74 @@ app.post('/api/auth/reset-password', async (req, res) => {
   }
 });
 
+// ============ CREATE TEST USER (NO VERIFICATION) ============
+app.post('/api/auth/create-test-user', async (req, res) => {
+  try {
+    const testEmail = 'test@schedulesync.com';
+    const testPassword = 'test1234';
+    const testName = 'Test User';
+
+    console.log('🧪 Creating test user...');
+
+    // Check if test user already exists
+    const existingUser = await pool.query('SELECT * FROM users WHERE email = $1', [testEmail]);
+    
+    if (existingUser.rows.length > 0) {
+      console.log('✅ Test user already exists');
+      
+      // Generate JWT token
+      const user = existingUser.rows[0];
+      const token = jwt.sign(
+        { id: user.id, email: user.email, name: user.name },
+        process.env.JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+
+      return res.json({
+        success: true,
+        message: 'Test user already exists',
+        user: { id: user.id, email: user.email, name: user.name },
+        token,
+        credentials: { email: testEmail, password: testPassword }
+      });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(testPassword, salt);
+
+    // Create test user with email already verified
+    const result = await pool.query(
+      `INSERT INTO users (email, name, password_hash, provider, email_verified)
+       VALUES ($1, $2, $3, 'email', true) RETURNING id, email, name`,
+      [testEmail, testName, passwordHash]
+    );
+
+    const user = result.rows[0];
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user.id, email: user.email, name: user.name },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    console.log('✅ Test user created:', user.email);
+
+    res.json({
+      success: true,
+      user: { id: user.id, email: user.email, name: user.name },
+      token,
+      credentials: { email: testEmail, password: testPassword },
+      message: 'Test user created successfully!'
+    });
+
+  } catch (error) {
+    console.error('❌ Create test user error:', error);
+    res.status(500).json({ error: 'Failed to create test user' });
+  }
+});
+
 // ============ GUEST OAUTH (BOOKING PAGE - READ ONLY) ============
 
 app.post('/api/book/auth/google', async (req, res) => {
