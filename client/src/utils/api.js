@@ -82,7 +82,7 @@ export const auth = {
   logout: () => apiClient.post("/auth/logout"),
 };
 
-// Used by OAuthCallback.jsx
+// Used by OAuthCallback.jsx (organizer connection)
 export const handleOrganizerOAuthCallback = async (code) => {
   const res = await apiClient.post("/auth/google/callback", { code });
   return res.data;
@@ -124,21 +124,24 @@ export const teams = {
 
 // ------------------------------------------------------
 // BOOKINGS
+// (used by BookingPage, Bookings list, etc.)
 // ------------------------------------------------------
 export const bookings = {
   getAll: () => apiClient.get("/bookings"),
   list: (params) => apiClient.get("/bookings", { params }),
   getById: (id) => apiClient.get(`/bookings/${id}`),
+
+  // ✅ BookingPage uses this: bookings.getByToken(token)
   getByToken: (token) => apiClient.get(`/bookings/token/${token}`),
+
   cancel: (id, data) => apiClient.post(`/bookings/${id}/cancel`, data),
 
-  // ✅ Needed by BookingPage for free bookings
+  // ✅ BookingPage uses this: bookings.create({ token, slot, ... })
   create: (data) => apiClient.post("/bookings", data),
 };
 
 // ------------------------------------------------------
 // AVAILABILITY
-// (used by MemberAvailability.jsx)
 // ------------------------------------------------------
 export const availability = {
   get: (memberId) =>

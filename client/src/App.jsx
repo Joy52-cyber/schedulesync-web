@@ -35,7 +35,7 @@ import BookingSuccess from "./pages/BookingSuccess";
 import ManageBooking from "./pages/ManageBooking";
 import Book from "./pages/Book";
 
-// OAuth callback
+// OAuth callback (organizer)
 import OAuthCallback from "./pages/OAuthCallback";
 
 // ---------- Wrapper to inject onLogin from AuthContext ----------
@@ -62,19 +62,24 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
 
-          {/* ---------- OAuth Callback (no layout) ---------- */}
+          {/* ---------- OAuth Callback (organizer) ---------- */}
           <Route
             path="/oauth/callback"
             element={<LoginWrapper Component={OAuthCallback} />}
           />
 
           {/* ---------- Public Booking Routes (guest flows) ---------- */}
+          {/* Booking page used by /book/:token → BookingPage (matches useParams { token }) */}
           <Route path="/book/:token" element={<BookingPage />} />
+
+          {/* Success/confirmation page used by BookingPage navigate(`/booking-confirmation?data=...`) */}
           <Route path="/booking-success" element={<BookingSuccess />} />
-          {/* ✅ Also support /booking-confirmation since BookingPage navigates there */}
           <Route path="/booking-confirmation" element={<BookingSuccess />} />
-          {/* ✅ Param name must match ManageBooking's useParams: { token } */}
+
+          {/* Manage booking page (matches ManageBooking useParams { token }) */}
           <Route path="/manage/:token" element={<ManageBooking />} />
+
+          {/* Optional generic /book landing */}
           <Route path="/book" element={<Book />} />
 
           {/* ---------- Protected App Routes (with Layout + navbar) ---------- */}
@@ -90,11 +95,8 @@ export default function App() {
 
             {/* Teams */}
             <Route path="/teams" element={<Teams />} />
-            {/* Team members (TeamMembers.jsx expects useParams().teamId) */}
             <Route path="/teams/:teamId/members" element={<TeamMembers />} />
-            {/* Team settings (TeamSettings.jsx expects useParams().teamId) */}
             <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
-            {/* Member availability (MemberAvailability.jsx expects teamId + memberId) */}
             <Route
               path="/teams/:teamId/members/:memberId/availability"
               element={<MemberAvailability />}
@@ -106,7 +108,6 @@ export default function App() {
             {/* Settings */}
             <Route path="/settings" element={<UserSettings />} />
             <Route path="/settings/calendar" element={<CalendarSettings />} />
-            {/* Old settings page, kept as legacy */}
             <Route path="/settings-legacy" element={<Settings />} />
 
             {/* My booking link */}
