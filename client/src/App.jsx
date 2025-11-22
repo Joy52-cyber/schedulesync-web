@@ -1,6 +1,8 @@
 ﻿import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import Teams from './pages/Teams';
 import TeamMembers from './pages/TeamMembers';
@@ -96,6 +98,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public Routes - Redirect to dashboard if already authenticated */}
         <Route
           path="/login"
           element={
@@ -107,11 +110,35 @@ function App() {
           }
         />
         
+        <Route
+          path="/register"
+          element={
+            isAuthenticated ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <Register onLogin={handleLogin} />
+            )
+          }
+        />
+        
+        <Route
+          path="/forgot-password"
+          element={
+            isAuthenticated ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <ForgotPassword />
+            )
+          }
+        />
+        
+        {/* Public booking routes */}
         <Route path="/book/:token" element={<BookingPage />} />
         <Route path="/booking-confirmation" element={<BookingConfirmation />} />
         <Route path="/oauth/callback" element={<OAuthCallback onLogin={handleLogin} />} />
         <Route path="/manage/:token" element={<ManageBooking />} />
 
+        {/* Protected Routes */}
         <Route
           path="/"
           element={
@@ -133,6 +160,7 @@ function App() {
           <Route path="user-settings" element={<UserSettings />} />
         </Route>
         
+        {/* Catch all - redirect based on auth status */}
         <Route
           path="*"
           element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />}
