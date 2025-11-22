@@ -79,20 +79,31 @@ function App() {
               </ProtectedRoute>
             }
           >
+            {/* Dashboard */}
             <Route path="/dashboard" element={<Dashboard />} />
 
+            {/* Teams list */}
             <Route path="/teams" element={<Teams />} />
+
+            {/* Manage team (TeamMembers) */}
+            {/* Support both /teams/:id and /teams/:id/members */}
             <Route path="/teams/:id" element={<TeamMembers />} />
+            <Route path="/teams/:id/members" element={<TeamMembers />} />
+
+            {/* Team settings */}
             <Route path="/teams/:id/settings" element={<TeamSettings />} />
 
+            {/* Bookings */}
             <Route path="/bookings" element={<Bookings />} />
 
+            {/* Settings */}
             <Route path="/settings" element={<UserSettings />} />
             <Route path="/settings/calendar" element={<CalendarSettings />} />
 
-            {/* Optional: expose legacy settings page */}
+            {/* Optional legacy/general settings page */}
             <Route path="/settings-legacy" element={<Settings />} />
 
+            {/* My booking link (component in /components) */}
             <Route path="/my-booking-link" element={<MyBookingLink />} />
           </Route>
 
