@@ -74,9 +74,9 @@ apiClient.interceptors.response.use(
 //
 export const auth = {
   // Google OAuth login – supports string code or full payload
+  export const auth = {
   googleLogin: (codeOrPayload) => {
     let payload;
-
     if (typeof codeOrPayload === 'string') {
       payload = {
         code: codeOrPayload,
@@ -85,7 +85,6 @@ export const auth = {
     } else {
       payload = codeOrPayload;
     }
-
     return apiClient.post('/auth/google', payload);
   },
 
@@ -113,6 +112,15 @@ export const auth = {
 
 // Convenience export for places that imported `googleLogin` directly
 export const googleLogin = auth.googleLogin;
+
+export const handleOrganizerOAuthCallback = async (code) => {
+  const payload = {
+    code,
+    redirectUri: `${window.location.origin}/oauth/callback`,
+  };
+  const res = await apiClient.post('/auth/google', payload);
+  return res.data;
+};
 
 // Organizer OAuth URL (for connecting calendar, etc.)
 export const getOrganizerOAuthUrl = async () => {
