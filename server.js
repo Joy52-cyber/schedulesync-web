@@ -72,7 +72,7 @@ const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
     console.log('🔑 Resend API key starts with:', process.env.RESEND_API_KEY?.substring(0, 10));
     
     const emailOptions = {
-      from: 'ScheduleSync <onboarding@resend.dev>',
+      from: 'ScheduleSync <hello@trucal.xyz>',
       to: to,
       subject: subject,
       html: html,
