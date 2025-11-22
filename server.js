@@ -792,7 +792,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // ============ CREATE TEST USER (NO VERIFICATION) ============
-app.get('/api/auth/create-test-user', async (req, res) => { {
+app.get('/api/auth/create-test-user', async (req, res) => {
   try {
     const testEmail = 'test@schedulesync.com';
     const testPassword = 'test1234';
