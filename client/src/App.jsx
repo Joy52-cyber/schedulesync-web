@@ -1,35 +1,49 @@
-﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+﻿// client/src/App.jsx
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+
+// Layout / wrappers
 import ProtectedRoute from './components/ProtectedRoute';
-import Layout from './components/Layout'; // 👈 IMPORTANT
+import Layout from './components/Layout';
+import MyBookingLink from './components/MyBookingLink';
 
 // Auth pages
 import Login from './pages/Login';
+import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import Register from './pages/Register';
 import VerifyEmail from './pages/VerifyEmail';
 
 // Dashboard pages
 import Dashboard from './pages/Dashboard';
 import Teams from './pages/Teams';
+import TeamMembers from './pages/TeamMembers';
+import TeamSettings from './pages/TeamSettings';
 import Bookings from './pages/Bookings';
 import UserSettings from './pages/UserSettings';
 import CalendarSettings from './pages/CalendarSettings';
-import TeamSettings from './pages/TeamSettings';
-import TeamMembers from './pages/TeamMembers';
+import Settings from './pages/Settings'; // legacy/general settings page
+
+// Booking / public pages
+import BookingPage from './pages/BookingPage';
+import BookingSuccess from './pages/BookingSuccess';
+import ManageBooking from './pages/ManageBooking';
+import MemberAvailability from './pages/MemberAvailability';
+import Book from './pages/Book';
+
+// OAuth callback
 import OAuthCallback from './pages/OAuthCallback';
 
-// Booking pages
-import BookingPage from './pages/BookingPage';
-import ManageBooking from './pages/ManageBooking';
-
 function App() {
-  // Handle login for OAuth callback
+  // Shared login handler (email login + OAuth)
   const handleLogin = (token, user) => {
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    // Force reload to update auth state
+    if (token) {
+      localStorage.setItem('token', token);
+    }
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+    // Full reload so AuthProvider picks up new state
     window.location.href = '/dashboard';
   };
 
@@ -37,24 +51,27 @@ function App() {
     <Router>
       <AuthProvider>
         <Routes>
-          {/* Public: Authentication */}
+          {/* ---------- Public auth routes ---------- */}
           <Route path="/login" element={<Login onLogin={handleLogin} />} />
           <Route path="/register" element={<Register onLogin={handleLogin} />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
 
-          {/* OAuth redirect page - no navbar here */}
+          {/* ---------- OAuth callback (no layout) ---------- */}
           <Route
             path="/oauth/callback"
             element={<OAuthCallback onLogin={handleLogin} />}
           />
 
-          {/* Public booking routes (no dashboard layout) */}
+          {/* ---------- Public booking routes (no dashboard layout) ---------- */}
           <Route path="/book/:token" element={<BookingPage />} />
+          <Route path="/booking-success" element={<BookingSuccess />} />
           <Route path="/manage/:bookingToken" element={<ManageBooking />} />
+          <Route path="/member-availability/:id" element={<MemberAvailability />} />
+          <Route path="/book" element={<Book />} />
 
-          {/* Protected: Dashboard / App (WITH layout + navbar) */}
+          {/* ---------- Protected dashboard routes (with Layout + navbar) ---------- */}
           <Route
             path="/dashboard"
             element={
@@ -65,17 +82,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
-          <Route
-  path="/my-booking-link"
-  element={
-    <ProtectedRoute>
-      <Layout>
-        <MyBookingLink />
-      </Layout>
-    </ProtectedRoute>
-  }
-/>
 
           <Route
             path="/teams"
@@ -143,13 +149,34 @@ function App() {
             }
           />
 
-          {/* Default route → Dashboard (still protected) */}
+          {/* Optional: expose legacy Settings.jsx somewhere */}
           <Route
-            path="/"
-            element={<Navigate to="/dashboard" replace />}
+            path="/settings-legacy"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Settings />
+                </Layout>
+              </ProtectedRoute>
+            }
           />
 
-          {/* 404 Page */}
+          {/* My booking link (component, not in pages) */}
+          <Route
+            path="/my-booking-link"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <MyBookingLink />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ---------- Default ---------- */}
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+          {/* ---------- 404 fallback ---------- */}
           <Route
             path="*"
             element={
