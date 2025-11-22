@@ -2,15 +2,13 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Calendar, Clock, User, Mail, MessageSquare, Check, ArrowLeft, 
-  Loader2, AlertCircle, ExternalLink, Globe, CreditCard, DollarSign
+  Loader2, AlertCircle, ExternalLink, CheckCircle2, Phone, Sparkles,
+  ArrowRight, CreditCard, DollarSign
 } from 'lucide-react';
 import api from '../utils/api';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import PaymentForm from '../components/PaymentForm';
-// BUILD_TIMESTAMP: 2025-11-21-07:00-FINAL
-import { useState, useEffect } from 'react';
-
 
 export default function Book() {
   const { token } = useParams();
@@ -18,24 +16,30 @@ export default function Book() {
   
   const [loading, setLoading] = useState(true);
   const [bookingData, setBookingData] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null);
+  const [availableSlots, setAvailableSlots] = useState({});
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    phone: '',
     notes: ''
   });
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [bookingCreated, setBookingCreated] = useState(false);
   const [error, setError] = useState(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  
+  // OAuth states
+  const [guestEmail, setGuestEmail] = useState('');
+  const [hasCalendarAccess, setHasCalendarAccess] = useState(false);
+  const [guestAccessToken, setGuestAccessToken] = useState(null);
   
   // Payment states
   const [pricingInfo, setPricingInfo] = useState(null);
-  useEffect(() => {
-  console.log('🔍 PRICING INFO:', pricingInfo);
-}, [pricingInfo]);
   const [showPayment, setShowPayment] = useState(false);
   const [stripePromise, setStripePromise] = useState(null);
-  const [paymentIntentId, setPaymentIntentId] = useState(null);
 
   useEffect(() => {
     if (token) {
@@ -43,6 +47,12 @@ export default function Book() {
       loadPricingInfo();
     }
   }, [token]);
+
+  useEffect(() => {
+    if (bookingData && !loadingSlots) {
+      loadAvailableSlots();
+    }
+  }, [bookingData, guestAccessToken]);
 
   const loadBookingData = async () => {
     try {
@@ -64,7 +74,6 @@ export default function Book() {
       const data = await response.json();
       setPricingInfo(data);
 
-      // Load Stripe if payment required
       if (data.paymentRequired && data.price > 0) {
         const configResponse = await fetch('/api/payments/config');
         const config = await configResponse.json();
@@ -75,13 +84,34 @@ export default function Book() {
     }
   };
 
+  const loadAvailableSlots = async () => {
+    try {
+      setLoadingSlots(true);
+      const response = await api.post(`/book/${token}/slots-with-status`, {
+        guestAccessToken: guestAccessToken,
+        guestRefreshToken: null,
+        duration: 30,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      });
+
+      setAvailableSlots(response.data.slots || {});
+      
+      // Auto-select first available date
+      const dates = Object.keys(response.data.slots || {});
+      if (dates.length > 0 && !selectedDate) {
+        setSelectedDate(dates[0]);
+      }
+    } catch (error) {
+      console.error('Error loading slots:', error);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
   const handlePaymentSuccess = async (paymentIntentId) => {
-    setPaymentIntentId(paymentIntentId);
-    
     try {
       setSubmitting(true);
       
-      // Create booking with payment
       const response = await api.post('/api/payments/confirm-booking', {
         paymentIntentId,
         bookingToken: token,
@@ -106,13 +136,16 @@ export default function Book() {
   const handleBookingSubmit = async (e) => {
     e.preventDefault();
 
-    // Check if payment required
+    if (!selectedSlot || !agreedToTerms) {
+      alert('Please select a time slot and agree to terms');
+      return;
+    }
+
     if (pricingInfo?.paymentRequired && pricingInfo?.price > 0) {
       setShowPayment(true);
       return;
     }
 
-    // Free booking - proceed as normal
     try {
       setSubmitting(true);
       const response = await api.post('/api/bookings', {
@@ -134,26 +167,29 @@ export default function Book() {
     }
   };
 
+  // Get available dates from slots
+  const availableDates = Object.keys(availableSlots).slice(0, 7).map(dateKey => {
+    const date = new Date(availableSlots[dateKey][0]?.start);
+    return {
+      key: dateKey,
+      label: dateKey.split(',')[0],
+      day: date.getDate(),
+      month: date.toLocaleDateString('en-US', { month: 'short' })
+    };
+  });
+
   const getCurrencySymbol = (currency) => {
     const symbols = {
-      USD: '$',
-      EUR: '€',
-      GBP: '£',
-      AUD: 'A$',
-      CAD: 'C$',
-      SGD: 'S$',
-      PHP: '?',
-      JPY: '¥',
-      INR: '?',
+      USD: '$', EUR: '€', GBP: '£', AUD: 'A$', CAD: 'C$'
     };
     return symbols[currency] || currency;
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <Loader2 className="h-12 w-12 animate-spin text-purple-600 mx-auto mb-4" />
           <p className="text-gray-600 font-medium">Loading booking page...</p>
         </div>
       </div>
@@ -162,16 +198,14 @@ export default function Book() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full border-2 border-red-200">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="h-8 w-8 text-red-600" />
-          </div>
+          <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">Page Not Found</h2>
           <p className="text-gray-600 text-center mb-6">{error}</p>
           <button
             onClick={() => navigate('/')}
-            className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            className="w-full px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700"
           >
             Go to Homepage
           </button>
@@ -184,72 +218,18 @@ export default function Book() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-lg w-full border-2 border-green-200">
-          <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+          <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
             <Check className="h-10 w-10 text-white" />
           </div>
-          <h2 className="text-3xl font-black text-gray-900 text-center mb-3">
-            {pricingInfo?.paymentRequired ? 'Payment Successful!' : 'Booking Confirmed!'}
+          <h2 className="text-3xl font-bold text-gray-900 text-center mb-3">
+            Booking Confirmed!
           </h2>
-          <p className="text-gray-600 text-center mb-6 text-lg">
-            {pricingInfo?.paymentRequired 
-              ? 'Your payment has been processed and your booking is confirmed.'
-              : 'Your booking has been confirmed successfully.'}
+          <p className="text-gray-600 text-center mb-6">
+            Check your email for confirmation and calendar invite.
           </p>
-          
-          <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 mb-6 border-2 border-blue-200">
-            <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-blue-600" />
-              Booking Details
-            </h3>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Date:</span>
-                <span className="font-semibold text-gray-900">
-                  {selectedSlot && new Date(selectedSlot.start).toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric'
-                  })}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Time:</span>
-                <span className="font-semibold text-gray-900">
-                  {selectedSlot && new Date(selectedSlot.start).toLocaleTimeString('en-US', {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true
-                  })}
-                </span>
-              </div>
-              {pricingInfo?.paymentRequired && (
-                <div className="flex justify-between pt-3 border-t">
-                  <span className="text-gray-600">Amount Paid:</span>
-                  <span className="font-bold text-green-600 text-lg">
-                    {getCurrencySymbol(pricingInfo.currency)}{pricingInfo.price.toFixed(2)}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-6">
-            <div className="flex items-start gap-3">
-              <Mail className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-semibold text-gray-900 mb-1">Check Your Email</p>
-                <p className="text-gray-700">
-                  A confirmation email with calendar invite has been sent to <strong>{formData.email}</strong>
-                  {pricingInfo?.paymentRequired && ' along with your payment receipt.'}
-                </p>
-              </div>
-            </div>
-          </div>
-
           <button
             onClick={() => window.location.href = '/'}
-            className="w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all"
+            className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold"
           >
             Done
           </button>
@@ -258,32 +238,28 @@ export default function Book() {
     );
   }
 
-  if (!bookingData) {
-    return null;
-  }
+  if (!bookingData) return null;
 
-  // Check if using external booking link
+  // External booking redirect
   if (bookingData?.member?.external_booking_link) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full border-2 border-blue-200">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-6">
-            <ExternalLink className="h-8 w-8 text-white" />
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
+          <ExternalLink className="h-12 w-12 text-purple-600 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 text-center mb-4">
-            Redirecting to Booking Page
+            External Booking
           </h2>
           <p className="text-gray-600 text-center mb-6">
-            This member uses {bookingData.member.external_booking_platform || 'an external platform'} for bookings.
+            This member uses {bookingData.member.external_booking_platform} for bookings.
           </p>
           
             href={bookingData.member.external_booking_link}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+            className="w-full px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2"
           >
-            <ExternalLink className="h-5 w-5" />
             Continue to Booking
+            <ExternalLink className="h-4 w-4" />
           </a>
         </div>
       </div>
@@ -291,220 +267,294 @@ export default function Book() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      {/* Header */}
-      <div className="bg-white border-b shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 font-medium transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </button>
-          <div className="flex items-start gap-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg flex-shrink-0">
-              {bookingData.member.name?.[0]?.toUpperCase() || 'U'}
-            </div>
-            <div className="flex-1">
-              <h1 className="text-3xl font-black text-gray-900">
-                Book with {bookingData.member.name || 'Team Member'}
-              </h1>
-              <p className="text-gray-600 mt-1">{bookingData.team.name}</p>
-              {bookingData.team.description && (
-                <p className="text-gray-500 text-sm mt-2">{bookingData.team.description}</p>
-              )}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 py-12 px-4">
+      <div className="max-w-3xl mx-auto">
+        <div className="space-y-6">
+          
+          {/* Header Card */}
+          <div className="bg-white rounded-2xl shadow-sm border-gray-200 p-6">
+            <div className="flex items-start gap-4">
+              <div className="h-16 w-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-white text-2xl font-bold">
+                {bookingData.member.name?.[0]?.toUpperCase() || 'U'}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h2 className="text-gray-900 text-xl font-bold">{bookingData.member.name}</h2>
+                  {pricingInfo?.paymentRequired && (
+                    <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm flex items-center gap-1">
+                      <Sparkles className="h-3 w-3" />
+                      Premium
+                    </span>
+                  )}
+                </div>
+                <p className="text-gray-600 text-sm mb-3">{bookingData.team.name}</p>
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Clock className="h-4 w-4" />
+                  <span>30 min</span>
+                  {pricingInfo?.paymentRequired && (
+                    <>
+                      <span>•</span>
+                      <span className="text-purple-600 font-semibold">
+                        {getCurrencySymbol(pricingInfo.currency)}{pricingInfo.price}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Pricing Banner */}
-        {pricingInfo?.paymentRequired && pricingInfo?.price > 0 && (
-          <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl p-6 mb-6 text-white shadow-xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-white bg-opacity-20 rounded-xl flex items-center justify-center">
-                  <DollarSign className="h-6 w-6" />
+          {/* Success Message */}
+          {availableDates.length > 0 && (
+            <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="h-8 w-8 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm opacity-90">Session Price</p>
-                  <p className="text-3xl font-black">
-                    {getCurrencySymbol(pricingInfo.currency)}{pricingInfo.price.toFixed(2)}
+                  <h3 className="text-green-900 mb-1 font-semibold">Availability Confirmed</h3>
+                  <p className="text-green-700 text-sm">
+                    {hasCalendarAccess 
+                      ? "Great! We found times that work for both calendars."
+                      : "Multiple time slots are available for booking."}
                   </p>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="flex items-center gap-2 text-sm opacity-90 mb-1">
-                  <CreditCard className="h-4 w-4" />
-                  <span>Payment Required</span>
-                </div>
-                <p className="text-xs opacity-75">Secure checkout with Stripe</p>
-              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Left Column - Slot Selection */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Clock className="h-6 w-6 text-blue-600" />
-              Select a Time
-            </h2>
+          {/* Date Selection */}
+          <div className="bg-white rounded-2xl shadow-sm border-gray-200 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Calendar className="h-5 w-5 text-purple-600" />
+              <h3 className="text-gray-900 font-bold">Select a Date</h3>
+            </div>
             
-            {selectedSlot ? (
-              <div className="space-y-4">
-                <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 border-2 border-blue-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-gray-900">Selected Time</h3>
-                    <button
-                      onClick={() => setSelectedSlot(null)}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-semibold"
-                    >
-                      Change
-                    </button>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <Calendar className="h-5 w-5 text-blue-600" />
-                      <span className="font-semibold text-gray-900">
-                        {new Date(selectedSlot.start).toLocaleDateString('en-US', {
-                          weekday: 'long',
-                          month: 'long',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Clock className="h-5 w-5 text-blue-600" />
-                      <span className="font-semibold text-gray-900">
-                        {new Date(selectedSlot.start).toLocaleTimeString('en-US', {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          hour12: true
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+            {loadingSlots ? (
+              <div className="text-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-purple-600 mx-auto mb-2" />
+                <p className="text-gray-600 text-sm">Loading available dates...</p>
               </div>
             ) : (
-              <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-xl">
-                <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-600 font-medium mb-2">No time selected</p>
-                <p className="text-sm text-gray-500">
-                  Time slot selection will be available in the next update
-                </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {availableDates.map((date) => (
+                  <button
+                    key={date.key}
+                    onClick={() => setSelectedDate(date.key)}
+                    className={`p-4 rounded-xl border-2 transition-all text-center ${
+                      selectedDate === date.key
+                        ? 'border-purple-500 bg-purple-50 shadow-md'
+                        : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50/50'
+                    }`}
+                  >
+                    <div className={`text-2xl mb-1 font-bold ${
+                      selectedDate === date.key ? 'text-purple-600' : 'text-gray-900'
+                    }`}>
+                      {date.day}
+                    </div>
+                    <div className={`text-xs ${
+                      selectedDate === date.key ? 'text-purple-600' : 'text-gray-600'
+                    }`}>
+                      {date.label}
+                    </div>
+                  </button>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Right Column - Booking Form */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <User className="h-6 w-6 text-purple-600" />
-              Your Information
-            </h2>
+          {/* Time Selection */}
+          {selectedDate && availableSlots[selectedDate] && (
+            <div className="bg-white rounded-2xl shadow-sm border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-purple-600" />
+                  <h3 className="text-gray-900 font-bold">Available Times</h3>
+                </div>
+                <span className="text-xs bg-gray-100 px-3 py-1 rounded-full">
+                  {availableSlots[selectedDate].filter(s => s.status === 'available').length} slots
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-80 overflow-y-auto pr-2">
+                {availableSlots[selectedDate].map((slot, index) => (
+                  <button
+                    key={index}
+                    onClick={() => slot.status === 'available' && setSelectedSlot(slot)}
+                    disabled={slot.status !== 'available'}
+                    className={`p-4 rounded-xl border-2 transition-all ${
+                      slot.status !== 'available'
+                        ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
+                        : selectedSlot === slot
+                        ? 'border-green-500 bg-green-50 shadow-md'
+                        : 'border-gray-200 hover:border-green-400 hover:bg-green-50/50'
+                    }`}
+                  >
+                    <div className={`mb-1 font-semibold ${
+                      slot.status !== 'available'
+                        ? 'text-gray-400'
+                        : selectedSlot === slot
+                        ? 'text-green-700'
+                        : 'text-gray-900'
+                    }`}>
+                      {slot.time}
+                    </div>
+                    {slot.matchScore && slot.status === 'available' && (
+                      <div className={`text-xs ${
+                        slot.matchScore >= 80 ? 'text-green-600' :
+                        slot.matchScore >= 60 ? 'text-blue-600' :
+                        'text-gray-600'
+                      }`}>
+                        {slot.matchLabel}
+                      </div>
+                    )}
+                    {slot.status !== 'available' && (
+                      <div className="text-xs text-gray-400">
+                        {slot.details || 'Unavailable'}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Contact Form */}
+          <div className="bg-white rounded-2xl shadow-sm border-gray-200 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <User className="h-5 w-5 text-purple-600" />
+              <h3 className="text-gray-900 font-bold">Your Information</h3>
+            </div>
 
             <form onSubmit={handleBookingSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
-                  placeholder="John Doe"
-                  required
-                />
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-700 font-medium">Full Name *</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="John Doe"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-700 font-medium">Email Address *</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="email"
+                      placeholder="john@example.com"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email Address *
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
-                  placeholder="john@example.com"
-                  required
-                />
+              <div className="space-y-2">
+                <label className="text-sm text-gray-700 font-medium">Phone Number</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="tel"
+                    placeholder="+1 (555) 000-0000"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Additional Notes (Optional)
-                </label>
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none resize-none"
-                  rows="3"
-                  placeholder="Any special requests or topics to discuss..."
+              <div className="space-y-2">
+                <label className="text-sm text-gray-700 font-medium">Additional Notes</label>
+                <div className="relative">
+                  <MessageSquare className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <textarea
+                    placeholder="Any specific topics or questions?"
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none min-h-24 resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="terms"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="mt-1 h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                 />
+                <label htmlFor="terms" className="text-sm text-gray-700 leading-relaxed cursor-pointer">
+                  I agree to the terms and conditions. I will receive a confirmation email after booking.
+                </label>
               </div>
 
               <button
                 type="submit"
-                disabled={submitting || !selectedSlot}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                disabled={!selectedSlot || !agreedToTerms || submitting}
+                className="w-full h-14 bg-gradient-to-r from-purple-500 via-purple-600 to-pink-500 hover:from-purple-600 hover:via-purple-700 hover:to-pink-600 text-white rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {submitting ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
                     Processing...
                   </>
-                ) : pricingInfo?.paymentRequired && pricingInfo?.price > 0 ? (
+                ) : pricingInfo?.paymentRequired ? (
                   <>
-                    <CreditCard className="h-5 w-5" />
-                    Pay {getCurrencySymbol(pricingInfo.currency)}{pricingInfo.price.toFixed(2)} & Confirm
+                    Pay {getCurrencySymbol(pricingInfo.currency)}{pricingInfo.price} & Book
+                    <ArrowRight className="h-5 w-5" />
                   </>
                 ) : (
                   <>
-                    <Check className="h-5 w-5" />
-                    Confirm Booking
+                    Schedule Booking
+                    <ArrowRight className="h-5 w-5" />
                   </>
                 )}
               </button>
             </form>
           </div>
+
+          {/* Footer */}
+          <div className="text-center space-y-2">
+            <p className="text-sm text-gray-600">
+              🔒 Your information is secure and will never be shared
+            </p>
+            <p className="text-xs text-gray-500">
+              Powered by ScheduleSync
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Payment Modal */}
+      {/* Payment Modal - Keep existing */}
       {showPayment && pricingInfo && stripePromise && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-5 rounded-t-2xl">
-              <h2 className="text-2xl font-bold text-white">Complete Payment</h2>
-              <p className="text-blue-100 text-sm mt-1">Secure payment to confirm your booking</p>
-            </div>
-            
-            <div className="p-6">
-              <Elements stripe={stripePromise}>
-                <PaymentForm
-                  amount={pricingInfo.price}
-                  currency={pricingInfo.currency}
-                  onPaymentSuccess={handlePaymentSuccess}
-                  onCancel={() => setShowPayment(false)}
-                  bookingDetails={{
-                    token,
-                    slot: selectedSlot,
-                    attendee_name: formData.name,
-                    attendee_email: formData.email,
-                    notes: formData.notes,
-                  }}
-                />
-              </Elements>
-            </div>
+          <div className="bg-white rounded-2xl max-w-2xl w-full">
+            <Elements stripe={stripePromise}>
+              <PaymentForm
+                amount={pricingInfo.price}
+                currency={pricingInfo.currency}
+                onPaymentSuccess={handlePaymentSuccess}
+                onCancel={() => setShowPayment(false)}
+                bookingDetails={{
+                  token,
+                  slot: selectedSlot,
+                  attendee_name: formData.name,
+                  attendee_email: formData.email,
+                  notes: formData.notes,
+                }}
+              />
+            </Elements>
           </div>
         </div>
       )}
