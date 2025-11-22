@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build": "cd client && rm -rf node_modules package-lock.json && npm install --force && npm run build && cd .. && mkdir -p dist-built && cp -r client/dist/* dist-built/"
+    "build": "cd client && npm ci && npm run build && cd .. && mkdir -p dist-built && cp -r client/dist/* dist-built/"
   },
   "dependencies": {
     "axios": "^1.13.2",
