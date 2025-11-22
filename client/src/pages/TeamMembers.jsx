@@ -17,9 +17,10 @@ import {
   Link2,
   Copy
 } from 'lucide-react';
-import { teams } from '../utils/api';
+import api, { teams } from '../utils/api';  // ← FIXED: Added api
 import MemberExternalLinkModal from '../components/MemberExternalLinkModal';
 import MemberPricingSettings from '../components/MemberPricingSettings';
+
 
 export default function TeamMembers() {
   const { teamId } = useParams();
