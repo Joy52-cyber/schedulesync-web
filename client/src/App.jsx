@@ -1,28 +1,28 @@
-﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+﻿@'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
-// Auth Pages
+// Auth Pages (these exist)
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Register from './pages/Register';
 import VerifyEmail from './pages/VerifyEmail';
 
-// Dashboard Pages
+// Dashboard Pages (these exist)
 import Dashboard from './pages/Dashboard';
 import Teams from './pages/Teams';
-import TeamDetail from './pages/TeamDetail';
 import Bookings from './pages/Bookings';
-import Settings from './pages/Settings';
-import BookingLink from './pages/BookingLink';
+import UserSettings from './pages/UserSettings';
+import CalendarSettings from './pages/CalendarSettings';
+import TeamSettings from './pages/TeamSettings';
+import TeamMembers from './pages/TeamMembers';
 import OAuthCallback from './pages/OAuthCallback';
 
-// Booking Pages
-import BookingPage from './pages/BookingPage';
-import BookingManagement from './pages/BookingManagement';
-import BookingSuccess from './pages/BookingSuccess';
+// Booking Pages (these exist with different names)
+import BookingPage from './pages/BookingPage'; // This is .js not .jsx
+import ManageBooking from './pages/ManageBooking';
 
 function App() {
   return (
@@ -41,8 +41,7 @@ function App() {
           
           {/* Public Booking Routes */}
           <Route path="/book/:token" element={<BookingPage />} />
-          <Route path="/booking/success" element={<BookingSuccess />} />
-          <Route path="/manage/:bookingToken" element={<BookingManagement />} />
+          <Route path="/manage/:bookingToken" element={<ManageBooking />} />
           
           {/* Protected Dashboard Routes */}
           <Route path="/dashboard" element={
@@ -59,7 +58,13 @@ function App() {
           
           <Route path="/teams/:id" element={
             <ProtectedRoute>
-              <TeamDetail />
+              <TeamMembers />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/teams/:id/settings" element={
+            <ProtectedRoute>
+              <TeamSettings />
             </ProtectedRoute>
           } />
           
@@ -71,13 +76,13 @@ function App() {
           
           <Route path="/settings" element={
             <ProtectedRoute>
-              <Settings />
+              <UserSettings />
             </ProtectedRoute>
           } />
           
-          <Route path="/my-booking-link" element={
+          <Route path="/settings/calendar" element={
             <ProtectedRoute>
-              <BookingLink />
+              <CalendarSettings />
             </ProtectedRoute>
           } />
           
@@ -102,3 +107,4 @@ function App() {
 }
 
 export default App;
+'@ | Set-Content -Path "client/src/App.jsx" -Encoding UTF8
