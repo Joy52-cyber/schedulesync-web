@@ -71,7 +71,10 @@ export default function App() {
           {/* ---------- Public Booking Routes (guest flows) ---------- */}
           <Route path="/book/:token" element={<BookingPage />} />
           <Route path="/booking-success" element={<BookingSuccess />} />
-          <Route path="/manage/:bookingToken" element={<ManageBooking />} />
+          {/* ✅ Also support /booking-confirmation since BookingPage navigates there */}
+          <Route path="/booking-confirmation" element={<BookingSuccess />} />
+          {/* ✅ Param name must match ManageBooking's useParams: { token } */}
+          <Route path="/manage/:token" element={<ManageBooking />} />
           <Route path="/book" element={<Book />} />
 
           {/* ---------- Protected App Routes (with Layout + navbar) ---------- */}

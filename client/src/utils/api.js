@@ -131,6 +131,9 @@ export const bookings = {
   getById: (id) => apiClient.get(`/bookings/${id}`),
   getByToken: (token) => apiClient.get(`/bookings/token/${token}`),
   cancel: (id, data) => apiClient.post(`/bookings/${id}/cancel`, data),
+
+  // ✅ Needed by BookingPage for free bookings
+  create: (data) => apiClient.post("/bookings", data),
 };
 
 // ------------------------------------------------------
@@ -138,7 +141,6 @@ export const bookings = {
 // (used by MemberAvailability.jsx)
 // ------------------------------------------------------
 export const availability = {
-  // Names used in your component
   get: (memberId) =>
     apiClient.get(`/team-members/${memberId}/availability`),
   update: (memberId, data) =>
