@@ -1,9 +1,6 @@
-﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-
-// Correct import for AuthContext (this is AuthContext.js, NOT .jsx)
+﻿@'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-
-// Protected route wrapper
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Auth pages
@@ -28,113 +25,96 @@ import BookingPage from './pages/BookingPage';
 import ManageBooking from './pages/ManageBooking';
 
 function App() {
-  return (
-    <AuthProvider>
-      <Router>
-        <Routes>
+  // Handle login for OAuth callback
+  const handleLogin = (token, user) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+    // Force reload to update auth state
+    window.location.href = '/dashboard';
+  };
 
+  return (
+    <Router>
+      <AuthProvider>
+        <Routes>
           {/* Public: Authentication */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
-
-          {/* OAuth redirect page */}
-          <Route path="/oauth/callback" element={<OAuthCallback />} />
-
+          
+          {/* OAuth redirect page - pass onLogin prop */}
+          <Route path="/oauth/callback" element={<OAuthCallback onLogin={handleLogin} />} />
+          
           {/* Public booking routes */}
           <Route path="/book/:token" element={<BookingPage />} />
           <Route path="/manage/:bookingToken" element={<ManageBooking />} />
-
+          
           {/* Protected: Dashboard / App */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/teams"
-            element={
-              <ProtectedRoute>
-                <Teams />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/teams/:id"
-            element={
-              <ProtectedRoute>
-                <TeamMembers />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/teams/:id/settings"
-            element={
-              <ProtectedRoute>
-                <TeamSettings />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/bookings"
-            element={
-              <ProtectedRoute>
-                <Bookings />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <UserSettings />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/settings/calendar"
-            element={
-              <ProtectedRoute>
-                <CalendarSettings />
-              </ProtectedRoute>
-            }
-          />
-
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/teams" element={
+            <ProtectedRoute>
+              <Teams />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/teams/:id" element={
+            <ProtectedRoute>
+              <TeamMembers />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/teams/:id/settings" element={
+            <ProtectedRoute>
+              <TeamSettings />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/bookings" element={
+            <ProtectedRoute>
+              <Bookings />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/settings" element={
+            <ProtectedRoute>
+              <UserSettings />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/settings/calendar" element={
+            <ProtectedRoute>
+              <CalendarSettings />
+            </ProtectedRoute>
+          } />
+          
           {/* Default route */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
+          
           {/* 404 Page */}
-          <Route
-            path="*"
-            element={
-              <div className="min-h-screen flex items-center justify-center">
-                <div className="text-center">
-                  <h1 className="text-4xl font-bold text-gray-900 mb-4">
-                    404 - Page Not Found
-                  </h1>
-                  <a href="/dashboard" className="text-purple-600 hover:text-purple-700">
-                    Go to Dashboard
-                  </a>
-                </div>
+          <Route path="*" element={
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="text-center">
+                <h1 className="text-4xl font-bold text-gray-900 mb-4">
+                  404 - Page Not Found
+                </h1>
+                <a href="/dashboard" className="text-purple-600 hover:text-purple-700">
+                  Go to Dashboard
+                </a>
               </div>
-            }
-          />
-
+            </div>
+          } />
         </Routes>
-      </Router>
-    </AuthProvider>
+      </AuthProvider>
+    </Router>
   );
 }
 
 export default App;
+'@ | Set-Content -Path "client/src/App.jsx" -Encoding UTF8

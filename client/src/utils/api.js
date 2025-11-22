@@ -1,20 +1,14 @@
-﻿// client/src/utils/api.js
+﻿@'
 import axios from "axios";
 
-// ----------------------------------------------------------------------
-// API BASE URL RESOLUTION
-// ----------------------------------------------------------------------
 const getApiUrl = () => {
   const vite = import.meta.env.VITE_API_URL;
-
   if (vite) {
     return vite.replace(/\/+$/, "").replace(/\/api$/, "");
   }
-
   if (window.location.hostname === "localhost") {
     return "http://localhost:3000";
   }
-
   return window.location.origin;
 };
 
@@ -27,22 +21,17 @@ console.log("🔌 API Configuration:", {
   API_URL,
 });
 
-// ----------------------------------------------------------------------
-// AXIOS INSTANCE
-// ----------------------------------------------------------------------
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: { "Content-Type": "application/json" },
 });
 
-// Attach token
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Handle 401 and global errors
 apiClient.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -55,47 +44,33 @@ apiClient.interceptors.response.use(
   }
 );
 
-// ----------------------------------------------------------------------
-// AUTH
-// ----------------------------------------------------------------------
 export const auth = {
   googleLogin: (code) =>
     apiClient.post("/auth/google", {
       code,
       redirectUri: `${window.location.origin}/login`,
     }),
-
   register: (data) => apiClient.post("/auth/register", data),
   login: (data) => apiClient.post("/auth/login", data),
-
   forgotPassword: (email) =>
     apiClient.post("/auth/forgot-password", { email }),
-
   resetPassword: (token, password) =>
-    apiClient.post("/auth/reset-password", { token, password }),
-
+    apiClient.post("/auth/reset-password", { token, newPassword: password }),
   verifyEmail: (token) =>
     apiClient.get(`/auth/verify-email?token=${token}`),
-
   resendVerification: (email) =>
     apiClient.post("/auth/resend-verification", { email }),
-
   getCurrentUser: () => apiClient.get("/auth/me"),
   logout: () => apiClient.post("/auth/logout"),
 };
 
-// Required for Booking Page OAuth
 export const handleOrganizerOAuthCallback = async (code) => {
-  const res = await apiClient.post("/auth/google", {
+  const res = await apiClient.post("/auth/google/callback", {
     code,
-    redirectUri: `${window.location.origin}/oauth/callback`,
   });
   return res.data;
 };
 
-// ----------------------------------------------------------------------
-// TEAMS
-// ----------------------------------------------------------------------
 export const teams = {
   getAll: () => apiClient.get("/teams"),
   getById: (id) => apiClient.get(`/teams/${id}`),
@@ -104,49 +79,23 @@ export const teams = {
   remove: (id) => apiClient.delete(`/teams/${id}`),
 };
 
-// ----------------------------------------------------------------------
-// BOOKINGS
-// ----------------------------------------------------------------------
 export const bookings = {
+  getAll: () => apiClient.get("/bookings"),
   list: (params) => apiClient.get("/bookings", { params }),
   getById: (id) => apiClient.get(`/bookings/${id}`),
   cancel: (id, data) => apiClient.post(`/bookings/${id}/cancel`, data),
 };
 
-// ----------------------------------------------------------------------
-// AVAILABILITY
-// ----------------------------------------------------------------------
 export const availability = {
   getMemberAvailability: (id) =>
     apiClient.get(`/team-members/${id}/availability`),
-
   updateMemberAvailability: (id, data) =>
     apiClient.put(`/team-members/${id}/availability`, data),
 };
 
-// ----------------------------------------------------------------------
-// BOOKING LINKS
-// ----------------------------------------------------------------------
-export const bookingLinks = {
-  getMyLinks: () => apiClient.get("/booking-links"),
-  create: (data) => apiClient.post("/booking-links", data),
-  update: (id, data) => apiClient.put(`/booking-links/${id}`, data),
-  remove: (id) => apiClient.delete(`/booking-links/${id}`),
-};
-
-// ----------------------------------------------------------------------
-// DASHBOARD
-// ----------------------------------------------------------------------
 export const dashboard = {
-  getOverview: () => apiClient.get("/dashboard/overview"),
-};
-
-// ----------------------------------------------------------------------
-// AI
-// ----------------------------------------------------------------------
-export const ai = {
-  schedulerChat: (payload) =>
-    apiClient.post("/ai/scheduler/chat", payload),
+  getStats: () => apiClient.get("/dashboard/stats"),
 };
 
 export default apiClient;
+'@ | Set-Content -Path "client/src/utils/api.js" -Encoding UTF8
