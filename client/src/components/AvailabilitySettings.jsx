@@ -409,11 +409,11 @@ export default function AvailabilitySettingsEnhanced() {
                 </div>
               </div>
 
-              {/* FIX 1: make options wider on mobile and allow long labels */}
+              {/* FIX 1: wider cards + consistent height so "Unlimited" fits */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {dailyCapOptions.map((option) => (
                   <button
-                    key={option.value ?? 'unlimited'}
+                    key={option.value === null ? 'unlimited' : option.value}
                     onClick={() => setDailyCap(option.value)}
                     className={`min-h-[72px] p-2.5 rounded-lg border-2 flex flex-col justify-center text-left transition-all break-words ${
                       dailyCap === option.value
@@ -479,7 +479,7 @@ export default function AvailabilitySettingsEnhanced() {
                       : 'bg-gray-50 border-gray-200 opacity-60'
                   }`}
                 >
-                  {/* Left: toggle + labels */}
+                  {/* Left side: toggle + labels */}
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => toggleDay(day.key)}
@@ -506,7 +506,7 @@ export default function AvailabilitySettingsEnhanced() {
                     </div>
                   </div>
 
-                  {/* Right: time range (only when enabled) */}
+                  {/* Right side: time range */}
                   {workingHours[day.key].enabled && (
                     <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
                       <input
@@ -631,7 +631,7 @@ export default function AvailabilitySettingsEnhanced() {
           }
           to {
             transform: translateX(0);
-            opacity: 1;
+            opacity: 1);
           }
         }
         .animate-slide-in {
