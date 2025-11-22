@@ -1,15 +1,15 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Users, 
-  Plus, 
-  Settings, 
+import {
+  Users,
+  Plus,
+  Settings,
   Copy,
   Check,
   Loader2,
   MoreVertical,
   AlertCircle,
-  Star
+  Star,
 } from 'lucide-react';
 import { teams } from '../utils/api';
 
@@ -25,40 +25,54 @@ export default function Teams() {
     loadTeams();
   }, []);
 
-  
+  const isPersonalTeam = (team) => {
+    if (!team) return false;
+
+    // 1) Explicit flag from backend
+    if (team.is_personal === true) return true;
+
+    // 2) Name pattern (handles "Test User's Personal Bookings")
+    const name = (team.name || '').toLowerCase();
+    if (name.includes('personal') && name.includes('booking')) return true;
+
+    return false;
+  };
+
   const loadTeams = async () => {
-  try {
-    const response = await teams.getAll();
-    const allTeams = response.data.teams || [];
-    
-    console.log('📊 Teams loaded:', allTeams.length);
-    console.log('📊 Sample team data:', allTeams[0]);
+    try {
+      const response = await teams.getAll();
+      const allTeams = response.data.teams || [];
 
-    const isPersonalTeam = (team) => {
-      return !!team.is_personal || team.member_count === 1;
-    };
+      console.log('📊 Raw teams from API:', allTeams);
 
-    // ✅ Personal first (by our logic), then alphabetical
-    const sortedTeams = [...allTeams].sort((a, b) => {
-      const aIsPersonal = isPersonalTeam(a);
-      const bIsPersonal = isPersonalTeam(b);
+      const sortedTeams = [...allTeams].sort((a, b) => {
+        const aIsPersonal = isPersonalTeam(a);
+        const bIsPersonal = isPersonalTeam(b);
 
-      if (aIsPersonal && !bIsPersonal) return -1;
-      if (!aIsPersonal && bIsPersonal) return 1;
+        // Personal team always first
+        if (aIsPersonal && !bIsPersonal) return -1;
+        if (!aIsPersonal && bIsPersonal) return 1;
 
-      // fallback: alphabetical
-      return a.name.localeCompare(b.name);
-    });
+        // Fallback: alphabetical by name
+        return (a.name || '').localeCompare(b.name || '');
+      });
 
-    setTeamsList(sortedTeams);
-  } catch (error) {
-    console.error('Error loading teams:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+      console.log(
+        '✅ Sorted teams (personal first):',
+        sortedTeams.map((t) => ({
+          id: t.id,
+          name: t.name,
+          is_personal: t.is_personal,
+        }))
+      );
 
-
+      setTeamsList(sortedTeams);
+    } catch (error) {
+      console.error('❌ Error loading teams:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCopyLink = (teamId, bookingToken) => {
     if (!bookingToken) {
@@ -68,17 +82,19 @@ export default function Teams() {
     }
 
     const link = `${window.location.origin}/book/${bookingToken}`;
-    
     console.log('📋 Copying booking link:', link);
-    
-    navigator.clipboard.writeText(link).then(() => {
-      console.log('✅ Link copied successfully');
-      setCopiedId(bookingToken);
-      setTimeout(() => setCopiedId(null), 2000);
-    }).catch((err) => {
-      console.error('❌ Failed to copy:', err);
-      alert('Failed to copy link. Please try again.');
-    });
+
+    navigator.clipboard
+      .writeText(link)
+      .then(() => {
+        console.log('✅ Link copied successfully');
+        setCopiedId(bookingToken);
+        setTimeout(() => setCopiedId(null), 2000);
+      })
+      .catch((err) => {
+        console.error('❌ Failed to copy:', err);
+        alert('Failed to copy link. Please try again.');
+      });
   };
 
   const handleCreateTeam = async (e) => {
@@ -89,7 +105,7 @@ export default function Teams() {
       setNewTeam({ name: '', description: '' });
       loadTeams();
     } catch (error) {
-      console.error('Error creating team:', error);
+      console.error('❌ Error creating team:', error);
       alert('Failed to create team. Please try again.');
     }
   };
@@ -108,7 +124,6 @@ export default function Teams() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">Teams</h1>
@@ -143,20 +158,21 @@ export default function Teams() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {teamsList.map((team) => {
-              const isPersonal = team.is_personal || team.member_count === 1;
-              
+              const personal = isPersonalTeam(team);
+
               return (
                 <div
                   key={team.id}
                   className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all border-2 border-gray-100 overflow-hidden"
                 >
-                  <div className={`p-6 relative ${
-                    isPersonal 
-                      ? 'bg-gradient-to-br from-green-500 to-emerald-600' 
-                      : 'bg-gradient-to-br from-blue-500 to-purple-600'
-                  }`}>
-                    {/* Personal Badge */}
-                    {isPersonal && (
+                  <div
+                    className={`p-6 relative ${
+                      personal
+                        ? 'bg-gradient-to-br from-green-500 to-emerald-600'
+                        : 'bg-gradient-to-br from-blue-500 to-purple-600'
+                    }`}
+                  >
+                    {personal && (
                       <div className="absolute top-4 left-4">
                         <span className="bg-white/30 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                           <Star className="h-3 w-3 fill-white" />
@@ -164,20 +180,26 @@ export default function Teams() {
                         </span>
                       </div>
                     )}
-                    
+
                     <div className="absolute top-4 right-4">
                       <button className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center hover:bg-white/30 transition-colors">
                         <MoreVertical className="h-4 w-4 text-white" />
                       </button>
                     </div>
-                    
-                    <div className={`w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-4 ${isPersonal ? 'mt-8' : ''}`}>
+
+                    <div
+                      className={`w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-4 ${
+                        personal ? 'mt-8' : ''
+                      }`}
+                    >
                       <Users className="h-8 w-8 text-white" />
                     </div>
                     <h3 className="text-xl font-bold text-white mb-1">{team.name}</h3>
-                    <p className={`text-sm line-clamp-2 ${
-                      isPersonal ? 'text-green-100' : 'text-blue-100'
-                    }`}>
+                    <p
+                      className={`text-sm line-clamp-2 ${
+                        personal ? 'text-green-100' : 'text-blue-100'
+                      }`}
+                    >
                       {team.description || 'No description'}
                     </p>
                   </div>
@@ -206,7 +228,7 @@ export default function Teams() {
                         <Settings className="h-4 w-4" />
                         Manage Team
                       </button>
-                      
+
                       <button
                         onClick={() => handleCopyLink(team.id, team.booking_token)}
                         disabled={!team.booking_token}
@@ -244,7 +266,6 @@ export default function Teams() {
         )}
       </div>
 
-      {/* Create Team Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl">
