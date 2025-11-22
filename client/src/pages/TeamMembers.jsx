@@ -395,27 +395,28 @@ export default function TeamMembers() {
         />
       )}
 
-      {/* Pricing Modal */}
       {showPricingModal && selectedMember && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-4xl w-full my-8 shadow-2xl">
-            <div className="sticky top-0 bg-white border-b-2 border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-3xl">
-              <h2 className="text-2xl font-bold text-gray-900">Pricing Settings</h2>
-              <button
-                onClick={() => setShowPricingModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <XCircle className="h-6 w-6 text-gray-500" />
-              </button>
-            </div>
-            <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
-              <MemberPricingSettings
-                teamId={teamId}
-                memberId={selectedMember.id}
-              />
-            </div>
-          </div>
+  <div className="fixed inset-0 z-50 bg-black/50">
+    <div className="flex h-full w-full items-stretch justify-center px-0 sm:px-4">
+      <div className="relative flex h-full w-full max-w-4xl flex-col bg-white shadow-2xl sm:my-8 sm:rounded-3xl rounded-none">
+        <div className="sticky top-0 z-10 bg-white border-b-2 border-gray-100 px-6 py-4 flex items-center justify-between sm:rounded-t-3xl">
+          <h2 className="text-2xl font-bold text-gray-900">Pricing Settings</h2>
+          <button
+            onClick={() => setShowPricingModal(false)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <XCircle className="h-6 w-6 text-gray-500" />
+          </button>
         </div>
+
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 pt-4">
+          <MemberPricingSettings teamId={teamId} memberId={selectedMember.id} />
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
       )}
     </div>
   );
