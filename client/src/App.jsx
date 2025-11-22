@@ -158,7 +158,8 @@ function App() {
           <Route path="bookings" element={<Bookings />} />
           <Route path="my-booking-link" element={<MyBookingLink />} />
           <Route path="user-settings" element={<UserSettings />} />
-        </Route>
+       <Route path="/verify-email" element={<VerifyEmail />} />
+          </Route>
         
         {/* Catch all - redirect based on auth status */}
         <Route

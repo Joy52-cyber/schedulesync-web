@@ -456,18 +456,36 @@ app.post('/api/auth/register', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
+    // Generate email verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     // Create user
     const result = await pool.query(
-      `INSERT INTO users (email, name, password_hash, provider, email_verified)
-       VALUES ($1, $2, $3, 'email', false) RETURNING id, email, name`,
-      [email.toLowerCase(), name, passwordHash]
+      `INSERT INTO users (email, name, password_hash, provider, email_verified, reset_token, reset_token_expires)
+       VALUES ($1, $2, $3, 'email', false, $4, $5) RETURNING id, email, name`,
+      [email.toLowerCase(), name, passwordHash, verificationToken, verificationExpires]
     );
 
     const user = result.rows[0];
 
-    // Generate JWT token
+    // Send verification email
+    if (sendBookingEmail) {
+      try {
+        await sendBookingEmail({
+          to: email,
+          subject: '✉️ Verify Your Email - ScheduleSync',
+          html: emailTemplates.emailVerification(user, verificationToken),
+        });
+        console.log('✅ Verification email sent to:', email);
+      } catch (emailError) {
+        console.error('⚠️ Failed to send verification email:', emailError);
+      }
+    }
+
+    // Generate JWT token (but mark as unverified)
     const token = jwt.sign(
-      { id: user.id, email: user.email, name: user.name },
+      { id: user.id, email: user.email, name: user.name, verified: false },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
@@ -476,9 +494,9 @@ app.post('/api/auth/register', async (req, res) => {
 
     res.json({
       success: true,
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, emailVerified: false },
       token,
-      message: 'Registration successful!'
+      message: 'Registration successful! Please check your email to verify your account.'
     });
 
   } catch (error) {
@@ -487,6 +505,106 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
+// Verify email
+app.get('/api/auth/verify-email', async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    console.log('📧 Email verification attempt');
+
+    if (!token) {
+      return res.status(400).json({ error: 'Verification token required' });
+    }
+
+    // Find user with valid token
+    const result = await pool.query(
+      `SELECT * FROM users 
+       WHERE reset_token = $1 
+       AND reset_token_expires > NOW()
+       AND email_verified = false`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired verification token' });
+    }
+
+    const user = result.rows[0];
+
+    // Mark email as verified
+    await pool.query(
+      `UPDATE users 
+       SET email_verified = true, 
+           reset_token = NULL, 
+           reset_token_expires = NULL 
+       WHERE id = $1`,
+      [user.id]
+    );
+
+    console.log('✅ Email verified for:', user.email);
+
+    res.json({ 
+      success: true, 
+      message: 'Email verified successfully! You can now log in.' 
+    });
+
+  } catch (error) {
+    console.error('❌ Email verification error:', error);
+    res.status(500).json({ error: 'Email verification failed' });
+  }
+});
+
+// Resend verification email
+app.post('/api/auth/resend-verification', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    console.log('📧 Resending verification email to:', email);
+
+    // Find user
+    const result = await pool.query(
+      'SELECT * FROM users WHERE email = $1 AND email_verified = false',
+      [email.toLowerCase()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ 
+        success: true, 
+        message: 'If that email exists and is unverified, we sent a new verification link.' 
+      });
+    }
+
+    const user = result.rows[0];
+
+    // Generate new verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await pool.query(
+      `UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE id = $3`,
+      [verificationToken, verificationExpires, user.id]
+    );
+
+    // Send verification email
+    if (sendBookingEmail) {
+      await sendBookingEmail({
+        to: email,
+        subject: '✉️ Verify Your Email - ScheduleSync',
+        html: emailTemplates.emailVerification(user, verificationToken),
+      });
+      console.log('✅ Verification email resent to:', email);
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Verification email sent! Please check your inbox.' 
+    });
+
+  } catch (error) {
+    console.error('❌ Resend verification error:', error);
+    res.status(500).json({ error: 'Failed to resend verification email' });
+  }
+});
 // Login with email/password
 app.post('/api/auth/login', async (req, res) => {
   try {
