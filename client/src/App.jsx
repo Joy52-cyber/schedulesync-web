@@ -20,7 +20,7 @@ import UserSettings from './pages/UserSettings';
 // Public Pages
 import BookingPage from './pages/BookingPage';
 import ManageBooking from './pages/ManageBooking';
-import Book from './pages/Book';
+
 
 // Components
 import Layout from './components/Layout';
@@ -150,7 +150,7 @@ function App() {
         <Route path="/oauth/callback" element={<OAuthCallback onLogin={handleLogin} />} />
         
         {/* ==================== PUBLIC BOOKING ROUTES ==================== */}
-       <Route path="/book/:token" element={<Book />} />
+       <Route path="/book/:token" element={<BookingPage />} />
         <Route path="/booking-confirmation" element={<BookingConfirmation />} />
         <Route path="/manage/:token" element={<ManageBooking />} />
 
