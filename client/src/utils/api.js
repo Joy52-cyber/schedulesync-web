@@ -1,25 +1,23 @@
 ﻿// client/src/utils/api.js
 import axios from "axios";
 
-/**
- * Resolve the base API URL.
- * Priority:
- *  1. VITE_API_URL (from env)
- *  2. http://localhost:3000 (for local dev)
- *  3. window.location.origin (for production)
- */
+/* -------------------------------------------------------
+   API BASE URL RESOLUTION
+------------------------------------------------------- */
 const getApiUrl = () => {
   const vite = import.meta.env.VITE_API_URL;
 
   if (vite) {
-    // Strip trailing slashes and a trailing /api if present
+    // Remove trailing slashes and avoid double /api/api
     return vite.replace(/\/+$/, "").replace(/\/api$/, "");
   }
 
+  // Local development fallback
   if (window.location.hostname === "localhost") {
     return "http://localhost:3000";
   }
 
+  // Production: same domain as frontend
   return window.location.origin;
 };
 
@@ -32,15 +30,15 @@ console.log("🔌 API Configuration:", {
   API_URL,
 });
 
-// ----------------------------------------------------------------------
-// AXIOS INSTANCE
-// ----------------------------------------------------------------------
+/* -------------------------------------------------------
+   AXIOS INSTANCE
+------------------------------------------------------- */
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: { "Content-Type": "application/json" },
 });
 
-// Attach JWT token if present
+// Attach token to requests
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) {
@@ -62,9 +60,9 @@ apiClient.interceptors.response.use(
   }
 );
 
-// ----------------------------------------------------------------------
-// AUTH
-// ----------------------------------------------------------------------
+/* -------------------------------------------------------
+   AUTH
+------------------------------------------------------- */
 export const auth = {
   googleLogin: (code) =>
     apiClient.post("/auth/google", {
@@ -73,32 +71,38 @@ export const auth = {
     }),
 
   register: (data) => apiClient.post("/auth/register", data),
+
   login: (data) => apiClient.post("/auth/login", data),
 
   forgotPassword: (email) =>
     apiClient.post("/auth/forgot-password", { email }),
 
   resetPassword: (token, password) =>
-    apiClient.post("/auth/reset-password", { token, newPassword: password }),
+    apiClient.post("/auth/reset-password", {
+      token,
+      newPassword: password,
+    }),
 
-  verifyEmail: (token) => apiClient.get(`/auth/verify-email?token=${token}`),
+  verifyEmail: (token) =>
+    apiClient.get(`/auth/verify-email?token=${token}`),
 
   resendVerification: (email) =>
     apiClient.post("/auth/resend-verification", { email }),
 
   getCurrentUser: () => apiClient.get("/auth/me"),
+
   logout: () => apiClient.post("/auth/logout"),
 };
 
-// Used by /oauth/callback page
+// For Google OAuth organizer dashboard callback
 export const handleOrganizerOAuthCallback = async (code) => {
   const res = await apiClient.post("/auth/google/callback", { code });
   return res.data;
 };
 
-// ----------------------------------------------------------------------
-// TEAMS
-// ----------------------------------------------------------------------
+/* -------------------------------------------------------
+   TEAMS
+------------------------------------------------------- */
 export const teams = {
   getAll: () => apiClient.get("/teams"),
   getById: (id) => apiClient.get(`/teams/${id}`),
@@ -107,19 +111,23 @@ export const teams = {
   remove: (id) => apiClient.delete(`/teams/${id}`),
 };
 
-// ----------------------------------------------------------------------
-// BOOKINGS
-// ----------------------------------------------------------------------
+/* -------------------------------------------------------
+   BOOKINGS
+------------------------------------------------------- */
 export const bookings = {
   getAll: () => apiClient.get("/bookings"),
   list: (params) => apiClient.get("/bookings", { params }),
   getById: (id) => apiClient.get(`/bookings/${id}`),
+
+  // 🔹 IMPORTANT: used by /manage/:bookingToken page
+  getByToken: (token) => apiClient.get(`/bookings/token/${token}`),
+
   cancel: (id, data) => apiClient.post(`/bookings/${id}/cancel`, data),
 };
 
-// ----------------------------------------------------------------------
-// AVAILABILITY
-// ----------------------------------------------------------------------
+/* -------------------------------------------------------
+   AVAILABILITY
+------------------------------------------------------- */
 export const availability = {
   getMemberAvailability: (id) =>
     apiClient.get(`/team-members/${id}/availability`),
@@ -128,11 +136,29 @@ export const availability = {
     apiClient.put(`/team-members/${id}/availability`, data),
 };
 
-// ----------------------------------------------------------------------
-// DASHBOARD
-// ----------------------------------------------------------------------
+/* -------------------------------------------------------
+   BOOKING LINKS (Organizer personal link)
+------------------------------------------------------- */
+export const bookingLinks = {
+  getMyLinks: () => apiClient.get("/booking-links"),
+  create: (data) => apiClient.post("/booking-links", data),
+  update: (id, data) => apiClient.put(`/booking-links/${id}`, data),
+  remove: (id) => apiClient.delete(`/booking-links/${id}`),
+};
+
+/* -------------------------------------------------------
+   DASHBOARD
+------------------------------------------------------- */
 export const dashboard = {
   getStats: () => apiClient.get("/dashboard/stats"),
+};
+
+/* -------------------------------------------------------
+   AI
+------------------------------------------------------- */
+export const ai = {
+  schedulerChat: (payload) =>
+    apiClient.post("/ai/scheduler/chat", payload),
 };
 
 export default apiClient;
