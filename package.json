@@ -5,10 +5,11 @@
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node server.js",
+    "start": "node server.js 2>&1",
     "dev": "nodemon server.js",
-    "build":"cd client && npm install && npm run build && cd .. && mkdir -p dist-built && cp -r client/dist/* dist-built/"
-
+    "build": "npm run build:client",
+    "build:client": "cd client && npm run build && cd .. && rm -rf dist-built && mkdir -p dist-built && cp -r client/dist/* dist-built/",
+    "postinstall": "cd client && npm install"
   },
   "dependencies": {
     "axios": "^1.13.2",
