@@ -1,30 +1,40 @@
 ﻿import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+
+// Auth Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import VerifyEmail from './pages/VerifyEmail';
+import OAuthCallback from './pages/OAuthCallback';
+
+// Dashboard Pages
 import Dashboard from './pages/Dashboard';
 import Teams from './pages/Teams';
 import TeamMembers from './pages/TeamMembers';
-import Bookings from './pages/Bookings';
-import BookingPage from './pages/BookingPage';
-import OAuthCallback from './pages/OAuthCallback';
-import BookingConfirmation from './components/BookingConfirmation';
 import TeamSettings from './pages/TeamSettings';
-import Layout from './components/Layout';
-import api from './utils/api';
-import MyBookingLink from './components/MyBookingLink';
 import MemberAvailability from './pages/MemberAvailability';
+import Bookings from './pages/Bookings';
 import UserSettings from './pages/UserSettings';
+
+// Public Pages
+import BookingPage from './pages/BookingPage';
 import ManageBooking from './pages/ManageBooking';
 
+// Components
+import Layout from './components/Layout';
+import BookingConfirmation from './components/BookingConfirmation';
+import MyBookingLink from './components/MyBookingLink';
+
+// Utils
+import api from './utils/api';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Initialize authentication on app load
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -52,7 +62,7 @@ function App() {
       } catch (error) {
         console.error('❌ Auth init error:', error);
       } finally {
-        console.log('✅ Auth init complete, setting loading to false');
+        console.log('✅ Auth init complete');
         setLoading(false);
       }
     };
@@ -60,6 +70,7 @@ function App() {
     initAuth();
   }, []);
 
+  // Handle login from Login/Register/OAuth pages
   const handleLogin = (token, userData) => {
     console.log('🔐 handleLogin called:', userData?.email);
     try {
@@ -74,6 +85,7 @@ function App() {
     }
   };
 
+  // Handle logout
   const handleLogout = () => {
     console.log('👋 Logging out...');
     localStorage.removeItem('token');
@@ -83,8 +95,7 @@ function App() {
     setIsAuthenticated(false);
   };
 
-  console.log('🎨 App render:', { loading, isAuthenticated, hasUser: !!user });
-
+  // Show loading screen while checking authentication
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
@@ -100,7 +111,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Routes - Redirect to dashboard if already authenticated */}
+        {/* ==================== PUBLIC AUTH ROUTES ==================== */}
         <Route
           path="/login"
           element={
@@ -133,14 +144,16 @@ function App() {
             )
           }
         />
+
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/oauth/callback" element={<OAuthCallback onLogin={handleLogin} />} />
         
-        {/* Public booking routes */}
+        {/* ==================== PUBLIC BOOKING ROUTES ==================== */}
         <Route path="/book/:token" element={<BookingPage />} />
         <Route path="/booking-confirmation" element={<BookingConfirmation />} />
-        <Route path="/oauth/callback" element={<OAuthCallback onLogin={handleLogin} />} />
         <Route path="/manage/:token" element={<ManageBooking />} />
 
-        {/* Protected Routes */}
+        {/* ==================== PROTECTED ROUTES ==================== */}
         <Route
           path="/"
           element={
@@ -160,10 +173,9 @@ function App() {
           <Route path="bookings" element={<Bookings />} />
           <Route path="my-booking-link" element={<MyBookingLink />} />
           <Route path="user-settings" element={<UserSettings />} />
-       <Route path="/verify-email" element={<VerifyEmail />} />
-          </Route>
+        </Route>
         
-        {/* Catch all - redirect based on auth status */}
+        {/* ==================== CATCH ALL ==================== */}
         <Route
           path="*"
           element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />}
