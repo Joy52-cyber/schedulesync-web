@@ -67,6 +67,17 @@ function App() {
           />
 
           <Route
+  path="/my-booking-link"
+  element={
+    <ProtectedRoute>
+      <Layout>
+        <MyBookingLink />
+      </Layout>
+    </ProtectedRoute>
+  }
+/>
+
+          <Route
             path="/teams"
             element={
               <ProtectedRoute>
