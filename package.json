@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build": "build": "cd client && npm install && npm run build && cd .. && mkdir -p dist-built && cp -r client/dist/* dist-built/"
+    "build":"cd client && npm install && npm run build && cd .. && mkdir -p dist-built && cp -r client/dist/* dist-built/"
 
   },
   "dependencies": {
