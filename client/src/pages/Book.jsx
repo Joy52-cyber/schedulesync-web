@@ -244,31 +244,34 @@ export default function Book() {
 
   if (!bookingData) return null;
 
-  // External booking redirect
-  if (bookingData?.member?.external_booking_link) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
-          <ExternalLink className="h-12 w-12 text-purple-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-4">
-            External Booking
-          </h2>
-          <p className="text-gray-600 text-center mb-6">
-            This member uses {bookingData.member.external_booking_platform} for bookings.
-          </p>
-          
-            href={bookingData.member.external_booking_link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2"
-          >
-            Continue to Booking
-            <ExternalLink className="h-4 w-4" />
-          </a>
-        </div>
+  {/* External booking redirect */}
+if (bookingData?.member?.external_booking_link) {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
+        <ExternalLink className="h-12 w-12 text-purple-600 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-gray-900 text-center mb-4">
+          External Booking
+        </h2>
+
+        <p className="text-gray-600 text-center mb-6">
+          This member uses {bookingData.member.external_booking_platform} for bookings.
+        </p>
+
+        <a
+          href={bookingData.member.external_booking_link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2"
+        >
+          Continue to Booking
+          <ExternalLink className="h-4 w-4" />
+        </a>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 py-12 px-4">
