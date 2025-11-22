@@ -1,16 +1,19 @@
-﻿@'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+
+// Correct import for AuthContext (this is AuthContext.js, NOT .jsx)
 import { AuthProvider } from './contexts/AuthContext';
+
+// Protected route wrapper
 import ProtectedRoute from './components/ProtectedRoute';
 
-// Auth Pages (these exist)
+// Auth pages
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Register from './pages/Register';
 import VerifyEmail from './pages/VerifyEmail';
 
-// Dashboard Pages (these exist)
+// Dashboard pages
 import Dashboard from './pages/Dashboard';
 import Teams from './pages/Teams';
 import Bookings from './pages/Bookings';
@@ -20,8 +23,8 @@ import TeamSettings from './pages/TeamSettings';
 import TeamMembers from './pages/TeamMembers';
 import OAuthCallback from './pages/OAuthCallback';
 
-// Booking Pages (these exist with different names)
-import BookingPage from './pages/BookingPage'; // This is .js not .jsx
+// Booking pages
+import BookingPage from './pages/BookingPage';
 import ManageBooking from './pages/ManageBooking';
 
 function App() {
@@ -29,77 +32,105 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Public Routes - Authentication */}
+
+          {/* Public: Authentication */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
-          
-          {/* OAuth Callback */}
+
+          {/* OAuth redirect page */}
           <Route path="/oauth/callback" element={<OAuthCallback />} />
-          
-          {/* Public Booking Routes */}
+
+          {/* Public booking routes */}
           <Route path="/book/:token" element={<BookingPage />} />
           <Route path="/manage/:bookingToken" element={<ManageBooking />} />
-          
-          {/* Protected Dashboard Routes */}
-          <Route path="/dashboard" element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/teams" element={
-            <ProtectedRoute>
-              <Teams />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/teams/:id" element={
-            <ProtectedRoute>
-              <TeamMembers />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/teams/:id/settings" element={
-            <ProtectedRoute>
-              <TeamSettings />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/bookings" element={
-            <ProtectedRoute>
-              <Bookings />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/settings" element={
-            <ProtectedRoute>
-              <UserSettings />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/settings/calendar" element={
-            <ProtectedRoute>
-              <CalendarSettings />
-            </ProtectedRoute>
-          } />
-          
-          {/* Root Redirect */}
+
+          {/* Protected: Dashboard / App */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/teams"
+            element={
+              <ProtectedRoute>
+                <Teams />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/teams/:id"
+            element={
+              <ProtectedRoute>
+                <TeamMembers />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/teams/:id/settings"
+            element={
+              <ProtectedRoute>
+                <TeamSettings />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/bookings"
+            element={
+              <ProtectedRoute>
+                <Bookings />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <UserSettings />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/settings/calendar"
+            element={
+              <ProtectedRoute>
+                <CalendarSettings />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Default route */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          
-          {/* 404 - Catch all */}
-          <Route path="*" element={
-            <div className="min-h-screen flex items-center justify-center">
-              <div className="text-center">
-                <h1 className="text-4xl font-bold text-gray-900 mb-4">404 - Page Not Found</h1>
-                <a href="/dashboard" className="text-purple-600 hover:text-purple-700">
-                  Go to Dashboard
-                </a>
+
+          {/* 404 Page */}
+          <Route
+            path="*"
+            element={
+              <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                  <h1 className="text-4xl font-bold text-gray-900 mb-4">
+                    404 - Page Not Found
+                  </h1>
+                  <a href="/dashboard" className="text-purple-600 hover:text-purple-700">
+                    Go to Dashboard
+                  </a>
+                </div>
               </div>
-            </div>
-          } />
+            }
+          />
+
         </Routes>
       </Router>
     </AuthProvider>
@@ -107,4 +138,3 @@ function App() {
 }
 
 export default App;
-'@ | Set-Content -Path "client/src/App.jsx" -Encoding UTF8
