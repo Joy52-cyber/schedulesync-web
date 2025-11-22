@@ -1,11 +1,15 @@
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+﻿import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, Calendar, LogOut, Menu, X, Link2 } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
-export default function Layout({ user, onLogout }) {
+export default function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // ✅ Get user + logout from AuthContext
+  const { user, logout } = useAuth();
 
   const navigation = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -15,13 +19,20 @@ export default function Layout({ user, onLogout }) {
   ];
 
   const handleLogout = () => {
-    onLogout();
-    navigate('/login');
+    if (logout) {
+      logout();              // clears token + user (AuthContext)
+    }
+    navigate('/login');       // send user to login
   };
 
   const getUserInitials = () => {
     if (user?.name) {
-      return user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+      return user.name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
     }
     if (user?.email) {
       return user.email[0].toUpperCase();
@@ -40,10 +51,12 @@ export default function Layout({ user, onLogout }) {
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
                 <Calendar className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
               </div>
-              <span className="text-base sm:text-xl font-bold text-blue-600">ScheduleSync</span>
+              <span className="text-base sm:text-xl font-bold text-blue-600">
+                ScheduleSync
+              </span>
             </div>
 
-            {/* Desktop Navigation - Hidden on mobile */}
+            {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center gap-1">
               {navigation.map((item) => {
                 const Icon = item.icon;
@@ -67,7 +80,7 @@ export default function Layout({ user, onLogout }) {
 
             {/* Right Side - User Menu */}
             <div className="flex items-center gap-2 sm:gap-3">
-              {/* User Info - Hidden on small mobile */}
+              {/* User Info */}
               <div className="hidden sm:block text-right">
                 <p className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-[150px]">
                   {user?.name || 'User'}
@@ -76,7 +89,7 @@ export default function Layout({ user, onLogout }) {
                   {user?.email}
                 </p>
               </div>
-              
+
               {/* Avatar */}
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                 <span className="text-white font-semibold text-xs sm:text-sm">
@@ -84,7 +97,7 @@ export default function Layout({ user, onLogout }) {
                 </span>
               </div>
 
-              {/* Desktop Logout Button - Hidden on tablet and below */}
+              {/* Desktop Logout */}
               <button
                 onClick={handleLogout}
                 className="hidden lg:flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium text-sm"
@@ -93,7 +106,7 @@ export default function Layout({ user, onLogout }) {
                 <span className="hidden xl:inline">Logout</span>
               </button>
 
-              {/* Mobile Menu Button - Show on tablet and below */}
+              {/* Mobile Menu Toggle */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -109,7 +122,7 @@ export default function Layout({ user, onLogout }) {
           </div>
         </div>
 
-        {/* Mobile Menu - Dropdown */}
+        {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-gray-200 bg-white shadow-lg">
             <div className="px-3 sm:px-4 py-3 space-y-1">
@@ -121,7 +134,7 @@ export default function Layout({ user, onLogout }) {
                 <p className="text-xs text-gray-500 truncate">{user?.email}</p>
               </div>
 
-              {/* Navigation Links */}
+              {/* Nav Links */}
               {navigation.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
@@ -158,7 +171,7 @@ export default function Layout({ user, onLogout }) {
         )}
       </header>
 
-      {/* Main Content - Responsive padding */}
+      {/* Main Content */}
       <main className="mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 max-w-[1600px]">
         <Outlet />
       </main>
