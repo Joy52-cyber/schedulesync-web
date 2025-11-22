@@ -126,18 +126,20 @@ export const teams = {
 // BOOKINGS
 // (used by BookingPage, Bookings list, etc.)
 // ------------------------------------------------------
+
 export const bookings = {
   getAll: () => apiClient.get("/bookings"),
   list: (params) => apiClient.get("/bookings", { params }),
   getById: (id) => apiClient.get(`/bookings/${id}`),
-
-  // ✅ Used by BookingPage → should hit /api/book/:token
-  getByToken: (token) => apiClient.get(`/book/${token}`),
-
+  getByToken: (token) => apiClient.get(`/bookings/token/${token}`),
   cancel: (id, data) => apiClient.post(`/bookings/${id}/cancel`, data),
 
-  // ✅ Used by BookingPage for creating a booking
-  create: (data) => apiClient.post("/bookings", data),
+  // 🔹 NEW: Smart slot picker endpoint
+  getSlots: (bookingToken, options = {}) =>
+    apiClient.post("/book/slots", {
+      bookingToken,
+      ...options, // guestAccessToken, guestRefreshToken, duration, timezone
+    }),
 };
 
 
