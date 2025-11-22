@@ -1,18 +1,18 @@
-﻿import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import api from '../utils/api';
+﻿// client/src/pages/Register.jsx
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { auth } from '../utils/api';
 
-export default function Register({ onLogin }) {  // ← Add onLogin prop
+export default function Register() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -24,6 +24,7 @@ export default function Register({ onLogin }) {  // ← Add onLogin prop
       return;
     }
 
+    // Validate password length
     if (formData.password.length < 8) {
       setError('Password must be at least 8 characters');
       return;
@@ -32,37 +33,38 @@ export default function Register({ onLogin }) {  // ← Add onLogin prop
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/register', {
+      const response = await auth.register({
         name: formData.name,
         email: formData.email,
-        password: formData.password
+        password: formData.password,
       });
 
-      if (response.data.success) {
-        // Use the onLogin prop from App.jsx
-        onLogin(response.data.token, response.data.user);
-        navigate('/dashboard');
+      console.log('✅ Registration successful:', response.data);
+      
+      // Store token and user
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      
+      // Redirect to dashboard or show success message
+      if (response.data.user.emailVerified === false) {
+        alert('Registration successful! Please check your email to verify your account.');
       }
+      
+      navigate('/dashboard');
     } catch (err) {
-      console.error('Registration error:', err);
-      setError(err.response?.data?.error || 'Registration failed. Please try again.');
+      console.error('❌ Registration error:', err);
+      setError(err.response?.data?.error || 'Registration failed');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-            ScheduleSync
-          </h1>
-          <p className="text-gray-600 mt-2">Create your account</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h1>
+          <p className="text-gray-600">Join ScheduleSync today</p>
         </div>
 
         {error && (
@@ -78,9 +80,8 @@ export default function Register({ onLogin }) {  // ← Add onLogin prop
             </label>
             <input
               type="text"
-              name="name"
               value={formData.name}
-              onChange={handleChange}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="John Doe"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
               required
@@ -93,9 +94,8 @@ export default function Register({ onLogin }) {  // ← Add onLogin prop
             </label>
             <input
               type="email"
-              name="email"
               value={formData.email}
-              onChange={handleChange}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               placeholder="you@example.com"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
               required
@@ -106,25 +106,15 @@ export default function Register({ onLogin }) {  // ← Add onLogin prop
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Password
             </label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="••••••••"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition pr-12"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-              >
-                {showPassword ? '🙈' : '👁️'}
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              placeholder="••••••••"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
+              required
+              minLength={8}
+            />
           </div>
 
           <div>
@@ -132,10 +122,9 @@ export default function Register({ onLogin }) {  // ← Add onLogin prop
               Confirm Password
             </label>
             <input
-              type={showPassword ? 'text' : 'password'}
-              name="confirmPassword"
+              type="password"
               value={formData.confirmPassword}
-              onChange={handleChange}
+              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
               placeholder="••••••••"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
               required
@@ -145,9 +134,9 @@ export default function Register({ onLogin }) {  // ← Add onLogin prop
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-bold hover:shadow-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-bold hover:shadow-xl transition disabled:opacity-50"
           >
-            {loading ? 'Creating account...' : 'Create Account'}
+            {loading ? 'Creating Account...' : 'Sign Up'}
           </button>
         </form>
 

@@ -1,189 +1,103 @@
-﻿import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Auth Pages
 import Login from './pages/Login';
-import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import Register from './pages/Register';
 import VerifyEmail from './pages/VerifyEmail';
-import OAuthCallback from './pages/OAuthCallback';
 
 // Dashboard Pages
 import Dashboard from './pages/Dashboard';
 import Teams from './pages/Teams';
-import TeamMembers from './pages/TeamMembers';
-import TeamSettings from './pages/TeamSettings';
-import MemberAvailability from './pages/MemberAvailability';
+import TeamDetail from './pages/TeamDetail';
 import Bookings from './pages/Bookings';
-import UserSettings from './pages/UserSettings';
+import Settings from './pages/Settings';
+import BookingLink from './pages/BookingLink';
+import OAuthCallback from './pages/OAuthCallback';
 
-// Public Pages
+// Booking Pages
 import BookingPage from './pages/BookingPage';
-import ManageBooking from './pages/ManageBooking';
-
-
-// Components
-import Layout from './components/Layout';
-import BookingConfirmation from './components/BookingConfirmation';
-import MyBookingLink from './components/MyBookingLink';
-
-// Utils
-import api from './utils/api';
+import BookingManagement from './pages/BookingManagement';
+import BookingSuccess from './pages/BookingSuccess';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  // Initialize authentication on app load
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        console.log('🔄 Starting auth initialization...');
-        const token = localStorage.getItem('token');
-        const storedUser = localStorage.getItem('user');
-        
-        console.log('🔍 Stored auth:', { hasToken: !!token, hasUser: !!storedUser });
-        
-        if (token && storedUser) {
-          try {
-            const userData = JSON.parse(storedUser);
-            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            setUser(userData);
-            setIsAuthenticated(true);
-            console.log('✅ Auto-login successful for:', userData.email);
-          } catch (error) {
-            console.error('❌ Invalid stored data:', error);
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-          }
-        } else {
-          console.log('ℹ️ No stored auth found');
-        }
-      } catch (error) {
-        console.error('❌ Auth init error:', error);
-      } finally {
-        console.log('✅ Auth init complete');
-        setLoading(false);
-      }
-    };
-    
-    initAuth();
-  }, []);
-
-  // Handle login from Login/Register/OAuth pages
-  const handleLogin = (token, userData) => {
-    console.log('🔐 handleLogin called:', userData?.email);
-    try {
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      setUser(userData);
-      setIsAuthenticated(true);
-      console.log('✅ Login saved successfully');
-    } catch (error) {
-      console.error('❌ Login save error:', error);
-    }
-  };
-
-  // Handle logout
-  const handleLogout = () => {
-    console.log('👋 Logging out...');
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    delete api.defaults.headers.common['Authorization'];
-    setUser(null);
-    setIsAuthenticated(false);
-  };
-
-  // Show loading screen while checking authentication
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-white border-t-transparent mx-auto mb-4"></div>
-          <p className="text-white text-lg font-medium">Loading ScheduleSync...</p>
-          <p className="text-white text-sm mt-2 opacity-75">Checking authentication...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* ==================== PUBLIC AUTH ROUTES ==================== */}
-        <Route
-          path="/login"
-          element={
-            isAuthenticated ? (
-              <Navigate to="/dashboard" replace />
-            ) : (
-              <Login onLogin={handleLogin} />
-            )
-          }
-        />
-        
-        <Route
-          path="/register"
-          element={
-            isAuthenticated ? (
-              <Navigate to="/dashboard" replace />
-            ) : (
-              <Register onLogin={handleLogin} />
-            )
-          }
-        />
-        
-        <Route
-          path="/forgot-password"
-          element={
-            isAuthenticated ? (
-              <Navigate to="/dashboard" replace />
-            ) : (
-              <ForgotPassword />
-            )
-          }
-        />
-
-        <Route path="/verify-email" element={<VerifyEmail />} />
-        <Route path="/oauth/callback" element={<OAuthCallback onLogin={handleLogin} />} />
-        
-        {/* ==================== PUBLIC BOOKING ROUTES ==================== */}
-       <Route path="/book/:token" element={<BookingPage />} />
-        <Route path="/booking-confirmation" element={<BookingConfirmation />} />
-        <Route path="/manage/:token" element={<ManageBooking />} />
-
-
-        {/* ==================== PROTECTED ROUTES ==================== */}
-        <Route
-          path="/"
-          element={
-            isAuthenticated ? (
-              <Layout user={user} onLogout={handleLogout} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        >
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="teams" element={<Teams />} />
-          <Route path="teams/:teamId/members" element={<TeamMembers />} />
-          <Route path="teams/:teamId/settings" element={<TeamSettings />} />
-          <Route path="teams/:teamId/members/:memberId/availability" element={<MemberAvailability />} />
-          <Route path="bookings" element={<Bookings />} />
-          <Route path="my-booking-link" element={<MyBookingLink />} />
-          <Route path="user-settings" element={<UserSettings />} />
-        </Route>
-        
-        {/* ==================== CATCH ALL ==================== */}
-        <Route
-          path="*"
-          element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />}
-        />
-      </Routes>
-    </BrowserRouter>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          {/* Public Routes - Authentication */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          
+          {/* OAuth Callback */}
+          <Route path="/oauth/callback" element={<OAuthCallback />} />
+          
+          {/* Public Booking Routes */}
+          <Route path="/book/:token" element={<BookingPage />} />
+          <Route path="/booking/success" element={<BookingSuccess />} />
+          <Route path="/manage/:bookingToken" element={<BookingManagement />} />
+          
+          {/* Protected Dashboard Routes */}
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/teams" element={
+            <ProtectedRoute>
+              <Teams />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/teams/:id" element={
+            <ProtectedRoute>
+              <TeamDetail />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/bookings" element={
+            <ProtectedRoute>
+              <Bookings />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/settings" element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/my-booking-link" element={
+            <ProtectedRoute>
+              <BookingLink />
+            </ProtectedRoute>
+          } />
+          
+          {/* Root Redirect */}
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          
+          {/* 404 - Catch all */}
+          <Route path="*" element={
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="text-center">
+                <h1 className="text-4xl font-bold text-gray-900 mb-4">404 - Page Not Found</h1>
+                <a href="/dashboard" className="text-purple-600 hover:text-purple-700">
+                  Go to Dashboard
+                </a>
+              </div>
+            </div>
+          } />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 
