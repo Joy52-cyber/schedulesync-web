@@ -420,9 +420,6 @@ app.post('/api/auth/google/callback', async (req, res) => {
     });
   }
 });
-
-const bcrypt = require('bcryptjs');
-
 // ============ EMAIL/PASSWORD AUTHENTICATION ============
 
 // Register with email/password
