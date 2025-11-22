@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
 
@@ -12,13 +12,15 @@ export default function ForgotPassword() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
+    
     try {
-      await api.post('/auth/forgot-password', { email });
+      // ? FIXED: Added /api prefix
+      const response = await api.post('/api/auth/forgot-password', { email });
+      console.log('? Reset email sent:', response.data);
       setSuccess(true);
     } catch (err) {
-      console.error('Forgot password error:', err);
-      setError('Failed to send reset email. Please try again.');
+      console.error('? Forgot password error:', err);
+      setError(err.response?.data?.error || 'Failed to send reset email. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -28,7 +30,7 @@ export default function ForgotPassword() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8 text-center">
-          <div className="text-6xl mb-4">✉️</div>
+          <div className="text-6xl mb-4">??</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h2>
           <p className="text-gray-600 mb-6">
             If an account exists for {email}, you'll receive a password reset link shortly.
