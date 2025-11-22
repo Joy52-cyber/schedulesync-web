@@ -32,7 +32,14 @@ export default function TeamMembers() {
   const [showExternalLinkModal, setShowExternalLinkModal] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
-  const [newMember, setNewMember] = useState({ email: '', role: 'member' });
+  const [newMember, setNewMember] = useState({
+  email: '',
+  name: '',
+  role: 'member',
+  external_booking_link: '',
+  external_booking_platform: 'calendly'
+});
+
 
   useEffect(() => {
     loadTeamMembers();
@@ -55,26 +62,42 @@ export default function TeamMembers() {
     }
   };
 
-  const handleAddMember = async () => {
+  const handleAddMember = async (e) => {
+  e.preventDefault(); // VERY IMPORTANT: prevent form reload
+
   if (!newMember.email) {
     alert('Email is required');
     return;
   }
-  
+
   try {
-    const response = await api.post(`/teams/${teamId}/members`, newMember);
+    const payload = {
+      email: newMember.email,
+      name: newMember.name || null,
+      role: newMember.role,
+      external_booking_link: newMember.external_booking_link || null,
+      external_booking_platform: newMember.external_booking_platform || 'calendly'
+    };
+
+    const response = await api.post(`/teams/${teamId}/members`, payload);
+
     setMembers([...members, response.data.member]);
     setShowAddModal(false);
-    setNewMember({ email: '', name: '', external_booking_link: '', external_booking_platform: 'calendly' });
-    
-    // Show success message
+
+    // Reset form
+    setNewMember({
+      email: '',
+      name: '',
+      role: 'member',
+      external_booking_link: '',
+      external_booking_platform: 'calendly'
+    });
+
     alert('Member added successfully!');
   } catch (error) {
     console.error('Error adding member:', error);
-    
-    // Show specific error message
     const errorMessage = error.response?.data?.error || 'Failed to add member';
-    
+
     if (errorMessage.includes('already exists')) {
       alert('⚠️ This member already exists in the team!');
     } else {
