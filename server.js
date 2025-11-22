@@ -1,4 +1,55 @@
-﻿require('dotenv').config();
+﻿// ============ STARTUP DEBUGGING ============
+console.log('========================================');
+console.log('🚀 SERVER STARTUP INITIATED');
+console.log('Time:', new Date().toISOString());
+console.log('Node Version:', process.version);
+console.log('========================================');
+
+// Log each require as it happens
+console.log('Loading dotenv...');
+require('dotenv').config();
+
+console.log('Environment Variables Check:');
+console.log('- DATABASE_URL:', process.env.DATABASE_URL ? '✅ Set' : '❌ Missing');
+console.log('- JWT_SECRET:', process.env.JWT_SECRET ? '✅ Set' : '❌ Missing');
+console.log('- GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? '✅ Set' : '❌ Missing');
+console.log('- GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? '✅ Set' : '❌ Missing');
+console.log('- FRONTEND_URL:', process.env.FRONTEND_URL || '❌ Missing');
+console.log('- PORT:', process.env.PORT || '3000');
+console.log('========================================');
+
+// Catch any require errors
+try {
+  console.log('Loading express...');
+  const express = require('express');
+  console.log('✅ Express loaded');
+} catch (e) {
+  console.error('❌ Failed to load express:', e.message);
+  process.exit(1);
+}
+
+try {
+  console.log('Loading other dependencies...');
+  const { Resend } = require('resend');
+  console.log('✅ Resend loaded');
+  const cors = require('cors');
+  console.log('✅ CORS loaded');
+  const { Pool } = require('pg');
+  console.log('✅ PostgreSQL loaded');
+  const jwt = require('jsonwebtoken');
+  console.log('✅ JWT loaded');
+  const { google } = require('googleapis');
+  console.log('✅ Google APIs loaded');
+  const crypto = require('crypto');
+  console.log('✅ Crypto loaded');
+} catch (e) {
+  console.error('❌ Failed to load dependency:', e.message);
+  process.exit(1);
+}
+
+
+
+require('dotenv').config();
 const express = require('express');
 const { Resend } = require('resend');
 const emailTemplates = require('./emailTemplates');
@@ -2295,6 +2346,16 @@ app.post('/api/bookings/:id/reschedule', authenticateToken, async (req, res) => 
     console.error('❌ Reschedule booking error:', error);
     res.status(500).json({ error: 'Failed to reschedule booking' });
   }
+});
+
+// Health check endpoint for debugging
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'alive',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    port: process.env.PORT
+  });
 });
 
 // ============ BOOKING ROUTES ============
