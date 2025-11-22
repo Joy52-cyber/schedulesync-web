@@ -18,8 +18,9 @@ import Bookings from './pages/Bookings';
 import UserSettings from './pages/UserSettings';
 
 // Public Pages
-import BookingPage from './pages/BookingPage';
+import Book from './pages/Book';
 import ManageBooking from './pages/ManageBooking';
+
 
 // Components
 import Layout from './components/Layout';
