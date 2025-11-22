@@ -428,7 +428,7 @@ export default function AvailabilitySettingsEnhanced() {
           </div>
         </div>
 
-        {/* Working Hours */}
+                {/* Working Hours */}
         <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
           <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -465,64 +465,69 @@ export default function AvailabilitySettingsEnhanced() {
               </button>
             </div>
           </div>
+
           <div className="p-4">
             <div className="space-y-2">
               {days.map((day) => (
                 <div
                   key={day.key}
-                  className={`flex flex-wrap sm:flex-nowrap items-center gap-3 p-2.5 rounded-lg border-2 transition-all ${
+                  className={`w-full flex flex-col sm:flex-row sm:items-center gap-3 p-2.5 rounded-lg border-2 transition-all ${
                     workingHours[day.key].enabled
                       ? 'bg-indigo-50 border-indigo-200'
                       : 'bg-gray-50 border-gray-200 opacity-60'
                   }`}
                 >
-                  <button
-                    onClick={() => toggleDay(day.key)}
-                    className={`relative flex-shrink-0 w-10 h-6 rounded-full transition-all ${
-                      workingHours[day.key].enabled ? 'bg-green-500' : 'bg-gray-300'
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow ${
-                        workingHours[day.key].enabled ? 'translate-x-4' : 'translate-x-0.5'
+                  {/* Top row: toggle + label + "Day off" text */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => toggleDay(day.key)}
+                      className={`relative flex-shrink-0 w-10 h-6 rounded-full transition-all ${
+                        workingHours[day.key].enabled ? 'bg-green-500' : 'bg-gray-300'
                       }`}
                     >
-                      {workingHours[day.key].enabled && (
-                        <Check className="h-5 w-5 text-green-600" />
+                      <div
+                        className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow ${
+                          workingHours[day.key].enabled ? 'translate-x-4' : 'translate-x-0.5'
+                        }`}
+                      >
+                        {workingHours[day.key].enabled && (
+                          <Check className="h-5 w-5 text-green-600" />
+                        )}
+                      </div>
+                    </button>
+
+                    <div>
+                      <p className="text-xs font-bold text-gray-900">{day.full}</p>
+                      {!workingHours[day.key].enabled && (
+                        <p className="text-[11px] text-gray-500 font-medium">Day off</p>
                       )}
                     </div>
-                  </button>
-
-                  <div className="w-20">
-                    <p className="text-xs font-bold text-gray-900">{day.full}</p>
                   </div>
 
-                  {workingHours[day.key].enabled ? (
-                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1">
+                  {/* Bottom row (on mobile): time range */}
+                  {workingHours[day.key].enabled && (
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
                       <input
                         type="time"
                         value={workingHours[day.key].start}
                         onChange={(e) => updateDayTime(day.key, 'start', e.target.value)}
-                        className="px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium flex-1 min-w-[110px]"
+                        className="px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium flex-1 min-w-[110px] max-w-[140px]"
                       />
-                      <span className="text-gray-400 text-sm font-bold">→</span>
+                      <span className="text-gray-400 text-sm font-bold text-center w-6">→</span>
                       <input
                         type="time"
                         value={workingHours[day.key].end}
                         onChange={(e) => updateDayTime(day.key, 'end', e.target.value)}
-                        className="px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium flex-1 min-w-[110px]"
+                        className="px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium flex-1 min-w-[110px] max-w-[140px]"
                       />
                     </div>
-                  ) : (
-                    <span className="text-xs text-gray-500 font-medium mt-1 sm:mt-0">
-                      Day off
-                    </span>
                   )}
                 </div>
               ))}
             </div>
           </div>
         </div>
+
 
         {/* Blocked Times */}
         <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
