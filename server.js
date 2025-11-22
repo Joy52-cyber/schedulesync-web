@@ -10,6 +10,7 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const { google } = require('googleapis');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 
