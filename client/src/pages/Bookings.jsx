@@ -74,7 +74,7 @@ export default function Bookings() {
 
     return (
       <span
-        className={`${badge.bg} ${badge.text} px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1`}
+        className={`${badge.bg} ${badge.text} px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 whitespace-nowrap`}
       >
         <Icon className="h-3 w-3" />
         {status?.charAt(0).toUpperCase() + status?.slice(1)}
@@ -114,7 +114,7 @@ export default function Bookings() {
               />
             </div>
 
-            {/* Status filter – full width with icon inside */}
+            {/* Status filter */}
             <div className="relative">
               <Filter className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
               <select
@@ -150,7 +150,7 @@ export default function Bookings() {
               >
                 <div className="p-6">
                   {/* Top row */}
-                  <div className="flex items-start justify-between mb-4 gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-3">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
                         <User className="h-6 w-6 text-blue-600" />
@@ -163,7 +163,7 @@ export default function Bookings() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
                       {getStatusBadge(booking.status)}
                       <button
                         onClick={() => setSelectedBooking(booking)}

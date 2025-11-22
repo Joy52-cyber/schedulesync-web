@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Save, Clock, Calendar, Loader2, Plus, Trash2, 
+  ArrowLeft, Save, Clock, Calendar, Loader2, Plus, Trash2,
   Info, AlertCircle, CheckCircle, X, Check, Zap, TrendingUp, Shield
 } from 'lucide-react';
 import api from '../utils/api';
@@ -13,13 +13,13 @@ export default function AvailabilitySettingsEnhanced() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [member, setMember] = useState(null);
-  
+
   // Settings
   const [bufferTime, setBufferTime] = useState(0);
   const [leadTimeHours, setLeadTimeHours] = useState(0);
   const [horizonDays, setHorizonDays] = useState(30);
   const [dailyCap, setDailyCap] = useState(null);
-  
+
   const [workingHours, setWorkingHours] = useState({
     monday: { enabled: true, start: '09:00', end: '17:00' },
     tuesday: { enabled: true, start: '09:00', end: '17:00' },
@@ -29,7 +29,7 @@ export default function AvailabilitySettingsEnhanced() {
     saturday: { enabled: false, start: '09:00', end: '17:00' },
     sunday: { enabled: false, start: '09:00', end: '17:00' },
   });
-  
+
   const [blockedTimes, setBlockedTimes] = useState([]);
   const [notification, setNotification] = useState(null);
 
@@ -110,12 +110,12 @@ export default function AvailabilitySettingsEnhanced() {
       setLeadTimeHours(data.member.lead_time_hours || 0);
       setHorizonDays(data.member.booking_horizon_days || 30);
       setDailyCap(data.member.daily_booking_cap || null);
-      
+
       if (data.member.working_hours) {
         setWorkingHours(data.member.working_hours);
       }
 
-      const formattedBlockedTimes = (data.blocked_times || []).map(block => ({
+      const formattedBlockedTimes = (data.blocked_times || []).map((block) => ({
         ...block,
         start_time: convertISOToDateTimeLocal(block.start_time),
         end_time: convertISOToDateTimeLocal(block.end_time),
@@ -135,8 +135,8 @@ export default function AvailabilitySettingsEnhanced() {
       setSaving(true);
 
       const validBlockedTimes = blockedTimes
-        .filter(block => block.start_time && block.end_time)
-        .map(block => ({
+        .filter((block) => block.start_time && block.end_time)
+        .map((block) => ({
           start_time: new Date(block.start_time).toISOString(),
           end_time: new Date(block.end_time).toISOString(),
           reason: block.reason || null,
@@ -222,12 +222,16 @@ export default function AvailabilitySettingsEnhanced() {
       {/* Notification */}
       {notification && (
         <div className="fixed top-3 right-3 z-50 animate-slide-in">
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-xl text-xs font-medium ${
-            notification.type === 'error' 
-              ? 'bg-red-600 text-white' 
-              : 'bg-green-600 text-white'
-          }`}>
-            {notification.type === 'error' ? <AlertCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+          <div
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-xl text-xs font-medium ${
+              notification.type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
+            }`}
+          >
+            {notification.type === 'error' ? (
+              <AlertCircle className="h-4 w-4" />
+            ) : (
+              <CheckCircle className="h-4 w-4" />
+            )}
             {notification.message}
           </div>
         </div>
@@ -272,10 +276,8 @@ export default function AvailabilitySettingsEnhanced() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
-        
         {/* Advanced Settings Grid */}
         <div className="grid lg:grid-cols-2 gap-4">
-          
           {/* Buffer Time */}
           <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
             <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2.5 flex items-center gap-2">
@@ -289,7 +291,9 @@ export default function AvailabilitySettingsEnhanced() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 mb-3">
                 <div className="flex items-start gap-1.5">
                   <Info className="h-3.5 w-3.5 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-blue-900">Prevents back-to-back meetings, gives you time to prep/decompress</p>
+                  <p className="text-xs text-blue-900">
+                    Prevents back-to-back meetings, gives you time to prep/decompress
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -324,7 +328,9 @@ export default function AvailabilitySettingsEnhanced() {
               <div className="bg-green-50 border border-green-200 rounded-lg p-2.5 mb-3">
                 <div className="flex items-start gap-1.5">
                   <Info className="h-3.5 w-3.5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-green-900">How far in advance people must book (e.g., 24h = must book tomorrow or later)</p>
+                  <p className="text-xs text-green-900">
+                    How far in advance people must book (e.g., 24h = must book tomorrow or later)
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -359,7 +365,10 @@ export default function AvailabilitySettingsEnhanced() {
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-2.5 mb-3">
                 <div className="flex items-start gap-1.5">
                   <Info className="h-3.5 w-3.5 text-purple-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-purple-900">Maximum days in the future people can book (e.g., 30 days = only show next month)</p>
+                  <p className="text-xs text-purple-900">
+                    Maximum days in the future people can book (e.g., 30 days = only show next
+                    month)
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -394,7 +403,9 @@ export default function AvailabilitySettingsEnhanced() {
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-2.5 mb-3">
                 <div className="flex items-start gap-1.5">
                   <Info className="h-3.5 w-3.5 text-orange-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-orange-900">Prevent burnout by limiting daily meetings (e.g., max 3 per day)</p>
+                  <p className="text-xs text-orange-900">
+                    Prevent burnout by limiting daily meetings (e.g., max 3 per day)
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -431,7 +442,7 @@ export default function AvailabilitySettingsEnhanced() {
               <button
                 onClick={() => {
                   const all = { ...workingHours };
-                  Object.keys(all).forEach(d => all[d].enabled = true);
+                  Object.keys(all).forEach((d) => (all[d].enabled = true));
                   setWorkingHours(all);
                 }}
                 className="px-2.5 py-1 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-xs font-medium"
@@ -443,7 +454,9 @@ export default function AvailabilitySettingsEnhanced() {
                   const wk = { ...workingHours };
                   wk.saturday.enabled = false;
                   wk.sunday.enabled = false;
-                  Object.keys(wk).forEach(d => { if (d !== 'saturday' && d !== 'sunday') wk[d].enabled = true; });
+                  Object.keys(wk).forEach((d) => {
+                    if (d !== 'saturday' && d !== 'sunday') wk[d].enabled = true;
+                  });
                   setWorkingHours(wk);
                 }}
                 className="px-2.5 py-1 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-xs font-medium"
@@ -457,7 +470,7 @@ export default function AvailabilitySettingsEnhanced() {
               {days.map((day) => (
                 <div
                   key={day.key}
-                  className={`flex items-center gap-3 p-2.5 rounded-lg border-2 transition-all ${
+                  className={`flex flex-wrap sm:flex-nowrap items-center gap-3 p-2.5 rounded-lg border-2 transition-all ${
                     workingHours[day.key].enabled
                       ? 'bg-indigo-50 border-indigo-200'
                       : 'bg-gray-50 border-gray-200 opacity-60'
@@ -469,33 +482,41 @@ export default function AvailabilitySettingsEnhanced() {
                       workingHours[day.key].enabled ? 'bg-green-500' : 'bg-gray-300'
                     }`}
                   >
-                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow ${
-                      workingHours[day.key].enabled ? 'translate-x-4' : 'translate-x-0.5'
-                    }`}>
-                      {workingHours[day.key].enabled && <Check className="h-5 w-5 text-green-600" />}
+                    <div
+                      className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow ${
+                        workingHours[day.key].enabled ? 'translate-x-4' : 'translate-x-0.5'
+                      }`}
+                    >
+                      {workingHours[day.key].enabled && (
+                        <Check className="h-5 w-5 text-green-600" />
+                      )}
                     </div>
                   </button>
-                  <div className="w-16">
+
+                  <div className="w-20">
                     <p className="text-xs font-bold text-gray-900">{day.full}</p>
                   </div>
+
                   {workingHours[day.key].enabled ? (
-                    <div className="flex items-center gap-2 flex-1">
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1">
                       <input
                         type="time"
                         value={workingHours[day.key].start}
                         onChange={(e) => updateDayTime(day.key, 'start', e.target.value)}
-                        className="px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium"
+                        className="px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium flex-1 min-w-[110px]"
                       />
                       <span className="text-gray-400 text-sm font-bold">→</span>
                       <input
                         type="time"
                         value={workingHours[day.key].end}
                         onChange={(e) => updateDayTime(day.key, 'end', e.target.value)}
-                        className="px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium"
+                        className="px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium flex-1 min-w-[110px]"
                       />
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-500 font-medium">Day off</span>
+                    <span className="text-xs text-gray-500 font-medium mt-1 sm:mt-0">
+                      Day off
+                    </span>
                   )}
                 </div>
               ))}
@@ -536,40 +557,55 @@ export default function AvailabilitySettingsEnhanced() {
             ) : (
               <div className="space-y-2">
                 {blockedTimes.map((block, index) => (
-                  <div key={block.id} className="flex items-center gap-2 p-3 bg-red-50 border-2 border-red-200 rounded-lg">
+                  <div
+                    key={block.id}
+                    className="flex flex-col md:flex-row items-stretch md:items-center gap-2 p-3 bg-red-50 border-2 border-red-200 rounded-lg"
+                  >
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2">
                       <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Start</label>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                          Start
+                        </label>
                         <input
                           type="datetime-local"
                           value={block.start_time}
-                          onChange={(e) => updateBlockedTime(index, 'start_time', e.target.value)}
+                          onChange={(e) =>
+                            updateBlockedTime(index, 'start_time', e.target.value)
+                          }
                           className="w-full px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">End</label>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                          End
+                        </label>
                         <input
                           type="datetime-local"
                           value={block.end_time}
-                          onChange={(e) => updateBlockedTime(index, 'end_time', e.target.value)}
+                          onChange={(e) =>
+                            updateBlockedTime(index, 'end_time', e.target.value)
+                          }
                           className="w-full px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Reason (optional)</label>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                          Reason (optional)
+                        </label>
                         <input
                           type="text"
                           placeholder="Vacation, meeting, etc."
                           value={block.reason || ''}
-                          onChange={(e) => updateBlockedTime(index, 'reason', e.target.value)}
+                          onChange={(e) =>
+                            updateBlockedTime(index, 'reason', e.target.value)
+                          }
                           className="w-full px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs"
                         />
                       </div>
                     </div>
                     <button
                       onClick={() => removeBlockedTime(index)}
-                      className="p-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors"
+                      className="self-end md:self-auto p-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -579,15 +615,22 @@ export default function AvailabilitySettingsEnhanced() {
             )}
           </div>
         </div>
-
       </div>
 
       <style jsx>{`
         @keyframes slide-in {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
         }
-        .animate-slide-in { animation: slide-in 0.3s ease-out; }
+        .animate-slide-in {
+          animation: slide-in 0.3s ease-out;
+        }
       `}</style>
     </div>
   );
