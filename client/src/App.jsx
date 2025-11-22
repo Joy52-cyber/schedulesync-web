@@ -18,7 +18,7 @@ import Bookings from './pages/Bookings';
 import UserSettings from './pages/UserSettings';
 
 // Public Pages
-import Book from './pages/Book';
+import BookingPage from './pages/BookingPage';
 import ManageBooking from './pages/ManageBooking';
 
 
