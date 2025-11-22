@@ -2,13 +2,13 @@
 import { X, DollarSign, ShieldCheck } from 'lucide-react';
 import api from '../utils/api'; // adjust if your api import is different
 
-export default function MemberPricingSettings({ member, onClose, onSaved }) {
+export default function MemberPricingSettings({ member, teamId, onClose, onSaved }) {
   const [requirePayment, setRequirePayment] = useState(
-    !!member.require_payment
+    !!member.payment_required
   );
   const [currency, setCurrency] = useState(member.currency || 'USD');
   const [sessionPrice, setSessionPrice] = useState(
-    member.session_price ? String(member.session_price) : ''
+    member.booking_price ? String(member.booking_price) : ''
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -20,7 +20,7 @@ export default function MemberPricingSettings({ member, onClose, onSaved }) {
   }, [sessionPrice]);
 
   const stripeFee = useMemo(() => {
-    // 2.9% + 0.30
+    // 2.9% + 0.30 (approx)
     return numericPrice > 0 ? numericPrice * 0.029 + 0.3 : 0;
   }, [numericPrice]);
 
@@ -37,12 +37,12 @@ export default function MemberPricingSettings({ member, onClose, onSaved }) {
       return;
     }
 
-    // optional: prevent multiple dots
+    // prevent multiple dots
     if ((val.match(/\./g) || []).length > 1) {
       return;
     }
 
-    // remove leading zeros before digits (but keep "0.something")
+    // remove leading zeros before digits (keep "0.xxx")
     val = val.replace(/^0+(?=\d)/, '');
 
     setSessionPrice(val);
@@ -67,13 +67,17 @@ export default function MemberPricingSettings({ member, onClose, onSaved }) {
       setSaving(true);
 
       const payload = {
-        require_payment: requirePayment,
-        currency,
-        session_price: requirePayment ? numericPrice : 0,
+        // 🔴 match backend expectation:
+        booking_price: numericPrice,           // goes to booking_price
+        currency,                              // goes to currency
+        payment_required: requirePayment,      // goes to payment_required
       };
 
-      // 🔧 Adjust this endpoint to match your backend
-      await api.post(`/members/${member.id}/pricing-settings`, payload);
+      // ✅ match your backend route: /api/teams/:teamId/members/:memberId/pricing
+      await api.post(
+        `/teams/${teamId}/members/${member.id}/pricing`,
+        payload
+      );
 
       if (onSaved) onSaved();
       onClose();
@@ -87,6 +91,17 @@ export default function MemberPricingSettings({ member, onClose, onSaved }) {
       setSaving(false);
     }
   };
+
+  const currencySymbol =
+    currency === 'USD'
+      ? '$'
+      : currency === 'EUR'
+      ? '€'
+      : currency === 'GBP'
+      ? '£'
+      : currency === 'PHP'
+      ? '₱'
+      : '';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -168,15 +183,7 @@ export default function MemberPricingSettings({ member, onClose, onSaved }) {
             </label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-lg">
-                {currency === 'USD'
-                  ? '$'
-                  : currency === 'EUR'
-                  ? '€'
-                  : currency === 'GBP'
-                  ? '£'
-                  : currency === 'PHP'
-                  ? '₱'
-                  : ''}
+                {currencySymbol}
               </span>
               <input
                 type="number"
@@ -204,15 +211,7 @@ export default function MemberPricingSettings({ member, onClose, onSaved }) {
               <div className="flex items-center justify-between">
                 <span className="text-gray-700">Guest Payment</span>
                 <span className="font-semibold">
-                  {currency === 'USD'
-                    ? '$'
-                    : currency === 'EUR'
-                    ? '€'
-                    : currency === 'GBP'
-                    ? '£'
-                    : currency === 'PHP'
-                    ? '₱'
-                    : ''}
+                  {currencySymbol}
                   {formatMoney(numericPrice)}
                 </span>
               </div>
@@ -220,19 +219,11 @@ export default function MemberPricingSettings({ member, onClose, onSaved }) {
                 <span className="text-gray-700">
                   Stripe Fee
                   <span className="block text-xs text-gray-500">
-                    2.9% + $0.30 (approx)
+                    2.9% + 0.30 (approx)
                   </span>
                 </span>
                 <span className="font-semibold text-red-600">
-                  -{currency === 'USD'
-                    ? '$'
-                    : currency === 'EUR'
-                    ? '€'
-                    : currency === 'GBP'
-                    ? '£'
-                    : currency === 'PHP'
-                    ? '₱'
-                    : ''}
+                  -{currencySymbol}
                   {formatMoney(stripeFee)}
                 </span>
               </div>
@@ -242,15 +233,7 @@ export default function MemberPricingSettings({ member, onClose, onSaved }) {
                   <div>Per booking</div>
                 </div>
                 <div className="text-lg font-bold">
-                  {currency === 'USD'
-                    ? '$'
-                    : currency === 'EUR'
-                    ? '€'
-                    : currency === 'GBP'
-                    ? '£'
-                    : currency === 'PHP'
-                    ? '₱'
-                    : ''}
+                  {currencySymbol}
                   {formatMoney(netAmount)}
                 </div>
               </div>

@@ -443,15 +443,15 @@ export default function TeamMembers() {
           onClose={() => setShowExternalLinkModal(false)}
         />
       )}
-
-      {/* Pricing Settings Modal */}
       {showPricingModal && selectedMember && (
-        <MemberPricingSettings
-          member={selectedMember}
-          onClose={() => setShowPricingModal(false)}
-          onSaved={loadTeamMembers}
-        />
-      )}
+  <MemberPricingSettings
+    member={selectedMember}
+    teamId={teamId}
+    onClose={() => setShowPricingModal(false)}
+    onSaved={loadTeamMembers}
+  />
+)}
+
     </div>
   );
 }
