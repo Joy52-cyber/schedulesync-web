@@ -1,6 +1,7 @@
 ﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import Layout from './components/Layout'; // 👈 IMPORTANT
 
 // Auth pages
 import Login from './pages/Login';
@@ -24,9 +25,11 @@ import BookingPage from './pages/BookingPage';
 import ManageBooking from './pages/ManageBooking';
 
 function App() {
+  // Handle login for OAuth callback
   const handleLogin = (token, user) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));
+    // Force reload to update auth state
     window.location.href = '/dashboard';
   };
 
@@ -41,22 +44,24 @@ function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
 
-          {/* OAuth redirect page - pass onLogin prop */}
+          {/* OAuth redirect page - no navbar here */}
           <Route
             path="/oauth/callback"
             element={<OAuthCallback onLogin={handleLogin} />}
           />
 
-          {/* Public booking routes */}
+          {/* Public booking routes (no dashboard layout) */}
           <Route path="/book/:token" element={<BookingPage />} />
           <Route path="/manage/:bookingToken" element={<ManageBooking />} />
 
-          {/* Protected: Dashboard / App */}
+          {/* Protected: Dashboard / App (WITH layout + navbar) */}
           <Route
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <Layout>
+                  <Dashboard />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -65,7 +70,9 @@ function App() {
             path="/teams"
             element={
               <ProtectedRoute>
-                <Teams />
+                <Layout>
+                  <Teams />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -74,7 +81,9 @@ function App() {
             path="/teams/:id"
             element={
               <ProtectedRoute>
-                <TeamMembers />
+                <Layout>
+                  <TeamMembers />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -83,7 +92,9 @@ function App() {
             path="/teams/:id/settings"
             element={
               <ProtectedRoute>
-                <TeamSettings />
+                <Layout>
+                  <TeamSettings />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -92,7 +103,9 @@ function App() {
             path="/bookings"
             element={
               <ProtectedRoute>
-                <Bookings />
+                <Layout>
+                  <Bookings />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -101,7 +114,9 @@ function App() {
             path="/settings"
             element={
               <ProtectedRoute>
-                <UserSettings />
+                <Layout>
+                  <UserSettings />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -110,13 +125,18 @@ function App() {
             path="/settings/calendar"
             element={
               <ProtectedRoute>
-                <CalendarSettings />
+                <Layout>
+                  <CalendarSettings />
+                </Layout>
               </ProtectedRoute>
             }
           />
 
-          {/* Default route */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          {/* Default route → Dashboard (still protected) */}
+          <Route
+            path="/"
+            element={<Navigate to="/dashboard" replace />}
+          />
 
           {/* 404 Page */}
           <Route
