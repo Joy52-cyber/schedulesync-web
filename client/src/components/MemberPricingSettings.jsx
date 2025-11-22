@@ -1,329 +1,287 @@
-﻿import { useState, useEffect } from 'react';
-import { 
-  DollarSign, CreditCard, Save, Loader2, AlertCircle, Sparkles, 
-  TrendingUp, CheckCircle2, Info, Settings, Shield, Clock
-} from 'lucide-react';
-import api from '../utils/api';
+﻿import { useState, useMemo } from 'react';
+import { X, DollarSign, ShieldCheck } from 'lucide-react';
+import api from '../utils/api'; // adjust if your api import is different
 
-export default function MemberPricingSettings({ teamId, memberId }) {
-  const [loading, setLoading] = useState(true);
+export default function MemberPricingSettings({ member, onClose, onSaved }) {
+  const [requirePayment, setRequirePayment] = useState(
+    !!member.require_payment
+  );
+  const [currency, setCurrency] = useState(member.currency || 'USD');
+  const [sessionPrice, setSessionPrice] = useState(
+    member.session_price ? String(member.session_price) : ''
+  );
   const [saving, setSaving] = useState(false);
-  const [settings, setSettings] = useState({
-    // store as STRING so user can freely type / clear
-    booking_price: '',
-    currency: 'USD',
-    payment_required: false,
-  });
-  const [successMessage, setSuccessMessage] = useState('');
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadSettings();
-  }, [memberId]);
-
-  const loadSettings = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get(`/teams/${teamId}/members`);
-      const member = response.data.members.find(m => m.id === parseInt(memberId));
-
-      if (member) {
-        setSettings({
-          // keep as string, no forced 0
-          booking_price: member.booking_price != null ? String(member.booking_price) : '',
-          currency: member.currency || 'USD',
-          payment_required: !!member.payment_required,
-        });
-      }
-    } catch (error) {
-      console.error('Error loading pricing settings:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // helper: always get numeric version safely
-  const numericPrice = (() => {
-    const n = parseFloat(settings.booking_price || '0');
+  // Parse numeric price safely
+  const numericPrice = useMemo(() => {
+    const n = parseFloat(sessionPrice || '0');
     return Number.isNaN(n) ? 0 : n;
-  })();
+  }, [sessionPrice]);
 
-  const calculateFees = () => {
-    const price = numericPrice;
-    const stripeFee = price * 0.029 + 0.30;
-    const netAmount = price - stripeFee;
-    return { stripeFee, netAmount };
+  const stripeFee = useMemo(() => {
+    // 2.9% + 0.30
+    return numericPrice > 0 ? numericPrice * 0.029 + 0.3 : 0;
+  }, [numericPrice]);
+
+  const netAmount = useMemo(() => {
+    return Math.max(numericPrice - stripeFee, 0);
+  }, [numericPrice, stripeFee]);
+
+  const handleSessionPriceChange = (e) => {
+    let val = e.target.value;
+
+    // allow empty
+    if (val === '') {
+      setSessionPrice('');
+      return;
+    }
+
+    // optional: prevent multiple dots
+    if ((val.match(/\./g) || []).length > 1) {
+      return;
+    }
+
+    // remove leading zeros before digits (but keep "0.something")
+    val = val.replace(/^0+(?=\d)/, '');
+
+    setSessionPrice(val);
   };
 
-  const handleSave = async () => {
+  const formatMoney = (value) =>
+    value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (requirePayment && !sessionPrice) {
+      setError('Please enter a session price.');
+      return;
+    }
+
     try {
       setSaving(true);
-      await api.put(`/teams/${teamId}/members/${memberId}/pricing`, {
-        ...settings,
-        // send a real number to the backend
-        booking_price: numericPrice,
-      });
 
-      setSuccessMessage('Pricing settings saved successfully!');
-      setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (error) {
-      console.error('Error saving pricing settings:', error);
-      alert('Failed to save pricing settings');
+      const payload = {
+        require_payment: requirePayment,
+        currency,
+        session_price: requirePayment ? numericPrice : 0,
+      };
+
+      // 🔧 Adjust this endpoint to match your backend
+      await api.post(`/members/${member.id}/pricing-settings`, payload);
+
+      if (onSaved) onSaved();
+      onClose();
+    } catch (err) {
+      console.error(err);
+      setError(
+        err.response?.data?.error ||
+          'Something went wrong while saving pricing settings.'
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  const currencies = [
-    { code: 'USD', symbol: '$', name: 'US Dollar' },
-    { code: 'EUR', symbol: '€', name: 'Euro' },
-    { code: 'GBP', symbol: '£', name: 'British Pound' },
-    { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
-    { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
-    { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar' },
-    { code: 'PHP', symbol: '₱', name: 'Philippine Peso' },
-    { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
-    { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
-  ];
-
-  const selectedCurrency =
-    currencies.find(c => c.code === settings.currency) || currencies[0];
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
-  const { stripeFee, netAmount } = calculateFees();
-
   return (
-    <div className="space-y-6">
-      {/* Success Message */}
-      {successMessage && (
-        <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 flex items-center gap-3 animate-fade-in">
-          <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
-          <p className="text-green-800 font-semibold">{successMessage}</p>
-        </div>
-      )}
-
-      {/* Main Settings Card */}
-      <div className="bg-white rounded-xl shadow-lg border-2 border-gray-100 overflow-hidden">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-5">
-          <div className="flex items-center gap-3 text-white">
-            <Settings className="h-6 w-6" />
-            <div>
-              <h3 className="text-xl font-bold">Pricing Configuration</h3>
-              <p className="text-blue-100 text-sm mt-1">
-                Set up payment requirements for bookings
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <DollarSign className="h-5 w-5 text-green-600" />
+            Pricing Settings
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100"
+          >
+            <X className="h-4 w-4 text-gray-600" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
+          <p className="text-sm text-gray-600">
+            {member.user_name || member.name || 'Member'}
+          </p>
+
+          {/* Require payment toggle card */}
+          <div className="rounded-2xl border border-green-200 bg-green-50/60 p-4 flex items-start gap-3">
+            <div className="mt-1">
+              <ShieldCheck className="h-5 w-5 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <p className="font-semibold text-gray-900">
+                  Require Payment for Bookings
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setRequirePayment((prev) => !prev)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    requirePayment ? 'bg-green-500' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      requirePayment ? 'translate-x-5' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              <p className="text-xs text-gray-600">
+                When enabled, guests must complete payment before confirming
+                their booking.
               </p>
             </div>
           </div>
-        </div>
 
-        <div className="p-6 space-y-6">
-          {/* Payment Toggle */}
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-5">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <CreditCard className="h-6 w-6 text-green-600 mt-1" />
-                <div>
-                  <h4 className="font-bold text-gray-900 mb-1">
-                    Require Payment for Bookings
-                  </h4>
-                  <p className="text-sm text-gray-700">
-                    When enabled, guests must complete payment before confirming
-                    their booking
-                  </p>
-                </div>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.payment_required}
-                  onChange={e =>
-                    setSettings({
-                      ...settings,
-                      payment_required: e.target.checked,
-                    })
-                  }
-                  className="sr-only peer"
-                />
-                <div className="w-14 h-8 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-green-600"></div>
-              </label>
-            </div>
+          {/* Currency */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Currency
+            </label>
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 outline-none text-sm"
+              disabled={!requirePayment}
+            >
+              <option value="USD">$ USD - US Dollar</option>
+              <option value="EUR">€ EUR - Euro</option>
+              <option value="GBP">£ GBP - British Pound</option>
+              <option value="PHP">₱ PHP - Philippine Peso</option>
+            </select>
           </div>
 
-          {/* Pricing Section - Show when payment required */}
-          {settings.payment_required && (
-            <div className="space-y-5 animate-slide-down">
-              {/* Currency Selection */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" />
-                  Currency
-                </label>
-                <select
-                  value={settings.currency}
-                  onChange={e =>
-                    setSettings({ ...settings, currency: e.target.value })
-                  }
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none text-base"
-                >
-                  {currencies.map(currency => (
-                    <option key={currency.code} value={currency.code}>
-                      {currency.symbol} {currency.code} - {currency.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* Session Price */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Session Price
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-lg">
+                {currency === 'USD'
+                  ? '$'
+                  : currency === 'EUR'
+                  ? '€'
+                  : currency === 'GBP'
+                  ? '£'
+                  : currency === 'PHP'
+                  ? '₱'
+                  : ''}
+              </span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={sessionPrice}
+                onChange={handleSessionPriceChange}
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 outline-none text-lg font-semibold"
+                disabled={!requirePayment}
+              />
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Amount charged per booking session.
+            </p>
+          </div>
 
-              {/* Price Input */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" />
-                  Session Price
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xl">
-                    {selectedCurrency.symbol}
+          {/* Revenue breakdown */}
+          <div className="mt-2 rounded-2xl border border-gray-200 overflow-hidden">
+            <div className="bg-slate-800 text-white px-4 py-2 text-sm font-semibold">
+              Revenue Breakdown
+            </div>
+            <div className="bg-white px-4 py-3 space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-700">Guest Payment</span>
+                <span className="font-semibold">
+                  {currency === 'USD'
+                    ? '$'
+                    : currency === 'EUR'
+                    ? '€'
+                    : currency === 'GBP'
+                    ? '£'
+                    : currency === 'PHP'
+                    ? '₱'
+                    : ''}
+                  {formatMoney(numericPrice)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-700">
+                  Stripe Fee
+                  <span className="block text-xs text-gray-500">
+                    2.9% + $0.30 (approx)
                   </span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    step="0.01"
-                    value={settings.booking_price}
-                    onChange={e => {
-                      let val = e.target.value;
-
-                      // remove leading zeros like 02255888 → 22255888
-                      val = val.replace(/^0+(?=\d)/, '');
-
-                      setSettings({
-                        ...settings,
-                        booking_price: val,
-                      });
-                    }}
-                    className="w-full pl-12 pr-4 py-4 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none text-2xl font-bold text-gray-900"
-                    placeholder="0.00"
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                  <Info className="h-3 w-3" />
-                  Amount charged per booking session
-                </p>
+                </span>
+                <span className="font-semibold text-red-600">
+                  -{currency === 'USD'
+                    ? '$'
+                    : currency === 'EUR'
+                    ? '€'
+                    : currency === 'GBP'
+                    ? '£'
+                    : currency === 'PHP'
+                    ? '₱'
+                    : ''}
+                  {formatMoney(stripeFee)}
+                </span>
               </div>
-
-              {/* Payment Info */}
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                  <Shield className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-blue-900">
-                    <p className="font-semibold mb-1">
-                      Secure Payment Processing
-                    </p>
-                    <ul className="space-y-1 text-blue-800">
-                      <li>✓ Powered by Stripe - Industry-leading security</li>
-                      <li>✓ PCI DSS compliant payment processing</li>
-                      <li>✓ Automatic receipt generation</li>
-                      <li>✓ Supports all major credit cards</li>
-                    </ul>
-                  </div>
+              <div className="mt-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 px-4 py-3 text-white flex items-center justify-between">
+                <div className="text-xs">
+                  <div className="font-semibold text-sm">You Receive</div>
+                  <div>Per booking</div>
+                </div>
+                <div className="text-lg font-bold">
+                  {currency === 'USD'
+                    ? '$'
+                    : currency === 'EUR'
+                    ? '€'
+                    : currency === 'GBP'
+                    ? '£'
+                    : currency === 'PHP'
+                    ? '₱'
+                    : ''}
+                  {formatMoney(netAmount)}
                 </div>
               </div>
-
-              {/* Revenue Breakdown */}
-              {numericPrice > 0 && (
-                <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl border-2 border-gray-200 overflow-hidden">
-                  <div className="bg-gradient-to-r from-gray-700 to-slate-700 px-5 py-3">
-                    <div className="flex items-center gap-2 text-white">
-                      <TrendingUp className="h-5 w-5" />
-                      <h4 className="font-bold">Revenue Breakdown</h4>
-                    </div>
-                  </div>
-
-                  <div className="p-5 space-y-3">
-                    {/* Booking Price */}
-                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200">
-                      <span className="text-gray-700 font-medium">
-                        Guest Payment
-                      </span>
-                      <span className="text-xl font-bold text-gray-900 break-all text-right">
-                        {selectedCurrency.symbol}
-                        {numericPrice.toFixed(2)}
-                      </span>
-                    </div>
-
-                    {/* Processing Fee */}
-                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200">
-                      <div>
-                        <span className="text-gray-700 font-medium">
-                          Stripe Fee
-                        </span>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          2.9% + {selectedCurrency.symbol}0.30
-                        </p>
-                      </div>
-                      <span className="text-lg font-semibold text-red-600 break-all text-right">
-                        -{selectedCurrency.symbol}
-                        {stripeFee.toFixed(2)}
-                      </span>
-                    </div>
-
-                    {/* Net Revenue */}
-                    <div className="flex items-center justify-between p-5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg text-white">
-                      <div>
-                        <span className="font-bold text-lg">You Receive</span>
-                        <p className="text-xs text-green-100 mt-1">
-                          Per booking
-                        </p>
-                      </div>
-                      <span className="text-2xl sm:text-3xl font-black break-all leading-tight text-right">
-                        {selectedCurrency.symbol}
-                        {netAmount.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Payment Policy Info */}
-      {settings.payment_required && (
-        <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-5">
-          <div className="flex items-start gap-3">
-            <Clock className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-amber-900">
-              <p className="font-semibold mb-2">Payment & Refund Policy</p>
-              <ul className="space-y-1 text-amber-800">
-                <li>
-                  • Payment is collected immediately when guest confirms
-                  booking
-                </li>
-                <li>
-                  • Funds are available in your account within 2-7 business days
-                </li>
-                <li>
-                  • Cancellations can be processed with full or partial refunds
-                </li>
-                <li>
-                  • All transactions are logged and receipts are automatically
-                  sent
-                </li>
-              </ul>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Save Button */}
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white px-8 py-4 rounded-x
+          {error && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+              {error}
+            </p>
+          )}
+
+          {/* Footer */}
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2.5 border-2 border-gray-300 rounded-xl text-gray-700 text-sm font-semibold hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {saving ? 'Saving…' : 'Save Settings'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
