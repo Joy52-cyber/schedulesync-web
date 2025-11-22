@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { X, DollarSign, ShieldCheck } from 'lucide-react';
 import api from '../utils/api'; // adjust if your api import is different
 
@@ -67,13 +67,13 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
       setSaving(true);
 
       const payload = {
-        // 🔴 match backend expectation:
+        // ?? match backend expectation:
         booking_price: numericPrice,           // goes to booking_price
         currency,                              // goes to currency
         payment_required: requirePayment,      // goes to payment_required
       };
 
-      // ✅ match your backend route: /api/teams/:teamId/members/:memberId/pricing
+      // ? match your backend route: /api/teams/:teamId/members/:memberId/pricing
       await api.post(
         `/teams/${teamId}/members/${member.id}/pricing`,
         payload
@@ -96,11 +96,11 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
     currency === 'USD'
       ? '$'
       : currency === 'EUR'
-      ? '€'
+      ? '�'
       : currency === 'GBP'
-      ? '£'
+      ? '�'
       : currency === 'PHP'
-      ? '₱'
+      ? '?'
       : '';
 
   return (
@@ -170,9 +170,9 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
               disabled={!requirePayment}
             >
               <option value="USD">$ USD - US Dollar</option>
-              <option value="EUR">€ EUR - Euro</option>
-              <option value="GBP">£ GBP - British Pound</option>
-              <option value="PHP">₱ PHP - Philippine Peso</option>
+              <option value="EUR">� EUR - Euro</option>
+              <option value="GBP">� GBP - British Pound</option>
+              <option value="PHP">? PHP - Philippine Peso</option>
             </select>
           </div>
 
@@ -260,7 +260,7 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
               disabled={saving}
               className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {saving ? 'Saving…' : 'Save Settings'}
+              {saving ? 'Saving�' : 'Save Settings'}
             </button>
           </div>
         </form>
@@ -268,3 +268,4 @@ export default function MemberPricingSettings({ member, teamId, onClose, onSaved
     </div>
   );
 }
+
