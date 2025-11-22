@@ -8,23 +8,23 @@ export default function ForgotPassword() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    
-    try {
-      // ? FIXED: Added /api prefix
-      const response = await api.post('/api/auth/forgot-password', { email });
-      console.log('? Reset email sent:', response.data);
-      setSuccess(true);
-    } catch (err) {
-      console.error('? Forgot password error:', err);
-      setError(err.response?.data?.error || 'Failed to send reset email. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError('');
+  setLoading(true);
+  
+  try {
+    // ? FIXED: Remove /api prefix (it's already in baseURL)
+    const response = await api.post('/auth/forgot-password', { email });
+    console.log('? Reset email sent:', response.data);
+    setSuccess(true);
+  } catch (err) {
+    console.error('? Forgot password error:', err);
+    setError(err.response?.data?.error || 'Failed to send reset email. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (success) {
     return (
@@ -99,3 +99,4 @@ export default function ForgotPassword() {
     </div>
   );
 }
+
