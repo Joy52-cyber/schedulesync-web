@@ -12,6 +12,8 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import PaymentForm from '../components/PaymentForm';
 
+console.log('MODERN UI VERSION: PURPLE-GRADIENTS-2024-11-22');
+
 export default function Book() {
   const { token } = useParams();
   const navigate = useNavigate();
