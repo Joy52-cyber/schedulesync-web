@@ -12,31 +12,32 @@ import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import VerifyEmail from './pages/VerifyEmail';
-import OAuthCallback from './pages/OAuthCallback'; // Handles POST to /auth/google/callback
+import OAuthCallback from './pages/OAuthCallback';
 
 // Dashboard / App Pages
-import Dashboard from './pages/Dashboard'; // Contains AI Widget
-import Bookings from './pages/Bookings';   // Internal Booking List
-import MyBookingLink from './components/MyBookingLink'; // Personal shortcut
+import Dashboard from './pages/Dashboard';
+import Bookings from './pages/Bookings';
+import MyBookingLink from './components/MyBookingLink';
 
 // Team & Member Management
 import Teams from './pages/Teams';
-import TeamSettings from './pages/TeamSettings'; // Handles General + Reminders API
+import TeamSettings from './pages/TeamSettings';
 import TeamMembers from './pages/TeamMembers';
-import MemberAvailability from './pages/MemberAvailability'; // Handles Availability + Pricing API
+import MemberAvailability from './pages/MemberAvailability';
 
 // User Settings
-import UserSettings from './pages/UserSettings'; // Profile + Timezone
-import CalendarSettings from './pages/CalendarSettings'; // Google Calendar Connection
+import UserSettings from './pages/UserSettings';
+import CalendarSettings from './pages/CalendarSettings';
 
 // Public / Guest Flow
-import BookingPage from './pages/BookingPage'; // Main booking UI
-import ManageBooking from './pages/ManageBooking'; // Guest Cancel/Reschedule
-import BookingSuccess from './pages/BookingSuccess'; // Success State
-import PaymentStatus from './pages/PaymentStatus'; // Stripe Redirect Handler
+import BookingPage from './pages/BookingPage';
+import ManageBooking from './pages/ManageBooking';
+import BookingSuccess from './pages/BookingSuccess';
+import PaymentStatus from './pages/PaymentStatus';
+// ✅ Added Import for Book page (since file exists in your screenshot)
+import Book from './pages/Book';
 
 // ---------- Login Wrapper ----------
-// Helper to inject auth state after successful login
 function LoginWrapper({ Component }) {
   const { login } = useAuth();
 
@@ -48,37 +49,96 @@ function LoginWrapper({ Component }) {
   return <Component onLogin={handleLogin} />;
 }
 
-// client/src/App.jsx
-
-// ... imports stay the same ...
-
 export default function App() {
   return (
     <Router>
       <AuthProvider>
         <Routes>
-          {/* ---------- Public Authentication Routes ---------- */}
+          {/* ============================================================
+              1. PUBLIC AUTHENTICATION ROUTES
+             ============================================================ */}
           <Route path="/login" element={<LoginWrapper Component={Login} />} />
           <Route path="/register" element={<LoginWrapper Component={Register} />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
 
-          {/* ✅ OAuth Callback - ONLY for organizer dashboard login */}
-          <Route
-            path="/oauth/callback"
-            element={<LoginWrapper Component={OAuthCallback} />}
+          {/* Organizer OAuth Callback */}
+          <Route 
+            path="/oauth/callback" 
+            element={<LoginWrapper Component={OAuthCallback} />} 
           />
 
-          {/* ---------- Public Booking Routes ---------- */}
-          {/* ✅ Guest booking OAuth happens on /book/:token route */}
+          {/* ============================================================
+              2. PUBLIC GUEST FLOWS (No Login Required)
+             ============================================================ */}
+          
+          {/* Main Booking Page (Specific Token) */}
           <Route path="/book/:token" element={<BookingPage />} />
-          <Route path="/booking-success" element={<BookingSuccess />} />
-          <Route path="/booking-confirmation" element={<BookingSuccess />} />
-          <Route path="/manage/:token" element={<ManageBooking />} />
+
+          {/* Generic Booking Landing Page */}
           <Route path="/book" element={<Book />} />
 
-          {/* ... rest of routes stay the same ... */}
+          {/* Guest Management */}
+          <Route path="/manage/:token" element={<ManageBooking />} />
+
+          {/* Success Pages */}
+          <Route path="/booking-success" element={<BookingSuccess />} />
+          <Route path="/booking-confirmation" element={<BookingSuccess />} />
+
+          {/* Stripe Payment Redirect Handling */}
+          <Route path="/payment/status" element={<PaymentStatus />} />
+
+          {/* ============================================================
+              3. PROTECTED APP ROUTES (Dashboard)
+             ============================================================ */}
+          <Route
+            element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/bookings" element={<Bookings />} />
+            <Route path="/my-booking-link" element={<MyBookingLink />} />
+
+            <Route path="/teams" element={<Teams />} />
+            <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
+            <Route path="/teams/:teamId/members" element={<TeamMembers />} />
+            
+            <Route 
+              path="/teams/:teamId/members/:memberId/availability" 
+              element={<MemberAvailability />} 
+            />
+
+            <Route path="/settings" element={<UserSettings />} />
+            <Route path="/settings/calendar" element={<CalendarSettings />} />
+          </Route>
+
+          {/* ============================================================
+              4. FALLBACKS
+             ============================================================ */}
+          
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+          <Route
+            path="*"
+            element={
+              <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="text-center">
+                  <h1 className="text-6xl font-bold text-gray-900 mb-4">404</h1>
+                  <p className="text-xl text-gray-600 mb-8">Page Not Found</p>
+                  <a
+                    href="/dashboard"
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    Go to Dashboard
+                  </a>
+                </div>
+              </div>
+            }
+          />
         </Routes>
       </AuthProvider>
     </Router>
