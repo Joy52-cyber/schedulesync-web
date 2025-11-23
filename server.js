@@ -1326,7 +1326,7 @@ app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken,
     res.status(500).json({ error: 'Failed to update external link' });
   }
 });
-// ============ PRICING SETTINGS ENDPOINT ============
+
 // ============ PRICING SETTINGS ENDPOINT ============
 
 // Update team member pricing settings
