@@ -13,9 +13,12 @@ import {
   BarChart3,
   ChevronRight,
   MoreHorizontal,
+  Globe,
 } from 'lucide-react';
 import api from '../utils/api';
 import AISchedulerChat from '../components/AISchedulerChat';
+// ✅ IMPORT TIMEZONE SELECTOR
+import TimezoneSelector from '../components/TimezoneSelector';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -27,9 +30,13 @@ export default function Dashboard() {
   });
   const [recentBookings, setRecentBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // ✅ NEW: Timezone State
+  const [timezone, setTimezone] = useState('');
 
   useEffect(() => {
     loadDashboardData();
+    loadUserTimezone();
   }, []);
 
   const loadDashboardData = async () => {
@@ -44,29 +51,44 @@ export default function Dashboard() {
     }
   };
 
+  // ✅ NEW: Load User Timezone
+  const loadUserTimezone = async () => {
+    try {
+      const response = await api.timezone.get();
+      if (response.data.timezone) {
+        setTimezone(response.data.timezone);
+      }
+    } catch (error) {
+      console.error('Error loading timezone:', error);
+    }
+  };
+
+  // ✅ NEW: Save Timezone Change
+  const handleTimezoneChange = async (newTimezone) => {
+    try {
+      setTimezone(newTimezone);
+      await api.timezone.update({ timezone: newTimezone });
+      console.log('✅ Timezone updated to:', newTimezone);
+    } catch (error) {
+      console.error('Failed to update timezone:', error);
+    }
+  };
+
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'confirmed':
-        return <CheckCircle2 className="h-4 w-4" />;
-      case 'pending':
-        return <AlertCircle className="h-4 w-4" />;
-      case 'cancelled':
-        return <XCircle className="h-4 w-4" />;
-      default:
-        return <CheckCircle2 className="h-4 w-4" />;
+      case 'confirmed': return <CheckCircle2 className="h-4 w-4" />;
+      case 'pending': return <AlertCircle className="h-4 w-4" />;
+      case 'cancelled': return <XCircle className="h-4 w-4" />;
+      default: return <CheckCircle2 className="h-4 w-4" />;
     }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'confirmed':
-        return 'bg-green-100 text-green-700 border-green-200';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'cancelled':
-        return 'bg-red-100 text-red-700 border-red-200';
-      default:
-        return 'bg-green-100 text-green-700 border-green-200';
+      case 'confirmed': return 'bg-green-100 text-green-700 border-green-200';
+      case 'pending': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'cancelled': return 'bg-red-100 text-red-700 border-red-200';
+      default: return 'bg-green-100 text-green-700 border-green-200';
     }
   };
 
@@ -161,6 +183,27 @@ export default function Dashboard() {
       <main className="w-full">
         <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8">
           <div className="space-y-6">
+
+            {/* ✅ NEW: Timezone Selector Section */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-50 rounded-lg">
+                        <Globe className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                        <h3 className="font-semibold text-gray-900">Your Timezone</h3>
+                        <p className="text-xs text-gray-500">Used for all your calendar events</p>
+                    </div>
+                </div>
+                <div className="w-full sm:w-72">
+                    <TimezoneSelector 
+                        value={timezone} 
+                        onChange={handleTimezoneChange} 
+                        showLabel={false} 
+                    />
+                </div>
+            </div>
+
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {statCards.map((stat, index) => (
@@ -424,7 +467,7 @@ export default function Dashboard() {
               </button>
             </div>
 
-            {/* Recent Bookings */}
+            {/* Recent Bookings List (Bottom) */}
             <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">

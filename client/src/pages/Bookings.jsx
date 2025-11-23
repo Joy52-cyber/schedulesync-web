@@ -30,7 +30,8 @@ export default function Bookings() {
   useEffect(() => {
     const loadBookings = async () => {
       try {
-        const response = await bookings.getAll();
+        // ✅ FIX: Changed .getAll() to .list() to match api.js
+        const response = await bookings.list();
         setBookingsList(response.data.bookings || []);
       } catch (error) {
         console.error('Error loading bookings:', error);
@@ -304,7 +305,7 @@ export default function Bookings() {
 
               <div className="pt-4">
                 <button
-                  onClick={() => navigate(`/manage-booking/${selectedBooking.token}`)}
+                  onClick={() => navigate(`/manage/${selectedBooking.booking_token}`)}
                   className="w-full bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-semibold"
                 >
                   Manage Booking
