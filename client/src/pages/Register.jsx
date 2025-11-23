@@ -1,153 +1,115 @@
-﻿// client/src/pages/Register.jsx
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { auth } from '../utils/api';
+﻿import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { auth } from "../utils/api";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Calendar } from "lucide-react";
 
 export default function Register() {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
   });
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleChange = (e) =>
+    setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-
-    // Validate passwords match
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    // Validate password length
-    if (formData.password.length < 8) {
-      setError('Password must be at least 8 characters');
-      return;
-    }
-
     setLoading(true);
+    setError("");
 
     try {
-      const response = await auth.register({
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-      });
-
-      console.log('✅ Registration successful:', response.data);
-      
-      // Store token and user
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      
-      // Redirect to dashboard or show success message
-      if (response.data.user.emailVerified === false) {
-        alert('Registration successful! Please check your email to verify your account.');
+      const res = await auth.register(form);
+      if (res.data.success) {
+        navigate("/login");
       }
-      
-      navigate('/dashboard');
     } catch (err) {
-      console.error('❌ Registration error:', err);
-      setError(err.response?.data?.error || 'Registration failed');
-    } finally {
-      setLoading(false);
+      setError(err.response?.data?.error || "Something went wrong");
     }
+
+    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h1>
-          <p className="text-gray-600">Join ScheduleSync today</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center px-4 py-8">
+      {/* Card */}
+      <div className="w-full max-w-md bg-white/80 backdrop-blur-xl rounded-xl shadow-xl border border-purple-100 p-8">
+        
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-6">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-2 shadow-md">
+            <Calendar className="w-6 h-6 text-white" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900">Create your account</h2>
+          <p className="text-sm text-gray-500">Start using ScheduleSync for free</p>
         </div>
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-            {error}
-          </div>
-        )}
-
+        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Full Name
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="John Doe"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
-              required
-            />
-          </div>
+          {error && (
+            <div className="p-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded">
+              {error}
+            </div>
+          )}
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Email Address
-            </label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="you@example.com"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
-              required
-            />
-          </div>
+          <Input
+            name="name"
+            placeholder="Full name"
+            value={form.name}
+            onChange={handleChange}
+            required
+            className="bg-white border-purple-200 focus:border-purple-400"
+          />
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Password
-            </label>
-            <input
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              placeholder="••••••••"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
-              required
-              minLength={8}
-            />
-          </div>
+          <Input
+            name="email"
+            type="email"
+            placeholder="Email address"
+            value={form.email}
+            onChange={handleChange}
+            required
+            className="bg-white border-purple-200 focus:border-purple-400"
+          />
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Confirm Password
-            </label>
-            <input
-              type="password"
-              value={formData.confirmPassword}
-              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-              placeholder="••••••••"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
-              required
-            />
-          </div>
+          <Input
+            name="password"
+            type="password"
+            placeholder="Create a password"
+            value={form.password}
+            onChange={handleChange}
+            required
+            className="bg-white border-purple-200 focus:border-purple-400"
+          />
 
-          <button
+          <Button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-bold hover:shadow-xl transition disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
           >
-            {loading ? 'Creating Account...' : 'Sign Up'}
-          </button>
+            {loading ? "Creating account..." : "Create account"}
+          </Button>
         </form>
 
-        <p className="text-center mt-6 text-sm text-gray-600">
-          Already have an account?{' '}
+        {/* Footer */}
+        <p className="text-center text-sm text-gray-600 mt-6">
+          Already have an account?{" "}
           <Link
             to="/login"
-            className="font-bold text-purple-600 hover:text-purple-700 transition"
+            className="text-purple-600 hover:text-purple-700 font-medium"
           >
-            Sign in
+            Log in
           </Link>
+        </p>
+
+        {/* Subnote */}
+        <p className="text-center text-xs text-gray-500 mt-3">
+          No credit card required
         </p>
       </div>
     </div>
