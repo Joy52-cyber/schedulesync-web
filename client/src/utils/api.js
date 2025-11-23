@@ -44,13 +44,22 @@ export const teams = {
   updateMemberStatus: (teamId, memberId, is_active) => 
     api.patch(`/teams/${teamId}/members/${memberId}/status`, { is_active }),
 
-  updateMemberPricing: (teamId, memberId, data) => api.put(`/teams/${teamId}/members/${memberId}/pricing`, data),
-  updateMemberExternalLink: (teamId, memberId, data) => api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
+  // Corrected to hit the PUT /api/teams/:id/members/:id/pricing route
+  updateMemberPricing: (teamId, memberId, data) => 
+    api.put(`/teams/${teamId}/members/${memberId}/pricing`, data),
+
+  // Corrected to hit the PUT /api/teams/:id/members/:id/external-link route
+  updateMemberExternalLink: (teamId, memberId, data) => 
+    api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
 };
 
 export const availability = {
+  // ✅ FIX: Hitting the flattened /team-members/:id/availability route for load
   getSettings: (teamId, memberId) => api.get(`/team-members/${memberId}/availability`),
+  
+  // ✅ FIX: Hitting the flattened /team-members/:id/availability route for save
   updateSettings: (teamId, memberId, data) => api.put(`/team-members/${memberId}/availability`, data),
+  
   get: (teamId, memberId) => api.get(`/team-members/${memberId}/availability`),
 };
 
@@ -78,9 +87,7 @@ export const calendar = {
 };
 
 export const oauth = {
-  // ✅ FIX: Added getGoogleUrl here
   getGoogleUrl: () => api.get('/auth/google/url'),
-  
   handleCallback: (code) => api.post('/auth/google/callback', { code }),
   guestGoogleAuth: (code, bookingToken) => api.post('/book/auth/google', { code, bookingToken }),
 };
@@ -100,22 +107,15 @@ export const ai = {
 export const timezone = {
   get: () => api.get('/user/timezone'),
   update: (data) => api.put('/user/timezone', data),
+  // ✅ FIX: Hitting the flattened /team-members/:id/timezone route for load
   getMemberTimezone: (memberId) => api.get(`/team-members/${memberId}/timezone`),
+  // ✅ FIX: Hitting the flattened /team-members/:id/timezone route for save
   updateMemberTimezone: (memberId, timezone) => api.put(`/team-members/${memberId}/timezone`, { timezone }),
 };
 
 // Attach all helpers to default export
 Object.assign(api, {
-  auth,
-  teams,
-  availability,
-  bookings,
-  reminders,
-  calendar,
-  oauth,
-  payments,
-  ai,
-  timezone
+  auth, teams, availability, bookings, reminders, calendar, oauth, payments, ai, timezone
 });
 
 export default api;
