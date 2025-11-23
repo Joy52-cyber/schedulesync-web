@@ -1,46 +1,127 @@
-﻿emailVerification: (user, verificationToken) => {
-  const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+﻿const emailVerification = (user, token) => {
+  const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
   
   return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
-        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-        .button { display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 40px; text-decoration: none; border-radius: 10px; font-weight: bold; margin: 20px 0; }
-        .code-box { background: #e5e7eb; border: 2px dashed #9ca3af; padding: 20px; border-radius: 10px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 3px; margin: 20px 0; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1 style="margin: 0; font-size: 28px;">✉️ Verify Your Email</h1>
-        </div>
-        <div class="content">
-          <p style="font-size: 16px;">Hi <strong>${user.name}</strong>,</p>
-          
-          <p>Thanks for signing up for ScheduleSync! Please verify your email address to activate your account.</p>
-          
-          <div style="text-align: center;">
-            <a href="${verificationUrl}" class="button">
-              Verify Email Address
-            </a>
-          </div>
-          
-          <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
-            Or copy and paste this link into your browser:<br>
-            <a href="${verificationUrl}" style="color: #667eea; word-break: break-all;">${verificationUrl}</a>
-          </p>
-          
-          <p style="font-size: 14px; color: #6b7280; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-            This link will expire in 24 hours. If you didn't create an account, please ignore this email.
-          </p>
-        </div>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #4F46E5; margin: 0;">ScheduleSync</h1>
       </div>
-    </body>
-    </html>
+      
+      <h2 style="color: #333; margin-top: 0;">Verify your email address</h2>
+      <p style="color: #555; font-size: 16px; line-height: 1.5;">
+        Hi ${user.name || 'there'},
+      </p>
+      <p style="color: #555; font-size: 16px; line-height: 1.5;">
+        Thanks for starting your account setup. Please verify your email address to complete your registration.
+      </p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${verifyUrl}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">Verify Email</a>
+      </div>
+      
+      <p style="color: #999; font-size: 14px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+        If you didn't sign up for ScheduleSync, you can safely ignore this email.
+      </p>
+    </div>
   `;
-},
+};
+
+const bookingConfirmationGuest = (booking) => {
+  const date = new Date(booking.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const time = new Date(booking.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const manageUrl = `${process.env.FRONTEND_URL}/manage/${booking.booking_token}`;
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #4F46E5;">Booking Confirmed! ✅</h2>
+      <p>Hi ${booking.attendee_name},</p>
+      <p>Your meeting with <strong>${booking.organizer_name}</strong> is confirmed.</p>
+      
+      <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <p style="margin: 5px 0;"><strong>📅 Date:</strong> ${date}</p>
+        <p style="margin: 5px 0;"><strong>🕒 Time:</strong> ${time}</p>
+        ${booking.meet_link ? `<p style="margin: 5px 0;"><strong>🎥 Location:</strong> <a href="${booking.meet_link}">Google Meet</a></p>` : ''}
+      </div>
+
+      <p>Need to reschedule? <a href="${manageUrl}">Manage Booking</a></p>
+    </div>
+  `;
+};
+
+const bookingConfirmationOrganizer = (booking) => {
+  const date = new Date(booking.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const time = new Date(booking.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #4F46E5;">New Booking Received 📅</h2>
+      <p><strong>${booking.attendee_name}</strong> has scheduled a meeting with you.</p>
+      
+      <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <p style="margin: 5px 0;"><strong>📧 Email:</strong> ${booking.attendee_email}</p>
+        <p style="margin: 5px 0;"><strong>📅 Date:</strong> ${date}</p>
+        <p style="margin: 5px 0;"><strong>🕒 Time:</strong> ${time}</p>
+        ${booking.notes ? `<p style="margin: 5px 0;"><strong>📝 Notes:</strong> ${booking.notes}</p>` : ''}
+      </div>
+    </div>
+  `;
+};
+
+const bookingCancellation = (booking, reason) => {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #DC2626;">Meeting Cancelled ❌</h2>
+      <p>The meeting between <strong>${booking.organizer_name}</strong> and <strong>${booking.attendee_name}</strong> has been cancelled.</p>
+      ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+      <p>You can book a new time here: <a href="${process.env.FRONTEND_URL}/book/${booking.booking_token}">Book Again</a></p>
+    </div>
+  `;
+};
+
+const bookingReschedule = (booking, oldStartTime) => {
+  const newDate = new Date(booking.start_time).toLocaleString();
+  
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #2563EB;">Meeting Rescheduled 🔄</h2>
+      <p>The meeting has been moved to a new time.</p>
+      
+      <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <p><strong>New Time:</strong> ${newDate}</p>
+        ${booking.meet_link ? `<p><strong>Link:</strong> <a href="${booking.meet_link}">Join Meeting</a></p>` : ''}
+      </div>
+    </div>
+  `;
+};
+
+// Payment Templates
+const bookingConfirmationGuestWithPayment = (booking) => {
+  const base = bookingConfirmationGuest(booking);
+  return base.replace('</div>', `
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+      <p><strong>💰 Payment:</strong> ${booking.payment_currency} ${booking.payment_amount}</p>
+      <p><a href="${booking.payment_receipt_url}">View Receipt</a></p>
+    </div>
+    </div>
+  `);
+};
+
+const bookingConfirmationOrganizerWithPayment = (booking) => {
+  const base = bookingConfirmationOrganizer(booking);
+  return base.replace('</div>', `
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+      <p><strong>💰 Payment Received:</strong> ${booking.payment_currency} ${booking.payment_amount}</p>
+    </div>
+    </div>
+  `);
+};
+
+module.exports = {
+  emailVerification,
+  bookingConfirmationGuest,
+  bookingConfirmationOrganizer,
+  bookingCancellation,
+  bookingReschedule,
+  bookingConfirmationGuestWithPayment,
+  bookingConfirmationOrganizerWithPayment
+};
