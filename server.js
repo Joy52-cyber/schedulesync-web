@@ -20,7 +20,7 @@ console.log('- FRONTEND_URL:', process.env.FRONTEND_URL || '❌ Missing');
 console.log('- PORT:', process.env.PORT || '3000');
 console.log('========================================');
 
-app.get('/health', (req, res) => res.send('OK'));
+
 
 // Catch any require errors
 try {
@@ -165,6 +165,10 @@ async function callAnthropicWithRetry(requestBody, retries = 2) {
 
 app.use(cors());
 app.use(express.json());
+
+
+// 4. Healthcheck (AFTER app exists)
+app.get('/health', (req, res) => res.send('OK'));
 
 // ============ DATABASE CONNECTION ============
 
