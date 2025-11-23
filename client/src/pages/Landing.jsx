@@ -7,7 +7,6 @@ import {
   ArrowRight,
   Shield,
   BarChart2,
-  Check,
 } from 'lucide-react';
 
 export default function Landing() {
@@ -34,31 +33,28 @@ export default function Landing() {
 
           <nav className="hidden sm:flex items-center gap-6 text-sm text-slate-300">
             <button
-              onClick={() =>
-                document
-                  .getElementById('features')
-                  ?.scrollIntoView({ behavior: 'smooth' })
-              }
+              onClick={() => {
+                const el = document.getElementById('features');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
               className="hover:text-white"
             >
               Features
             </button>
             <button
-              onClick={() =>
-                document
-                  .getElementById('how-it-works')
-                  ?.scrollIntoView({ behavior: 'smooth' })
-              }
+              onClick={() => {
+                const el = document.getElementById('how-it-works');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
               className="hover:text-white"
             >
               How it works
             </button>
             <button
-              onClick={() =>
-                document
-                  .getElementById('pricing')
-                  ?.scrollIntoView({ behavior: 'smooth' })
-              }
+              onClick={() => {
+                const el = document.getElementById('pricing');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
               className="hover:text-white"
             >
               For teams
@@ -101,8 +97,8 @@ export default function Landing() {
 
             <p className="text-sm sm:text-base text-slate-300 mb-6 max-w-xl">
               ScheduleSync centralizes bookings for your whole team — whether
-              you use Google Calendar, Outlook (coming soon), or external
-              booking tools. No more double-bookings, no more juggling links.
+              you use Google Calendar, Outlook, or external booking tools like
+              Calendly. No more double-bookings, no more juggling links.
             </p>
 
             <div className="flex flex-wrap items-center gap-3 mb-6">
@@ -124,20 +120,20 @@ export default function Landing() {
             <div className="flex flex-wrap gap-4 text-[11px] text-slate-400">
               <div className="flex items-center gap-1.5">
                 <Check className="h-3 w-3 text-emerald-400" />
-                <span>No credit card required</span>
+                No credit card required
               </div>
               <div className="flex items-center gap-1.5">
                 <Check className="h-3 w-3 text-emerald-400" />
-                <span>Perfect for client-facing teams</span>
+                Perfect for client-facing teams
               </div>
               <div className="flex items-center gap-1.5">
                 <Check className="h-3 w-3 text-emerald-400" />
-                <span>AI-powered scheduling assistant</span>
+                Built-in AI scheduling assistant
               </div>
             </div>
           </div>
 
-          {/* Fake dashboard preview */}
+          {/* Visual preview / fake dashboard */}
           <div className="relative">
             <div className="absolute -top-10 -right-8 h-36 w-36 rounded-full bg-blue-500/30 blur-3xl" />
             <div className="absolute bottom-0 -left-8 h-40 w-40 rounded-full bg-emerald-500/20 blur-3xl" />
@@ -154,7 +150,7 @@ export default function Landing() {
                 </div>
                 <div className="flex items-center gap-2 text-[11px] text-emerald-300">
                   <Sparkles className="h-3 w-3" />
-                  <span>AI suggesting optimal slots</span>
+                  AI is suggesting optimal slots
                 </div>
               </div>
 
@@ -168,7 +164,7 @@ export default function Landing() {
                       </span>
                     </div>
                     <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-300 border border-emerald-500/30">
-                      Round-robin
+                      Round robin
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-300">
@@ -189,8 +185,7 @@ export default function Landing() {
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-300">
-                    Respects buffers, working hours, and blocked times for each
-                    teammate.
+                    Respects buffers, working hours, and external bookings.
                   </p>
                 </div>
               </div>
@@ -203,7 +198,7 @@ export default function Landing() {
                       Insights for your team
                     </p>
                     <p className="text-[11px] text-slate-400">
-                      See who&apos;s overloaded and where you&apos;re losing
+                      See who&apos;s overbooked and where you&apos;re losing
                       leads.
                     </p>
                   </div>
@@ -221,7 +216,7 @@ export default function Landing() {
 
             <div className="absolute -bottom-4 right-4 rounded-xl bg-slate-900/90 border border-slate-700 px-3 py-2 flex items-center gap-2 text-[11px] text-slate-200 shadow-lg shadow-slate-950/80">
               <Shield className="h-3.5 w-3.5 text-emerald-300" />
-              <span>Built for agencies, coaches & remote teams</span>
+              <span>Built for agencies, coaches, & remote teams</span>
             </div>
           </div>
         </section>
@@ -239,37 +234,37 @@ export default function Landing() {
             <FeatureCard
               icon={<Users className="h-4 w-4" />}
               title="Team-based booking modes"
-              body="Round-robin, collective, or first available. Guests use one link; you control the rules."
+              body="Round-robin, collective, or first available. Everyone stays in sync, guests just see one link."
             />
             <FeatureCard
               icon={<Calendar className="h-4 w-4" />}
-              title="Deep availability logic"
-              body="Buffers, working hours, lead time, and blocked times — enforced for every teammate."
+              title="Deep calendar rules"
+              body="Buffers, working hours, blocked times, and lead time — enforced automatically across the team."
             />
             <FeatureCard
               icon={<Sparkles className="h-4 w-4" />}
               title="AI scheduling assistant"
-              body="Guests describe what they need in plain language; AI finds the best slots."
+              body="Let guests say what they need in plain language. AI proposes the best slots based on your rules."
             />
             <FeatureCard
               icon={<Clock className="h-4 w-4" />}
               title="No more double-booking"
-              body="We check your connected calendars and (soon) external booking links before showing a slot."
+              body="We look at your existing calendars and external booking tools before showing a slot."
             />
             <FeatureCard
               icon={<BarChart2 className="h-4 w-4" />}
-              title="Analytics & insights"
-              body="Soon: spot overloaded teammates, see which links convert, and when demand peaks."
+              title="Booking analytics"
+              body="Soon: see which teammates are overloaded, which links convert, and when your team is in demand."
             />
             <FeatureCard
               icon={<Shield className="h-4 w-4" />}
               title="Client-ready experience"
-              body="Clean, simple booking for guests. Powerful controls behind the scenes for your team."
+              body="Simple, branded booking flows for your guests. Powerful controls under the hood for your team."
             />
           </div>
         </section>
 
-        {/* For teams / pricing teaser */}
+        {/* Small "For teams" section / pricing teaser */}
         <section id="pricing" className="mt-16">
           <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
@@ -280,9 +275,8 @@ export default function Landing() {
                 Start free while you onboard your first teammates.
               </h3>
               <p className="text-xs sm:text-sm text-slate-300 max-w-md">
-                Perfect for agencies, consultants, and remote teams that want
-                one source of truth for bookings instead of duct-taping tools
-                together.
+                Perfect for agencies, consultants, and product teams that need
+                shared booking links, not just individual pages.
               </p>
             </div>
             <div className="flex flex-col items-start sm:items-end gap-2">
