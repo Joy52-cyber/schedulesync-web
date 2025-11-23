@@ -160,38 +160,56 @@ export default function MemberAvailability() {
   };
 
   const handleSave = async () => {
+  try {
+    setSaving(true);
+
+    const validBlockedTimes = blockedTimes
+      .filter((block) => block.start_time && block.end_time)
+      .map((block) => ({
+        start_time: new Date(block.start_time).toISOString(),
+        end_time: new Date(block.end_time).toISOString(),
+        reason: block.reason || null,
+      }));
+
+    const payload = {
+      buffer_time: bufferTime,
+      lead_time_hours: leadTimeHours,
+      booking_horizon_days: horizonDays,
+      daily_booking_cap: dailyCap,
+      working_hours: workingHours,
+      blocked_times: validBlockedTimes,
+    };
+
+    // 👉 MAIN SAVE – this is the important one
+    console.log('📤 Saving availability to', `/team-members/${memberId}/availability`, payload);
+    await api.availability.updateSettings(teamId, memberId, payload);
+
+    // 👉 BEST-EFFORT TIMEZONE SAVE – don't fail the whole thing if backend 404s
     try {
-      setSaving(true);
-
-      const validBlockedTimes = blockedTimes
-        .filter((block) => block.start_time && block.end_time)
-        .map((block) => ({
-          start_time: new Date(block.start_time).toISOString(),
-          end_time: new Date(block.end_time).toISOString(),
-          reason: block.reason || null,
-        }));
-
-      // 1. Save Availability
-      await api.availability.updateSettings(teamId, memberId, {
-        buffer_time: bufferTime,
-        lead_time_hours: leadTimeHours,
-        booking_horizon_days: horizonDays,
-        daily_booking_cap: dailyCap,
-        working_hours: workingHours,
-        blocked_times: validBlockedTimes,
-      });
-
-      // 2. Save Timezone
+      console.log('📤 Saving member timezone to', `/team-members/${memberId}/timezone`, timezone);
       await api.timezone.updateMemberTimezone(memberId, timezone);
-
-      showNotification('✅ Availability & Timezone saved!');
-    } catch (error) {
-      console.error('Error saving availability:', error);
-      showNotification('Save failed', 'error');
-    } finally {
-      setSaving(false);
+    } catch (tzErr) {
+      console.warn(
+        '⚠️ Timezone save failed (non-fatal):',
+        tzErr?.response?.status,
+        tzErr?.response?.data || tzErr.message
+      );
+      // we DON'T rethrow here on purpose
     }
-  };
+
+    showNotification('✅ Availability saved!');
+  } catch (error) {
+    console.error('❌ Error saving availability:', error);
+    if (error.response) {
+      console.error('🔍 Status:', error.response.status);
+      console.error('🔍 Response data:', error.response.data);
+    }
+    showNotification('Save failed', 'error');
+  } finally {
+    setSaving(false);
+  }
+};
+
 
   const toggleDay = (day) => {
     setWorkingHours({
