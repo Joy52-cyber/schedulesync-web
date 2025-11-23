@@ -35,8 +35,11 @@ import ManageBooking from './pages/ManageBooking';
 import PaymentStatus from './pages/PaymentStatus';
 import Book from './pages/Book';
 
-// ✅ FIX: Import BookingConfirmation from the correct path (./components/)
+// Components
 import BookingConfirmation from './components/BookingConfirmation'; 
+
+// ⭐ New: Landing page
+import Landing from './pages/Landing';
 
 // ---------- Login Wrapper ----------
 function LoginWrapper({ Component }) {
@@ -56,6 +59,11 @@ export default function App() {
       <AuthProvider>
         <Routes>
           {/* ============================================================
+              0. PUBLIC MARKETING LANDING PAGE
+             ============================================================ */}
+          <Route path="/" element={<Landing />} />
+
+          {/* ============================================================
               1. PUBLIC AUTHENTICATION ROUTES
              ============================================================ */}
           <Route path="/login" element={<LoginWrapper Component={Login} />} />
@@ -72,15 +80,11 @@ export default function App() {
           {/* ============================================================
               2. PUBLIC GUEST FLOWS (No Login Required)
              ============================================================ */}
-          
           <Route path="/book/:token" element={<BookingPage />} />
           <Route path="/book" element={<Book />} />
           <Route path="/manage/:token" element={<ManageBooking />} />
-
-          {/* ✅ FIX: Route Confirmation pages to the component */}
           <Route path="/booking-success" element={<BookingConfirmation />} />
           <Route path="/booking-confirmation" element={<BookingConfirmation />} />
-
           <Route path="/payment/status" element={<PaymentStatus />} />
 
           {/* ============================================================
@@ -100,7 +104,6 @@ export default function App() {
             <Route path="/teams" element={<Teams />} />
             <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
             <Route path="/teams/:teamId/members" element={<TeamMembers />} />
-            
             <Route 
               path="/teams/:teamId/members/:memberId/availability" 
               element={<MemberAvailability />} 
@@ -113,8 +116,8 @@ export default function App() {
           {/* ============================================================
               4. FALLBACKS
              ============================================================ */}
-          
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          {/* You *could* redirect unknown routes to "/" instead of a 404 if you want */}
+          {/* <Route path="*" element={<Navigate to="/" replace />} /> */}
 
           <Route
             path="*"
@@ -124,10 +127,10 @@ export default function App() {
                   <h1 className="text-6xl font-bold text-gray-900 mb-4">404</h1>
                   <p className="text-xl text-gray-600 mb-8">Page Not Found</p>
                   <a
-                    href="/dashboard"
+                    href="/"
                     className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
                   >
-                    Go to Dashboard
+                    Go to Home
                   </a>
                 </div>
               </div>
