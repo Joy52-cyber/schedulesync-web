@@ -1,4 +1,5 @@
-﻿import { Link, useNavigate, useLocation } from 'react-router-dom';
+﻿// client/src/components/Navbar.jsx
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   LogOut,
   Calendar,
@@ -40,7 +41,9 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <AppLogo />
+            <span className="text-base sm:text-lg font-bold tracking-tight text-gray-900">
+              ScheduleSync
+            </span>
           </Link>
 
           {/* Desktop Navigation */}

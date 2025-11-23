@@ -1,7 +1,7 @@
+// client/src/components/LoginPanel.jsx
 import { X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import LoginForm from './LoginForm';
-
 
 export default function LoginPanel({ isOpen, onClose }) {
   const { login } = useAuth();
@@ -27,10 +27,8 @@ export default function LoginPanel({ isOpen, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            {/* App logo icon only */}
-            <AppLogo showText={false} size={28} />
             <span className="text-sm font-semibold text-gray-800">
-              Log in
+              Log in to ScheduleSync
             </span>
           </div>
           <button

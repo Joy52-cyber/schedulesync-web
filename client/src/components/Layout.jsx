@@ -1,4 +1,5 @@
-﻿import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+﻿// client/src/components/Layout.jsx
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -10,7 +11,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-
 
 export default function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -55,7 +55,9 @@ export default function Layout() {
             {/* Logo */}
             <div className="flex items-center gap-2 sm:gap-3">
               <Link to="/" className="flex items-center gap-2 sm:gap-3">
-                <AppLogo />
+                <span className="text-base sm:text-lg font-bold tracking-tight text-gray-900">
+                  ScheduleSync
+                </span>
               </Link>
             </div>
 
