@@ -1,97 +1,128 @@
 ﻿import axios from 'axios';
 
 // 1. Get the base URL from env or default
-let rawBaseUrl = import.meta.env.VITE_API_URL || 'https://schedulesync-web-production.up.railway.app';
+let rawBaseUrl =
+  import.meta.env.VITE_API_URL ||
+  'https://schedulesync-web-production.up.railway.app';
+
+// Remove trailing slash if present
 rawBaseUrl = rawBaseUrl.replace(/\/$/, '');
-const API_BASE = rawBaseUrl.endsWith('/api') ? rawBaseUrl : `${rawBaseUrl}/api`;
+
+// Ensure we end up with .../api
+const API_BASE = rawBaseUrl.endsWith('/api')
+  ? rawBaseUrl
+  : `${rawBaseUrl}/api`;
 
 console.log('🌐 Final API Base URL:', API_BASE);
 
+// Create axios instance
 export const api = axios.create({
   baseURL: API_BASE,
 });
 
+// Attach JWT token to every request if present
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// ---------- HELPERS ----------
-
+// ---------- AUTH ----------
 export const auth = {
   login: (email, password) => api.post('/auth/login', { email, password }),
   register: (data) => api.post('/auth/register', data),
   me: () => api.get('/auth/me'),
-  verifyEmail: (token) => api.get('/auth/verify-email', { params: { token } }),
+  verifyEmail: (token) =>
+    api.get('/auth/verify-email', { params: { token } }),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
-  resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }),
-  resendVerification: (email) => api.post('/auth/resend-verification', { email }),
+  resetPassword: (token, newPassword) =>
+    api.post('/auth/reset-password', { token, newPassword }),
+  resendVerification: (email) =>
+    api.post('/auth/resend-verification', { email }),
 };
 
+// ---------- TEAMS & MEMBERS ----------
 export const teams = {
   getAll: () => api.get('/teams'),
   create: (data) => api.post('/teams', data),
   get: (teamId) => api.get(`/teams/${teamId}`),
   update: (teamId, data) => api.put(`/teams/${teamId}`, data),
   delete: (teamId) => api.delete(`/teams/${teamId}`),
-  
+
   getMembers: (teamId) => api.get(`/teams/${teamId}/members`),
   addMember: (teamId, data) => api.post(`/teams/${teamId}/members`, data),
-  updateMember: (teamId, memberId, data) => api.patch(`/teams/${teamId}/members/${memberId}`, data),
-  removeMember: (teamId, memberId) => api.delete(`/teams/${teamId}/members/${memberId}`),
-  
-  updateMemberStatus: (teamId, memberId, is_active) => 
+  updateMember: (teamId, memberId, data) =>
+    api.patch(`/teams/${teamId}/members/${memberId}`, data),
+  removeMember: (teamId, memberId) =>
+    api.delete(`/teams/${teamId}/members/${memberId}`),
+
+  updateMemberStatus: (teamId, memberId, is_active) =>
     api.patch(`/teams/${teamId}/members/${memberId}/status`, { is_active }),
 
-  // Corrected to hit the PUT /api/teams/:id/members/:id/pricing route
-  updateMemberPricing: (teamId, memberId, data) => 
+  // PUT /api/teams/:teamId/members/:memberId/pricing
+  updateMemberPricing: (teamId, memberId, data) =>
     api.put(`/teams/${teamId}/members/${memberId}/pricing`, data),
 
-  // Corrected to hit the PUT /api/teams/:id/members/:id/external-link route
-  updateMemberExternalLink: (teamId, memberId, data) => 
+  // PUT /api/teams/:teamId/members/:memberId/external-link
+  updateMemberExternalLink: (teamId, memberId, data) =>
     api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
 };
 
+// ---------- AVAILABILITY (TEAM MEMBER) ----------
 export const availability = {
-  // ✅ FIX: Hitting the flattened /team-members/:id/availability route for load
-  getSettings: (teamId, memberId) => api.get(`/team-members/${memberId}/availability`),
-  
-  // ✅ FIX: Hitting the flattened /team-members/:id/availability route for save
-  updateSettings: (teamId, memberId, data) => api.put(`/team-members/${memberId}/availability`, data),
-  
-  get: (teamId, memberId) => api.get(`/team-members/${memberId}/availability`),
+  // Uses backend: GET /api/team-members/:id/availability
+  getSettings: (teamId, memberId) =>
+    api.get(`/team-members/${memberId}/availability`),
+
+  // Uses backend: PUT /api/team-members/:id/availability
+  updateSettings: (teamId, memberId, data) =>
+    api.put(`/team-members/${memberId}/availability`, data),
+
+  // Alias helper (same as getSettings)
+  get: (teamId, memberId) =>
+    api.get(`/team-members/${memberId}/availability`),
 };
 
+// ---------- BOOKINGS ----------
 export const bookings = {
   list: (params) => api.get('/bookings', { params }),
   getAll: (params) => api.get('/bookings', { params }),
   getByToken: (token) => api.get(`/book/${token}`),
-  getSlots: (token, data) => api.post(`/book/${token}/slots-with-status`, data), 
+  getSlots: (token, data) =>
+    api.post(`/book/${token}/slots-with-status`, data),
   create: (payload) => api.post('/bookings', payload),
-  
-  getManagementDetails: (token) => api.get(`/bookings/manage/${token}`),
-  rescheduleByToken: (token, data) => api.post(`/bookings/manage/${token}/reschedule`, data),
-  cancelByToken: (token, reason) => api.post(`/bookings/manage/${token}/cancel`, { reason }),
+
+  getManagementDetails: (token) =>
+    api.get(`/bookings/manage/${token}`),
+  rescheduleByToken: (token, data) =>
+    api.post(`/bookings/manage/${token}/reschedule`, data),
+  cancelByToken: (token, reason) =>
+    api.post(`/bookings/manage/${token}/cancel`, { reason }),
 };
 
+// ---------- REMINDERS ----------
 export const reminders = {
-  getSettings: (teamId) => api.get(`/teams/${teamId}/reminder-settings`),
-  updateSettings: (teamId, data) => api.put(`/teams/${teamId}/reminder-settings`, data),
+  getSettings: (teamId) =>
+    api.get(`/teams/${teamId}/reminder-settings`),
+  updateSettings: (teamId, data) =>
+    api.put(`/teams/${teamId}/reminder-settings`, data),
   getStatus: () => api.get('/reminders/status'),
 };
 
+// ---------- CALENDAR / OAUTH ----------
 export const calendar = {
   connectGoogle: () => api.get('/auth/google/url'),
-  disconnectGoogle: () => api.post('/calendar/google/disconnect'), 
+  disconnectGoogle: () => api.post('/calendar/google/disconnect'),
 };
 
 export const oauth = {
   getGoogleUrl: () => api.get('/auth/google/url'),
   handleCallback: (code) => api.post('/auth/google/callback', { code }),
-  guestGoogleAuth: (code, bookingToken) => api.post('/book/auth/google', { code, bookingToken }),
+  guestGoogleAuth: (code, bookingToken) =>
+    api.post('/book/auth/google', { code, bookingToken }),
 };
 
+// ---------- PAYMENTS ----------
 export const payments = {
   getConfig: () => api.get('/payments/config'),
   getPricing: (token) => api.get(`/book/${token}/pricing`),
@@ -99,23 +130,43 @@ export const payments = {
   confirmBooking: (data) => api.post('/payments/confirm-booking', data),
 };
 
+// ---------- AI ----------
 export const ai = {
-  schedule: (message, history) => api.post('/ai/schedule', { message, conversationHistory: history }),
-  confirm: (bookingData) => api.post('/ai/schedule/confirm', { bookingData })
+  schedule: (message, history) =>
+    api.post('/ai/schedule', {
+      message,
+      conversationHistory: history,
+    }),
+  confirm: (bookingData) =>
+    api.post('/ai/schedule/confirm', { bookingData }),
 };
 
+// ---------- TIMEZONE ----------
 export const timezone = {
+  // User-level timezone
   get: () => api.get('/user/timezone'),
   update: (data) => api.put('/user/timezone', data),
-  // ✅ FIX: Hitting the flattened /team-members/:id/timezone route for load
-  getMemberTimezone: (memberId) => api.get(`/team-members/${memberId}/timezone`),
-  // ✅ FIX: Hitting the flattened /team-members/:id/timezone route for save
-  updateMemberTimezone: (memberId, timezone) => api.put(`/team-members/${memberId}/timezone`, { timezone }),
+
+  // Team member timezone (matches /api/team-members/:id/timezone)
+  getMemberTimezone: (memberId) =>
+    api.get(`/team-members/${memberId}/timezone`),
+
+  updateMemberTimezone: (memberId, timezone) =>
+    api.put(`/team-members/${memberId}/timezone`, { timezone }),
 };
 
-// Attach all helpers to default export
+// Attach all helpers to default export for `import api from '../utils/api'`
 Object.assign(api, {
-  auth, teams, availability, bookings, reminders, calendar, oauth, payments, ai, timezone
+  auth,
+  teams,
+  availability,
+  bookings,
+  reminders,
+  calendar,
+  oauth,
+  payments,
+  ai,
+  timezone,
 });
 
 export default api;
