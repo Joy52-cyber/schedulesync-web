@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { auth } from '../utils/api';
+import api from '../utils/api'; // ✅ Use default import
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -37,7 +37,8 @@ export default function ResetPassword() {
     setLoading(true);
 
     try {
-      const response = await auth.resetPassword(token, newPassword);
+      // ✅ Use api.auth directly
+      const response = await api.auth.resetPassword(token, newPassword);
       console.log('✅ Password reset successful:', response.data);
       setSuccess(true);
       
