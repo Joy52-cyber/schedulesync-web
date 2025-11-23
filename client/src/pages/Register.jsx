@@ -1,8 +1,7 @@
-﻿import { useState } from "react";
+﻿// client/src/pages/Register.jsx
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { auth } from "../utils/api";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
 import { Calendar } from "lucide-react";
 
 export default function Register() {
@@ -40,14 +39,17 @@ export default function Register() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center px-4 py-8">
       {/* Card */}
       <div className="w-full max-w-md bg-white/80 backdrop-blur-xl rounded-xl shadow-xl border border-purple-100 p-8">
-        
         {/* Logo */}
         <div className="flex flex-col items-center mb-6">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-2 shadow-md">
             <Calendar className="w-6 h-6 text-white" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900">Create your account</h2>
-          <p className="text-sm text-gray-500">Start using ScheduleSync for free</p>
+          <h2 className="text-xl font-semibold text-gray-900">
+            Create your account
+          </h2>
+          <p className="text-sm text-gray-500">
+            Start using ScheduleSync for free
+          </p>
         </div>
 
         {/* Form */}
@@ -58,42 +60,46 @@ export default function Register() {
             </div>
           )}
 
-          <Input
+          {/* Name */}
+          <input
             name="name"
             placeholder="Full name"
             value={form.name}
             onChange={handleChange}
             required
-            className="bg-white border-purple-200 focus:border-purple-400"
+            className="w-full px-3 py-2.5 rounded-lg border bg-white border-purple-200 focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none text-sm"
           />
 
-          <Input
+          {/* Email */}
+          <input
             name="email"
             type="email"
             placeholder="Email address"
             value={form.email}
             onChange={handleChange}
             required
-            className="bg-white border-purple-200 focus:border-purple-400"
+            className="w-full px-3 py-2.5 rounded-lg border bg-white border-purple-200 focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none text-sm"
           />
 
-          <Input
+          {/* Password */}
+          <input
             name="password"
             type="password"
             placeholder="Create a password"
             value={form.password}
             onChange={handleChange}
             required
-            className="bg-white border-purple-200 focus:border-purple-400"
+            className="w-full px-3 py-2.5 rounded-lg border bg-white border-purple-200 focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none text-sm"
           />
 
-          <Button
+          {/* Submit */}
+          <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+            className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? "Creating account..." : "Create account"}
-          </Button>
+          </button>
         </form>
 
         {/* Footer */}
