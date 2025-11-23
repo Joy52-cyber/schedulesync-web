@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import LoginForm from './LoginForm';
+import AppLogo from './AppLogo';
 
 export default function LoginPanel({ isOpen, onClose }) {
   const { login } = useAuth();
@@ -25,10 +26,8 @@ export default function LoginPanel({ isOpen, onClose }) {
       <div className="w-full max-w-md h-full bg-white shadow-2xl border-l border-gray-200 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold">
-              SS
-            </div>
+          <div className="flex items-center gap-3">
+            <AppLogo showText={false} />
             <span className="text-sm font-semibold text-gray-800">
               Log in
             </span>
