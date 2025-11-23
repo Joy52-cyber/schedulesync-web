@@ -124,18 +124,32 @@ export default function BookingPage() {
   }, [searchParams, token, navigate, hasProcessedOAuth]);
 
   const loadBookingInfo = async () => {
-    try {
-      setLoading(true);
-      const response = await bookings.getByToken(token);
-      setTeamInfo(response.data.data.team);
-      setMemberInfo(response.data.data.member);
-    } catch (err) {
-      console.error('Error loading booking info:', err);
-      setError('Invalid booking link');
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    
+    const response = await bookings.getByToken(token);
+    console.log('📥 Booking info raw response:', response.data);
+
+    // Support both shapes:
+    // - { data: { team, member } }
+    // - { team, member }
+    const payload = response.data?.data || response.data || {};
+
+    if (!payload.team || !payload.member) {
+      throw new Error('Missing team or member in booking payload');
     }
-  };
+
+    setTeamInfo(payload.team);
+    setMemberInfo(payload.member);
+  } catch (err) {
+    console.error('Error loading booking info:', err);
+    setError('Invalid booking link');
+    setTeamInfo(null);
+    setMemberInfo(null);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const loadPricingInfo = async () => {
     try {
