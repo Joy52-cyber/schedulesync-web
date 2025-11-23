@@ -40,6 +40,7 @@ export const teams = {
   addMember: (teamId, data) => api.post(`/teams/${teamId}/members`, data),
   updateMember: (teamId, memberId, data) => api.patch(`/teams/${teamId}/members/${memberId}`, data),
   removeMember: (teamId, memberId) => api.delete(`/teams/${teamId}/members/${memberId}`),
+  
   updateMemberStatus: (teamId, memberId, is_active) => 
     api.patch(`/teams/${teamId}/members/${memberId}/status`, { is_active }),
 
@@ -59,6 +60,7 @@ export const bookings = {
   getByToken: (token) => api.get(`/book/${token}`),
   getSlots: (token, data) => api.post(`/book/${token}/slots-with-status`, data), 
   create: (payload) => api.post('/bookings', payload),
+  
   getManagementDetails: (token) => api.get(`/bookings/manage/${token}`),
   rescheduleByToken: (token, data) => api.post(`/bookings/manage/${token}/reschedule`, data),
   cancelByToken: (token, reason) => api.post(`/bookings/manage/${token}/cancel`, { reason }),
@@ -76,6 +78,9 @@ export const calendar = {
 };
 
 export const oauth = {
+  // ✅ FIX: Added getGoogleUrl here
+  getGoogleUrl: () => api.get('/auth/google/url'),
+  
   handleCallback: (code) => api.post('/auth/google/callback', { code }),
   guestGoogleAuth: (code, bookingToken) => api.post('/book/auth/google', { code, bookingToken }),
 };
@@ -95,11 +100,11 @@ export const ai = {
 export const timezone = {
   get: () => api.get('/user/timezone'),
   update: (data) => api.put('/user/timezone', data),
-  // ✅ FIX: Added member specific timezone methods
   getMemberTimezone: (memberId) => api.get(`/team-members/${memberId}/timezone`),
   updateMemberTimezone: (memberId, timezone) => api.put(`/team-members/${memberId}/timezone`, { timezone }),
 };
 
+// Attach all helpers to default export
 Object.assign(api, {
   auth,
   teams,
