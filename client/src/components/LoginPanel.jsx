@@ -1,7 +1,6 @@
 import { X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import LoginForm from './LoginForm';
-import AppLogo from "../components/AppLogo";
 
 
 export default function LoginPanel({ isOpen, onClose }) {
