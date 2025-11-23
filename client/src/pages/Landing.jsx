@@ -2,7 +2,8 @@
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Zap, Share2, Users, Clock, CheckCircle } from 'lucide-react';
 import LoginPanel from '../components/LoginPanel';
-import AppLogo from '../components/AppLogo';
+import AppLogo from "./AppLogo";
+
 
 export default function Landing({ defaultLoginOpen = false }) {
   const [isLoginOpen, setIsLoginOpen] = useState(defaultLoginOpen);
