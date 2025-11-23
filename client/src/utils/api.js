@@ -1,188 +1,111 @@
 ﻿// client/src/utils/api.js
-import axios from "axios";
+import axios from 'axios';
 
-// ------------------------------------------------------
-// API BASE URL RESOLUTION
-// ------------------------------------------------------
-const getApiUrl = () => {
-  const vite = import.meta.env.VITE_API_URL;
+// Base API URL (server already prefixes everything with /api)
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  'https://schedulesync-web-production.up.railway.app/api';
 
-  if (vite) {
-    // Strip trailing slashes and optional `/api`
-    return vite.replace(/\/+$/, "").replace(/\/api$/, "");
-  }
+console.log('🌐 API BASE:', API_BASE);
 
-  if (window.location.hostname === "localhost") {
-    return "http://localhost:3000";
-  }
-
-  return window.location.origin;
-};
-
-const API_BASE = getApiUrl();
-export const API_URL = `${API_BASE}/api`;
-
-console.log("🔌 API Configuration:", {
-  VITE_API_URL: import.meta.env.VITE_API_URL,
-  API_BASE,
-  API_URL,
+export const api = axios.create({
+  baseURL: API_BASE,
 });
 
-// ------------------------------------------------------
-// AXIOS INSTANCE
-// ------------------------------------------------------
-const apiClient = axios.create({
-  baseURL: API_URL,
-  headers: { "Content-Type": "application/json" },
-});
-
-apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+// Attach JWT token (if present) on every request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-apiClient.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      // Clear auth on unauthorized
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      if (window.location.pathname !== "/login") {
-        window.location.href = "/login";
-      }
-    }
-    return Promise.reject(err);
-  }
-);
-
-// ------------------------------------------------------
-// AUTH
-// ------------------------------------------------------
+// ---------- AUTH ----------
 export const auth = {
-  googleLogin: (code) =>
-    apiClient.post("/auth/google", {
-      code,
-      redirectUri: `${window.location.origin}/login`,
-    }),
+  login: (email, password) =>
+    api.post('/auth/login', { email, password }),
 
-  register: (data) => apiClient.post("/auth/register", data),
-  login: (data) => apiClient.post("/auth/login", data),
+  register: (data) =>
+    api.post('/auth/register', data),
+
+  me: () =>
+    api.get('/auth/me'),
+
+  verifyEmail: (token) =>
+    api.get('/auth/verify-email', { params: { token } }),
 
   forgotPassword: (email) =>
-    apiClient.post("/auth/forgot-password", { email }),
+    api.post('/auth/forgot-password', { email }),
 
   resetPassword: (token, password) =>
-    apiClient.post("/auth/reset-password", { token, newPassword: password }),
-
-  verifyEmail: (token) => apiClient.get(`/auth/verify-email?token=${token}`),
-
-  resendVerification: (email) =>
-    apiClient.post("/auth/resend-verification", { email }),
-
-  getCurrentUser: () => apiClient.get("/auth/me"),
-  logout: () => apiClient.post("/auth/logout"),
+    api.post('/auth/reset-password', { token, password }),
 };
 
-// Used by OAuthCallback.jsx (organizer)
-export const handleOrganizerOAuthCallback = async (code) => {
-  const res = await apiClient.post("/auth/google/callback", { code });
-  return res.data;
-};
-
-// ------------------------------------------------------
-// TEAMS
-// ------------------------------------------------------
+// ---------- TEAMS ----------
 export const teams = {
-  getAll: () => apiClient.get("/teams"),
-  getById: (id) => apiClient.get(`/teams/${id}`),
-  create: (data) => apiClient.post("/teams", data),
-  update: (id, data) => apiClient.put(`/teams/${id}`, data),
+  getAll: () => api.get('/teams'),
+  create: (data) => api.post('/teams', data),
+  get: (teamId) => api.get(`/teams/${teamId}`),
+  update: (teamId, data) => api.put(`/teams/${teamId}`, data),
 
-  delete: (id) => apiClient.delete(`/teams/${id}`),
-  remove: (id) => apiClient.delete(`/teams/${id}`),
-
-  getMembers: (teamId) => apiClient.get(`/teams/${teamId}/members`),
+  getMembers: (teamId) => api.get(`/teams/${teamId}/members`),
+  addMember: (teamId, data) => api.post(`/teams/${teamId}/members`, data),
+  updateMember: (teamId, memberId, data) =>
+    api.put(`/teams/${teamId}/members/${memberId}`, data),
   removeMember: (teamId, memberId) =>
-    apiClient.delete(`/teams/${teamId}/members/${memberId}`),
+    api.delete(`/teams/${teamId}/members/${memberId}`),
 
-  updateMemberStatus: (teamId, memberId, isActive) =>
-    apiClient.patch(`/teams/${teamId}/members/${memberId}/status`, {
-      is_active: isActive,
-    }),
+  // Availability
+  getMemberAvailability: (teamId, memberId) =>
+    api.get(`/teams/${teamId}/members/${memberId}/availability`),
+  updateMemberAvailability: (teamId, memberId, data) =>
+    api.put(`/teams/${teamId}/members/${memberId}/availability`, data),
 
-  updateMemberExternalLink: (teamId, memberId, data) =>
-    apiClient.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
-
+  // Pricing
+  getMemberPricing: (teamId, memberId) =>
+    api.get(`/teams/${teamId}/members/${memberId}/pricing`),
   updateMemberPricing: (teamId, memberId, data) =>
-    apiClient.put(`/teams/${teamId}/members/${memberId}/pricing`, data),
+    api.put(`/teams/${teamId}/members/${memberId}/pricing`, data),
+
+  // External booking link
+  getMemberExternalLink: (teamId, memberId) =>
+    api.get(`/teams/${teamId}/members/${memberId}/external-link`),
+  updateMemberExternalLink: (teamId, memberId, data) =>
+    api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
 };
 
-// ------------------------------------------------------
-// BOOKINGS
-// ------------------------------------------------------
+// ---------- BOOKINGS ----------
 export const bookings = {
-  // Internal views
-  getAll: () => apiClient.get("/bookings"),
-  list: (params) => apiClient.get("/bookings", { params }),
-  getById: (id) => apiClient.get(`/bookings/${id}`),
+  // Used by internal dashboard / bookings page
+  list: (params) => api.get('/bookings', { params }),
 
-  // Public booking page uses token (BookingPage.jsx)
-  getByToken: (token) => apiClient.get(`/bookings/token/${token}`),
+  // PUBLIC: used by BookingPage.loadBookingInfo
+  // Backend route is /api/book/:token
+  getByToken: (token) => api.get(`/book/${token}`),
 
-  // SmartSlotPicker (guest + organizer availability)
-  getSlots: (bookingToken, payload) =>
-    apiClient.post(`/book/${bookingToken}/slots`, payload),
+  // PUBLIC: SmartSlotPicker → /api/book/:token/slots
+  getSlots: (token, params) =>
+    api.get(`/book/${token}/slots`, { params }),
 
-  // Create booking (free bookings)
-  create: (data) => apiClient.post("/book", data),
-
-  // Cancel from internal app
-  cancel: (id, data) => apiClient.post(`/bookings/${id}/cancel`, data),
+  // PUBLIC: BookingPage free bookings (paid bookings use fetch to /api/payments/...)
+  create: (payload) =>
+    api.post('/bookings', payload),
 };
 
-// ------------------------------------------------------
-// AVAILABILITY
-// ------------------------------------------------------
-export const availability = {
-  get: (memberId) =>
-    apiClient.get(`/team-members/${memberId}/availability`),
-  update: (memberId, data) =>
-    apiClient.put(`/team-members/${memberId}/availability`, data),
-
-  getMemberAvailability: (id) =>
-    apiClient.get(`/team-members/${id}/availability`),
-  updateMemberAvailability: (id, data) =>
-    apiClient.put(`/team-members/${id}/availability`, data),
+// ---------- SETTINGS / REMINDERS ----------
+export const reminders = {
+  getSettings: () => api.get('/reminders/settings'),
+  updateSettings: (data) => api.put('/reminders/settings', data),
+  getStatus: () => api.get('/reminders/status'),
 };
 
-// ------------------------------------------------------
-// BOOKING LINKS (MyBookingLink, etc.)
-// ------------------------------------------------------
-export const bookingLinks = {
-  getMyLinks: () => apiClient.get("/booking-links"),
-  create: (data) => apiClient.post("/booking-links", data),
-  update: (id, data) => apiClient.put(`/booking-links/${id}`, data),
-  remove: (id) => apiClient.delete(`/booking-links/${id}`),
+// ---------- CALENDAR SETTINGS ----------
+export const calendar = {
+  getSettings: () => api.get('/calendar/settings'),
+  updateSettings: (data) => api.put('/calendar/settings', data),
+  connectGoogle: () => api.get('/calendar/google/url'),
+  disconnectGoogle: () => api.post('/calendar/google/disconnect'),
 };
 
-// ------------------------------------------------------
-// DASHBOARD
-// ------------------------------------------------------
-export const dashboard = {
-  getOverview: () => apiClient.get("/dashboard/overview"),
-  getStats: () => apiClient.get("/dashboard/stats"),
-};
-
-// ------------------------------------------------------
-// AI
-// ------------------------------------------------------
-export const ai = {
-  schedulerChat: (payload) =>
-    apiClient.post("/ai/scheduler/chat", payload),
-};
-
-export default apiClient;
+export default api;
