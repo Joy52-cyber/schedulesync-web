@@ -170,6 +170,11 @@ app.use(express.json());
 // 4. Healthcheck (AFTER app exists)
 app.get('/health', (req, res) => res.send('OK'));
 
+// finally
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
 // ============ DATABASE CONNECTION ============
 
 const pool = new Pool({
