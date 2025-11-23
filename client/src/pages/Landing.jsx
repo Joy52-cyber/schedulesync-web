@@ -1,182 +1,291 @@
-// client/src/pages/LandingPage.jsx
+// client/src/pages/Landing.jsx
 import { Link, useNavigate } from 'react-router-dom';
-import { Calendar, Users, Sparkles, Zap, ArrowRight } from 'lucide-react';
+import {
+  Calendar,
+  Zap,
+  Share2,
+  Users,
+  Clock,
+  CheckCircle,
+} from 'lucide-react';
 
-export default function LandingPage() {
+export default function Landing() {
   const navigate = useNavigate();
 
+  const handleGetStarted = (e) => {
+    e.preventDefault();
+    navigate('/register');
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-white">
-      {/* Nav */}
-      <header className="border-b border-white/10 bg-slate-950/70 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2"
-          >
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
-              <Calendar className="h-5 w-5 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex flex-col">
+      {/* Header */}
+      <header className="border-b border-purple-100 bg-white/70 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+          {/* Logo / Brand */}
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-white" />
             </div>
-            <span className="font-semibold text-white text-lg">
+            <span className="text-lg font-semibold text-gray-900">
               ScheduleSync
             </span>
-          </button>
+          </div>
 
+          {/* Nav / CTA */}
           <div className="flex items-center gap-3 text-sm">
             <Link
               to="/login"
-              className="px-3 py-1.5 rounded-lg border border-white/20 hover:border-white/40 text-white/80 hover:text-white transition"
+              className="px-3 py-1.5 rounded-lg text-gray-700 hover:bg-gray-100"
             >
               Log in
             </Link>
             <Link
               to="/register"
-              className="px-3.5 py-1.5 rounded-lg bg-white text-slate-900 font-semibold hover:bg-slate-100 transition flex items-center gap-1.5"
+              className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold hover:from-blue-600 hover:to-purple-700 shadow-sm"
             >
               Start free
-              <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         </div>
       </header>
 
-      {/* Hero */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 pb-16">
-        <div className="grid lg:grid-cols-[1.2fr,1fr] gap-10 items-center">
-          {/* Left side */}
-          <div className="space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-xs text-white/80">
-              <Sparkles className="h-4 w-4 text-yellow-300" />
-              <span>AI-assisted scheduling for teams that move fast</span>
+      {/* Main content */}
+      <main className="flex-1">
+        {/* Hero Section */}
+        <section className="max-w-6xl mx-auto px-4 py-16 md:py-24">
+          <div className="text-center mb-12">
+            <div className="inline-block mb-6 px-6 py-2.5 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-semibold shadow-md">
+              Transform Your Scheduling Experience
             </div>
 
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight">
-              Turn scheduling chaos into a single, shared source of truth.
+            <h1 className="text-3xl md:text-5xl font-bold text-gray-900 mb-5 leading-tight">
+              Turn scheduling chaos into a single, shared source of truth
             </h1>
 
-            <p className="text-sm sm:text-base text-white/80 max-w-xl">
-              ScheduleSync connects your team members, external booking links,
-              and calendars into one intelligent system. Let guests book in
-              seconds while you keep full control over availability, buffers,
-              and meeting rules.
+            <p className="text-lg text-gray-600 mb-8 max-w-3xl mx-auto">
+              ScheduleSync connects your team meetings, personal tasks, and
+              everything in between—without the confusion. Say goodbye to
+              double bookings and hello to seamless coordination.
             </p>
 
-            {/* CTA buttons */}
-            <div className="flex flex-wrap gap-3 pt-2">
-              <Link
-                to="/register"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-slate-900 font-semibold text-sm hover:bg-slate-100 transition"
-              >
-                Start free
-                <ArrowRight className="h-4 w-4" />
-              </Link>
+            {/* CTA Form */}
+            <form
+              onSubmit={handleGetStarted}
+              className="max-w-md mx-auto mb-4"
+            >
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="email"
+                  placeholder="Enter your email"
+                  className="flex-1 px-4 py-3 rounded-xl border border-purple-200 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 text-sm"
+                  required
+                />
+                <button
+                  type="submit"
+                  className="px-5 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold text-sm hover:from-blue-600 hover:to-purple-700 shadow-md"
+                >
+                  Get started free
+                </button>
+              </div>
+            </form>
+
+            <p className="text-sm text-gray-500">
+              Already have an account?{' '}
               <Link
                 to="/login"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/20 text-white/90 text-sm hover:border-white/50 hover:bg-white/5 transition"
+                className="text-purple-600 hover:text-purple-700 font-semibold"
               >
-                I already have an account
+                Sign in
               </Link>
+            </p>
+          </div>
+
+          {/* Feature Cards */}
+          <div className="grid md:grid-cols-3 gap-6 mb-16">
+            {/* Card 1 */}
+            <div className="rounded-2xl border border-purple-100 bg-white/80 backdrop-blur-sm shadow-sm hover:shadow-lg transition-shadow">
+              <div className="p-6">
+                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center mb-4">
+                  <Calendar className="w-6 h-6 text-blue-600" />
+                </div>
+                <h3 className="font-semibold text-gray-900 mb-2">
+                  Calendar Integration
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Connect Google Calendar, Outlook, and more. Consolidate your
+                  schedule in one place.
+                </p>
+              </div>
             </div>
 
-            {/* Key points */}
-            <div className="grid sm:grid-cols-3 gap-4 pt-4 text-xs sm:text-sm">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-blue-300" />
-                  <p className="font-semibold">Team-first scheduling</p>
+            {/* Card 2 */}
+            <div className="rounded-2xl border border-purple-100 bg-white/80 backdrop-blur-sm shadow-sm hover:shadow-lg transition-shadow">
+              <div className="p-6">
+                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center mb-4">
+                  <Zap className="w-6 h-6 text-green-600" />
                 </div>
-                <p className="text-white/70">
-                  Individual, round-robin, collective, and first-available
-                  booking flows built in.
+                <h3 className="font-semibold text-gray-900 mb-2">
+                  Smart Availability
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Automatically sync availability across your calendars and
+                  prevent double bookings.
                 </p>
               </div>
+            </div>
 
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-amber-300" />
-                  <p className="font-semibold">Smart slot suggestions</p>
+            {/* Card 3 */}
+            <div className="rounded-2xl border border-purple-100 bg-white/80 backdrop-blur-sm shadow-sm hover:shadow-lg transition-shadow">
+              <div className="p-6">
+                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-purple-100 to-purple-200 flex items-center justify-center mb-4">
+                  <Share2 className="w-6 h-6 text-purple-600" />
                 </div>
-                <p className="text-white/70">
-                  AI ranks the best time slots using working hours, conflicts,
-                  and buffers.
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-emerald-300" />
-                  <p className="font-semibold">Calendar-native</p>
-                </div>
-                <p className="text-white/70">
-                  Designed around Google Calendar, external booking links, and
-                  clean guest flows.
+                <h3 className="font-semibold text-gray-900 mb-2">
+                  Easy to Share
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Share your booking link and let others schedule time with you
+                  effortlessly.
                 </p>
               </div>
             </div>
           </div>
+        </section>
 
-          {/* Right side – simple preview card */}
-          <div className="relative">
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-purple-500/30 rounded-full blur-3xl" />
-            <div className="absolute bottom-0 -left-6 w-32 h-32 bg-blue-500/30 rounded-full blur-3xl" />
+        {/* How It Works Section */}
+        <section className="max-w-4xl mx-auto px-4 py-16">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
+              How to Get Your Booking Link
+            </h2>
+            <p className="text-gray-600">
+              Set up your personalized scheduling page in just a few steps.
+            </p>
+          </div>
 
-            <div className="relative bg-slate-900/80 border border-white/10 rounded-2xl p-5 shadow-2xl backdrop-blur">
-              <div className="flex items-center justify-between mb-4">
+          <div className="rounded-2xl border border-purple-100 bg-white/80 backdrop-blur-sm shadow-sm p-8 space-y-6">
+            {[
+              {
+                step: 1,
+                title: 'Create your account',
+                desc: 'Sign up for free in just a few seconds.',
+              },
+              {
+                step: 2,
+                title: 'Connect your calendar',
+                desc: 'Link your Google, Outlook, or other calendars.',
+              },
+              {
+                step: 3,
+                title: 'Set your availability',
+                desc: "Define when you're available for meetings.",
+              },
+              {
+                step: 4,
+                title: 'Share your link',
+                desc: 'Send your personalized booking link to anyone.',
+              },
+            ].map((item) => (
+              <div key={item.step} className="flex gap-4">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center flex-shrink-0 text-sm font-semibold">
+                  {item.step}
+                </div>
                 <div>
-                  <p className="text-xs text-white/60">Upcoming demo</p>
-                  <p className="text-sm font-semibold">Sales team booking</p>
-                </div>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 text-[10px] font-medium">
-                  AUTO-ROUTED
-                </span>
-              </div>
-
-              <div className="space-y-3 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-white/60">Mode</span>
-                  <span className="font-medium">Round-robin</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/60">Team</span>
-                  <span className="font-medium">Sales EMEA · 4 members</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/60">Buffer</span>
-                  <span className="font-medium">15 min before &amp; after</span>
+                  <h4 className="font-semibold text-gray-900 mb-1">
+                    {item.title}
+                  </h4>
+                  <p className="text-sm text-gray-600">{item.desc}</p>
                 </div>
               </div>
+            ))}
+          </div>
+        </section>
 
-              <div className="mt-5 p-3 rounded-xl bg-slate-800/80 border border-white/5 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-white/70">AI suggestion</span>
-                  <span className="text-emerald-300 font-semibold">
-                    Match score: 92%
-                  </span>
-                </div>
-                <p className="text-[11px] text-white/60">
-                  “This slot avoids internal conflicts and keeps buffers for
-                  all participants.”
-                </p>
+        {/* Where to Share Section */}
+        <section className="max-w-6xl mx-auto px-4 py-16">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
+              Where to Share Your Link
+            </h2>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <InfoCard
+              icon={
+                <Users className="w-6 h-6 text-purple-600" />
+              }
+              title="Email Signature"
+              desc="Add it to your email for easy scheduling."
+              gradient="from-purple-100 to-purple-200"
+            />
+            <InfoCard
+              icon={<Share2 className="w-6 h-6 text-orange-600" />}
+              title="Social Media"
+              desc="Share on LinkedIn, X, or your bio."
+              gradient="from-orange-100 to-orange-200"
+            />
+            <InfoCard
+              icon={<Clock className="w-6 h-6 text-yellow-600" />}
+              title="Business Cards"
+              desc="Print it or use a QR code for quick access."
+              gradient="from-yellow-100 to-yellow-200"
+            />
+            <InfoCard
+              icon={<CheckCircle className="w-6 h-6 text-blue-600" />}
+              title="Website"
+              desc="Embed it on your site or contact page."
+              gradient="from-blue-100 to-blue-200"
+            />
+          </div>
+        </section>
+
+        {/* Final CTA */}
+        <section className="max-w-4xl mx-auto px-4 pb-20">
+          <div className="rounded-3xl bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-xl">
+            <div className="p-10 md:p-12 text-center">
+              <h2 className="text-2xl md:text-3xl font-bold mb-3">
+                Ready to simplify your scheduling?
+              </h2>
+              <p className="mb-8 text-blue-50 max-w-2xl mx-auto text-sm md:text-base">
+                Join professionals who have streamlined their scheduling
+                workflow with ScheduleSync.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link
+                  to="/register"
+                  className="px-6 py-3 rounded-xl bg-white text-purple-600 font-semibold text-sm shadow-md hover:bg-gray-100"
+                >
+                  Get started free
+                </Link>
+                <a
+                  href="#"
+                  className="px-6 py-3 rounded-xl border border-white/70 text-white font-semibold text-sm hover:bg-white/10"
+                >
+                  Watch demo
+                </a>
               </div>
-
-              <button
-                type="button"
-                onClick={() => navigate('/login')}
-                className="mt-5 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-sm font-semibold"
-              >
-                Log in and set up availability
-                <ArrowRight className="h-4 w-4" />
-              </button>
             </div>
           </div>
-        </div>
+        </section>
       </main>
+    </div>
+  );
+}
 
-      {/* Footer */}
-      <footer className="border-t border-white/10 py-4 text-center text-xs text-white/50">
-        © {new Date().getFullYear()} ScheduleSync. Built for teams who are done
-        with calendar chaos.
-      </footer>
+function InfoCard({ icon, title, desc, gradient }) {
+  return (
+    <div className="rounded-2xl border border-purple-100 bg-white/80 backdrop-blur-sm shadow-sm hover:shadow-lg transition-shadow">
+      <div className="p-6 text-center">
+        <div
+          className={`w-12 h-12 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center mb-4 mx-auto`}
+        >
+          {icon}
+        </div>
+        <h4 className="font-semibold text-gray-900 mb-1">{title}</h4>
+        <p className="text-sm text-gray-600">{desc}</p>
+      </div>
     </div>
   );
 }
