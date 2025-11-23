@@ -1,5 +1,4 @@
-﻿// client/src/components/Layout.jsx
-import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+﻿import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import AppLogo from "./AppLogo";
 
 export default function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -27,7 +27,8 @@ export default function Layout() {
 
   const handleLogout = () => {
     logout();
-    navigate("/login");
+    // 🔁 Go back to landing page instead of login
+    navigate("/");
   };
 
   const getUserInitials = () => {
@@ -53,12 +54,9 @@ export default function Layout() {
           <div className="flex justify-between items-center h-14 sm:h-16">
             {/* Logo */}
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
-                <Calendar className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
-              </div>
-              <span className="text-base sm:text-xl font-bold text-blue-600">
-                ScheduleSync
-              </span>
+              <Link to="/" className="flex items-center gap-2 sm:gap-3">
+                <AppLogo />
+              </Link>
             </div>
 
             {/* Desktop Navigation */}

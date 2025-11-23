@@ -1,14 +1,15 @@
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { 
-  LogOut, 
-  Calendar, 
-  Users, 
-  Link2, 
+﻿import { Link, useNavigate, useLocation } from 'react-router-dom';
+import {
+  LogOut,
+  Calendar,
+  Users,
+  Link2,
   Settings,
   Menu,
   X,
 } from 'lucide-react';
 import { useState } from 'react';
+import AppLogo from './AppLogo';
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -18,14 +19,13 @@ export default function Navbar() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    navigate('/login');
+    // 🔁 Go back to landing page instead of login
+    navigate('/');
   };
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-  const isActive = (path) => {
-    return location.pathname === path;
-  };
+  const isActive = (path) => location.pathname === path;
 
   const navLinks = [
     { path: '/', label: 'Dashboard', icon: Calendar },
@@ -41,12 +41,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center group-hover:shadow-lg transition-shadow">
-              <Calendar className="h-5 w-5 text-white" />
-            </div>
-            <span className="font-bold text-xl text-gray-900 group-hover:text-blue-600 transition-colors">
-              ScheduleSync
-            </span>
+            <AppLogo />
           </Link>
 
           {/* Desktop Navigation */}
