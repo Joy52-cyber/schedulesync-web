@@ -1,6 +1,7 @@
-﻿import axios from 'axios';
+﻿// client/src/utils/api.js
+import axios from 'axios';
 
-// Base API URL
+// Base API URL (server already prefixes everything with /api)
 const API_BASE =
   import.meta.env.VITE_API_URL ||
   'https://schedulesync-web-production.up.railway.app/api';
@@ -28,10 +29,8 @@ export const auth = {
   register: (data) =>
     api.post('/auth/register', data),
 
-  // Note: Backend doesn't explicitly have /auth/me in the provided server.js.
-  // Usually this is handled by decoding the JWT on client or a specific endpoint.
-  // If missing, ensure server.js has app.get('/api/auth/me', ...) or use local state.
-  me: () => api.get('/auth/me'),
+  me: () =>
+    api.get('/auth/me'),
 
   verifyEmail: (token) =>
     api.get('/auth/verify-email', { params: { token } }),
@@ -41,6 +40,9 @@ export const auth = {
 
   resetPassword: (token, newPassword) =>
     api.post('/auth/reset-password', { token, newPassword }),
+
+  resendVerification: (email) =>
+    api.post('/auth/resend-verification', { email }),
 };
 
 // ---------- TEAMS ----------
@@ -49,104 +51,155 @@ export const teams = {
   create: (data) => api.post('/teams', data),
   get: (teamId) => api.get(`/teams/${teamId}`),
   update: (teamId, data) => api.put(`/teams/${teamId}`, data),
+  delete: (teamId) => api.delete(`/teams/${teamId}`),
 
+  // Members
   getMembers: (teamId) => api.get(`/teams/${teamId}/members`),
-  
   addMember: (teamId, data) => api.post(`/teams/${teamId}/members`, data),
   
-  // FIX: Backend uses PATCH for member updates
+  // ✅ FIX: Changed PUT to PATCH to match backend
   updateMember: (teamId, memberId, data) =>
     api.patch(`/teams/${teamId}/members/${memberId}`, data),
-    
+  
+  // ✅ NEW: Added member status toggle
+  updateMemberStatus: (teamId, memberId, is_active) =>
+    api.patch(`/teams/${teamId}/members/${memberId}/status`, { is_active }),
+  
   removeMember: (teamId, memberId) =>
     api.delete(`/teams/${teamId}/members/${memberId}`),
 
-  // Pricing (Backend: /api/teams/:teamId/members/:memberId/pricing)
-  getMemberPricing: (teamId, memberId) =>
-    api.get(`/teams/${teamId}/members/${memberId}/pricing`),
-    
+  // Pricing
   updateMemberPricing: (teamId, memberId, data) =>
     api.put(`/teams/${teamId}/members/${memberId}/pricing`, data),
 
   // External booking link
-  getMemberExternalLink: (teamId, memberId) =>
-    api.put(`/teams/${teamId}/members/${memberId}/external-link`), // Check method, usually GET for fetch? backend uses PUT for update.
-    
   updateMemberExternalLink: (teamId, memberId, data) =>
     api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
+
+  // Reminder settings
+  getReminderSettings: (teamId) =>
+    api.get(`/teams/${teamId}/reminder-settings`),
+  updateReminderSettings: (teamId, data) =>
+    api.put(`/teams/${teamId}/reminder-settings`, data),
 };
 
 // ---------- AVAILABILITY ----------
-// FIX: Backend uses flattened route: /api/team-members/:id/availability
+// ✅ FIX: Updated to match backend /team-members/:id/availability
 export const availability = {
-  getSettings: (teamId, memberId) =>
+  getSettings: (memberId) =>
     api.get(`/team-members/${memberId}/availability`),
 
-  updateSettings: (teamId, memberId, data) =>
+  updateSettings: (memberId, data) =>
     api.put(`/team-members/${memberId}/availability`, data),
 };
 
 // ---------- BOOKINGS ----------
 export const bookings = {
-  // Internal dashboard list
+  // Dashboard bookings list
   list: (params) => api.get('/bookings', { params }),
 
-  // PUBLIC: Get page details
+  // PUBLIC: Get booking page info
   getByToken: (token) => api.get(`/book/${token}`),
 
-  // PUBLIC: Smart Slots
-  // FIX: Backend uses POST for complex params (timezone, guest tokens)
-  // FIX: Backend route is /slots-with-status
+  // ✅ FIX: Changed to POST /book/:token/slots-with-status
   getSlots: (token, data) =>
-    api.post(`/book/${token}/slots-with-status`, data), 
-    // data should be { duration, timezone, guestAccessToken... }
+    api.post(`/book/${token}/slots-with-status`, data),
 
-  // PUBLIC: Create Booking
+  // PUBLIC: Create booking
   create: (payload) =>
     api.post('/bookings', payload),
-    
-  // Management (Cancel/Reschedule)
-  getManagementDetails: (token) => api.get(`/bookings/manage/${token}`),
-  rescheduleByToken: (token, data) => api.post(`/bookings/manage/${token}/reschedule`, data),
-  cancelByToken: (token, reason) => api.post(`/bookings/manage/${token}/cancel`, { reason }),
-};
 
-// ---------- REMINDERS ----------
-// FIX: Backend routes are per-team: /api/teams/:teamId/reminder-settings
-export const reminders = {
-  getSettings: (teamId) => api.get(`/teams/${teamId}/reminder-settings`),
-  updateSettings: (teamId, data) => api.put(`/teams/${teamId}/reminder-settings`, data),
-  getStatus: () => api.get('/reminders/status'),
-};
+  // Cancel booking (authenticated)
+  cancel: (bookingId, reason) =>
+    api.post(`/bookings/${bookingId}/cancel`, { reason }),
 
-// ---------- CALENDAR / GOOGLE AUTH ----------
-export const calendar = {
-  // FIX: Backend route is /api/auth/google/url
-  connectGoogle: () => api.get('/auth/google/url'),
-  
-  // Note: disconnectGoogle is not explicitly in the provided server.js snippet 
-  // but logic suggests it might be needed. Ensure backend exists.
-  disconnectGoogle: () => api.post('/calendar/google/disconnect'), 
-};
+  // Reschedule booking (authenticated)
+  reschedule: (bookingId, newStartTime, newEndTime) =>
+    api.post(`/bookings/${bookingId}/reschedule`, { newStartTime, newEndTime }),
 
-// ---------- ORGANIZER OAUTH CALLBACK ----------
-export const handleOrganizerOAuthCallback = (code) => {
-  // FIX: Backend expects POST with { code } in body
-  return api.post('/auth/google/callback', { code });
+  // ✅ NEW: Guest booking management (no auth)
+  getByManageToken: (token) =>
+    api.get(`/bookings/manage/${token}`),
+
+  rescheduleByToken: (token, newStartTime, newEndTime) =>
+    api.post(`/bookings/manage/${token}/reschedule`, { newStartTime, newEndTime }),
+
+  cancelByToken: (token, reason) =>
+    api.post(`/bookings/manage/${token}/cancel`, { reason }),
 };
 
 // ---------- PAYMENTS ----------
 export const payments = {
-  getConfig: () => api.get('/payments/config'),
-  getPricing: (token) => api.get(`/book/${token}/pricing`),
-  createIntent: (data) => api.post('/payments/create-intent', data),
-  confirmBooking: (data) => api.post('/payments/confirm-booking', data),
+  getConfig: () =>
+    api.get('/payments/config'),
+
+  getPricing: (token) =>
+    api.get(`/book/${token}/pricing`),
+
+  createIntent: (bookingToken, attendeeName, attendeeEmail) =>
+    api.post('/payments/create-intent', { bookingToken, attendeeName, attendeeEmail }),
+
+  confirmBooking: (paymentIntentId, bookingToken, slot, attendeeName, attendeeEmail, notes) =>
+    api.post('/payments/confirm-booking', { 
+      paymentIntentId, bookingToken, slot, attendeeName, attendeeEmail, notes 
+    }),
+
+  refund: (bookingId, reason) =>
+    api.post('/payments/refund', { bookingId, reason }),
+};
+
+// ---------- REMINDERS ----------
+export const reminders = {
+  getStatus: () => api.get('/reminders/status'),
+  sendManual: () => api.post('/admin/send-reminders'),
+};
+
+// ---------- DASHBOARD ----------
+export const dashboard = {
+  getStats: () => api.get('/dashboard/stats'),
+};
+
+// ---------- MY BOOKING LINK ----------
+export const myBookingLink = {
+  get: () => api.get('/my-booking-link'),
 };
 
 // ---------- AI ASSISTANT ----------
 export const ai = {
-  schedule: (message, history) => api.post('/ai/schedule', { message, conversationHistory: history }),
-  confirm: (bookingData) => api.post('/ai/schedule/confirm', { bookingData })
+  schedule: (message, conversationHistory = []) =>
+    api.post('/ai/schedule', { message, conversationHistory }),
+
+  confirmBooking: (bookingData) =>
+    api.post('/ai/schedule/confirm', { bookingData }),
+};
+
+// ---------- OAUTH ----------
+export const oauth = {
+  // Organizer OAuth (dashboard login)
+  getGoogleUrl: () =>
+    api.get('/auth/google/url'),
+
+  handleCallback: (code) =>
+    api.post('/auth/google/callback', { code }),
+
+  // Guest OAuth (booking page calendar sync)
+  guestGoogleAuth: (code, bookingToken) =>
+    api.post('/book/auth/google', { code, bookingToken }),
+};
+
+// ---------- TIMEZONE ----------
+export const timezone = {
+  get: () =>
+    api.get('/user/timezone'),
+
+  update: (timezone) =>
+    api.put('/user/timezone', { timezone }),
+
+  getMemberTimezone: (memberId) =>
+    api.get(`/team-members/${memberId}/timezone`),
+
+  updateMemberTimezone: (memberId, timezone) =>
+    api.put(`/team-members/${memberId}/timezone`, { timezone }),
 };
 
 export default api;
