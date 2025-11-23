@@ -49,29 +49,22 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className={isPanel ? 'space-y-2' : 'text-center space-y-2'}>
-        <div
-          className={
-            'flex justify-center mb-4 ' + (isPanel ? 'mt-1' : 'mt-4')
-          }
-        >
-          <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-            <Mail className="h-5 w-5 text-white" />
+      {/* Header – only for full-page mode */}
+      {!isPanel && (
+        <div className="text-center space-y-2">
+          <div className="flex justify-center mb-4 mt-4">
+            <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <Mail className="h-5 w-5 text-white" />
+            </div>
           </div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Welcome back
+          </h1>
+          <p className="text-gray-600 text-sm">
+            Sign in to your ScheduleSync account
+          </p>
         </div>
-        <h1
-          className={
-            (isPanel ? 'text-2xl' : 'text-3xl') +
-            ' font-bold text-gray-900'
-          }
-        >
-          Welcome back
-        </h1>
-        <p className="text-gray-600 text-sm">
-          Sign in to your ScheduleSync account
-        </p>
-      </div>
+      )}
 
       {/* Error Message */}
       {error && (
@@ -170,6 +163,7 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
           onClick={handleGoogleLogin}
           className="w-full bg-white border-2 border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2.5"
         >
+          {/* Google icon */}
           <svg className="h-4 w-4" viewBox="0 0 24 24">
             <path
               fill="#4285F4"
