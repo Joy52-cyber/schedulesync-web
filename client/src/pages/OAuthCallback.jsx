@@ -1,7 +1,7 @@
 ﻿import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { handleOrganizerOAuthCallback } from '../utils/api';
+import { oauth } from '../utils/api';
 
 // CRITICAL: Module-level guard survives component re-renders
 const processedCodes = new Set();
@@ -68,11 +68,12 @@ export default function OAuthCallback({ onLogin }) {
     (async () => {
       try {
         console.log('📡 Calling backend /auth/google/callback ...');
-        const response = await handleOrganizerOAuthCallback(code);
+        const res = await oauth.handleCallback(code);
+        const response = res.data;
 
         console.log('✅ Raw OAuth backend response:', response);
 
-        // Try to normalize different possible backend shapes
+        // Normalize different possible backend shapes
         let token =
           response?.token ??
           response?.accessToken ??
@@ -115,7 +116,6 @@ export default function OAuthCallback({ onLogin }) {
 
         // Release lock and redirect
         isProcessing = false;
-        navigate('/dashboard', { replace: true });
       } catch (err) {
         console.error('❌ OAuth failed:', {
           message: err.message,
