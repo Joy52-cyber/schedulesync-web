@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // ✅ Added Link import
 import { 
   Mail, 
   Lock, 
@@ -7,7 +7,7 @@ import {
   Sparkles, 
   Calendar, 
   Users, 
-  Zap,
+  Zap, 
   CheckCircle
 } from 'lucide-react';
 import api from '../utils/api';
@@ -27,11 +27,7 @@ export default function Login({ onLogin }) {
 
     try {
       console.log('📤 Attempting login:', email);
-      const response = await api.post('/auth/login', { 
-        email, 
-        password,
-        rememberMe 
-      });
+      const response = await api.auth.login(email, password); // Used helper directly
       
       console.log('📥 Login response:', response.data);
       
@@ -52,7 +48,7 @@ export default function Login({ onLogin }) {
   const handleGoogleLogin = async () => {
     try {
       setError('');
-      const response = await api.get('/auth/google/url');
+      const response = await api.oauth.getGoogleUrl(); // Used helper directly
       window.location.href = response.data.url;
     } catch (err) {
       console.error('Google auth error:', err);
@@ -135,9 +131,11 @@ export default function Login({ onLogin }) {
                   />
                   <span className="text-sm text-gray-600">Remember me</span>
                 </label>
-                <a href="#" className="text-sm text-purple-600 hover:text-purple-700 font-semibold">
+                
+                {/* ✅ FIX: Changed <a> to <Link> */}
+                <Link to="/forgot-password" className="text-sm text-purple-600 hover:text-purple-700 font-semibold">
                   Forgot password?
-                </a>
+                </Link>
               </div>
 
               {/* Login Button */}
@@ -182,9 +180,9 @@ export default function Login({ onLogin }) {
           {/* Sign Up Link */}
           <p className="text-center text-gray-600 text-sm">
             Don't have an account?{' '}
-            <a href="/register" className="text-purple-600 hover:text-purple-700 font-semibold">
+            <Link to="/register" className="text-purple-600 hover:text-purple-700 font-semibold">
               Sign up for free
-            </a>
+            </Link>
           </p>
         </div>
       </div>

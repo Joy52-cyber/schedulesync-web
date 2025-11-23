@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../utils/api'; // ✅ Use default import
+// ✅ CHANGE 1: Import the default 'api' object, not named exports
+import api from '../utils/api';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -16,10 +17,15 @@ export default function ForgotPassword() {
     console.log('📧 Requesting password reset for:', email);
     
     try {
-      // ✅ Use api.auth directly
+      // Safety check: ensure api.auth exists before calling
+      if (!api?.auth?.forgotPassword) {
+        throw new Error('API client not initialized correctly');
+      }
+
+      // ✅ CHANGE 2: Use api.auth.forgotPassword
       const response = await api.auth.forgotPassword(email);
       
-      console.log('✅ Reset email response:', response.data);
+      console.log('✅ Reset response:', response.data);
       setSuccess(true);
     } catch (err) {
       console.error('❌ Forgot password error:', err);
@@ -37,14 +43,16 @@ export default function ForgotPassword() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8 text-center">
-          <div className="text-6xl mb-4">✉️</div>
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-4xl">✉️</span>
+          </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h2>
           <p className="text-gray-600 mb-6">
-            If an account exists for {email}, you'll receive a password reset link shortly.
+            We've sent a password reset link to <strong>{email}</strong>.
           </p>
           <Link
             to="/login"
-            className="inline-block bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg font-bold hover:shadow-xl transition"
+            className="inline-block w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg font-bold hover:shadow-xl transition"
           >
             Back to Sign In
           </Link>
@@ -59,17 +67,18 @@ export default function ForgotPassword() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Forgot Password?</h1>
           <p className="text-gray-600">
-            Enter your email and we'll send you a reset link
+            Enter your email address and we'll send you a link.
           </p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-            {error}
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-start gap-2">
+            <span>⚠️</span>
+            <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Email Address
@@ -88,21 +97,20 @@ export default function ForgotPassword() {
           <button
             type="submit"
             disabled={loading || !email}
-            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-bold hover:shadow-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-bold hover:shadow-xl transition disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
           >
             {loading ? 'Sending...' : 'Send Reset Link'}
           </button>
         </form>
 
-        <p className="text-center mt-6 text-sm text-gray-600">
-          Remember your password?{' '}
-          <Link
-            to="/login"
-            className="font-bold text-purple-600 hover:text-purple-700 transition"
-          >
-            Sign in
-          </Link>
-        </p>
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-600">
+            Remember your password?{' '}
+            <Link to="/login" className="font-bold text-purple-600 hover:text-purple-700 transition">
+              Sign in
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
