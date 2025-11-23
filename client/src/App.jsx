@@ -1,41 +1,42 @@
 ﻿import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from '../contexts/AuthContext';
 
 // Layouts
-import Layout from './components/Layout';
-import ProtectedRoute from './components/ProtectedRoute';
+import Layout from '../components/Layout';
+import ProtectedRoute from '../components/ProtectedRoute';
 
 // Auth Pages
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import VerifyEmail from './pages/VerifyEmail';
-import OAuthCallback from './pages/OAuthCallback';
+import Login from './Login';
+import Register from './Register';
+import ForgotPassword from './ForgotPassword';
+import ResetPassword from './ResetPassword';
+import VerifyEmail from './VerifyEmail';
+import OAuthCallback from './OAuthCallback';
 
 // Dashboard / App Pages
-import Dashboard from './pages/Dashboard';
-import Bookings from './pages/Bookings';
-import MyBookingLink from './components/MyBookingLink';
+import Dashboard from './Dashboard';
+import Bookings from './Bookings';
+import MyBookingLink from '../components/MyBookingLink';
 
 // Team & Member Management
-import Teams from './pages/Teams';
-import TeamSettings from './pages/TeamSettings';
-import TeamMembers from './pages/TeamMembers';
-import MemberAvailability from './pages/MemberAvailability';
+import Teams from './Teams';
+import TeamSettings from './TeamSettings';
+import TeamMembers from './TeamMembers';
+import MemberAvailability from './MemberAvailability';
 
 // User Settings
-import UserSettings from './pages/UserSettings';
-import CalendarSettings from './pages/CalendarSettings';
+import UserSettings from './UserSettings';
+import CalendarSettings from './CalendarSettings';
 
 // Public / Guest Flow
-import BookingPage from './pages/BookingPage';
-import ManageBooking from './pages/ManageBooking';
-import BookingSuccess from './pages/BookingSuccess';
-import PaymentStatus from './pages/PaymentStatus';
-// ✅ FIX: Import the Book component to prevent "Book is not defined" crash
-import Book from './pages/Book';
+import BookingPage from './BookingPage';
+import ManageBooking from './ManageBooking';
+import PaymentStatus from './PaymentStatus';
+import Book from './Book';
+
+// ✅ FIX: Import the new "Nice" Confirmation Page
+import BookingConfirmation from './BookingConfirmation';
 
 // ---------- Login Wrapper ----------
 function LoginWrapper({ Component }) {
@@ -63,7 +64,6 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
 
-          {/* Organizer OAuth Callback */}
           <Route 
             path="/oauth/callback" 
             element={<LoginWrapper Component={OAuthCallback} />} 
@@ -73,20 +73,14 @@ export default function App() {
               2. PUBLIC GUEST FLOWS (No Login Required)
              ============================================================ */}
           
-          {/* Main Booking Page (Specific Token) */}
           <Route path="/book/:token" element={<BookingPage />} />
-
-          {/* Generic Booking Landing Page */}
           <Route path="/book" element={<Book />} />
-
-          {/* Guest Management */}
           <Route path="/manage/:token" element={<ManageBooking />} />
 
-          {/* Success Pages */}
-          <Route path="/booking-success" element={<BookingSuccess />} />
-          <Route path="/booking-confirmation" element={<BookingSuccess />} />
+          {/* ✅ FIX: Use BookingConfirmation for BOTH success routes */}
+          <Route path="/booking-success" element={<BookingConfirmation />} />
+          <Route path="/booking-confirmation" element={<BookingConfirmation />} />
 
-          {/* Stripe Payment Redirect Handling */}
           <Route path="/payment/status" element={<PaymentStatus />} />
 
           {/* ============================================================
