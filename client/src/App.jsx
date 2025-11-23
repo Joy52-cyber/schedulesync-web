@@ -34,7 +34,7 @@ import BookingPage from './pages/BookingPage';
 import ManageBooking from './pages/ManageBooking';
 import BookingSuccess from './pages/BookingSuccess';
 import PaymentStatus from './pages/PaymentStatus';
-// ✅ Added Import for Book page (since file exists in your screenshot)
+// ✅ FIX: Import the Book component to prevent "Book is not defined" crash
 import Book from './pages/Book';
 
 // ---------- Login Wrapper ----------
