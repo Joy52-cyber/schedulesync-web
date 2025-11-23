@@ -1,6 +1,8 @@
 ﻿import { useState } from 'react';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { Loader2, CreditCard, Lock, AlertCircle, CheckCircle } from 'lucide-react';
+// IMPORT THE API HELPER
+import { payments } from '../utils/api';
 
 export default function PaymentForm({ 
   amount, 
@@ -15,15 +17,8 @@ export default function PaymentForm({
   const [error, setError] = useState(null);
 
   const currencySymbols = {
-    USD: '$',
-    EUR: '€',
-    GBP: '£',
-    AUD: 'A$',
-    CAD: 'C$',
-    SGD: 'S$',
-    PHP: '₱',
-    JPY: '¥',
-    INR: '₹',
+    USD: '$', EUR: '€', GBP: '£', AUD: 'A$', CAD: 'C$',
+    SGD: 'S$', PHP: '₱', JPY: '¥', INR: '₹',
   };
 
   const symbol = currencySymbols[currency] || currency;
@@ -39,24 +34,16 @@ export default function PaymentForm({
     setError(null);
 
     try {
-      // Create payment intent on backend
-      const intentResponse = await fetch('/api/payments/create-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookingToken: bookingDetails.token,
-          attendeeName: bookingDetails.attendee_name,
-          attendeeEmail: bookingDetails.attendee_email,
-        }),
+      // 1. Create payment intent using API helper (replaces fetch)
+      const { data } = await payments.createIntent({
+        bookingToken: bookingDetails.token,
+        attendeeName: bookingDetails.attendee_name,
+        attendeeEmail: bookingDetails.attendee_email,
       });
 
-      if (!intentResponse.ok) {
-        throw new Error('Failed to create payment intent');
-      }
+      const { clientSecret } = data;
 
-      const { clientSecret } = await intentResponse.json();
-
-      // Confirm payment with Stripe
+      // 2. Confirm payment with Stripe
       const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
         clientSecret,
         {
@@ -80,7 +67,9 @@ export default function PaymentForm({
       }
     } catch (err) {
       console.error('Payment error:', err);
-      setError(err.message || 'Payment failed. Please try again.');
+      // Handle Axios errors vs standard errors
+      const message = err.response?.data?.error || err.message || 'Payment failed';
+      setError(message);
     } finally {
       setProcessing(false);
     }
@@ -91,14 +80,10 @@ export default function PaymentForm({
       base: {
         fontSize: '16px',
         color: '#1f2937',
-        '::placeholder': {
-          color: '#9ca3af',
-        },
+        '::placeholder': { color: '#9ca3af' },
         fontFamily: 'system-ui, -apple-system, sans-serif',
       },
-      invalid: {
-        color: '#ef4444',
-      },
+      invalid: { color: '#ef4444' },
     },
   };
 
@@ -137,10 +122,7 @@ export default function PaymentForm({
               <span className="text-gray-600">Date:</span>
               <span className="font-semibold text-gray-900">
                 {new Date(bookingDetails.slot.start).toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric'
+                  weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
                 })}
               </span>
             </div>
@@ -148,9 +130,7 @@ export default function PaymentForm({
               <span className="text-gray-600">Time:</span>
               <span className="font-semibold text-gray-900">
                 {new Date(bookingDetails.slot.start).toLocaleTimeString('en-US', {
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  hour12: true
+                  hour: 'numeric', minute: '2-digit', hour12: true
                 })}
               </span>
             </div>
