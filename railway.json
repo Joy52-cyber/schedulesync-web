@@ -1,13 +1,8 @@
 {
   "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "npm run build",
-    "watchPatterns": ["./**/*"]
+    "builder": "NIXPACKS"
   },
   "deploy": {
-    "runtime": "node",
-    "startCommand": "npm start",
-    "healthcheckPath": "/health",
-    "restartPolicyType": "ON_FAILURE"
+    "runtime": "V2"
   }
 }
