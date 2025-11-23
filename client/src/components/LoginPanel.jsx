@@ -2,7 +2,6 @@
 import { X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import LoginForm from './LoginForm';
-import { Calendar } from 'lucide-react';
 
 export default function LoginPanel({ isOpen, onClose }) {
   const { login } = useAuth();
@@ -15,27 +14,19 @@ export default function LoginPanel({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-end">
+    <div className="fixed inset-0 z-40 flex">
       {/* Backdrop */}
       <div
-        className="flex-1 h-full bg-black/30 backdrop-blur-sm"
+        className="flex-1 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      {/* Floating Panel */}
-      <div className="w-full max-w-sm h-auto max-h-[calc(100vh-2rem)] my-4 mr-4 bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col">
+      {/* Panel */}
+      <div className="w-full max-w-sm h-full bg-white shadow-2xl border-l border-gray-200 flex flex-col animate-slideLeft">
         
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-              <Calendar className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-sm font-semibold text-gray-800">
-              Log in to ScheduleSync
-            </span>
-          </div>
-
+          <span className="text-sm font-semibold text-gray-800">Log in</span>
           <button
             onClick={onClose}
             className="p-1 rounded-full hover:bg-gray-100 text-gray-500"
@@ -49,6 +40,16 @@ export default function LoginPanel({ isOpen, onClose }) {
           <LoginForm onLogin={handleLogin} mode="panel" />
         </div>
       </div>
+
+      <style>{`
+        .animate-slideLeft {
+          animation: slideLeft 0.25s ease-out;
+        }
+        @keyframes slideLeft {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
+      `}</style>
     </div>
   );
 }
