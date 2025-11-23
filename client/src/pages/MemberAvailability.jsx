@@ -160,56 +160,61 @@ export default function MemberAvailability() {
   };
 
   const handleSave = async () => {
-  try {
-    setSaving(true);
-
-    const validBlockedTimes = blockedTimes
-      .filter((block) => block.start_time && block.end_time)
-      .map((block) => ({
-        start_time: new Date(block.start_time).toISOString(),
-        end_time: new Date(block.end_time).toISOString(),
-        reason: block.reason || null,
-      }));
-
-    const payload = {
-      buffer_time: bufferTime,
-      lead_time_hours: leadTimeHours,
-      booking_horizon_days: horizonDays,
-      daily_booking_cap: dailyCap,
-      working_hours: workingHours,
-      blocked_times: validBlockedTimes,
-    };
-
-    // 👉 MAIN SAVE – this is the important one
-    console.log('📤 Saving availability to', `/team-members/${memberId}/availability`, payload);
-    await api.availability.updateSettings(teamId, memberId, payload);
-
-    // 👉 BEST-EFFORT TIMEZONE SAVE – don't fail the whole thing if backend 404s
     try {
-      console.log('📤 Saving member timezone to', `/team-members/${memberId}/timezone`, timezone);
-      await api.timezone.updateMemberTimezone(memberId, timezone);
-    } catch (tzErr) {
-      console.warn(
-        '⚠️ Timezone save failed (non-fatal):',
-        tzErr?.response?.status,
-        tzErr?.response?.data || tzErr.message
+      setSaving(true);
+
+      const validBlockedTimes = blockedTimes
+        .filter((block) => block.start_time && block.end_time)
+        .map((block) => ({
+          start_time: new Date(block.start_time).toISOString(),
+          end_time: new Date(block.end_time).toISOString(),
+          reason: block.reason || null,
+        }));
+
+      const payload = {
+        buffer_time: bufferTime,
+        lead_time_hours: leadTimeHours,
+        booking_horizon_days: horizonDays,
+        daily_booking_cap: dailyCap,
+        working_hours: workingHours,
+        blocked_times: validBlockedTimes,
+      };
+
+      console.log(
+        '📤 Saving availability to',
+        `/team-members/${memberId}/availability`,
+        payload
       );
-      // we DON'T rethrow here on purpose
-    }
+      await api.availability.updateSettings(teamId, memberId, payload);
 
-    showNotification('✅ Availability saved!');
-  } catch (error) {
-    console.error('❌ Error saving availability:', error);
-    if (error.response) {
-      console.error('🔍 Status:', error.response.status);
-      console.error('🔍 Response data:', error.response.data);
-    }
-    showNotification('Save failed', 'error');
-  } finally {
-    setSaving(false);
-  }
-};
+      // best-effort timezone save
+      try {
+        console.log(
+          '📤 Saving member timezone to',
+          `/team-members/${memberId}/timezone`,
+          timezone
+        );
+        await api.timezone.updateMemberTimezone(memberId, timezone);
+      } catch (tzErr) {
+        console.warn(
+          '⚠️ Timezone save failed (non-fatal):',
+          tzErr?.response?.status,
+          tzErr?.response?.data || tzErr.message
+        );
+      }
 
+      showNotification('✅ Availability saved!');
+    } catch (error) {
+      console.error('❌ Error saving availability:', error);
+      if (error.response) {
+        console.error('🔍 Status:', error.response.status);
+        console.error('🔍 Response data:', error.response.data);
+      }
+      showNotification('Save failed', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const toggleDay = (day) => {
     setWorkingHours({
@@ -312,7 +317,6 @@ export default function MemberAvailability() {
 
         {/* Timezone Selector */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-
           <TimezoneSelector value={timezone} onChange={setTimezone} />
         </div>
 
@@ -421,18 +425,21 @@ export default function MemberAvailability() {
               </div>
             </div>
             <div className="p-6">
-              <div className="grid grid-cols-3 gap-3">
+              {/* Responsive grid so "Unlimited" doesn't overflow on small screens */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {dailyCapOptions.map((option) => (
                   <button
                     key={option.label}
                     onClick={() => setDailyCap(option.value)}
-                    className={`p-3 rounded-xl border-2 text-left transition-all ${
+                    className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
                       dailyCap === option.value
                         ? 'border-orange-500 bg-orange-50 shadow-md'
                         : 'border-gray-200 bg-white hover:border-orange-300'
                     }`}
                   >
-                    <p className="font-bold text-gray-900">{option.label}</p>
+                    <p className="font-bold text-gray-900 break-words">
+                      {option.label}
+                    </p>
                     <p className="text-xs text-gray-600">{option.desc}</p>
                   </button>
                 ))}
@@ -484,30 +491,24 @@ export default function MemberAvailability() {
                   </div>
 
                   {workingHours[day.key].enabled ? (
-                    <div className="flex items-center gap-3">
-                      {/* Start time container */}
-                      <div className="flex items-center justify-center h-11 px-3 rounded-lg bg-gray-100 border border-gray-200">
-                        <input
-                          type="time"
-                          value={workingHours[day.key].start}
-                          onChange={(e) =>
-                            updateDayTime(day.key, 'start', e.target.value)
-                          }
-                          className="h-full border-none outline-none bg-transparent text-sm font-medium"
-                        />
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="time"
+                        value={workingHours[day.key].start}
+                        onChange={(e) =>
+                          updateDayTime(day.key, 'start', e.target.value)
+                        }
+                        className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-sm"
+                      />
                       <span className="text-gray-500">–</span>
-                      {/* End time container */}
-                      <div className="flex items-center justify-center h-11 px-3 rounded-lg bg-gray-100 border border-gray-200">
-                        <input
-                          type="time"
-                          value={workingHours[day.key].end}
-                          onChange={(e) =>
-                            updateDayTime(day.key, 'end', e.target.value)
-                          }
-                          className="h-full border-none outline-none bg-transparent text-sm font-medium"
-                        />
-                      </div>
+                      <input
+                        type="time"
+                        value={workingHours[day.key].end}
+                        onChange={(e) =>
+                          updateDayTime(day.key, 'end', e.target.value)
+                        }
+                        className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-sm"
+                      />
                     </div>
                   ) : (
                     <span className="text-gray-400 text-sm">Unavailable</span>
