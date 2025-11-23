@@ -38,7 +38,9 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
@@ -46,9 +48,12 @@ apiClient.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
+      // Clear auth on unauthorized
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      window.location.href = "/login";
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(err);
   }
@@ -82,7 +87,7 @@ export const auth = {
   logout: () => apiClient.post("/auth/logout"),
 };
 
-// Used by OAuthCallback.jsx (organizer connection)
+// Used by OAuthCallback.jsx (organizer)
 export const handleOrganizerOAuthCallback = async (code) => {
   const res = await apiClient.post("/auth/google/callback", { code });
   return res.data;
@@ -92,17 +97,14 @@ export const handleOrganizerOAuthCallback = async (code) => {
 // TEAMS
 // ------------------------------------------------------
 export const teams = {
-  // Base CRUD
   getAll: () => apiClient.get("/teams"),
   getById: (id) => apiClient.get(`/teams/${id}`),
   create: (data) => apiClient.post("/teams", data),
   update: (id, data) => apiClient.put(`/teams/${id}`, data),
 
-  // Both `delete` and `remove` so existing code works
   delete: (id) => apiClient.delete(`/teams/${id}`),
   remove: (id) => apiClient.delete(`/teams/${id}`),
 
-  // Members
   getMembers: (teamId) => apiClient.get(`/teams/${teamId}/members`),
   removeMember: (teamId, memberId) =>
     apiClient.delete(`/teams/${teamId}/members/${memberId}`),
@@ -113,10 +115,7 @@ export const teams = {
     }),
 
   updateMemberExternalLink: (teamId, memberId, data) =>
-    apiClient.put(
-      `/teams/${teamId}/members/${memberId}/external-link`,
-      data
-    ),
+    apiClient.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
 
   updateMemberPricing: (teamId, memberId, data) =>
     apiClient.put(`/teams/${teamId}/members/${memberId}/pricing`, data),
@@ -124,25 +123,26 @@ export const teams = {
 
 // ------------------------------------------------------
 // BOOKINGS
-// (used by BookingPage, Bookings list, etc.)
 // ------------------------------------------------------
-
 export const bookings = {
+  // Internal views
   getAll: () => apiClient.get("/bookings"),
   list: (params) => apiClient.get("/bookings", { params }),
   getById: (id) => apiClient.get(`/bookings/${id}`),
+
+  // Public booking page uses token (BookingPage.jsx)
   getByToken: (token) => apiClient.get(`/bookings/token/${token}`),
+
+  // SmartSlotPicker (guest + organizer availability)
+  getSlots: (bookingToken, payload) =>
+    apiClient.post(`/book/${bookingToken}/slots`, payload),
+
+  // Create booking (free bookings)
+  create: (data) => apiClient.post("/book", data),
+
+  // Cancel from internal app
   cancel: (id, data) => apiClient.post(`/bookings/${id}/cancel`, data),
-
-  // 🔹 NEW: Smart slot picker endpoint
-  getSlots: (bookingToken, options = {}) =>
-    apiClient.post("/book/slots", {
-      bookingToken,
-      ...options, // guestAccessToken, guestRefreshToken, duration, timezone
-    }),
 };
-
-
 
 // ------------------------------------------------------
 // AVAILABILITY
@@ -153,7 +153,6 @@ export const availability = {
   update: (memberId, data) =>
     apiClient.put(`/team-members/${memberId}/availability`, data),
 
-  // Aliases if other code still uses old names
   getMemberAvailability: (id) =>
     apiClient.get(`/team-members/${id}/availability`),
   updateMemberAvailability: (id, data) =>
