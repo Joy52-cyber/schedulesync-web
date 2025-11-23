@@ -24,6 +24,7 @@ export default function MemberExternalLinkModal({ member, onSave, onClose }) {
         external_booking_platform: platform,
         external_booking_link: link.trim(),
       });
+      onClose(); // Close modal on success
     } catch (err) {
       console.error(err);
       setError('Something went wrong while saving. Please try again.');
@@ -53,7 +54,7 @@ export default function MemberExternalLinkModal({ member, onSave, onClose }) {
         {/* Body */}
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           <div className="text-sm text-gray-600 mb-2">
-            {member.user_name || member.name || 'Member'}
+            Configure link for: <strong>{member.user_name || member.name || 'Member'}</strong>
           </div>
 
           <div>
@@ -109,7 +110,7 @@ export default function MemberExternalLinkModal({ member, onSave, onClose }) {
               disabled={saving}
               className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? 'Saving...' : 'Save'}
             </button>
           </div>
         </form>
