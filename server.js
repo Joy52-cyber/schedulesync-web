@@ -1,4 +1,6 @@
-﻿// ============ STARTUP DEBUGGING ============
+﻿
+
+// ============ STARTUP DEBUGGING ============
 console.log('========================================');
 console.log('🚀 SERVER STARTUP INITIATED');
 console.log('Time:', new Date().toISOString());
@@ -17,6 +19,8 @@ console.log('- GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? '✅ S
 console.log('- FRONTEND_URL:', process.env.FRONTEND_URL || '❌ Missing');
 console.log('- PORT:', process.env.PORT || '3000');
 console.log('========================================');
+
+app.get('/health', (req, res) => res.send('OK'));
 
 // Catch any require errors
 try {
