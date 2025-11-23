@@ -75,6 +75,23 @@ export const teams = {
     api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
 };
 
+// ---------- AVAILABILITY (for MemberAvailability.jsx) ----------
+export const availability = {
+  // Wrapper around the team/member availability endpoints
+  getSettings: (teamId, memberId) =>
+    teams.getMemberAvailability(teamId, memberId),
+
+  updateSettings: (teamId, memberId, data) =>
+    teams.updateMemberAvailability(teamId, memberId, data),
+
+  // Optional preview endpoint if implemented on the backend
+  getPreviewSlots: (teamId, memberId, params = {}) =>
+    api.get(
+      `/teams/${teamId}/members/${memberId}/availability/preview`,
+      { params }
+    ),
+};
+
 // ---------- BOOKINGS ----------
 export const bookings = {
   // Used by internal dashboard / bookings page
@@ -107,5 +124,13 @@ export const calendar = {
   connectGoogle: () => api.get('/calendar/google/url'),
   disconnectGoogle: () => api.post('/calendar/google/disconnect'),
 };
+
+// ---------- GOOGLE OAUTH (Organizer Calendar Sync) ----------
+export const handleOrganizerOAuthCallback = (code) => {
+  return api.get('/auth/google/callback', {
+    params: { code },
+  });
+};
+
 
 export default api;
