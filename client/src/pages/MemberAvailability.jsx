@@ -294,9 +294,7 @@ export default function MemberAvailability() {
 
         {/* Timezone Selector */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <Globe className="h-5 w-5 text-gray-600" /> Timezone Settings
-          </h2>
+
           <TimezoneSelector value={timezone} onChange={setTimezone} />
         </div>
 
