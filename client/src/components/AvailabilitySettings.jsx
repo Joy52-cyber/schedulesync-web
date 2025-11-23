@@ -7,7 +7,7 @@ import {
 import api from '../utils/api';
 
 export default function AvailabilitySettingsEnhanced() {
-  const { memberId } = useParams();
+  const { teamId, memberId } = useParams(); // Support both ID params
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
@@ -102,7 +102,8 @@ export default function AvailabilitySettingsEnhanced() {
   const loadMemberSettings = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/team-members/${memberId}/availability`);
+      // Use availability helper or direct endpoint
+      const response = await api.availability.getSettings(teamId, memberId);
       const data = response.data;
 
       setMember(data.member);
@@ -124,7 +125,7 @@ export default function AvailabilitySettingsEnhanced() {
       setBlockedTimes(formattedBlockedTimes);
     } catch (error) {
       console.error('Error loading availability:', error);
-      showNotification('Failed to load', 'error');
+      showNotification('Failed to load settings', 'error');
     } finally {
       setLoading(false);
     }
@@ -142,7 +143,7 @@ export default function AvailabilitySettingsEnhanced() {
           reason: block.reason || null,
         }));
 
-      await api.put(`/team-members/${memberId}/availability`, {
+      await api.availability.updateSettings(teamId, memberId, {
         buffer_time: bufferTime,
         lead_time_hours: leadTimeHours,
         booking_horizon_days: horizonDays,
@@ -152,7 +153,7 @@ export default function AvailabilitySettingsEnhanced() {
       });
 
       showNotification('✅ Availability rules saved!');
-      setTimeout(() => navigate(-1), 1500);
+      // Optional: Redirect back or stay
     } catch (error) {
       console.error('Error saving availability:', error);
       showNotification('Save failed', 'error');
@@ -288,14 +289,6 @@ export default function AvailabilitySettingsEnhanced() {
               </div>
             </div>
             <div className="p-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 mb-3">
-                <div className="flex items-start gap-1.5">
-                  <Info className="h-3.5 w-3.5 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-blue-900">
-                    Prevents back-to-back meetings, gives you time to prep/decompress
-                  </p>
-                </div>
-              </div>
               <div className="grid grid-cols-3 gap-2">
                 {bufferOptions.map((option) => (
                   <button
@@ -325,14 +318,6 @@ export default function AvailabilitySettingsEnhanced() {
               </div>
             </div>
             <div className="p-4">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-2.5 mb-3">
-                <div className="flex items-start gap-1.5">
-                  <Info className="h-3.5 w-3.5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-green-900">
-                    How far in advance people must book (e.g., 24h = must book tomorrow or later)
-                  </p>
-                </div>
-              </div>
               <div className="grid grid-cols-3 gap-2">
                 {leadTimeOptions.map((option) => (
                   <button
@@ -362,15 +347,6 @@ export default function AvailabilitySettingsEnhanced() {
               </div>
             </div>
             <div className="p-4">
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-2.5 mb-3">
-                <div className="flex items-start gap-1.5">
-                  <Info className="h-3.5 w-3.5 text-purple-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-purple-900">
-                    Maximum days in the future people can book (e.g., 30 days = only show next
-                    month)
-                  </p>
-                </div>
-              </div>
               <div className="grid grid-cols-3 gap-2">
                 {horizonOptions.map((option) => (
                   <button
@@ -400,28 +376,13 @@ export default function AvailabilitySettingsEnhanced() {
               </div>
             </div>
             <div className="p-4">
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-2.5 mb-3">
-                <div className="flex items-start gap-1.5">
-                  <Info className="h-3.5 w-3.5 text-orange-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-orange-900">
-                    Prevent burnout by limiting daily meetings (e.g., max 3 per day)
-                  </p>
-                </div>
-              </div>
-
-              {/* New responsive grid: Unlimited gets full row on mobile */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {dailyCapOptions.map((option) => {
                   const isUnlimited = option.value === null;
-
-                  const baseClasses =
-                    'min-h-[80px] w-full p-3 rounded-lg border-2 flex flex-col items-center justify-center text-center transition-all break-words';
-
-                  const stateClasses =
-                    dailyCap === option.value
+                  const baseClasses = 'min-h-[80px] w-full p-3 rounded-lg border-2 flex flex-col items-center justify-center text-center transition-all break-words';
+                  const stateClasses = dailyCap === option.value
                       ? 'border-orange-500 bg-orange-50 shadow-md'
                       : 'border-gray-200 bg-white hover:border-orange-300';
-
                   const spanClasses = isUnlimited ? 'col-span-2 md:col-span-1' : '';
 
                   return (
@@ -440,7 +401,7 @@ export default function AvailabilitySettingsEnhanced() {
           </div>
         </div>
 
-        {/* Working Hours */}
+        {/* Working Hours - FIXED UI */}
         <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
           <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -483,14 +444,14 @@ export default function AvailabilitySettingsEnhanced() {
               {days.map((day) => (
                 <div
                   key={day.key}
-                  className={`w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-2.5 rounded-lg border-2 transition-all min-h-[72px] ${
+                  className={`w-full flex flex-col sm:flex-row sm:items-center gap-3 p-2.5 rounded-lg border-2 transition-all ${
                     workingHours[day.key].enabled
                       ? 'bg-indigo-50 border-indigo-200'
                       : 'bg-gray-50 border-gray-200 opacity-60'
                   }`}
                 >
                   {/* Left: toggle + label */}
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-[140px]">
                     <button
                       onClick={() => toggleDay(day.key)}
                       className={`relative flex-shrink-0 w-10 h-6 rounded-full transition-all ${
@@ -498,45 +459,52 @@ export default function AvailabilitySettingsEnhanced() {
                       }`}
                     >
                       <div
-                        className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow ${
+                        className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow flex items-center justify-center ${
                           workingHours[day.key].enabled ? 'translate-x-4' : 'translate-x-0.5'
                         }`}
                       >
                         {workingHours[day.key].enabled && (
-                          <Check className="h-5 w-5 text-green-600" />
+                          <Check className="h-3 w-3 text-green-600" />
                         )}
                       </div>
                     </button>
 
                     <div>
-                      <p className="text-xs font-bold text-gray-900">{day.full}</p>
+                      <p className="text-sm font-bold text-gray-900">{day.full}</p>
                       {!workingHours[day.key].enabled && (
                         <p className="text-[11px] text-gray-500 font-medium">Day off</p>
                       )}
                     </div>
                   </div>
 
-                  {/* Right: time range */}
+                  {/* Right: time range (✅ FIXED UI BUG) */}
                   {workingHours[day.key].enabled && (
-                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
-                      <div className="flex-1 min-w-[120px]">
-                        <input
-                          type="time"
-                          value={workingHours[day.key].start}
-                          onChange={(e) => updateDayTime(day.key, 'start', e.target.value)}
-                          className="w-full px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium"
-                        />
+                    <div className="flex flex-1 flex-wrap sm:flex-nowrap items-center gap-2 w-full">
+                      
+                      {/* Start Time Container */}
+                      <div className="flex-1 min-w-[110px]">
+                        <div className="relative flex items-center h-10 px-3 border-2 border-gray-300 rounded-lg bg-white hover:border-indigo-400 focus-within:border-indigo-600 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+                          <input
+                            type="time"
+                            value={workingHours[day.key].start}
+                            onChange={(e) => updateDayTime(day.key, 'start', e.target.value)}
+                            className="w-full h-full bg-transparent border-none outline-none text-sm font-medium text-gray-900 p-0"
+                          />
+                        </div>
                       </div>
 
                       <span className="text-gray-400 text-sm font-bold text-center w-6">–</span>
 
-                      <div className="flex-1 min-w-[120px]">
-                        <input
-                          type="time"
-                          value={workingHours[day.key].end}
-                          onChange={(e) => updateDayTime(day.key, 'end', e.target.value)}
-                          className="w-full px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-medium"
-                        />
+                      {/* End Time Container */}
+                      <div className="flex-1 min-w-[110px]">
+                         <div className="relative flex items-center h-10 px-3 border-2 border-gray-300 rounded-lg bg-white hover:border-indigo-400 focus-within:border-indigo-600 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+                          <input
+                            type="time"
+                            value={workingHours[day.key].end}
+                            onChange={(e) => updateDayTime(day.key, 'end', e.target.value)}
+                            className="w-full h-full bg-transparent border-none outline-none text-sm font-medium text-gray-900 p-0"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
@@ -639,7 +607,7 @@ export default function AvailabilitySettingsEnhanced() {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes slide-in {
           from {
             transform: translateX(100%);
