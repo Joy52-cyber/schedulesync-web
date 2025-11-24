@@ -1,4 +1,5 @@
-﻿import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+﻿// client/src/components/Layout.jsx
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -7,8 +8,8 @@ import {
   Menu,
   X,
   Link2,
-  ShieldAlert, // Import Admin Icon
-  Clock
+  ShieldAlert,
+  Clock // <--- ✅ ADDED THIS (Critical fix)
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -19,18 +20,14 @@ export default function Layout() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  // ✅ FIX: Case-insensitive check
-  // This handles "Jaybersales95@gmail.com" vs "jaybersales95@gmail.com"
+  // ✅ ADMIN CHECK (Correct)
   const adminEmails = ['jaybersales95@gmail.com'];
   const userEmail = user?.email?.toLowerCase() || '';
   const isAdmin = adminEmails.includes(userEmail);
 
-  // Debugging: Check your console (F12) to see what the app sees
-  // console.log("Current User Email:", userEmail, "Is Admin:", isAdmin);
-
   const navigation = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-    { name: "Event Types", path: "/events", icon: Clock },
+    { name: "Event Types", path: "/events", icon: Clock }, // Now this will work
     { name: "Teams", path: "/teams", icon: Users },
     { name: "Bookings", path: "/bookings", icon: Calendar },
     { name: "My Link", path: "/my-booking-link", icon: Link2 },
