@@ -1,5 +1,4 @@
-﻿// client/src/components/Layout.jsx
-import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+﻿import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -8,6 +7,7 @@ import {
   Menu,
   X,
   Link2,
+  ShieldAlert // Import Admin Icon
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -18,6 +18,15 @@ export default function Layout() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
+  // ✅ FIX: Case-insensitive check
+  // This handles "Jaybersales95@gmail.com" vs "jaybersales95@gmail.com"
+  const adminEmails = ['jaybersales95@gmail.com'];
+  const userEmail = user?.email?.toLowerCase() || '';
+  const isAdmin = adminEmails.includes(userEmail);
+
+  // Debugging: Check your console (F12) to see what the app sees
+  // console.log("Current User Email:", userEmail, "Is Admin:", isAdmin);
+
   const navigation = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { name: "Teams", path: "/teams", icon: Users },
@@ -25,9 +34,13 @@ export default function Layout() {
     { name: "My Link", path: "/my-booking-link", icon: Link2 },
   ];
 
+  // Add Admin Panel to navigation if user is admin
+  if (isAdmin) {
+    navigation.push({ name: "Admin Panel", path: "/admin", icon: ShieldAlert });
+  }
+
   const handleLogout = () => {
     logout();
-    // 🔁 Go back to landing page instead of login
     navigate("/");
   };
 
@@ -66,14 +79,21 @@ export default function Layout() {
               {navigation.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
+                // Special styling for Admin link
+                const isAdminLink = item.path === "/admin";
+                
                 return (
                   <Link
                     key={item.name}
                     to={item.path}
                     className={`flex items-center gap-2 px-3 xl:px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
                       isActive
-                        ? "bg-blue-50 text-blue-600"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                        ? isAdminLink 
+                            ? "bg-red-50 text-red-600" 
+                            : "bg-blue-50 text-blue-600"
+                        : isAdminLink
+                            ? "text-red-600 hover:bg-red-50"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                     }`}
                   >
                     <Icon className="h-4 w-4 xl:h-5 xl:w-5" />
@@ -139,6 +159,8 @@ export default function Layout() {
               {navigation.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
+                const isAdminLink = item.path === "/admin";
+
                 return (
                   <Link
                     key={item.name}
@@ -146,8 +168,12 @@ export default function Layout() {
                     onClick={() => setMobileMenuOpen(false)}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
                       isActive
-                        ? "bg-blue-50 text-blue-600"
-                        : "text-gray-600 hover:bg-gray-50"
+                        ? isAdminLink 
+                            ? "bg-red-50 text-red-600" 
+                            : "bg-blue-50 text-blue-600"
+                        : isAdminLink
+                            ? "text-red-600 hover:bg-red-50"
+                            : "text-gray-600 hover:bg-gray-50"
                     }`}
                   >
                     <Icon className="h-5 w-5 flex-shrink-0" />
