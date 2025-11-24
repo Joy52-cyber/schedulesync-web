@@ -54,13 +54,20 @@ export default function Landing({ defaultLoginOpen = false }) {
       }
 
       setDetectedSource(source);
-    } catch (err) {
-      // Invalid URL or partial input — don't show suggestions
+    } catch {
+      // Invalid / partial URL – no suggestion
       setDetectedSource(null);
     }
   };
 
-  // Human-friendly suggestion text per detected system
+  // When user presses Enter in the booking link field
+  const handleBookingLinkSubmit = (e) => {
+    e.preventDefault();
+    if (!bookingLink) return;
+    handleBookingLinkChange(bookingLink);
+  };
+
+  // Smart suggestion UI
   const renderDetectedSuggestion = () => {
     if (!detectedSource) return null;
 
@@ -149,7 +156,7 @@ export default function Landing({ defaultLoginOpen = false }) {
           </div>
         </header>
 
-        {/* HERO – compact, with floating cards like the mockup */}
+        {/* HERO – compact, with floating cards */}
         <section className="max-w-4xl mx-auto px-4 pt-10 pb-8 text-center">
           <div className="flex flex-col items-center gap-6">
             {/* Tagline pill */}
@@ -171,7 +178,8 @@ export default function Landing({ defaultLoginOpen = false }) {
                   {' '}Without the Mess.
                 </h1>
                 <p className="text-sm sm:text-base font-medium text-white/90">
-                  Your Smart Booking Link That Actually <span className="italic">Works.</span>
+                  Your Smart Booking Link That Actually{' '}
+                  <span className="italic">Works.</span>
                 </p>
               </div>
 
@@ -195,7 +203,7 @@ export default function Landing({ defaultLoginOpen = false }) {
               </div>
               <div className="flex items-center gap-1.5">
                 <CheckCircle className="w-4 h-4 text-emerald-300" />
-                <span>Connect Calendly, Google, Outlook & more</span>
+                <span>Connect Calendly, Google, Outlook &amp; more</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-amber-200" />
@@ -203,24 +211,20 @@ export default function Landing({ defaultLoginOpen = false }) {
               </div>
             </div>
 
-            {/* Booking link + CTA */}
+            {/* Booking link input – press Enter to get suggestions */}
             <div className="flex flex-col items-center gap-2 mt-1">
-              <div className="w-full max-w-md flex flex-col sm:flex-row gap-2">
+              <form
+                onSubmit={handleBookingLinkSubmit}
+                className="w-full max-w-md"
+              >
                 <input
                   type="text"
                   value={bookingLink}
                   onChange={(e) => handleBookingLinkChange(e.target.value)}
-                  placeholder="Enter your booking link (Calendly, Google, etc.)"
-                  className="flex-1 bg-white text-slate-900 border border-white/40 text-sm rounded-full px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+                  placeholder="Enter your booking link (Calendly, Google, etc.) and press Enter"
+                  className="w-full bg-white text-slate-900 border border-white/40 text-sm rounded-full px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
                 />
-                <button
-                  type="button"
-                  onClick={() => navigate('/register')}
-                  className="bg-white text-indigo-700 hover:bg-slate-100 text-sm font-semibold rounded-full px-4 py-2.5 shadow-sm"
-                >
-                  Start with ScheduleSync
-                </button>
-              </div>
+              </form>
 
               {/* suggestion based on detected link source */}
               {renderDetectedSuggestion()}
@@ -257,7 +261,8 @@ export default function Landing({ defaultLoginOpen = false }) {
                   Calendar Integration (Magic-fast)
                 </h3>
                 <p className="text-xs text-slate-600">
-                  Sync Google Calendar, Outlook, Microsoft 365—even multiple calendars.
+                  Sync Google Calendar, Outlook, Microsoft 365—even multiple
+                  calendars.
                 </p>
               </div>
             </div>
@@ -271,7 +276,8 @@ export default function Landing({ defaultLoginOpen = false }) {
                   AI-Powered Scheduling
                 </h3>
                 <p className="text-xs text-slate-600">
-                  Tell our AI: “Find me a 30-min meeting next week after 2 PM.” Done.
+                  Tell our AI: “Find me a 30-min meeting next week after 2 PM.”
+                  Done.
                 </p>
               </div>
             </div>
@@ -281,11 +287,10 @@ export default function Landing({ defaultLoginOpen = false }) {
                 <Clock className="w-5 h-5 text-emerald-500" />
               </div>
               <div>
-                <h3 className="font-semibold text-sm mb-1">
-                  Smart Availability
-                </h3>
+                <h3 className="font-semibold text-sm mb-1">Smart Availability</h3>
                 <p className="text-xs text-slate-600">
-                  Detects conflicts, work hours, and time zones—shows only slots that fit.
+                  Detects conflicts, work hours, and time zones—shows only slots
+                  that fit.
                 </p>
               </div>
             </div>
@@ -326,7 +331,9 @@ export default function Landing({ defaultLoginOpen = false }) {
           <div className="bg-white rounded-xl border border-purple-100 shadow-sm p-4 text-center">
             <Clock className="w-6 h-6 text-yellow-500 mx-auto mb-2" />
             <p className="text-xs font-medium mb-1">Business cards</p>
-            <p className="text-[11px] text-gray-600">Print a short URL or QR.</p>
+            <p className="text-[11px] text-gray-600">
+              Print a short URL or QR.
+            </p>
           </div>
           <div className="bg-white rounded-xl border border-purple-100 shadow-sm p-4 text-center">
             <CheckCircle className="w-6 h-6 text-blue-600 mx-auto mb-2" />
@@ -335,6 +342,35 @@ export default function Landing({ defaultLoginOpen = false }) {
           </div>
         </div>
       </section>
+
+      {/* FOOTER */}
+      <footer className="bg-white border-top border-slate-200 mt-6 border-t">
+        <div className="max-w-6xl mx-auto px-4 py-8">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+            {/* Brand */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                <Calendar className="w-4 h-4 text-white" />
+              </div>
+              <span className="font-semibold text-slate-800 text-sm">
+                ScheduleSync
+              </span>
+            </div>
+
+            {/* Links */}
+            <div className="flex items-center gap-5 text-xs text-slate-600">
+              <button className="hover:text-slate-900">Privacy</button>
+              <button className="hover:text-slate-900">Terms</button>
+              <button className="hover:text-slate-900">Support</button>
+            </div>
+          </div>
+
+          {/* Fine print */}
+          <div className="mt-4 text-center sm:text-left text-[11px] text-slate-500">
+            © {new Date().getFullYear()} ScheduleSync. All rights reserved.
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
