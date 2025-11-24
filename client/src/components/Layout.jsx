@@ -7,7 +7,8 @@ import {
   Menu,
   X,
   Link2,
-  ShieldAlert // Import Admin Icon
+  ShieldAlert, // Import Admin Icon
+  Clock
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
