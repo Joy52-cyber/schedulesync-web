@@ -1,15 +1,25 @@
 ﻿import { useState, useEffect } from 'react';
 import { 
-  Clock, Plus, Trash2, Copy, Check, Loader2
+  Clock, 
+  Plus, 
+  MoreVertical, 
+  Copy, 
+  Check, 
+  Loader2,
+  Search,
+  ExternalLink,
+  MapPin,
+  User
 } from 'lucide-react';
-import { eventTypes, auth } from '../utils/api'; // Added auth import
+import { eventTypes, auth } from '../utils/api';
 
 export default function EventTypes() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
-  const [userToken, setUserToken] = useState(null); // Store the main booking token
+  const [userToken, setUserToken] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Form State
   const [formData, setFormData] = useState({
@@ -17,7 +27,7 @@ export default function EventTypes() {
     duration: 30,
     description: '',
     slug: '',
-    color: 'blue'
+    color: 'purple' // Defaulting to purple to match your screenshot
   });
 
   useEffect(() => {
@@ -28,10 +38,10 @@ export default function EventTypes() {
     try {
       const [eventsRes, userRes] = await Promise.all([
         eventTypes.getAll(),
-        auth.me() // Fetch user info to get the main booking token
+        auth.me()
       ]);
       setEvents(eventsRes.data.eventTypes);
-      setUserToken(userRes.data.user.booking_token); // Save the token
+      setUserToken(userRes.data.user.booking_token);
     } catch (error) {
       console.error('Failed to load data', error);
     } finally {
@@ -44,8 +54,7 @@ export default function EventTypes() {
     try {
       await eventTypes.create(formData);
       setShowCreateModal(false);
-      setFormData({ title: '', duration: 30, description: '', slug: '', color: 'blue' }); 
-      // Reload just events, keep token
+      setFormData({ title: '', duration: 30, description: '', slug: '', color: 'purple' }); 
       const res = await eventTypes.getAll();
       setEvents(res.data.eventTypes);
     } catch (error) {
@@ -64,66 +73,128 @@ export default function EventTypes() {
     }
   };
 
-  // ✅ FIX: Construct correct link (base_token + query_param)
   const copyLink = (slug, id) => {
     if (!userToken) return alert("Your personal booking link isn't set up yet. Visit the Dashboard first.");
-    
-    // Generates: https://.../book/joy-lacaba?type=30min
     const link = `${window.location.origin}/book/${userToken}?type=${slug}`;
-    
     navigator.clipboard.writeText(link);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const filteredEvents = events.filter(e => 
+    e.title.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   if (loading) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-blue-600" /></div>;
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+    <div className="max-w-5xl mx-auto px-4 py-8">
+      
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Event Types</h1>
-          <p className="text-gray-500 mt-1">Create and manage your meeting templates.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Scheduling</h1>
+          <p className="text-gray-500 mt-1">Manage your event types and booking links.</p>
         </div>
         <button 
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors font-semibold shadow-sm"
+          className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-full hover:bg-blue-700 transition-colors font-semibold shadow-sm text-sm"
         >
-          <Plus size={20} /> New Event Type
+          <Plus size={18} /> Create
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {events.map((event) => (
-          <div key={event.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden group">
-            <div className={`h-2 w-full bg-${event.color || 'blue'}-500`} />
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="text-lg font-bold text-gray-900">{event.title}</h3>
-                <button onClick={() => handleDelete(event.id)} className="text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-gray-50 transition-colors">
-                  <Trash2 size={18} />
-                </button>
-              </div>
-              <div className="flex items-center gap-2 text-gray-500 text-sm mb-4">
-                <Clock size={16} />
-                <span>{event.duration} mins</span>
-                <span className="text-gray-300">|</span>
-                <span className="truncate max-w-[150px]">/{event.slug}</span>
-              </div>
-              <div className="pt-4 border-t border-gray-100 flex justify-between items-center">
-                <button 
-                  onClick={() => copyLink(event.slug, event.id)}
-                  className="text-blue-600 text-sm font-semibold flex items-center gap-2 hover:text-blue-700"
-                >
-                  {copiedId === event.id ? <Check size={16} /> : <Copy size={16} />}
-                  {copiedId === event.id ? 'Copied' : 'Copy Link'}
-                </button>
-              </div>
+      {/* Tabs & Search (Visual only for tabs currently) */}
+      <div className="border-b border-gray-200 mb-6">
+        <div className="flex gap-6 text-sm font-medium text-gray-500">
+          <button className="text-blue-600 border-b-2 border-blue-600 pb-3">Event types</button>
+          <button className="hover:text-gray-700 pb-3">Single-use links</button>
+          <button className="hover:text-gray-700 pb-3">Meeting polls</button>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="relative mb-8">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search className="h-4 w-4 text-gray-400" />
+        </div>
+        <input
+          type="text"
+          placeholder="Search event types"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+        />
+      </div>
+
+      {/* User Row (Optional - matches screenshot) */}
+      <div className="flex items-center justify-between mb-4 px-1">
+         <div className="flex items-center gap-3">
+             <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600">
+                 ME
+             </div>
+             <span className="text-sm font-medium text-gray-700">My Event Types</span>
+         </div>
+         {userToken && (
+             <a href={`/book/${userToken}`} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                 <ExternalLink size={14} /> View booking page
+             </a>
+         )}
+      </div>
+
+      {/* List View (Calendly Style) */}
+      <div className="space-y-4">
+        {filteredEvents.map((event) => (
+          <div key={event.id} className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col sm:flex-row relative group">
+            
+            {/* Left Color Bar */}
+            <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-${event.color || 'purple'}-600`} />
+            
+            {/* Content Area */}
+            <div className="p-5 pl-7 flex-1">
+               <div className="flex justify-between items-start">
+                   <div>
+                       <h3 className="text-lg font-bold text-gray-900 mb-1">{event.title}</h3>
+                       <p className="text-sm text-gray-500 flex items-center gap-3">
+                           <span>{event.duration} min</span>
+                           <span>•</span>
+                           <span>One-on-One</span>
+                       </p>
+                       {/* Static "availability" text for now - dynamic later */}
+                       <p className="text-xs text-blue-600 mt-3 flex items-center gap-1">
+                           <User size={12} /> View details
+                       </p>
+                   </div>
+                   
+                   {/* Menu Dot (Top Right) */}
+                   <button onClick={() => handleDelete(event.id)} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100">
+                       <MoreVertical size={20} />
+                   </button>
+               </div>
+
+               {/* Bottom Row Actions */}
+               <div className="mt-6 pt-4 border-t border-gray-100 flex justify-between items-center">
+                   <div className="flex gap-3 text-gray-400">
+                       {/* Placeholder icons for "copy to website" etc */}
+                       <button className="hover:text-gray-600"><Copy size={16} /></button>
+                       <button className="hover:text-gray-600"><MapPin size={16} /></button>
+                   </div>
+                   
+                   <button 
+                     onClick={() => copyLink(event.slug, event.id)}
+                     className="text-blue-600 text-xs font-bold border border-blue-600 rounded-full px-4 py-1.5 hover:bg-blue-50 flex items-center gap-2 transition-colors"
+                   >
+                     {copiedId === event.id ? <Check size={14} /> : <Copy size={14} />}
+                     {copiedId === event.id ? 'Copied' : 'Copy link'}
+                   </button>
+               </div>
             </div>
+
           </div>
         ))}
       </div>
 
+      {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
