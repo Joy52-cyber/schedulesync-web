@@ -73,12 +73,14 @@ export default function Landing({ defaultLoginOpen = false }) {
 
     let title = '';
     let body = '';
+    let ctaLabel = null;
 
     switch (detectedSource) {
       case 'calendly':
         title = 'Calendly link detected';
         body =
-          'After you sign up, you can add this as your external booking link so ScheduleSync and Calendly work together.';
+          'We can connect this Calendly booking link to your ScheduleSync account so you keep your existing flows.';
+        ctaLabel = 'Log in to connect Calendly';
         break;
       case 'cal.com':
         title = 'Cal.com link detected';
@@ -110,12 +112,25 @@ export default function Landing({ defaultLoginOpen = false }) {
     }
 
     return (
-      <div className="mt-2 inline-flex items-start gap-2 max-w-md text-left text-xs sm:text-[13px] bg-white/10 border border-white/25 rounded-2xl px-3 py-2 text-white/90">
-        <Zap className="w-3.5 h-3.5 mt-0.5 text-amber-200 shrink-0" />
-        <div>
-          <div className="font-semibold">{title}</div>
-          <div className="text-white/80">{body}</div>
+      <div className="mt-2 inline-flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 max-w-md text-left text-xs sm:text-[13px] bg-white/10 border border-white/25 rounded-2xl px-3 py-2 text-white/90">
+        <div className="flex items-start gap-2">
+          <Zap className="w-3.5 h-3.5 mt-0.5 text-amber-200 shrink-0" />
+          <div>
+            <div className="font-semibold">{title}</div>
+            <div className="text-white/80">{body}</div>
+          </div>
         </div>
+
+        {ctaLabel && (
+          <button
+            type="button"
+            onClick={() => setIsLoginOpen(true)}
+            className="inline-flex items-center gap-1 rounded-full border border-amber-200/60 bg-amber-50/10 px-3 py-1 text-[11px] font-medium text-amber-100 hover:bg-amber-50/20"
+          >
+            <Sparkles className="w-3 h-3" />
+            {ctaLabel}
+          </button>
+        )}
       </div>
     );
   };
@@ -222,11 +237,10 @@ export default function Landing({ defaultLoginOpen = false }) {
                   value={bookingLink}
                   onChange={(e) => handleBookingLinkChange(e.target.value)}
                   placeholder="Enter your booking link (Calendly, Google, etc.) and press Enter"
-                  className="w-full bg-white text-slate-900 border border-white/40 text-sm rounded-full px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+                  className="w-full bg.white text-slate-900 border border-white/40 text-sm rounded-full px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60 bg-white"
                 />
               </form>
 
-              {/* suggestion based on detected link source */}
               {renderDetectedSuggestion()}
             </div>
 
@@ -287,7 +301,9 @@ export default function Landing({ defaultLoginOpen = false }) {
                 <Clock className="w-5 h-5 text-emerald-500" />
               </div>
               <div>
-                <h3 className="font-semibold text-sm mb-1">Smart Availability</h3>
+                <h3 className="font-semibold text-sm mb-1">
+                  Smart Availability
+                </h3>
                 <p className="text-xs text-slate-600">
                   Detects conflicts, work hours, and time zones—shows only slots
                   that fit.
@@ -343,30 +359,36 @@ export default function Landing({ defaultLoginOpen = false }) {
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer className="bg-white border-top border-slate-200 mt-6 border-t">
-        <div className="max-w-6xl mx-auto px-4 py-8">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+      {/* FOOTER – dark */}
+      <footer className="bg-slate-900 border-t border-slate-800 mt-6">
+        <div className="max-w-6xl mx-auto px-4 py-10">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-6">
             {/* Brand */}
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
                 <Calendar className="w-4 h-4 text-white" />
               </div>
-              <span className="font-semibold text-slate-800 text-sm">
+              <span className="font-semibold text-slate-100 text-sm">
                 ScheduleSync
               </span>
             </div>
 
             {/* Links */}
-            <div className="flex items-center gap-5 text-xs text-slate-600">
-              <button className="hover:text-slate-900">Privacy</button>
-              <button className="hover:text-slate-900">Terms</button>
-              <button className="hover:text-slate-900">Support</button>
+            <div className="flex items-center gap-6 text-xs text-slate-400">
+              <button className="hover:text-slate-200 transition-colors">
+                Privacy
+              </button>
+              <button className="hover:text-slate-200 transition-colors">
+                Terms
+              </button>
+              <button className="hover:text-slate-200 transition-colors">
+                Support
+              </button>
             </div>
           </div>
 
           {/* Fine print */}
-          <div className="mt-4 text-center sm:text-left text-[11px] text-slate-500">
+          <div className="mt-6 text-center sm:text-left text-[11px] text-slate-500">
             © {new Date().getFullYear()} ScheduleSync. All rights reserved.
           </div>
         </div>
