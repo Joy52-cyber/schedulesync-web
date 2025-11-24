@@ -1,33 +1,31 @@
-﻿import { useState } from 'react';
+﻿// client/src/pages/Landing.jsx
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
   Zap,
+  Share2,
   Users,
   Clock,
-  Sparkles,
-  ArrowRight,
-  Shield,
-  Smartphone,
   CheckCircle,
-  MoreHorizontal
+  Sparkles,
 } from 'lucide-react';
 import LoginPanel from '../components/LoginPanel';
 
 export default function Landing({ defaultLoginOpen = false }) {
   const [isLoginOpen, setIsLoginOpen] = useState(defaultLoginOpen);
   const [bookingLink, setBookingLink] = useState('');
-  const [detectedSource, setDetectedSource] = useState(null);
+  const [detectedSource, setDetectedSource] = useState(null); // 'calendly' | 'cal.com' | 'hubspot' | 'google-calendar' | 'google-meet' | 'microsoft' | 'schedulesync' | null
   const [showConnectionOptions, setShowConnectionOptions] = useState(false);
   const navigate = useNavigate();
 
-  // Booking link detection --------------------------
+  // Detect source system from pasted booking link
   const handleBookingLinkChange = (value) => {
     setBookingLink(value);
-    setShowConnectionOptions(false);
 
     if (!value) {
       setDetectedSource(null);
+      setShowConnectionOptions(false);
       return;
     }
 
@@ -39,65 +37,101 @@ export default function Landing({ defaultLoginOpen = false }) {
 
       let source = null;
 
-      if (host.includes('calendly.com')) source = 'calendly';
-      else if (host.includes('cal.com')) source = 'cal.com';
-      else if (host.includes('hubspot')) source = 'hubspot';
-      else if (host.includes('google.com') && path.includes('calendar')) source = 'google-calendar';
-      else if (host.includes('meet.google.com')) source = 'google-meet';
-      else if (host.includes('outlook.') || host.includes('office.') || host.includes('microsoft.')) source = 'microsoft';
-      else if (host.includes('eyeball.games') || host.includes('trucal.xyz')) source = 'schedulesync';
+      if (host.includes('calendly.com')) {
+        source = 'calendly';
+      } else if (host.includes('cal.com')) {
+        source = 'cal.com';
+      } else if (host.includes('hubspot')) {
+        source = 'hubspot';
+      } else if (host.includes('google.com') && path.includes('calendar')) {
+        source = 'google-calendar';
+      } else if (host.includes('meet.google.com')) {
+        source = 'google-meet';
+      } else if (
+        host.includes('outlook.') ||
+        host.includes('office.com') ||
+        host.includes('microsoft.')
+      ) {
+        source = 'microsoft';
+      } else if (host.includes('eyeball.games') || host.includes('trucal.xyz')) {
+        // Your own ScheduleSync-hosted booking links
+        source = 'schedulesync';
+      }
 
       setDetectedSource(source);
     } catch {
+      // Invalid / partial URL – no suggestion
       setDetectedSource(null);
     }
   };
 
+  // When user presses Enter in the booking link field
   const handleBookingLinkSubmit = (e) => {
     e.preventDefault();
     if (!bookingLink) return;
-
-    localStorage.setItem('importedLink', bookingLink);
     handleBookingLinkChange(bookingLink);
     setShowConnectionOptions(true);
   };
 
-  // --- Detection Message --------------------------------------------------
+  // Smart detection message
   const renderDetectedSuggestion = () => {
     if (!detectedSource) return null;
 
-    const titles = {
-      calendly: 'Calendly link detected',
-      'cal.com': 'Cal.com link detected',
-      hubspot: 'HubSpot link detected',
-      'google-calendar': 'Google Calendar link detected',
-      'google-meet': 'Google Meet link detected',
-      microsoft: 'Microsoft / Outlook link detected',
-      schedulesync: 'ScheduleSync link detected',
-    };
+    let title = '';
+    let body = '';
 
-    const messages = {
-      calendly: 'We can connect this Calendly booking link to your ScheduleSync account.',
-      'cal.com': 'You can plug this Cal.com link into your ScheduleSync profile.',
-      hubspot: 'Connect your HubSpot Meetings link inside ScheduleSync.',
-      'google-calendar': 'ScheduleSync can sync directly with Google Calendar.',
-      'google-meet': 'Automatically generate Google Meet links using Google Calendar.',
-      microsoft: 'Sync your Outlook / Microsoft 365 availability automatically.',
-      schedulesync: 'This link is already powered by ScheduleSync.',
-    };
+    switch (detectedSource) {
+      case 'calendly':
+        title = 'Calendly link detected';
+        body =
+          'We can connect this Calendly booking link to your ScheduleSync account so you keep your existing flows.';
+        break;
+      case 'cal.com':
+        title = 'Cal.com link detected';
+        body =
+          'You can plug this Cal.com booking link into your ScheduleSync profile to keep things in sync.';
+        break;
+      case 'hubspot':
+        title = 'HubSpot Meetings link detected';
+        body =
+          'Connect your HubSpot booking link inside ScheduleSync to keep your existing flows.';
+        break;
+      case 'google-calendar':
+        title = 'Google Calendar link detected';
+        body =
+          'ScheduleSync can connect directly to Google Calendar during setup so everything stays in sync.';
+        break;
+      case 'google-meet':
+        title = 'Google Meet link detected';
+        body =
+          'Connect Google Calendar in ScheduleSync so new bookings automatically get Meet links.';
+        break;
+      case 'microsoft':
+        title = 'Microsoft / Outlook link detected';
+        body =
+          'Connect your Outlook / Microsoft 365 calendar in ScheduleSync to sync availability automatically.';
+        break;
+      case 'schedulesync':
+        title = 'ScheduleSync link detected';
+        body =
+          'This booking link is already powered by ScheduleSync. Log in to manage this link or update your availability.';
+        break;
+      default:
+        return null;
+    }
 
     return (
-      <div className="mt-3 inline-flex items-start gap-2 max-w-md text-left text-xs sm:text-[13px] bg-white/10 border border-white/25 rounded-2xl px-3 py-2 text-white/90">
+      <div className="mt-2 inline-flex items-start gap-2 max-w-md text-left text-xs sm:text-[13px] bg-white/10 border border-white/25 rounded-2xl px-3 py-2 text-white/90">
         <Zap className="w-3.5 h-3.5 mt-0.5 text-amber-200 shrink-0" />
         <div>
-          <div className="font-semibold">{titles[detectedSource]}</div>
-          <div className="text-white/80">{messages[detectedSource]}</div>
+          <div className="font-semibold">{title}</div>
+          <div className="text-white/80">{body}</div>
         </div>
       </div>
     );
   };
 
-  // --- Step: Connection Options ------------------------------------------
+  // Step: choose how to connect (calendar / Calendly / proceed without)
   const renderConnectionOptions = () => {
     if (!showConnectionOptions) return null;
 
@@ -106,39 +140,44 @@ export default function Landing({ defaultLoginOpen = false }) {
     return (
       <div className="mt-3 w-full max-w-md bg-white/10 border border-white/25 rounded-2xl px-3 py-3 text-xs sm:text-[13px] text-white/90">
         <div className="font-semibold mb-1.5">How do you want to connect?</div>
-
         <p className="text-white/75 mb-3">
-          Choose how you'd like to start with ScheduleSync.
+          Choose how you&apos;d like to start with ScheduleSync. You can always
+          change this later in settings.
         </p>
 
         <div className="flex flex-col gap-1.5">
-          {/* Connect Calendar */}
+          {/* Connect calendar */}
           <button
+            type="button"
             onClick={() => navigate('/register?connect=calendar')}
-            className="w-full inline-flex items-center justify-between rounded-xl bg-white/90 text-slate-900 px-3 py-2 text-[12px] font-semibold hover:bg-white"
+            className="w-full inline-flex items-center justify-between rounded-xl bg-white/90 text-slate-900 px-3 py-2 text-[12px] font-semibold hover:bg-white shadow-sm"
           >
             <span>Connect Google / Outlook calendar</span>
             <span className="text-[10px] text-slate-500">Recommended</span>
           </button>
 
-          {/* Connect Calendly */}
+          {/* Connect Calendly – only if we detected Calendly */}
           {isCalendly && (
             <button
+              type="button"
               onClick={() => setIsLoginOpen(true)}
               className="w-full inline-flex items-center justify-between rounded-xl bg-sky-50/90 text-sky-800 px-3 py-2 text-[12px] font-semibold border border-sky-200 hover:bg-sky-50"
             >
               <span>Connect Calendly</span>
-              <span className="text-[10px] text-sky-700">Use existing link</span>
+              <span className="text-[10px] text-sky-600">
+                Uses your existing link
+              </span>
             </button>
           )}
 
-          {/* Continue without */}
+          {/* Proceed without */}
           <button
+            type="button"
             onClick={() => navigate('/register')}
             className="w-full inline-flex items-center justify-between rounded-xl bg-transparent text-white px-3 py-2 text-[12px] font-semibold border border-white/30 hover:bg-white/5"
           >
             <span>Continue without connecting</span>
-            <span className="text-[10px] text-white/70">Set up later</span>
+            <span className="text-[10px] text-white/70">Set this up later</span>
           </button>
         </div>
       </div>
@@ -146,240 +185,260 @@ export default function Landing({ defaultLoginOpen = false }) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 font-sans selection:bg-indigo-100 selection:text-indigo-900">
+    <div className="min-h-screen flex flex-col bg-slate-50">
+      {/* Login modal */}
       <LoginPanel isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
 
-      {/* ================= HERO SECTION ================= */}
-      <div className="relative bg-indigo-900 text-white overflow-hidden pb-32">
-
+      {/* HERO GRADIENT */}
+      <div className="bg-gradient-to-br from-indigo-600 via-fuchsia-500 to-orange-400 text-white pb-10">
         {/* Header */}
-        <header className="relative z-20 border-b border-white/5 bg-white/5 backdrop-blur-md">
-          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+        <header className="sticky top-0 z-20 border-b border-white/10 bg-indigo-900/10 backdrop-blur-sm">
+          <div className="max-w-6xl mx-auto px-4 py-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-2xl bg-white/10 border border-white/25 flex items-center justify-center">
                 <Calendar className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-base tracking-tight">
+              <span className="font-semibold text-white text-sm sm:text-base">
                 ScheduleSync
               </span>
             </div>
+
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsLoginOpen(true)}
-                className="text-xs font-medium text-white/70 hover:text-white"
+                className="text-xs sm:text-sm font-medium text-white/80 hover:text-white"
               >
                 Log in
               </button>
               <button
                 onClick={() => navigate('/register')}
-                className="text-xs font-bold text-indigo-900 bg-white rounded-full px-4 py-1.5 hover:bg-indigo-50"
+                className="text-xs sm:text-sm font-semibold text-indigo-700 bg-white rounded-full px-3 sm:px-4 py-1.5 hover:bg-slate-100 shadow-sm"
               >
-                Get Started
+                Start free
               </button>
             </div>
           </div>
         </header>
 
-        {/* Hero Content */}
-        <section className="relative z-10 max-w-3xl mx-auto px-4 pt-12 pb-16 text-center">
+        {/* HERO – compact, with floating cards */}
+        <section className="max-w-4xl mx-auto px-4 pt-10 pb-8 text-center">
+          <div className="flex flex-col items-center gap-6">
+            {/* Tagline pill */}
+            <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-white/15 text-white text-xs sm:text-sm border border-white/20">
+              Transform your scheduling in minutes
+            </div>
 
-          {/* Tag */}
-          <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-indigo-800/50 border border-indigo-700 text-indigo-200 text-[10px] uppercase font-bold tracking-wider mb-6">
-            <Sparkles className="w-3 h-3 mr-1.5 text-amber-400" />
-            AI-Powered Scheduling
-          </div>
+            {/* Title + floating icons row */}
+            <div className="flex items-center justify-center gap-6 sm:gap-10">
+              {/* Left floating card */}
+              <div className="hidden sm:flex w-16 h-16 rounded-3xl bg-white/12 border border-white/30 shadow-[0_18px_45px_rgba(15,23,42,0.35)] items-center justify-center motion-safe:animate-bounce">
+                <Calendar className="w-7 h-7 text-white" />
+              </div>
 
-          <h1 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight mb-4">
-            Scheduling made{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-purple-300">
-              effortless.
-            </span>
-          </h1>
+              <div className="flex flex-col gap-2">
+                <h1 className="text-3xl sm:text-4xl font-semibold leading-tight text-white drop-shadow-sm">
+                  Meetings
+                  <br className="hidden sm:block" /> Without the Mess.
+                </h1>
+                <p className="text-sm sm:text-base font-medium text-white/90">
+                  Your Smart Booking Link That Actually{' '}
+                  <span className="italic">Works.</span>
+                </p>
+              </div>
 
-          <p className="text-base text-indigo-200/80 max-w-lg mx-auto mb-8">
-            Share your link, let people book, and never worry about double bookings again.
-          </p>
+              {/* Right floating card */}
+              <div className="hidden sm:flex w-16 h-16 rounded-full bg.white/12 border border-white/30 shadow-[0_18px_45px_rgba(15,23,42,0.35)] items-center justify-center motion-safe:animate-bounce">
+                <Clock className="w-7 h-7 text-white" />
+              </div>
+            </div>
 
-          {/* Booking Link Input */}
-          <div className="max-w-md mx-auto relative group flex flex-col items-center">
-            <form onSubmit={handleBookingLinkSubmit} className="relative w-full">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full blur opacity-20 group-hover:opacity-40 transition duration-700" />
-              <input
-                type="text"
-                value={bookingLink}
-                onChange={(e) => handleBookingLinkChange(e.target.value)}
-                placeholder="Enter your booking link and press Enter..."
-                className="relative w-full bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder:text-white/40 text-sm rounded-full pl-5 pr-12 py-3"
-              />
-              <button
-                type="submit"
-                className="absolute right-1.5 top-1.5 bottom-1.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded-full w-9 h-9 flex items-center justify-center transition"
+            {/* Supporting text */}
+            <p className="max-w-2xl text-sm sm:text-base text-white/80 mx-auto">
+              Paste your existing booking link and we&apos;ll help you connect
+              it with ScheduleSync so you don&apos;t have to start from scratch.
+            </p>
+
+            {/* Bullets */}
+            <div className="flex flex-wrap justify-center gap-4 text-white/90 text-sm">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle className="w-4 h-4 text-emerald-300" />
+                <span>Bring your existing booking links</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <CheckCircle className="w-4 h-4 text-emerald-300" />
+                <span>Connect Calendly, Google, Outlook &amp; more</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-200" />
+                <span>Let AI handle your availability</span>
+              </div>
+            </div>
+
+            {/* Booking link input – press Enter to get suggestions */}
+            <div className="flex flex-col items-center gap-2 mt-1">
+              <form
+                onSubmit={handleBookingLinkSubmit}
+                className="w-full max-w-md"
               >
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </form>
+                <input
+                  type="text"
+                  value={bookingLink}
+                  onChange={(e) => handleBookingLinkChange(e.target.value)}
+                  placeholder="Enter your booking link (Calendly, Google, etc.) and press Enter"
+                  className="w-full bg-white text-slate-900 border border-white/40 text-sm rounded-full px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+                />
+              </form>
 
-            {/* Detection + Options */}
-            {renderDetectedSuggestion()}
-            {renderConnectionOptions()}
+              {renderDetectedSuggestion()}
+              {renderConnectionOptions()}
+            </div>
+
+            <p className="text-xs text-white/80">
+              Already have an account?{' '}
+              <button
+                onClick={() => setIsLoginOpen(true)}
+                className="text-white font-medium underline-offset-2 hover:underline"
+              >
+                Sign in
+              </button>
+            </p>
           </div>
         </section>
       </div>
 
-      {/* ================= MOCK DASHBOARD (No Live Preview) ================= */}
-      <div className="relative z-20 px-4 -mt-24 mb-16">
-        <div className="max-w-4xl mx-auto">
-          <div className="rounded-xl bg-white p-1.5 shadow-2xl border border-slate-200/60 ring-1 ring-slate-900/5">
-            <div className="aspect-[16/10] sm:aspect-[2/1] rounded-lg bg-slate-50 border border-slate-100 overflow-hidden relative flex">
+      {/* MAIN CONTENT – clean transition */}
 
-              {/* Sidebar */}
-              <div className="w-16 sm:w-48 bg-white border-r border-slate-100 flex-shrink-0 flex flex-col pt-4">
-                <div className="px-4 mb-6 hidden sm:block">
-                  <div className="h-2 w-20 bg-slate-200 rounded" />
-                </div>
-                <div className="flex flex-col gap-1 px-2 sm:px-3">
-                  <div className="h-8 w-full bg-indigo-50 rounded-md flex items-center justify-center sm:justify-start sm:px-3 gap-2">
-                    <div className="w-4 h-4 bg-indigo-200 rounded" />
-                    <div className="hidden sm:block h-2 w-16 bg-indigo-200 rounded" />
-                  </div>
-                  <div className="h-8 w-full hover:bg-slate-50 rounded-md flex items-center justify-center sm:justify-start sm:px-3 gap-2">
-                    <div className="w-4 h-4 bg-slate-200 rounded" />
-                    <div className="hidden sm:block h-2 w-20 bg-slate-200 rounded" />
-                  </div>
-                  <div className="h-8 w-full hover:bg-slate-50 rounded-md flex items-center justify-center sm:justify-start sm:px-3 gap-2">
-                    <div className="w-4 h-4 bg-slate-200 rounded" />
-                    <div className="hidden sm:block h-2 w-12 bg-slate-200 rounded" />
-                  </div>
-                </div>
+      {/* Why teams switch */}
+      <section className="max-w-5xl mx-auto px-4 pt-10 pb-8">
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 sm:p-7">
+          <h2 className="text-center text-base sm:text-lg font-semibold text-slate-900 mb-5">
+            Why teams switch to ScheduleSync
+          </h2>
+          <div className="grid md:grid-cols-2 gap-5">
+            <div className="flex gap-3">
+              <div className="mt-1 w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-indigo-600" />
               </div>
-
-              {/* Main */}
-              <div className="flex-1 flex flex-col min-w-0 bg-slate-50/50">
-                <div className="h-12 bg-white border-b border-slate-100 flex items-center justify-between px-4 sm:px-6">
-                  <div className="h-3 w-24 bg-slate-800 rounded-sm" />
-                  <div className="flex gap-2">
-                    <div className="h-7 w-7 rounded-full bg-slate-100 border border-slate-200" />
-                    <div className="h-7 w-20 rounded-md bg-indigo-600 shadow-sm hidden sm:block" />
-                  </div>
-                </div>
-
-                <div className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-
-                  {/* Card 1 */}
-                  <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-3">
-                    <div className="flex justify-between items-start">
-                      <div className="h-3 w-3 rounded-full bg-purple-500" />
-                      <MoreHorizontal className="w-4 h-4 text-slate-300" />
-                    </div>
-                    <div>
-                      <div className="h-3 w-3/4 bg-slate-800 rounded mb-1.5" />
-                      <div className="h-2 w-1/2 bg-slate-400 rounded" />
-                    </div>
-                    <div className="mt-2 h-6 w-full bg-slate-50 border border-slate-100 rounded flex items-center px-2">
-                      <div className="h-1.5 w-1/3 bg-slate-200 rounded" />
-                    </div>
-                  </div>
-
-                  {/* Card 2 */}
-                  <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-3">
-                    <div className="flex justify-between items-start">
-                      <div className="h-3 w-3 rounded-full bg-blue-500" />
-                      <MoreHorizontal className="w-4 h-4 text-slate-300" />
-                    </div>
-                    <div>
-                      <div className="h-3 w-2/3 bg-slate-800 rounded mb-1.5" />
-                      <div className="h-2 w-1/2 bg-slate-400 rounded" />
-                    </div>
-                    <div className="mt-2 h-6 w-full bg-slate-50 border border-slate-100 rounded flex items-center px-2">
-                      <div className="h-1.5 w-1/3 bg-slate-200 rounded" />
-                    </div>
-                  </div>
-
-                  {/* Card 3 */}
-                  <div className="hidden lg:flex bg-gradient-to-br from-indigo-500 to-purple-600 p-4 rounded-xl shadow-lg text-white flex-col justify-between">
-                    <div className="flex gap-2 items-center opacity-80">
-                      <Users className="w-4 h-4" />
-                      <span className="text-[10px] font-bold uppercase">Bookings</span>
-                    </div>
-                    <div className="text-2xl font-bold">12</div>
-                    <div className="h-1 w-full bg-white/20 rounded-full overflow-hidden">
-                      <div className="h-full w-2/3 bg-white rounded-full" />
-                    </div>
-                  </div>
-                </div>
+              <div>
+                <h3 className="font-semibold text-sm mb-1">
+                  Calendar Integration (Magic-fast)
+                </h3>
+                <p className="text-xs text-slate-600">
+                  Sync Google Calendar, Outlook, Microsoft 365—even multiple
+                  calendars.
+                </p>
               </div>
-
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ================= FEATURES ================= */}
-      <section className="py-10 px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-10">
-            <h2 className="text-xl md:text-2xl font-bold text-slate-900">Why teams switch to ScheduleSync</h2>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="p-5 rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition">
-              <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center mb-3">
-                <Zap className="w-5 h-5 text-blue-600" />
-              </div>
-              <h3 className="font-bold text-slate-900 text-sm mb-1">Instant Setup</h3>
-              <p className="text-slate-600 text-xs leading-relaxed">
-                Connect Google, Outlook, or Apple Calendar in one click.
-              </p>
             </div>
 
-            <div className="p-5 rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition">
-              <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center mb-3">
-                <Shield className="w-5 h-5 text-purple-600" />
+            <div className="flex gap-3">
+              <div className="mt-1 w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-amber-500" />
               </div>
-              <h3 className="font-bold text-slate-900 text-sm mb-1">Conflict Protection</h3>
-              <p className="text-slate-600 text-xs leading-relaxed">
-                Avoid double bookings with smart cross-calendar checks.
-              </p>
+              <div>
+                <h3 className="font-semibold text-sm mb-1">
+                  AI-Powered Scheduling
+                </h3>
+                <p className="text-xs text-slate-600">
+                  Tell our AI: “Find me a 30-min meeting next week after 2 PM.”
+                  Done.
+                </p>
+              </div>
             </div>
 
-            <div className="p-5 rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition">
-              <div className="w-10 h-10 bg-pink-50 rounded-lg flex items-center justify-center mb-3">
-                <Smartphone className="w-5 h-5 text-pink-600" />
+            <div className="flex gap-3">
+              <div className="mt-1 w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
+                <Clock className="w-5 h-5 text-emerald-500" />
               </div>
-              <h3 className="font-bold text-slate-900 text-sm mb-1">Mobile Optimized</h3>
-              <p className="text-slate-600 text-xs leading-relaxed">
-                Beautiful on any device for a seamless booking experience.
-              </p>
+              <div>
+                <h3 className="font-semibold text-sm mb-1">
+                  Smart Availability
+                </h3>
+                <p className="text-xs text-slate-600">
+                  Detects conflicts, work hours, and time zones—shows only slots
+                  that fit.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="mt-1 w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center">
+                <Share2 className="w-5 h-5 text-violet-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm mb-1">
+                  One Clean Link for Everything
+                </h3>
+                <p className="text-xs text-slate-600">
+                  Works everywhere—email, chat, website, QR code.
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================= CTA ================= */}
-      <section className="py-10 px-4 mb-6">
-        <div className="max-w-3xl mx-auto bg-slate-900 rounded-2xl px-6 py-10 text-center shadow-lg">
-          <h2 className="text-2xl font-bold text-white mb-3">Ready to take back your time?</h2>
-          <div className="flex flex-col sm:flex-row justify-center gap-3 mt-6">
-            <button
-              onClick={() => navigate('/register')}
-              className="px-6 py-2.5 bg-white text-slate-900 rounded-full text-sm font-bold hover:bg-indigo-50 flex items-center gap-2"
-            >
-              Start for Free <ArrowRight className="w-3 h-3" />
-            </button>
+      {/* Where to share */}
+      <section className="max-w-5xl mx-auto px-4 pb-9">
+        <h2 className="text-center text-sm sm:text-base font-semibold text-gray-900 mb-4">
+          Where to share your link
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white rounded-xl border border-purple-100 shadow-sm p-4 text-center">
+            <Users className="w-6 h-6 text-purple-600 mx-auto mb-2" />
+            <p className="text-xs font-medium mb-1">Email signature</p>
+            <p className="text-[11px] text-gray-600">Add it under your name.</p>
+          </div>
+          <div className="bg-white rounded-xl border border-purple-100 shadow-sm p-4 text-center">
+            <Share2 className="w-6 h-6 text-orange-500 mx-auto mb-2" />
+            <p className="text-xs font-medium mb-1">Social profiles</p>
+            <p className="text-[11px] text-gray-600">Drop it in your bio link.</p>
+          </div>
+          <div className="bg-white rounded-xl border border-purple-100 shadow-sm p-4 text-center">
+            <Clock className="w-6 h-6 text-yellow-500 mx-auto mb-2" />
+            <p className="text-xs font-medium mb-1">Business cards</p>
+            <p className="text-[11px] text-gray-600">
+              Print a short URL or QR.
+            </p>
+          </div>
+          <div className="bg-white rounded-xl border border-purple-100 shadow-sm p-4 text-center">
+            <CheckCircle className="w-6 h-6 text-blue-600 mx-auto mb-2" />
+            <p className="text-xs font-medium mb-1">Website</p>
+            <p className="text-[11px] text-gray-600">Embed it on your site.</p>
           </div>
         </div>
       </section>
 
-      {/* ================= FOOTER ================= */}
-      <footer className="bg-white border-t border-slate-100 py-6">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-900">ScheduleSync</span>
-            <span>&copy; {new Date().getFullYear()}</span>
+      {/* FOOTER – dark */}
+      <footer className="bg-slate-900 border-t border-slate-800 mt-6">
+        <div className="max-w-6xl mx-auto px-4 py-10">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-6">
+            {/* Brand */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                <Calendar className="w-4 h-4 text-white" />
+              </div>
+              <span className="font-semibold text-slate-100 text-sm">
+                ScheduleSync
+              </span>
+            </div>
+
+            {/* Links */}
+            <div className="flex items-center gap-6 text-xs text-slate-400">
+              <button className="hover:text-slate-200 transition-colors">
+                Privacy
+              </button>
+              <button className="hover:text-slate-200 transition-colors">
+                Terms
+              </button>
+              <button className="hover:text-slate-200 transition-colors">
+                Support
+              </button>
+            </div>
           </div>
-          <div className="flex gap-4">
-            <span className="hover:text-slate-900 cursor-pointer">Privacy</span>
-            <span className="hover:text-slate-900 cursor-pointer">Terms</span>
+
+          {/* Fine print */}
+          <div className="mt-6 text-center sm:text-left text-[11px] text-slate-500">
+            © {new Date().getFullYear()} ScheduleSync. All rights reserved.
           </div>
         </div>
       </footer>
