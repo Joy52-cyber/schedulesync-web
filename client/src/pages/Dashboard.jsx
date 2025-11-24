@@ -1,4 +1,5 @@
-﻿import { useState, useEffect } from 'react';
+﻿// client/src/pages/Dashboard.jsx
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -15,7 +16,6 @@ import {
   Link as LinkIcon,
   Loader2,
   X,
-  Save,
 } from 'lucide-react';
 
 import api, { auth, timezone as timezoneApi } from '../utils/api';
@@ -25,36 +25,37 @@ import TimezoneSelector from '../components/TimezoneSelector';
 export default function Dashboard() {
   const navigate = useNavigate();
 
+  // Dashboard state
   const [stats, setStats] = useState({
     totalBookings: 0,
     upcomingBookings: 0,
     activeTeams: 0,
   });
-
   const [recentBookings, setRecentBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timezone, setTimezone] = useState('');
   const [user, setUser] = useState(null);
 
+  // Booking link
   const [bookingLink, setBookingLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [generatingLink, setGeneratingLink] = useState(false);
 
   // Availability modal
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
-  const [savingAvailability, setSavingAvailability] = useState(false);
 
-  const [availability, setAvailability] = useState([
-    { day: 'Monday', enabled: true, start: '09:00', end: '17:00' },
-    { day: 'Tuesday', enabled: true, start: '09:00', end: '17:00' },
-    { day: 'Wednesday', enabled: true, start: '09:00', end: '17:00' },
-    { day: 'Thursday', enabled: true, start: '09:00', end: '17:00' },
-    { day: 'Friday', enabled: true, start: '09:00', end: '17:00' },
-    { day: 'Saturday', enabled: false, start: '09:00', end: '17:00' },
-    { day: 'Sunday', enabled: false, start: '09:00', end: '17:00' },
-  ]);
+  // Editable availability state
+  const defaultHours = {
+    Monday: { start: "09:00", end: "17:00" },
+    Tuesday: { start: "09:00", end: "17:00" },
+    Wednesday: { start: "09:00", end: "17:00" },
+    Thursday: { start: "09:00", end: "17:00" },
+    Friday: { start: "09:00", end: "17:00" },
+  };
 
-  // Load all dashboard data
+  const [editedAvailability, setEditedAvailability] = useState(defaultHours);
+
+  // Load dashboard on mount
   useEffect(() => {
     loadAllData();
   }, []);
@@ -65,6 +66,7 @@ export default function Dashboard() {
       loadDashboardData(),
       loadUserTimezone(),
       loadUserProfile(),
+      loadAvailability(),
     ]);
     setLoading(false);
   };
@@ -75,7 +77,7 @@ export default function Dashboard() {
       setStats(response.data.stats);
       setRecentBookings(response.data.recentBookings || []);
     } catch (error) {
-      console.error('Error loading dashboard:', error);
+      console.error("Dashboard load error:", error);
     }
   };
 
@@ -84,28 +86,33 @@ export default function Dashboard() {
       const response = await timezoneApi.get();
       if (response.data.timezone) setTimezone(response.data.timezone);
     } catch (error) {
-      console.error('Error loading timezone:', error);
+      console.error("Timezone load error:", error);
     }
   };
 
   const loadUserProfile = async () => {
     try {
       const response = await auth.me();
-      const u = response.data.user;
+      const u = response.data.user || null;
+
       setUser(u);
 
-      // Load booking link
       if (u?.booking_token) {
         setBookingLink(`${window.location.origin}/book/${u.booking_token}`);
       }
-
-      // Load availability if exists
-      if (u?.availability) {
-        setAvailability(u.availability);
-      }
-
     } catch (error) {
-      console.error('Profile load failed', error);
+      console.error("Profile load error:", error);
+    }
+  };
+
+  const loadAvailability = async () => {
+    try {
+      const response = await api.get('/availability/me');
+      if (response.data.availability) {
+        setEditedAvailability(response.data.availability);
+      }
+    } catch (error) {
+      console.error("Availability load error:", error);
     }
   };
 
@@ -115,261 +122,170 @@ export default function Dashboard() {
       await api.get('/my-booking-link');
       await loadUserProfile();
     } catch (error) {
-      alert('Could not generate link.');
-    } finally {
-      setGeneratingLink(false);
+      console.error("Generate link error:", error);
     }
+    setGeneratingLink(false);
   };
 
   const handleCopyLink = () => {
+    if (!bookingLink) return;
     navigator.clipboard.writeText(bookingLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const saveAvailability = async () => {
-    setSavingAvailability(true);
-    try {
-      await api.post('/availability/update', { availability });
-      setSavingAvailability(false);
-      setShowAvailabilityModal(false);
-    } catch (error) {
-      console.error('Failed saving availability:', error);
-      setSavingAvailability(false);
-    }
-  };
-
-  const updateDay = (index, field, value) => {
-    setAvailability(prev => {
-      const updated = [...prev];
-      updated[index][field] = value;
-      return updated;
-    });
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+      <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
+        <Loader2 className="animate-spin h-10 w-10 text-blue-600" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30">
-
+    <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30">
       {/* HEADER */}
       <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
-                <Calendar className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-sm text-gray-500">
-                  Welcome back!
-                </p>
-              </div>
+        <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <Calendar className="h-6 w-6 text-white" />
             </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => navigate('/bookings')}
-                className="px-4 py-2 border border-gray-300 rounded-xl hover:bg-gray-50 flex items-center gap-2"
-              >
-                <Calendar className="h-4 w-4" /> Calendar
-              </button>
-
-              <button
-                onClick={() => navigate('/my-booking-link')}
-                className="px-4 py-2 bg-blue-600 text-white rounded-xl shadow hover:bg-blue-700 flex items-center gap-2"
-              >
-                <Sparkles className="h-4 w-4" /> New
-              </button>
+            <div>
+              <h1 className="text-2xl font-bold">Dashboard</h1>
+              <p className="text-gray-500 text-sm">Welcome back!</p>
             </div>
           </div>
         </div>
       </header>
 
       {/* MAIN CONTENT */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
 
-        {/* TIMEZONE */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 flex justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-lg">
-              <Globe className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">Your Timezone</h3>
-              <p className="text-xs text-gray-500">Used for all events</p>
-            </div>
-          </div>
+        {/* Booking Link */}
+        <div className="bg-white p-4 rounded-xl border">
+          <div className="font-semibold mb-1">Your Booking Link</div>
+          <div className="font-mono p-2 bg-gray-50 border rounded">{bookingLink}</div>
 
-          <div className="w-72">
-            <TimezoneSelector
-              value={timezone}
-              onChange={t => setTimezone(t)}
-              showLabel={false}
-            />
-          </div>
-        </div>
-
-        {/* BOOKING LINK */}
-        {bookingLink ? (
-          <div className="bg-blue-50/50 rounded-2xl border border-blue-200 p-5 shadow-sm">
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <label className="font-bold text-blue-900">Your Booking Link</label>
-                <div className="mt-2 font-mono bg-white border border-blue-200 rounded-lg px-4 py-3 break-all">
-                  {bookingLink}
-                </div>
-              </div>
-
-              <div className="ml-4 flex flex-col gap-2">
-                <button
-                  onClick={handleCopyLink}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-xl"
-                >
-                  {copied ? <Check /> : <Copy />}
-                </button>
-
-                <button
-                  onClick={() => setShowAvailabilityModal(true)}
-                  className="px-6 py-3 bg-white border border-blue-200 text-blue-700 rounded-xl hover:bg-blue-50 flex items-center gap-2"
-                >
-                  <Users className="h-4 w-4" />
-                  Availability
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-orange-50 rounded-2xl border border-orange-200 p-6">
-            <div className="flex gap-4 items-center">
-              <div className="p-3 bg-orange-100 rounded-full">
-                <LinkIcon className="h-6 w-6 text-orange-600" />
-              </div>
-
-              <div>
-                <h3 className="font-bold text-orange-900">No booking link yet</h3>
-                <p className="text-orange-700">Create one to start accepting bookings</p>
-              </div>
-            </div>
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={handleCopyLink}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
 
             <button
-              onClick={handleCreateLink}
-              disabled={generatingLink}
-              className="mt-4 px-6 py-3 bg-orange-600 text-white rounded-xl flex items-center gap-2"
+              onClick={() => setShowAvailabilityModal(true)}
+              className="px-4 py-2 bg-white border border-blue-300 text-blue-600 rounded-lg"
             >
-              {generatingLink ? <Loader2 className="animate-spin" /> : <Sparkles />}
-              Create Booking Link
+              Availability
             </button>
           </div>
-        )}
-
+        </div>
       </main>
 
-      {/* ===========================
-              AVAILABILITY MODAL
-      ============================ */}
+      {/* ========================================================= */}
+      {/*                EDITABLE AVAILABILITY MODAL               */}
+      {/* ========================================================= */}
+
       {showAvailabilityModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden">
 
-            {/* HEADER */}
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 flex justify-between items-center">
-              <h2 className="text-white text-xl font-bold flex gap-2 items-center">
-                <Clock className="h-5 w-5" /> Edit Availability
-              </h2>
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 flex items-center justify-between">
+              <div className="text-white">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Clock className="h-5 w-5" /> Edit Availability
+                </h2>
+                <p className="text-blue-100 text-sm">
+                  Update your standard working hours
+                </p>
+              </div>
+
               <button
                 onClick={() => setShowAvailabilityModal(false)}
-                className="p-2 bg-white/20 rounded-full text-white"
+                className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white"
               >
-                <X />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            {/* BODY */}
-            <div className="p-6 space-y-4">
+            {/* Modal Content */}
+            <div className="p-6">
+              <div className="space-y-4">
+                {Object.keys(editedAvailability).map(day => (
+                  <div
+                    key={day}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border"
+                  >
+                    <span className="font-semibold">{day}</span>
 
-              {availability.map((day, idx) => (
-                <div key={idx} className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-200">
-                  
-                  {/* Left */}
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={day.enabled}
-                      onChange={e => updateDay(idx, 'enabled', e.target.checked)}
-                    />
-                    <span className="font-semibold text-gray-700">{day.day}</span>
+                    <div className="flex gap-2">
+                      <input
+                        type="time"
+                        value={editedAvailability[day].start}
+                        onChange={e =>
+                          setEditedAvailability(prev => ({
+                            ...prev,
+                            [day]: { ...prev[day], start: e.target.value }
+                          }))
+                        }
+                        className="border rounded-lg px-2 py-1 text-sm"
+                      />
+
+                      <input
+                        type="time"
+                        value={editedAvailability[day].end}
+                        onChange={e =>
+                          setEditedAvailability(prev => ({
+                            ...prev,
+                            [day]: { ...prev[day], end: e.target.value }
+                          }))
+                        }
+                        className="border rounded-lg px-2 py-1 text-sm"
+                      />
+                    </div>
                   </div>
-
-                  {/* Right */}
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="time"
-                      disabled={!day.enabled}
-                      value={day.start}
-                      onChange={e => updateDay(idx, 'start', e.target.value)}
-                      className="bg-white border border-gray-300 rounded-lg px-2 py-1"
-                    />
-                    <span>–</span>
-                    <input
-                      type="time"
-                      disabled={!day.enabled}
-                      value={day.end}
-                      onChange={e => updateDay(idx, 'end', e.target.value)}
-                      className="bg-white border border-gray-300 rounded-lg px-2 py-1"
-                    />
-                  </div>
-
-                </div>
-              ))}
-
+                ))}
+              </div>
             </div>
 
-            {/* FOOTER */}
-           {/* Modal Footer */}
-<div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-  <button
-    onClick={() => setShowAvailabilityModal(false)}
-    className="px-4 py-2 text-gray-600 font-semibold hover:bg-gray-100 rounded-xl transition-colors"
-  >
-    Close
-  </button>
+            {/* Modal Footer */}
+            <div className="p-6 bg-gray-50 border-t flex justify-end gap-3">
 
-  <button
-    onClick={async () => {
-      try {
-        // Send updated availability to backend
-        const response = await api.post('/availability/update', {
-          availability: editedAvailability,
-        });
+              <button
+                onClick={() => setShowAvailabilityModal(false)}
+                className="px-4 py-2 text-gray-600 border rounded-xl hover:bg-gray-100"
+              >
+                Close
+              </button>
 
-        if (response.data.success) {
-          alert('Availability saved successfully!');
-          setShowAvailabilityModal(false);
-        } else {
-          alert('Failed to save. Please try again.');
-        }
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await api.post('/availability/update', {
+                      availability: editedAvailability,
+                    });
 
-      } catch (error) {
-        console.error('Save availability error:', error);
-        alert('Server error saving availability.');
-      }
-    }}
-    className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2"
-  >
-    Save Changes <ChevronRight className="h-4 w-4" />
-  </button>
-</div>
+                    if (response.data.success) {
+                      alert("Availability saved!");
+                      setShowAvailabilityModal(false);
+                    } else {
+                      alert("Failed saving availability.");
+                    }
+                  } catch (error) {
+                    console.error("Save availability error:", error);
+                    alert("Server error saving availability.");
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2"
+              >
+                Save Changes <ChevronRight className="h-4 w-4" />
+              </button>
 
             </div>
-
           </div>
         </div>
       )}
