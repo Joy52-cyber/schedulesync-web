@@ -9,26 +9,33 @@ import {
   Search,
   ExternalLink,
   MapPin,
-  User
+  User,
+  Settings 
 } from 'lucide-react';
 import { eventTypes, auth } from '../utils/api';
 
 export default function EventTypes() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  
+  // Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentId, setCurrentId] = useState(null);
+
   const [copiedId, setCopiedId] = useState(null);
   const [userToken, setUserToken] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Form State
-  const [formData, setFormData] = useState({
+  const initialFormState = {
     title: '',
     duration: 30,
     description: '',
     slug: '',
-    color: 'purple' // Defaulting to purple to match your screenshot
-  });
+    color: 'purple'
+  };
+  const [formData, setFormData] = useState(initialFormState);
 
   useEffect(() => {
     loadData();
@@ -49,16 +56,42 @@ export default function EventTypes() {
     }
   };
 
-  const handleCreate = async (e) => {
+  // ✅ OPEN MODAL FOR CREATE
+  const openCreateModal = () => {
+    setIsEditing(false);
+    setFormData(initialFormState);
+    setShowModal(true);
+  };
+
+  // ✅ OPEN MODAL FOR EDIT
+  const openEditModal = (event) => {
+    setIsEditing(true);
+    setCurrentId(event.id);
+    setFormData({
+      title: event.title,
+      duration: event.duration,
+      description: event.description || '',
+      slug: event.slug,
+      color: event.color || 'purple'
+    });
+    setShowModal(true);
+  };
+
+  // ✅ HANDLE FORM SUBMIT
+  const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await eventTypes.create(formData);
-      setShowCreateModal(false);
-      setFormData({ title: '', duration: 30, description: '', slug: '', color: 'purple' }); 
+      if (isEditing) {
+        await eventTypes.update(currentId, formData);
+      } else {
+        await eventTypes.create(formData);
+      }
+
+      setShowModal(false);
       const res = await eventTypes.getAll();
       setEvents(res.data.eventTypes);
     } catch (error) {
-      alert(error.response?.data?.error || 'Failed to create event');
+      alert(error.response?.data?.error || 'Operation failed');
     }
   };
 
@@ -97,19 +130,18 @@ export default function EventTypes() {
           <p className="text-gray-500 mt-1">Manage your event types and booking links.</p>
         </div>
         <button 
-          onClick={() => setShowCreateModal(true)}
+          onClick={openCreateModal}
           className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-full hover:bg-blue-700 transition-colors font-semibold shadow-sm text-sm"
         >
           <Plus size={18} /> Create
         </button>
       </div>
 
-      {/* Tabs & Search (Visual only for tabs currently) */}
+      {/* Tabs - ✅ REMOVED MEETING POLLS */}
       <div className="border-b border-gray-200 mb-6">
         <div className="flex gap-6 text-sm font-medium text-gray-500">
           <button className="text-blue-600 border-b-2 border-blue-600 pb-3">Event types</button>
           <button className="hover:text-gray-700 pb-3">Single-use links</button>
-          <button className="hover:text-gray-700 pb-3">Meeting polls</button>
         </div>
       </div>
 
@@ -127,7 +159,7 @@ export default function EventTypes() {
         />
       </div>
 
-      {/* User Row (Optional - matches screenshot) */}
+      {/* User Row */}
       <div className="flex items-center justify-between mb-4 px-1">
          <div className="flex items-center gap-3">
              <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600">
@@ -142,7 +174,7 @@ export default function EventTypes() {
          )}
       </div>
 
-      {/* List View (Calendly Style) */}
+      {/* List View */}
       <div className="space-y-4">
         {filteredEvents.map((event) => (
           <div key={event.id} className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col sm:flex-row relative group">
@@ -160,13 +192,16 @@ export default function EventTypes() {
                            <span>•</span>
                            <span>One-on-One</span>
                        </p>
-                       {/* Static "availability" text for now - dynamic later */}
-                       <p className="text-xs text-blue-600 mt-3 flex items-center gap-1">
-                           <User size={12} /> View details
-                       </p>
+                       
+                       <button 
+                         onClick={() => openEditModal(event)}
+                         className="text-xs text-blue-600 mt-3 flex items-center gap-1 hover:underline font-medium"
+                       >
+                           <Settings size={12} /> Edit / View Details
+                       </button>
                    </div>
                    
-                   {/* Menu Dot (Top Right) */}
+                   {/* Menu Dot */}
                    <button onClick={() => handleDelete(event.id)} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100">
                        <MoreVertical size={20} />
                    </button>
@@ -175,9 +210,7 @@ export default function EventTypes() {
                {/* Bottom Row Actions */}
                <div className="mt-6 pt-4 border-t border-gray-100 flex justify-between items-center">
                    <div className="flex gap-3 text-gray-400">
-                       {/* Placeholder icons for "copy to website" etc */}
                        <button className="hover:text-gray-600"><Copy size={16} /></button>
-                       <button className="hover:text-gray-600"><MapPin size={16} /></button>
                    </div>
                    
                    <button 
@@ -194,12 +227,12 @@ export default function EventTypes() {
         ))}
       </div>
 
-      {/* Create Modal */}
-      {showCreateModal && (
+      {/* Create/Edit Modal */}
+      {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
-            <h2 className="text-xl font-bold mb-4">Add Event Type</h2>
-            <form onSubmit={handleCreate} className="space-y-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95">
+            <h2 className="text-xl font-bold mb-4">{isEditing ? 'Edit Event Type' : 'Add Event Type'}</h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
                 <input required type="text" className="w-full p-2 border rounded-lg" placeholder="e.g. 15 Min Intro" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
@@ -214,9 +247,24 @@ export default function EventTypes() {
                   <input type="text" className="w-full p-2 border rounded-lg" placeholder="15min" value={formData.slug} onChange={e => setFormData({...formData, slug: e.target.value})} />
                 </div>
               </div>
+              <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-1">Color Theme</label>
+                 <select 
+                    value={formData.color} 
+                    onChange={e => setFormData({...formData, color: e.target.value})}
+                    className="w-full p-2 border rounded-lg bg-white"
+                 >
+                    <option value="purple">Purple</option>
+                    <option value="blue">Blue</option>
+                    <option value="green">Green</option>
+                    <option value="red">Red</option>
+                 </select>
+              </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Create Event</button>
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    {isEditing ? 'Save Changes' : 'Create Event'}
+                </button>
               </div>
             </form>
           </div>
