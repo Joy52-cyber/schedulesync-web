@@ -333,22 +333,41 @@ export default function Dashboard() {
             </div>
 
             {/* FOOTER */}
-            <div className="p-6 bg-gray-50 border-t flex justify-end gap-3">
-              <button
-                onClick={() => setShowAvailabilityModal(false)}
-                className="px-4 py-2 rounded-xl bg-gray-200 text-gray-700"
-              >
-                Cancel
-              </button>
+           {/* Modal Footer */}
+<div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+  <button
+    onClick={() => setShowAvailabilityModal(false)}
+    className="px-4 py-2 text-gray-600 font-semibold hover:bg-gray-100 rounded-xl transition-colors"
+  >
+    Close
+  </button>
 
-              <button
-                onClick={saveAvailability}
-                disabled={savingAvailability}
-                className="px-6 py-2 bg-blue-600 text-white rounded-xl flex items-center gap-2"
-              >
-                {savingAvailability ? <Loader2 className="animate-spin" /> : <Save />}
-                Save Changes
-              </button>
+  <button
+    onClick={async () => {
+      try {
+        // Send updated availability to backend
+        const response = await api.post('/availability/update', {
+          availability: editedAvailability,
+        });
+
+        if (response.data.success) {
+          alert('Availability saved successfully!');
+          setShowAvailabilityModal(false);
+        } else {
+          alert('Failed to save. Please try again.');
+        }
+
+      } catch (error) {
+        console.error('Save availability error:', error);
+        alert('Server error saving availability.');
+      }
+    }}
+    className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2"
+  >
+    Save Changes <ChevronRight className="h-4 w-4" />
+  </button>
+</div>
+
             </div>
 
           </div>
