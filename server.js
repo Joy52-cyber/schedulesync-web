@@ -1394,37 +1394,56 @@ app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken,
 // ========== REMINDER SETTINGS ROUTES (PER TEAM / PERSONAL USER) ==========
 
 // GET /api/teams/:teamId/reminder-settings
-app.get('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, res) => {
+
+app.put('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, res) => {
+  const teamId = parseInt(req.params.teamId, 10);
+  const { enabled, hours_before, send_to_host, send_to_guest } = req.body;
+
   try {
-    const teamId = parseInt(req.params.teamId, 10);
+    const upsertQuery = `
+      INSERT INTO team_reminder_settings (team_id, enabled, hours_before, send_to_host, send_to_guest)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (team_id) DO UPDATE
+      SET enabled      = EXCLUDED.enabled,
+          hours_before = EXCLUDED.hours_before,
+          send_to_host = EXCLUDED.send_to_host,
+          send_to_guest = EXCLUDED.send_to_guest,
+          updated_at   = NOW()
+      RETURNING *;
+    `;
 
-    // Make sure the user belongs to this team (optional but safer)
-    const membershipCheck = await pool.query(
-      `SELECT 1 
-       FROM team_members 
-       WHERE team_id = $1 AND user_id = $2 
-       LIMIT 1`,
-      [teamId, req.user.id]
-    );
+    const result = await pool.query(upsertQuery, [
+      teamId,
+      enabled,
+      hours_before,
+      send_to_host,
+      send_to_guest,
+    ]);
 
-    if (membershipCheck.rowCount === 0) {
-      return res.status(403).json({ error: 'Not a member of this team' });
-    }
+    console.log(`✅ Updated reminder settings for team ${teamId}`);
+    res.json({ settings: result.rows[0] });
+  } catch (err) {
+    console.error('Error updating reminder settings:', err);
+    res.status(500).json({ error: 'Failed to update reminder settings' });
+  }
+});
 
+app.get('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, res) => {
+  const teamId = parseInt(req.params.teamId, 10);
+
+  try {
     const result = await pool.query(
-      `SELECT enabled,
-              hours_before,
-              send_to_host,
-              send_to_guest
+      `SELECT team_id, enabled, hours_before, send_to_host, send_to_guest
        FROM team_reminder_settings
        WHERE team_id = $1`,
       [teamId]
     );
 
     if (result.rowCount === 0) {
-      // Defaults
+      // Defaults if nothing saved yet
       return res.json({
         settings: {
+          team_id: teamId,
           enabled: true,
           hours_before: 24,
           send_to_host: true,
@@ -1433,77 +1452,12 @@ app.get('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, r
       });
     }
 
-    return res.json({ settings: result.rows[0] });
+    res.json({ settings: result.rows[0] });
   } catch (err) {
     console.error('Error loading reminder settings:', err);
-    return res.status(500).json({ error: 'Failed to load reminder settings' });
+    res.status(500).json({ error: 'Failed to load reminder settings' });
   }
 });
-
-// PUT /api/teams/:teamId/reminder-settings
-app.put('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, res) => {
-  try {
-    const teamId = parseInt(req.params.teamId, 10);
-    const { enabled, hours_before, send_to_host, send_to_guest } = req.body;
-
-    // Check membership
-    const membershipCheck = await pool.query(
-      `SELECT 1 
-       FROM team_members 
-       WHERE team_id = $1 AND user_id = $2 
-       LIMIT 1`,
-      [teamId, req.user.id]
-    );
-
-    if (membershipCheck.rowCount === 0) {
-      return res.status(403).json({ error: 'Not a member of this team' });
-    }
-
-    const result = await pool.query(
-      `INSERT INTO team_reminder_settings (team_id, enabled, hours_before, send_to_host, send_to_guest, updated_at)
-       VALUES ($1, COALESCE($2, TRUE), COALESCE($3, 24), COALESCE($4, TRUE), COALESCE($5, TRUE), NOW())
-       ON CONFLICT (team_id)
-       DO UPDATE SET
-         enabled = COALESCE(EXCLUDED.enabled, TRUE),
-         hours_before = COALESCE(EXCLUDED.hours_before, 24),
-         send_to_host = COALESCE(EXCLUDED.send_to_host, TRUE),
-         send_to_guest = COALESCE(EXCLUDED.send_to_guest, TRUE),
-         updated_at = NOW()
-       RETURNING enabled, hours_before, send_to_host, send_to_guest`,
-      [teamId, enabled, hours_before, send_to_host, send_to_guest]
-    );
-
-    console.log(`✅ Updated reminder settings for team ${teamId}`);
-
-    return res.json({ settings: result.rows[0] });
-  } catch (err) {
-    console.error('Error updating reminder settings:', err);
-    return res.status(500).json({ error: 'Failed to update reminder settings' });
-  }
-});
-
-// Optional: status endpoint for debugging
-app.get('/api/reminders/status', authenticateToken, async (req, res) => {
-  try {
-    // You can expose last run, count pending today, etc.
-    const upcoming = await pool.query(
-      `SELECT COUNT(*) AS count
-       FROM bookings
-       WHERE status = 'confirmed'
-         AND start_time > NOW()
-         AND reminder_sent = FALSE`
-    );
-
-    res.json({
-      ok: true,
-      upcomingWithoutReminders: parseInt(upcoming.rows[0].count, 10),
-    });
-  } catch (err) {
-    console.error('Error in reminders status:', err);
-    res.status(500).json({ error: 'Failed to get reminder status' });
-  }
-});
-
 
 
 
