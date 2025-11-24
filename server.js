@@ -1389,7 +1389,50 @@ app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken,
     console.error('Update external link error:', error);
     res.status(500).json({ error: 'Failed to update external link' });
   }
+});// ============ REMINDER SETTINGS ROUTES ============
+
+// Get reminder settings for user
+app.get('/api/reminders/settings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      'SELECT reminders_enabled, reminder_minutes_before FROM users WHERE id = $1',
+      [userId]
+    );
+
+    return res.json({
+      success: true,
+      settings: result.rows[0],
+    });
+  } catch (err) {
+    console.error('Reminder settings load error:', err);
+    res.status(500).json({ error: 'Server error loading settings' });
+  }
 });
+
+// Update reminder settings
+app.put('/api/reminders/settings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { reminders_enabled, reminder_minutes_before } = req.body;
+
+    await pool.query(
+      `
+      UPDATE users 
+      SET reminders_enabled = $1, reminder_minutes_before = $2 
+      WHERE id = $3
+      `,
+      [reminders_enabled, reminder_minutes_before, userId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Reminder settings update error:', err);
+    res.status(500).json({ error: 'Failed to update reminder settings' });
+  }
+});
+
 
 // ============ PRICING SETTINGS ENDPOINT ============
 
@@ -4345,7 +4388,50 @@ app.get('/api/admin/migrate-event-types', authenticateToken, requireAdmin, async
   }
 });
 
-// ============ SERVE STATIC FILES ============
+// ===============================
+// REMINDER SETTINGS ROUTES
+// ===============================
+
+// Get current reminder settings for the user
+app.get('/api/reminders/settings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await pool.query(
+      `SELECT reminder_enabled, reminder_hours_before
+       FROM users
+       WHERE id = $1`,
+      [userId]
+    );
+
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error loading reminder settings:", err);
+    res.status(500).json({ error: "Failed to load reminder settings" });
+  }
+});
+
+// Update reminder settings for the user
+app.post('/api/reminders/settings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { enabled, hoursBefore } = req.body;
+
+    await pool.query(
+      `UPDATE users
+       SET reminder_enabled = $1,
+           reminder_hours_before = $2
+       WHERE id = $3`,
+      [enabled, hoursBefore, userId]
+    );
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Error updating reminder settings:", err);
+    res.status(500).json({ error: "Failed to update settings" });
+  }
+});
+
+
 // ============ SERVE STATIC FILES ============
 
 // DEBUG: Check dist files
