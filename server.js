@@ -340,7 +340,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT u.id, u.email, u.name, u.calendar_sync_enabled, u.timezone,
-              (SELECT booking_token FROM team_members tm 
+              (SELECT tm.booking_token FROM team_members tm   -- <--- CHANGED to tm.booking_token
                JOIN teams t ON tm.team_id = t.id 
                WHERE tm.user_id = u.id AND t.name LIKE '%Personal Bookings%' 
                LIMIT 1) as booking_token
