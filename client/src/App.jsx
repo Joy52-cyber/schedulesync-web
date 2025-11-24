@@ -15,12 +15,13 @@ import ResetPassword from './pages/ResetPassword';
 import VerifyEmail from './pages/VerifyEmail';
 import OAuthCallback from './pages/OAuthCallback';
 import OnboardingWizard from './pages/OnboardingWizard'; 
-import AdminPanel from './pages/AdminPanel'; // <--- NEW IMPORT
+import AdminPanel from './pages/AdminPanel';
 
 // Dashboard / App Pages
 import Dashboard from './pages/Dashboard';
 import Bookings from './pages/Bookings';
 import EventTypes from './pages/EventTypes';
+import AvailabilitySettings from './pages/AvailabilitySettings'; // <-- Corrected path assumed to be in ./pages
 
 // Team & Member Management
 import Teams from './pages/Teams';
@@ -39,7 +40,7 @@ import PaymentStatus from './pages/PaymentStatus';
 import Book from './pages/Book';
 
 // Components
-import BookingConfirmation from './components/BookingConfirmation';
+import BookingConfirmation from './components/BookingConfirmation'; // <-- Corrected path assumed to be in ./components
 
 // ---------- Login Wrapper ----------
 function LoginWrapper({ Component }) {
@@ -61,9 +62,7 @@ export default function App() {
           {/* ============================================================
               0. MARKETING / AUTH ENTRY
              ============================================================ */}
-          {/* Main landing */}
           <Route path="/" element={<Landing />} />
-          {/* Direct /login link -> landing + login slide-over open */}
           <Route path="/login" element={<Landing defaultLoginOpen />} />
           <Route path="/register" element={<LoginWrapper Component={Register} />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -87,7 +86,6 @@ export default function App() {
             }
           />
 
-          {/* ADMIN ROUTE */}
           <Route
             path="/admin"
             element={
@@ -122,9 +120,15 @@ export default function App() {
             <Route path="/bookings" element={<Bookings />} />
             <Route path="/my-booking-link" element={<MyBookingLink />} />
             <Route path="/events" element={<EventTypes />} />
+            
+            {/* ✅ NEW ROUTE FOR AVAILABILITY SETTINGS */}
+            {/* Assuming AvailabilitySettings is the intended page for /availability */}
+            <Route path="/availability" element={<AvailabilitySettings />} />
+
             <Route path="/teams" element={<Teams />} />
             <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
             <Route path="/teams/:teamId/members" element={<TeamMembers />} />
+            {/* Keeping the detailed member availability path for team management */}
             <Route
               path="/teams/:teamId/members/:memberId/availability"
               element={<MemberAvailability />}
