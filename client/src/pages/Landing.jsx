@@ -6,7 +6,9 @@ import {
   Sparkles,
   ArrowRight,
   CheckCircle,
-  Plus
+  Plus,
+  Shield,      // <--- Added back
+  Smartphone   // <--- Added back
 } from 'lucide-react';
 import LoginPanel from '../components/LoginPanel';
 
