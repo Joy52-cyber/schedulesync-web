@@ -14,18 +14,112 @@ import LoginPanel from '../components/LoginPanel';
 
 export default function Landing({ defaultLoginOpen = false }) {
   const [isLoginOpen, setIsLoginOpen] = useState(defaultLoginOpen);
-  const [ctaEmail, setCtaEmail] = useState('');
+  const [bookingLink, setBookingLink] = useState('');
+  const [detectedSource, setDetectedSource] = useState(null);
   const navigate = useNavigate();
+
+  // Detect source system from pasted booking link
+  const handleBookingLinkChange = (value) => {
+    setBookingLink(value);
+
+    if (!value) {
+      setDetectedSource(null);
+      return;
+    }
+
+    try {
+      const normalized = value.startsWith('http') ? value : `https://${value}`;
+      const url = new URL(normalized);
+      const host = url.hostname.toLowerCase();
+      const path = url.pathname.toLowerCase();
+
+      let source = null;
+
+      if (host.includes('calendly.com')) {
+        source = 'calendly';
+      } else if (host.includes('cal.com')) {
+        source = 'cal.com';
+      } else if (host.includes('hubspot')) {
+        source = 'hubspot';
+      } else if (host.includes('google.com') && path.includes('calendar')) {
+        source = 'google-calendar';
+      } else if (host.includes('meet.google.com')) {
+        source = 'google-meet';
+      } else if (
+        host.includes('outlook.') ||
+        host.includes('office.com') ||
+        host.includes('microsoft.')
+      ) {
+        source = 'microsoft';
+      }
+
+      setDetectedSource(source);
+    } catch (err) {
+      // Invalid URL or partial input — don't show suggestions
+      setDetectedSource(null);
+    }
+  };
+
+  // Human-friendly suggestion text per detected system
+  const renderDetectedSuggestion = () => {
+    if (!detectedSource) return null;
+
+    let title = '';
+    let body = '';
+
+    switch (detectedSource) {
+      case 'calendly':
+        title = 'Calendly link detected';
+        body =
+          'After you sign up, you can add this as your external booking link so ScheduleSync and Calendly work together.';
+        break;
+      case 'cal.com':
+        title = 'Cal.com link detected';
+        body =
+          'You can plug this Cal.com booking link into your ScheduleSync profile to keep things in sync.';
+        break;
+      case 'hubspot':
+        title = 'HubSpot Meetings link detected';
+        body =
+          'Connect your HubSpot booking link inside ScheduleSync to keep your existing flows.';
+        break;
+      case 'google-calendar':
+        title = 'Google Calendar link detected';
+        body =
+          'ScheduleSync can connect directly to Google Calendar during setup so everything stays in sync.';
+        break;
+      case 'google-meet':
+        title = 'Google Meet link detected';
+        body =
+          'Connect Google Calendar in ScheduleSync so new bookings automatically get Meet links.';
+        break;
+      case 'microsoft':
+        title = 'Microsoft / Outlook link detected';
+        body =
+          'Connect your Outlook / Microsoft 365 calendar in ScheduleSync to sync availability automatically.';
+        break;
+      default:
+        return null;
+    }
+
+    return (
+      <div className="mt-2 inline-flex items-start gap-2 max-w-md text-left text-xs sm:text-[13px] bg-white/10 border border-white/25 rounded-2xl px-3 py-2 text-white/90">
+        <Zap className="w-3.5 h-3.5 mt-0.5 text-amber-200 shrink-0" />
+        <div>
+          <div className="font-semibold">{title}</div>
+          <div className="text-white/80">{body}</div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
-
       {/* Login modal */}
       <LoginPanel isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
 
       {/* HERO GRADIENT */}
       <div className="bg-gradient-to-br from-indigo-600 via-fuchsia-500 to-orange-400 text-white pb-10">
-
         {/* Header */}
         <header className="sticky top-0 z-20 border-b border-white/10 bg-indigo-900/10 backdrop-blur-sm">
           <div className="max-w-6xl mx-auto px-4 py-2.5 flex items-center justify-between">
@@ -55,18 +149,18 @@ export default function Landing({ defaultLoginOpen = false }) {
           </div>
         </header>
 
-        {/* HERO – compact, like the mockup */}
+        {/* HERO – compact, with floating cards like the mockup */}
         <section className="max-w-4xl mx-auto px-4 pt-10 pb-8 text-center">
           <div className="flex flex-col items-center gap-6">
-            {/* pill */}
+            {/* Tagline pill */}
             <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-white/15 text-white text-xs sm:text-sm border border-white/20">
               Transform your scheduling in minutes
             </div>
 
-            {/* title + floating icons row */}
+            {/* Title + floating icons row */}
             <div className="flex items-center justify-center gap-6 sm:gap-10">
-              {/* left floating card */}
-              <div className="hidden sm:flex w-16 h-16 md:w-18 md:h-18 rounded-3xl bg-white/12 border border-white/30 shadow-[0_18px_45px_rgba(15,23,42,0.35)] items-center justify-center motion-safe:animate-bounce">
+              {/* Left floating card */}
+              <div className="hidden sm:flex w-16 h-16 rounded-3xl bg-white/12 border border-white/30 shadow-[0_18px_45px_rgba(15,23,42,0.35)] items-center justify-center motion-safe:animate-bounce">
                 <Calendar className="w-7 h-7 text-white" />
               </div>
 
@@ -81,50 +175,55 @@ export default function Landing({ defaultLoginOpen = false }) {
                 </p>
               </div>
 
-              {/* right floating card */}
-              <div className="hidden sm:flex w-16 h-16 md:w-18 md:h-18 rounded-full bg-white/12 border border-white/30 shadow-[0_18px_45px_rgba(15,23,42,0.35)] items-center justify-center motion-safe:animate-bounce">
+              {/* Right floating card */}
+              <div className="hidden sm:flex w-16 h-16 rounded-full bg-white/12 border border-white/30 shadow-[0_18px_45px_rgba(15,23,42,0.35)] items-center justify-center motion-safe:animate-bounce">
                 <Clock className="w-7 h-7 text-white" />
               </div>
             </div>
 
-            {/* supporting text */}
+            {/* Supporting text */}
             <p className="max-w-2xl text-sm sm:text-base text-white/80 mx-auto">
-              Stop juggling calendars. Stop sending “Is this time okay?” emails.
-              ScheduleSync finds the perfect time, every time—so you don&apos;t have to.
+              Paste your existing booking link and we&apos;ll help you connect
+              it with ScheduleSync so you don&apos;t have to start from scratch.
             </p>
 
-            {/* bullets */}
+            {/* Bullets */}
             <div className="flex flex-wrap justify-center gap-4 text-white/90 text-sm">
               <div className="flex items-center gap-1.5">
                 <CheckCircle className="w-4 h-4 text-emerald-300" />
-                <span>Connect your calendars</span>
+                <span>Bring your existing booking links</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <CheckCircle className="w-4 h-4 text-emerald-300" />
-                <span>Share one smart link</span>
+                <span>Connect Calendly, Google, Outlook & more</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-amber-200" />
-                <span>Let AI handle the rest</span>
+                <span>Let AI handle your availability</span>
               </div>
             </div>
 
-            {/* email + CTA row */}
-            <div className="w-full max-w-md flex flex-col sm:flex-row gap-2 mt-1">
-              <input
-                type="email"
-                value={ctaEmail}
-                onChange={(e) => setCtaEmail(e.target.value)}
-                placeholder="Enter your work email"
-                className="flex-1 bg-white text-slate-900 border border-white/40 text-sm rounded-full px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
-              />
-              <button
-                type="button"
-                onClick={() => navigate('/register')}
-                className="bg-white text-indigo-700 hover:bg-slate-100 text-sm font-semibold rounded-full px-4 py-2.5 shadow-sm"
-              >
-                Get started
-              </button>
+            {/* Booking link + CTA */}
+            <div className="flex flex-col items-center gap-2 mt-1">
+              <div className="w-full max-w-md flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={bookingLink}
+                  onChange={(e) => handleBookingLinkChange(e.target.value)}
+                  placeholder="Enter your booking link (Calendly, Google, etc.)"
+                  className="flex-1 bg-white text-slate-900 border border-white/40 text-sm rounded-full px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+                />
+                <button
+                  type="button"
+                  onClick={() => navigate('/register')}
+                  className="bg-white text-indigo-700 hover:bg-slate-100 text-sm font-semibold rounded-full px-4 py-2.5 shadow-sm"
+                >
+                  Start with ScheduleSync
+                </button>
+              </div>
+
+              {/* suggestion based on detected link source */}
+              {renderDetectedSuggestion()}
             </div>
 
             <p className="text-xs text-white/80">
@@ -140,7 +239,7 @@ export default function Landing({ defaultLoginOpen = false }) {
         </section>
       </div>
 
-      {/* MAIN CONTENT – more compact spacing */}
+      {/* MAIN CONTENT – compact sections */}
 
       {/* Why teams switch */}
       <section className="max-w-5xl mx-auto px-4 -mt-8 pb-8">
@@ -236,35 +335,6 @@ export default function Landing({ defaultLoginOpen = false }) {
           </div>
         </div>
       </section>
-
-      {/* Final CTA */}
-      <section className="max-w-3xl mx-auto px-4 pb-12">
-        <div className="bg-gradient-to-r from-indigo-600 via-fuchsia-500 to-orange-500 text-white shadow-md rounded-2xl">
-          <div className="p-8 sm:p-9 text-center">
-            <h2 className="text-lg sm:text-xl md:text-2xl font-semibold mb-2">
-              Ready to simplify your scheduling?
-            </h2>
-            <p className="text-xs sm:text-sm text-indigo-100 mb-5">
-              Join teams and solo professionals who avoid double bookings with ScheduleSync.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <button
-                onClick={() => navigate('/register')}
-                className="px-5 py-2.5 rounded-full bg-white text-indigo-700 hover:bg-slate-100 text-sm font-semibold shadow-sm"
-              >
-                Get started free
-              </button>
-              <button
-                type="button"
-                className="px-5 py-2.5 rounded-full border border-white text-white hover:bg-white/10 text-sm font-semibold"
-              >
-                Watch demo
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
     </div>
   );
 }
