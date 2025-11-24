@@ -4126,7 +4126,7 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-
+    
     console.log(`✅ User ${result.rows[0].email} deleted successfully.`);
     res.json({ 
       success: true, 
@@ -4646,6 +4646,110 @@ app.put('/api/team-members/:id/timezone', authenticateToken, async (req, res) =>
   } catch (error) {
     console.error('Update member timezone error:', error);
     res.status(500).json({ error: 'Failed to update timezone' });
+  }
+});
+
+// ============ ONBOARDING / PROFILE UPDATE ============
+app.put('/api/users/profile', authenticateToken, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const userId = req.user.id;
+    const { username, timezone, availability } = req.body;
+
+    console.log('🚀 Processing onboarding for user:', userId);
+
+    // 1. Update User Timezone
+    if (timezone) {
+      await client.query(
+        'UPDATE users SET timezone = $1 WHERE id = $2',
+        [timezone, userId]
+      );
+    }
+
+    // 2. Ensure "Personal Team" exists (Needed to attach the booking link)
+    const userRes = await client.query('SELECT name, email FROM users WHERE id = $1', [userId]);
+    const user = userRes.rows[0];
+    const teamName = `${user.name || 'User'}'s Personal Bookings`;
+
+    let teamRes = await client.query(
+      'SELECT id FROM teams WHERE owner_id = $1 AND name = $2',
+      [userId, teamName]
+    );
+
+    let teamId;
+    if (teamRes.rows.length === 0) {
+      // Create personal team if missing
+      const teamToken = crypto.randomBytes(16).toString('hex');
+      const newTeam = await client.query(
+        'INSERT INTO teams (name, description, owner_id, team_booking_token) VALUES ($1, $2, $3, $4) RETURNING id',
+        [teamName, 'Book time with me directly', userId, teamToken]
+      );
+      teamId = newTeam.rows[0].id;
+    } else {
+      teamId = teamRes.rows[0].id;
+    }
+
+    // 3. Update or Create Team Member with the Custom Username
+    // The "username" from onboarding becomes their unique booking_token
+    let memberRes = await client.query(
+      'SELECT id FROM team_members WHERE team_id = $1 AND user_id = $2',
+      [teamId, userId]
+    );
+
+    let memberId;
+    if (memberRes.rows.length === 0) {
+      const newMember = await client.query(
+        'INSERT INTO team_members (team_id, user_id, email, name, booking_token, invited_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+        [teamId, userId, user.email, user.name, username, userId]
+      );
+      memberId = newMember.rows[0].id;
+    } else {
+      memberId = memberRes.rows[0].id;
+      // Update existing member's booking link (username)
+      await client.query(
+        'UPDATE team_members SET booking_token = $1 WHERE id = $2',
+        [username, memberId]
+      );
+    }
+
+    // 4. Update Availability (Convert simple frontend format to detailed backend JSON)
+    if (availability) {
+      const { start, end, days } = availability;
+      
+      // Map simplified ["Mon", "Wed"] array to full object
+      const fullWorkingHours = {
+        monday: { enabled: days.includes('Mon'), start, end },
+        tuesday: { enabled: days.includes('Tue'), start, end },
+        wednesday: { enabled: days.includes('Wed'), start, end },
+        thursday: { enabled: days.includes('Thu'), start, end },
+        friday: { enabled: days.includes('Fri'), start, end },
+        saturday: { enabled: days.includes('Sat'), start, end },
+        sunday: { enabled: days.includes('Sun'), start, end },
+      };
+
+      await client.query(
+        'UPDATE team_members SET working_hours = $1 WHERE id = $2',
+        [JSON.stringify(fullWorkingHours), memberId]
+      );
+    }
+
+    await client.query('COMMIT');
+    console.log('✅ Onboarding complete for:', userId);
+    res.json({ success: true, username });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Onboarding error:', error);
+    
+    // Handle duplicate username error (Postgres unique constraint violation code 23505)
+    if (error.code === '23505') { 
+        return res.status(400).json({ error: 'That link is already taken. Please try another.' });
+    }
+    
+    res.status(500).json({ error: 'Failed to save profile settings.' });
+  } finally {
+    client.release();
   }
 });
 
