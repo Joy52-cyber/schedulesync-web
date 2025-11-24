@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Calendar, User, Clock,
-  Sparkles, ArrowRight, ExternalLink, Loader2
+  Sparkles, ArrowRight, ExternalLink, Loader2,
+  Ban, ShieldAlert // Added icons for the expired state
 } from 'lucide-react';
 // Import the centralized API helper
 import { bookings, oauth } from '../utils/api';
@@ -16,22 +17,27 @@ export default function BookingPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  
+  // --- NEW STATE: Single Use Link Handling ---
+  const [isLinkUsed, setIsLinkUsed] = useState(false); 
+  // -------------------------------------------
+
   const [teamInfo, setTeamInfo] = useState(null);
   const [memberInfo, setMemberInfo] = useState(null);
   const [error, setError] = useState('');
-  
+   
   const [step, setStep] = useState('calendar-choice');
   const [guestCalendar, setGuestCalendar] = useState(null);
   const [hasProcessedOAuth, setHasProcessedOAuth] = useState(false);
-  
+   
   const [formData, setFormData] = useState({
     attendee_name: '',
     attendee_email: '',
     notes: '',
   });
-  
+   
   const [selectedSlot, setSelectedSlot] = useState(null);
-  const [customDuration, setCustomDuration] = useState(30); // ✅ Added state for dynamic duration
+  const [customDuration, setCustomDuration] = useState(30);
 
   useEffect(() => {
     loadBookingInfo();
@@ -84,6 +90,7 @@ export default function BookingPage() {
   const loadBookingInfo = async () => {
     try {
       setLoading(true);
+      // We pass the token. If it's a magic link, the backend resolves it.
       const response = await bookings.getByToken(token);
       console.log('📥 Booking info loaded:', response.data);
 
@@ -108,7 +115,7 @@ export default function BookingPage() {
       setTeamInfo(payload.team);
       setMemberInfo(payload.member);
       
-      // ✅ LOGIC FIX: Handle Event Types from URL (?type=30min)
+      // Handle Event Types from URL (?type=30min)
       const eventTypeSlug = searchParams.get('type');
 
       if (eventTypeSlug && payload.eventTypes) {
@@ -116,25 +123,32 @@ export default function BookingPage() {
         
         if (selectedEvent) {
           console.log('🎯 Selected Event Type:', selectedEvent);
-          // Override display name
           setMemberInfo(prev => ({
             ...prev,
             name: `${prev.name} - ${selectedEvent.title}`,
           }));
           
-          // Override description
           setTeamInfo(prev => ({
              ...prev,
              description: selectedEvent.description || prev.description
           }));
 
-          // Override duration
           setCustomDuration(selectedEvent.duration);
         }
       }
 
     } catch (err) {
       console.error('❌ Error loading booking info:', err);
+      
+      // --- SINGLE USE LINK ERROR HANDLING ---
+      // Check if backend returns specific status/code for used links
+      if (err.response?.status === 410 || err.response?.data?.code === 'LINK_USED') {
+        setIsLinkUsed(true);
+        setLoading(false);
+        return;
+      }
+      // --------------------------------------
+
       setError(err.response?.data?.error || 'Invalid booking link');
       setTeamInfo(null);
       setMemberInfo(null);
@@ -176,6 +190,11 @@ export default function BookingPage() {
       });
       navigateBookingSuccess(response.data.booking);
     } catch (err) {
+        // Handle race condition: Link used while user was filling form
+        if (err.response?.status === 410 || err.response?.data?.code === 'LINK_USED') {
+            setIsLinkUsed(true);
+            return;
+        }
       alert(err.response?.data?.error || 'Failed to create booking.');
     } finally {
       setSubmitting(false);
@@ -199,6 +218,7 @@ export default function BookingPage() {
      navigate(`/booking-confirmation?data=${dataParam}`);
   };
 
+  // --- VIEW 1: LOADING / REDIRECTING ---
   if (loading || redirecting) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
@@ -217,6 +237,30 @@ export default function BookingPage() {
     );
   }
 
+  // --- VIEW 2: SINGLE USE LINK EXPIRED ---
+  if (isLinkUsed) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-xl p-10 max-w-md w-full text-center border border-gray-100">
+          <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Ban className="h-10 w-10 text-amber-500" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-3">Invitation No Longer Valid</h1>
+          <p className="text-gray-600 mb-8 leading-relaxed">
+            This single-use link has already been used to book a meeting or has expired. Please contact the host to request a new invitation.
+          </p>
+          <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 mb-6">
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+              <ShieldAlert className="h-4 w-4" />
+              <span>One-time secure link</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- VIEW 3: GENERIC ERROR ---
   if (error && !teamInfo) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
@@ -231,6 +275,7 @@ export default function BookingPage() {
     );
   }
 
+  // --- VIEW 4: MAIN BOOKING INTERFACE ---
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <div className="max-w-5xl mx-auto px-4 py-8">
@@ -256,7 +301,7 @@ export default function BookingPage() {
                   </h1>
                   <div className="bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1.5 flex-shrink-0">
                     <Clock className="h-4 w-4" />
-                    {customDuration} min {/* ✅ Dynamic duration */}
+                    {customDuration} min
                   </div>
                 </div>
                 <p className="text-gray-600 mb-3">{teamInfo?.name}</p>
@@ -305,7 +350,7 @@ export default function BookingPage() {
                 bookingToken={token} 
                 guestCalendar={guestCalendar} 
                 onSlotSelected={handleSlotSelected}
-                duration={customDuration} // ✅ Pass custom duration
+                duration={customDuration}
               />
             </div>
 

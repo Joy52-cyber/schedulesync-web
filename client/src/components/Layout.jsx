@@ -8,7 +8,7 @@ import {
   X,
   ShieldAlert,
   Clock,
-  Settings // <--- 1. IMPORT THIS
+  Settings
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -26,10 +26,9 @@ export default function Layout() {
 
   const navigation = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-    { name: "Event Types", path: "/events", icon: Clock },
+    { name: "Scheduling", path: "/events", icon: Clock }, // ✅ Renamed to Scheduling
     { name: "Teams", path: "/teams", icon: Users },
     { name: "Bookings", path: "/bookings", icon: Calendar },
-    // ✅ 2. ADD SETTINGS HERE
     { name: "Settings", path: "/settings", icon: Settings }, 
   ];
 
@@ -82,11 +81,11 @@ export default function Layout() {
                     className={`flex items-center gap-2 px-3 xl:px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
                       isActive
                         ? isAdminLink 
-                            ? "bg-red-50 text-red-600" 
-                            : "bg-blue-50 text-blue-600"
+                          ? "bg-red-50 text-red-600" 
+                          : "bg-blue-50 text-blue-600"
                         : isAdminLink
-                            ? "text-red-600 hover:bg-red-50"
-                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          ? "text-red-600 hover:bg-red-50"
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                     }`}
                   >
                     <Icon className="h-4 w-4 xl:h-5 xl:w-5" />
@@ -160,11 +159,11 @@ export default function Layout() {
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
                       isActive
                         ? isAdminLink 
-                            ? "bg-red-50 text-red-600" 
-                            : "bg-blue-50 text-blue-600"
+                          ? "bg-red-50 text-red-600" 
+                          : "bg-blue-50 text-blue-600"
                         : isAdminLink
-                            ? "text-red-600 hover:bg-red-50"
-                            : "text-gray-600 hover:bg-gray-50"
+                          ? "text-red-600 hover:bg-red-50"
+                          : "text-gray-600 hover:bg-gray-50"
                     }`}
                   >
                     <Icon className="h-5 w-5 flex-shrink-0" />
