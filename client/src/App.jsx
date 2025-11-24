@@ -123,7 +123,7 @@ export default function App() {
             
             {/* ✅ NEW ROUTE FOR AVAILABILITY SETTINGS */}
             {/* Assuming AvailabilitySettings is the intended page for /availability */}
-            <Route path="/availability" element={<AvailabilitySettings />} />
+            <Route path="/availability" element={<MemberAvailability />} />
 
             <Route path="/teams" element={<Teams />} />
             <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
