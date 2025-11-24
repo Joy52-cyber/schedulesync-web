@@ -4090,7 +4090,7 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) =>
         u.email, 
         u.provider, 
         u.created_at,
-        u.last_login_at, -- assuming you might track this, otherwise remove
+        -- u.last_login_at,  <-- REMOVED THIS LINE because the column doesn't exist
         (SELECT COUNT(*) FROM teams WHERE owner_id = u.id) as team_count,
         (SELECT COUNT(*) FROM bookings WHERE user_id = u.id) as booking_count
       FROM users u
