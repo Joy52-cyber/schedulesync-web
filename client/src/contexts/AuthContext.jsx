@@ -1,5 +1,4 @@
-﻿// client/src/contexts/AuthContext.jsx
-import { createContext, useContext, useEffect, useState } from "react";
+﻿import { createContext, useContext, useEffect, useState } from "react";
 
 const AuthContext = createContext(null);
 
@@ -41,6 +40,16 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("user");
   };
 
+  // ✅ NEW: Helper to update user data without full re-login
+  // (Used when Onboarding Wizard completes to save the new username locally)
+  const updateUser = (updates) => {
+    setUser((prev) => {
+      const updatedUser = { ...prev, ...updates };
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      return updatedUser;
+    });
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -49,6 +58,7 @@ export function AuthProvider({ children }) {
         loading,
         login,
         logout,
+        updateUser, // Exposing this function
         isAuthenticated: !!user && !!token,
       }}
     >

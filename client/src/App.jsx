@@ -14,6 +14,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import VerifyEmail from './pages/VerifyEmail';
 import OAuthCallback from './pages/OAuthCallback';
+import OnboardingWizard from './pages/OnboardingWizard'; // <--- NEW IMPORT
 
 // Dashboard / App Pages
 import Dashboard from './pages/Dashboard';
@@ -44,6 +45,9 @@ function LoginWrapper({ Component }) {
 
   const handleLogin = (token, user) => {
     login(token, user);
+    // If the user hasn't completed onboarding, you might want to redirect to /onboarding here
+    // checking a user flag like user.hasOnboarded.
+    // For now, we keep the default to dashboard, and let the dashboard or verify email redirect.
     window.location.href = '/dashboard';
   };
 
@@ -73,7 +77,19 @@ export default function App() {
           />
 
           {/* ============================================================
-              1. PUBLIC GUEST FLOWS (No Login Required)
+              1. NEW ONBOARDING FLOW (Protected but No Sidebar Layout)
+             ============================================================ */}
+          <Route
+            path="/onboarding"
+            element={
+              <ProtectedRoute>
+                <OnboardingWizard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ============================================================
+              2. PUBLIC GUEST FLOWS (No Login Required)
              ============================================================ */}
           <Route path="/book/:token" element={<BookingPage />} />
           <Route path="/book" element={<Book />} />
@@ -83,7 +99,7 @@ export default function App() {
           <Route path="/payment/status" element={<PaymentStatus />} />
 
           {/* ============================================================
-              2. PROTECTED APP ROUTES (Dashboard)
+              3. PROTECTED APP ROUTES (Dashboard with Layout)
              ============================================================ */}
           <Route
             element={
@@ -109,7 +125,7 @@ export default function App() {
           </Route>
 
           {/* ============================================================
-              3. FALLBACKS
+              4. FALLBACKS
              ============================================================ */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

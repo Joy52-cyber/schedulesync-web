@@ -1,9 +1,8 @@
-﻿// client/src/components/ProtectedRoute.jsx
-import { Navigate, useLocation } from "react-router-dom";
+﻿import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, user, loading } = useAuth(); // Destructure 'user'
   const location = useLocation();
 
   if (loading) {
@@ -17,6 +16,7 @@ export default function ProtectedRoute({ children }) {
     );
   }
 
+  // 1. Basic Authentication Check
   if (!isAuthenticated) {
     return (
       <Navigate
@@ -25,6 +25,23 @@ export default function ProtectedRoute({ children }) {
         state={{ from: location.pathname + location.search }}
       />
     );
+  }
+
+  // 2. Onboarding Check (The "Gatekeeper")
+  // We check if the user has a 'username'. 
+  // If your backend returns a 'username' only AFTER setup, this works perfectly.
+  const hasCompletedOnboarding = user?.username && user.username.trim() !== "";
+  
+  const isOnOnboardingPage = location.pathname === "/onboarding";
+
+  // Scenario A: User needs to onboard but is trying to go somewhere else (e.g. Dashboard)
+  if (!hasCompletedOnboarding && !isOnOnboardingPage) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  // Scenario B: User has ALREADY onboarded but is trying to go back to the wizard
+  if (hasCompletedOnboarding && isOnOnboardingPage) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;
