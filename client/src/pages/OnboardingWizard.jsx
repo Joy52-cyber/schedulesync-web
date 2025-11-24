@@ -1,5 +1,4 @@
-﻿// client/src/pages/OnboardingWizard.jsx
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -20,6 +19,7 @@ export default function OnboardingWizard() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [ready, setReady] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -32,25 +32,29 @@ export default function OnboardingWizard() {
 
   const daysOption = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  // 🔐 LocalStorage key per user so onboarding only shows once
+  // LocalStorage key per user so onboarding only shows once
   const onboardingKey =
     user ? `onboardingCompleted:${user.id || user.email}` : null;
 
-  // If user already completed onboarding, skip wizard
+  // Check if onboarding already completed
   useEffect(() => {
     if (!user) return;
 
+    const completedFromStorage =
+      onboardingKey && localStorage.getItem(onboardingKey) === 'true';
+
     const alreadyCompleted =
-      (onboardingKey && localStorage.getItem(onboardingKey) === 'true') ||
-      user.hasCompletedOnboarding;
+      completedFromStorage || user.hasCompletedOnboarding;
 
     if (alreadyCompleted) {
       navigate('/dashboard', { replace: true });
+    } else {
+      setReady(true);
     }
   }, [user, onboardingKey, navigate]);
 
   const handleNext = () => {
-    if (step < 3) setStep(step + 1);
+    if (step < 3) setStep((prev) => prev + 1);
   };
 
   const handleDayToggle = (day) => {
@@ -76,7 +80,7 @@ export default function OnboardingWizard() {
           end: formData.availableTo,
           days: formData.workDays,
         },
-        has_completed_onboarding: true, // if backend supports this
+        has_completed_onboarding: true, // if backend supports
       });
 
       // 2. Update auth context
@@ -103,6 +107,15 @@ export default function OnboardingWizard() {
       setLoading(false);
     }
   };
+
+  // While we’re checking if onboarding should show, show nothing or a loader
+  if (!user || !ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center px-4 font-sans">
@@ -321,8 +334,8 @@ export default function OnboardingWizard() {
               >
                 {loading ? (
                   <>
-                    <Loader2 size={20} className="animate-spin" />
-                    Setting up dashboard...
+                    <Loader2 size={20} className="animate-spin" /> Setting up
+                    dashboard...
                   </>
                 ) : (
                   <>

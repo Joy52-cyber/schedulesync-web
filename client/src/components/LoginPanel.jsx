@@ -1,3 +1,4 @@
+﻿// client/src/components/LoginPanel.jsx
 import { X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import LoginForm from './LoginForm';
@@ -6,9 +7,25 @@ export default function LoginPanel({ isOpen, onClose }) {
   const { login } = useAuth();
 
   const handleLogin = (token, user) => {
-    // Same behavior as LoginWrapper
+    // Save auth in context (and localStorage, based on your AuthContext)
     login(token, user);
-    window.location.href = '/dashboard';
+
+    // Use backend flag if available
+    const hasCompleted =
+      user?.has_completed_onboarding || user?.hasCompletedOnboarding;
+
+    // LocalStorage key so onboarding only shows once per user
+    const onboardingKey =
+      user ? `onboardingCompleted:${user.id || user.email}` : null;
+
+    if (hasCompleted && onboardingKey) {
+      localStorage.setItem(onboardingKey, 'true');
+    }
+
+    // If user already finished onboarding → dashboard
+    // Otherwise → onboarding wizard
+    const target = hasCompleted ? '/dashboard' : '/onboarding';
+    window.location.href = target;
   };
 
   if (!isOpen) return null;
