@@ -31,6 +31,7 @@ export default function BookingPage() {
   });
   
   const [selectedSlot, setSelectedSlot] = useState(null);
+  const [customDuration, setCustomDuration] = useState(30); // ✅ Added state for dynamic duration
 
   useEffect(() => {
     loadBookingInfo();
@@ -98,7 +99,6 @@ export default function BookingPage() {
         setRedirecting(true);
         setMemberInfo(payload.member);
         
-        // Small delay for UX so they see what's happening
         setTimeout(() => {
           window.location.href = payload.member.external_booking_link;
         }, 1500);
@@ -108,6 +108,31 @@ export default function BookingPage() {
       setTeamInfo(payload.team);
       setMemberInfo(payload.member);
       
+      // ✅ LOGIC FIX: Handle Event Types from URL (?type=30min)
+      const eventTypeSlug = searchParams.get('type');
+
+      if (eventTypeSlug && payload.eventTypes) {
+        const selectedEvent = payload.eventTypes.find(e => e.slug === eventTypeSlug);
+        
+        if (selectedEvent) {
+          console.log('🎯 Selected Event Type:', selectedEvent);
+          // Override display name
+          setMemberInfo(prev => ({
+            ...prev,
+            name: `${prev.name} - ${selectedEvent.title}`,
+          }));
+          
+          // Override description
+          setTeamInfo(prev => ({
+             ...prev,
+             description: selectedEvent.description || prev.description
+          }));
+
+          // Override duration
+          setCustomDuration(selectedEvent.duration);
+        }
+      }
+
     } catch (err) {
       console.error('❌ Error loading booking info:', err);
       setError(err.response?.data?.error || 'Invalid booking link');
@@ -144,8 +169,6 @@ export default function BookingPage() {
     e.preventDefault();
     if (!selectedSlot) return alert('Please select a time slot');
     
-    // Pricing checks removed
-
     try {
       setSubmitting(true);
       const response = await bookings.create({
@@ -233,7 +256,7 @@ export default function BookingPage() {
                   </h1>
                   <div className="bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1.5 flex-shrink-0">
                     <Clock className="h-4 w-4" />
-                    30 min
+                    {customDuration} min {/* ✅ Dynamic duration */}
                   </div>
                 </div>
                 <p className="text-gray-600 mb-3">{teamInfo?.name}</p>
@@ -242,8 +265,6 @@ export default function BookingPage() {
             </div>
           </div>
         </div>
-
-        {/* Pricing Banner Removed */}
 
         {/* Steps */}
         {step === 'calendar-choice' && (
@@ -280,7 +301,12 @@ export default function BookingPage() {
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <Calendar className="h-6 w-6 text-blue-600" /> Select a Time
               </h2>
-              <SmartSlotPicker bookingToken={token} guestCalendar={guestCalendar} onSlotSelected={handleSlotSelected} />
+              <SmartSlotPicker 
+                bookingToken={token} 
+                guestCalendar={guestCalendar} 
+                onSlotSelected={handleSlotSelected}
+                duration={customDuration} // ✅ Pass custom duration
+              />
             </div>
 
             {selectedSlot && (
@@ -307,8 +333,6 @@ export default function BookingPage() {
           </form>
         )}
       </div>
-
-      {/* Payment Modal Removed */}
     </div>
   );
 }

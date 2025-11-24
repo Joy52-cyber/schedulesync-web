@@ -2482,12 +2482,15 @@ app.get('/api/bookings', authenticateToken, async (req, res) => {
   }
 });
 
+// Get booking by token (Public Booking Page)
 app.get('/api/book/:token', async (req, res) => {
   try {
     const { token } = req.params;
+    
+    // 1. Get Team Member & User Info
     const result = await pool.query(
       `SELECT tm.*, t.name as team_name, t.description as team_description, 
-       u.name as member_name, u.email as member_email
+       u.name as member_name, u.email as member_email, u.id as user_id
        FROM team_members tm 
        JOIN teams t ON tm.team_id = t.id 
        LEFT JOIN users u ON tm.user_id = u.id
@@ -2498,6 +2501,18 @@ app.get('/api/book/:token', async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Booking link not found' });
 
     const member = result.rows[0];
+
+    // 2. ✅ NEW: Fetch Event Types for this user
+    // This allows the frontend to switch between "15 min", "30 min", etc.
+    let eventTypes = [];
+    if (member.user_id) {
+      const eventsRes = await pool.query(
+        'SELECT * FROM event_types WHERE user_id = $1 AND is_active = true ORDER BY duration ASC',
+        [member.user_id]
+      );
+      eventTypes = eventsRes.rows;
+    }
+
     res.json({
       data: {
         team: { 
@@ -2510,7 +2525,8 @@ app.get('/api/book/:token', async (req, res) => {
           email: member.email || member.member_email, 
           external_booking_link: member.external_booking_link, 
           external_booking_platform: member.external_booking_platform 
-        }
+        },
+        eventTypes: eventTypes // <--- Returning this list
       }
     });
   } catch (error) {

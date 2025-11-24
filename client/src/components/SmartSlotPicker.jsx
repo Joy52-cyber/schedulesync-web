@@ -5,6 +5,7 @@ import { bookings } from '../utils/api';
 export default function SmartSlotPicker({ 
   bookingToken, 
   guestCalendar = null,
+  duration = 30, // ✅ Added duration prop with default
   onSlotSelected 
 }) {
   const [slots, setSlots] = useState({});
@@ -17,7 +18,7 @@ export default function SmartSlotPicker({
 
   useEffect(() => {
     loadSlots();
-  }, [bookingToken, guestCalendar]);
+  }, [bookingToken, guestCalendar, duration]); // ✅ Added duration to dependencies
 
   const loadSlots = async () => {
     try {
@@ -29,7 +30,7 @@ export default function SmartSlotPicker({
       const response = await bookings.getSlots(bookingToken, {
         guestAccessToken: guestCalendar?.accessToken,
         guestRefreshToken: guestCalendar?.refreshToken,
-        duration: 30,
+        duration: duration, // ✅ Pass the dynamic duration here
         timezone: userTimezone
       });
 
@@ -43,6 +44,7 @@ export default function SmartSlotPicker({
       setSlots(slotsData.slots);
       setSummary(slotsData.summary);
 
+      // Auto-select first available date if none selected
       if (!selectedDate) {
         const firstAvailableDate = Object.keys(slotsData.slots).find(date => 
           slotsData.slots[date].some(slot => slot.status === 'available')
@@ -50,6 +52,12 @@ export default function SmartSlotPicker({
         if (firstAvailableDate) {
           setSelectedDate(firstAvailableDate);
         }
+      } else if (!slotsData.slots[selectedDate]) {
+         // If currently selected date is no longer valid/available (e.g. duration changed), reset
+         const firstAvailableDate = Object.keys(slotsData.slots).find(date => 
+            slotsData.slots[date].some(slot => slot.status === 'available')
+          );
+          if (firstAvailableDate) setSelectedDate(firstAvailableDate);
       }
 
     } catch (error) {
@@ -272,7 +280,7 @@ export default function SmartSlotPicker({
           <div className="flex items-center justify-between mb-2 sm:mb-3">
             <h3 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
               <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
-              Available times
+              Available times ({duration} min) {/* Show duration for clarity */}
             </h3>
             <button
               onClick={() => setShowUnavailable(!showUnavailable)}
