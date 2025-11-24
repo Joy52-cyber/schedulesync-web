@@ -2,7 +2,7 @@
 import { useAuth } from "../contexts/AuthContext";
 
 export default function ProtectedRoute({ children }) {
-  const { isAuthenticated, user, loading } = useAuth(); // Destructure 'user'
+  const { isAuthenticated, user, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -16,7 +16,7 @@ export default function ProtectedRoute({ children }) {
     );
   }
 
-  // 1. Basic Authentication Check
+  /** 1. NOT LOGGED IN -> send to login */
   if (!isAuthenticated) {
     return (
       <Navigate
@@ -27,20 +27,23 @@ export default function ProtectedRoute({ children }) {
     );
   }
 
-  // 2. Onboarding Check (The "Gatekeeper")
-  // We check if the user has a 'username'. 
-  // If your backend returns a 'username' only AFTER setup, this works perfectly.
-  const hasCompletedOnboarding = user?.username && user.username.trim() !== "";
-  
-  const isOnOnboardingPage = location.pathname === "/onboarding";
+  /** 2. TRUE and Reliable onboarding check */
+  const localKey = user ? `onboardingCompleted:${user.id || user.email}` : null;
+  const localCompleted =
+    localKey && localStorage.getItem(localKey) === "true";
 
-  // Scenario A: User needs to onboard but is trying to go somewhere else (e.g. Dashboard)
-  if (!hasCompletedOnboarding && !isOnOnboardingPage) {
+  const hasCompletedOnboarding =
+    user?.hasCompletedOnboarding === true || localCompleted;
+
+  const onOnboardingPage = location.pathname === "/onboarding";
+
+  /** A: User NOT onboarded -> redirect to onboarding */
+  if (!hasCompletedOnboarding && !onOnboardingPage) {
     return <Navigate to="/onboarding" replace />;
   }
 
-  // Scenario B: User has ALREADY onboarded but is trying to go back to the wizard
-  if (hasCompletedOnboarding && isOnOnboardingPage) {
+  /** B: Already onboarded but trying to access onboarding -> send to dashboard */
+  if (hasCompletedOnboarding && onOnboardingPage) {
     return <Navigate to="/dashboard" replace />;
   }
 
