@@ -1442,7 +1442,7 @@ app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async
 });
 
 // ========== USER AVAILABILITY UPDATE ==========
-app.post('/api/availability/update', authMiddleware, async (req, res) => {
+ app.post('/api/availability/update', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const availability = req.body.availability;
