@@ -1392,43 +1392,47 @@ app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken,
 });// ============ REMINDER SETTINGS ROUTES ============
 
 // Get reminder settings for user
-app.get('/api/reminders/settings', authenticateToken, async (req, res) => {
+
+app.get('/api/user/reminder-settings', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const result = await pool.query(
-      'SELECT reminders_enabled, reminder_minutes_before FROM users WHERE id = $1',
+    const { rows } = await pool.query(
+      `SELECT reminder_enabled, reminder_hours_before 
+       FROM users 
+       WHERE id = $1`,
       [userId]
     );
 
-    return res.json({
-      success: true,
-      settings: result.rows[0],
+    const user = rows[0];
+
+    res.json({
+      reminder_enabled: user?.reminder_enabled ?? true,
+      reminder_hours_before: user?.reminder_hours_before ?? 24,
     });
   } catch (err) {
-    console.error('Reminder settings load error:', err);
-    res.status(500).json({ error: 'Server error loading settings' });
+    console.error('Error loading user reminder settings:', err);
+    res.status(500).json({ error: 'Failed to load reminder settings' });
   }
 });
 
-// Update reminder settings
-app.put('/api/reminders/settings', authenticateToken, async (req, res) => {
+app.put('/api/user/reminder-settings', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { reminders_enabled, reminder_minutes_before } = req.body;
+    const { reminder_enabled, reminder_hours_before } = req.body;
 
     await pool.query(
-      `
-      UPDATE users 
-      SET reminders_enabled = $1, reminder_minutes_before = $2 
-      WHERE id = $3
-      `,
-      [reminders_enabled, reminder_minutes_before, userId]
+      `UPDATE users
+       SET reminder_enabled = $1,
+           reminder_hours_before = $2
+       WHERE id = $3`,
+      [reminder_enabled, reminder_hours_before, reminder_hours_before ? userId : userId] // same userId, just to make it obvious
     );
 
+    console.log(`✅ Updated reminder settings for user ${userId}`);
     res.json({ success: true });
   } catch (err) {
-    console.error('Reminder settings update error:', err);
+    console.error('Error updating user reminder settings:', err);
     res.status(500).json({ error: 'Failed to update reminder settings' });
   }
 });
