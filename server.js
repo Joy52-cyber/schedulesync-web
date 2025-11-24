@@ -333,6 +333,57 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// ============ USER DATA & PROFILE ENDPOINTS ============
+
+// 1. GET CURRENT USER
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.name, u.calendar_sync_enabled, u.timezone,
+              (SELECT booking_token FROM team_members tm 
+               JOIN teams t ON tm.team_id = t.id 
+               WHERE tm.user_id = u.id AND t.name LIKE '%Personal Bookings%' 
+               LIMIT 1) as booking_token
+       FROM users u
+       WHERE u.id = $1`,
+      [req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error('❌ Get Me error:', error);
+    res.status(500).json({ error: 'Failed to fetch user profile' });
+  }
+});
+
+// 2. GET USER TIMEZONE
+app.get('/api/user/timezone', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT timezone FROM users WHERE id = $1', [req.user.id]);
+    res.json({ timezone: result.rows[0]?.timezone || 'America/New_York' });
+  } catch (error) {
+    console.error('❌ Get timezone error:', error);
+    res.status(500).json({ error: 'Failed to fetch timezone' });
+  }
+});
+
+// 3. UPDATE USER TIMEZONE
+app.put('/api/user/timezone', authenticateToken, async (req, res) => {
+  try {
+    const { timezone } = req.body;
+    await pool.query('UPDATE users SET timezone = $1 WHERE id = $2', [timezone, req.user.id]);
+    await pool.query('UPDATE team_members SET timezone = $1 WHERE user_id = $2', [timezone, req.user.id]);
+    res.json({ success: true, timezone });
+  } catch (error) {
+    console.error('❌ Update timezone error:', error);
+    res.status(500).json({ error: 'Failed to update timezone' });
+  }
+});
+
 // ============ TIMEZONE HELPER FUNCTION ============
 
 function getTimezoneOffset(timezone) {
@@ -4891,60 +4942,6 @@ app.put('/api/users/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// ============ USER DATA & PROFILE ENDPOINTS ============
-
-// 1. GET CURRENT USER (Fixes "Could not load user profile")
-app.get('/api/auth/me', authenticateToken, async (req, res) => {
-  try {
-    // We fetch the user AND their primary booking token (from their personal team member record)
-    const result = await pool.query(
-      `SELECT u.id, u.email, u.name, u.calendar_sync_enabled, u.timezone,
-              (SELECT booking_token FROM team_members tm 
-               JOIN teams t ON tm.team_id = t.id 
-               WHERE tm.user_id = u.id AND t.name LIKE '%Personal Bookings%' 
-               LIMIT 1) as booking_token
-       FROM users u
-       WHERE u.id = $1`,
-      [req.user.id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json({ user: result.rows[0] });
-  } catch (error) {
-    console.error('❌ Get Me error:', error);
-    res.status(500).json({ error: 'Failed to fetch user profile' });
-  }
-});
-
-// 2. GET USER TIMEZONE (Fixes "Error loading timezone")
-app.get('/api/user/timezone', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT timezone FROM users WHERE id = $1', [req.user.id]);
-    res.json({ timezone: result.rows[0]?.timezone || 'America/New_York' });
-  } catch (error) {
-    console.error('❌ Get timezone error:', error);
-    res.status(500).json({ error: 'Failed to fetch timezone' });
-  }
-});
-
-// 3. UPDATE USER TIMEZONE
-app.put('/api/user/timezone', authenticateToken, async (req, res) => {
-  try {
-    const { timezone } = req.body;
-    await pool.query('UPDATE users SET timezone = $1 WHERE id = $2', [timezone, req.user.id]);
-    
-    // Also update their team member records so availability calculation is correct
-    await pool.query('UPDATE team_members SET timezone = $1 WHERE user_id = $2', [timezone, req.user.id]);
-
-    res.json({ success: true, timezone });
-  } catch (error) {
-    console.error('❌ Update timezone error:', error);
-    res.status(500).json({ error: 'Failed to update timezone' });
-  }
-});
 
 // ============ ERROR HANDLING ============
 
