@@ -1504,145 +1504,6 @@ app.get('/api/reminders/status', authenticateToken, async (req, res) => {
   }
 });
 
-// ========== REMINDER ENGINE ==========
-
-// Run every 5 minutes
-const REMINDER_CRON = '*/5 * * * *';
-let lastReminderRun = null;
-
-async function checkAndSendReminders() {
-  const now = new Date();
-  lastReminderRun = now;
-  console.log('⏰ Running reminder check at', now.toISOString());
-
-  try {
-    // We select bookings that:
-    // - are confirmed
-    // - in the future
-    // - have not sent a reminder yet
-    // - belong to a team whose reminder settings are enabled
-    // - and are within that team's "hours_before" window.
-    //
-    // IMPORTANT: we do this per-team based on team_reminder_settings
-    const query = `
-      SELECT
-        b.id,
-        b.start_time,
-        b.end_time,
-        b.title,
-        b.status,
-        b.guest_email,
-        b.guest_name,
-        b.host_email,
-        b.host_name,
-        b.meeting_url,
-        b.timezone,
-        b.reminder_sent,
-        tm.id AS team_member_id,
-        t.id AS team_id,
-        trs.enabled,
-        trs.hours_before,
-        trs.send_to_host,
-        trs.send_to_guest
-      FROM bookings b
-      JOIN team_members tm ON b.team_member_id = tm.id
-      JOIN teams t ON tm.team_id = t.id
-      LEFT JOIN team_reminder_settings trs ON trs.team_id = t.id
-      WHERE b.status = 'confirmed'
-        AND b.start_time > NOW()
-        AND COALESCE(b.reminder_sent, FALSE) = FALSE
-        AND COALESCE(trs.enabled, TRUE) = TRUE
-    `;
-
-    const result = await pool.query(query);
-    if (result.rowCount === 0) {
-      console.log('ℹ️ No bookings eligible for reminders right now');
-      return;
-    }
-
-    for (const row of result.rows) {
-      const startTime = new Date(row.start_time);
-      const diffMs = startTime.getTime() - now.getTime();
-      const diffHours = diffMs / (1000 * 60 * 60);
-
-      const hoursBefore = row.hours_before ?? 24;
-
-      // Only send when we are within the window AND positive
-      if (diffHours <= hoursBefore && diffHours > 0) {
-        console.log(
-          `📧 Sending reminder for booking ${row.id} (team ${row.team_id})`,
-          `diffHours=${diffHours.toFixed(2)} window=${hoursBefore}h`
-        );
-
-        const bookingForTemplate = {
-          id: row.id,
-          start_time: row.start_time,
-          end_time: row.end_time,
-          title: row.title,
-          guest_email: row.guest_email,
-          guest_name: row.guest_name,
-          host_email: row.host_email,
-          host_name: row.host_name,
-          meeting_url: row.meeting_url,
-          timezone: row.timezone,
-        };
-
-        const html = reminderEmailTemplate(bookingForTemplate, hoursBefore);
-
-        const recipients = [];
-        if (row.send_to_guest ?? true) {
-          if (row.guest_email) recipients.push(row.guest_email);
-        }
-        if (row.send_to_host ?? true) {
-          if (row.host_email) recipients.push(row.host_email);
-        }
-
-        if (recipients.length === 0) {
-          console.log(`⚠️ No recipients for booking ${row.id}, skipping reminder`);
-          continue;
-        }
-
-        try {
-          await sendBookingEmail({
-            to: recipients,
-            subject: `Reminder: ${row.title || 'Upcoming meeting'}`,
-            html,
-            // If you have ICS for reminders, pass it here; otherwise omit
-            icsAttachment: null,
-          });
-
-          // Mark as reminder_sent so we don't send again
-          await pool.query(
-            `UPDATE bookings
-             SET reminder_sent = TRUE
-             WHERE id = $1`,
-            [row.id]
-          );
-
-          console.log(`✅ Reminder sent and marked for booking ${row.id}`);
-        } catch (sendErr) {
-          console.error(`❌ Failed to send reminder for booking ${row.id}:`, sendErr);
-        }
-      } else {
-        // Not yet eligible
-        console.log(
-          `⏭ Skipping booking ${row.id}, diffHours=${diffHours.toFixed(
-            2
-          )}, window=${hoursBefore}h`
-        );
-      }
-    }
-  } catch (err) {
-    console.error('❌ Error in checkAndSendReminders:', err);
-  }
-}
-
-// Schedule the cron
-cron.schedule(REMINDER_CRON, () => {
-  checkAndSendReminders().catch((err) =>
-    console.error('❌ Unhandled error in reminder cron:', err)
-  );
-});
 
 
 
@@ -4721,6 +4582,132 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 const cron = require('node-cron');
+
+// ========== REMINDER ENGINE ==========
+
+// Run every 5 minutes
+const REMINDER_CRON = '*/5 * * * *';
+let lastReminderRun = null;
+
+async function checkAndSendReminders() {
+  const now = new Date();
+  lastReminderRun = now;
+  console.log('⏰ Running reminder check at', now.toISOString());
+
+  try {
+    const query = `
+      SELECT
+        b.id,
+        b.start_time,
+        b.end_time,
+        b.title,
+        b.status,
+        b.guest_email,
+        b.guest_name,
+        b.host_email,
+        b.host_name,
+        b.meeting_url,
+        b.timezone,
+        b.reminder_sent,
+        tm.id AS team_member_id,
+        t.id AS team_id,
+        trs.enabled,
+        trs.hours_before,
+        trs.send_to_host,
+        trs.send_to_guest
+      FROM bookings b
+      JOIN team_members tm ON b.team_member_id = tm.id
+      JOIN teams t ON tm.team_id = t.id
+      LEFT JOIN team_reminder_settings trs ON trs.team_id = t.id
+      WHERE b.status = 'confirmed'
+        AND b.start_time > NOW()
+        AND COALESCE(b.reminder_sent, FALSE) = FALSE
+        AND COALESCE(trs.enabled, TRUE) = TRUE
+    `;
+
+    const result = await pool.query(query);
+    if (result.rowCount === 0) {
+      console.log('ℹ️ No bookings eligible for reminders right now');
+      return;
+    }
+
+    for (const row of result.rows) {
+      const startTime = new Date(row.start_time);
+      const diffMs = startTime.getTime() - now.getTime();
+      const diffHours = diffMs / (1000 * 60 * 60);
+
+      const hoursBefore = row.hours_before ?? 24;
+
+      if (diffHours <= hoursBefore && diffHours > 0) {
+        console.log(
+          `📧 Sending reminder for booking ${row.id} (team ${row.team_id}) diff=${diffHours.toFixed(
+            2
+          )}h window=${hoursBefore}h`
+        );
+
+        const bookingForTemplate = {
+          id: row.id,
+          start_time: row.start_time,
+          end_time: row.end_time,
+          title: row.title,
+          guest_email: row.guest_email,
+          guest_name: row.guest_name,
+          host_email: row.host_email,
+          host_name: row.host_name,
+          meeting_url: row.meeting_url,
+          timezone: row.timezone,
+        };
+
+        const html = reminderEmailTemplate(bookingForTemplate, hoursBefore);
+
+        const recipients = [];
+        if (row.send_to_guest ?? true) {
+          if (row.guest_email) recipients.push(row.guest_email);
+        }
+        if (row.send_to_host ?? true) {
+          if (row.host_email) recipients.push(row.host_email);
+        }
+
+        if (recipients.length === 0) {
+          console.log(
+            `⚠️ No recipients for booking ${row.id}, skipping reminder`
+          );
+          continue;
+        }
+
+        await sendBookingEmail({
+          to: recipients,
+          subject: `Reminder: ${row.title || 'Upcoming meeting'}`,
+          html,
+          icsAttachment: null,
+        });
+
+        await pool.query(
+          `UPDATE bookings SET reminder_sent = TRUE WHERE id = $1`,
+          [row.id]
+        );
+
+        console.log(`✅ Reminder sent and marked for booking ${row.id}`);
+      } else {
+        console.log(
+          `⏭ Skipping ${row.id}, diffHours=${diffHours.toFixed(
+            2
+          )} window=${hoursBefore}h`
+        );
+      }
+    }
+  } catch (err) {
+    console.error('❌ Error in reminder engine:', err);
+  }
+}
+
+// Run every 5 minutes
+cron.schedule(REMINDER_CRON, () => {
+  checkAndSendReminders().catch((err) =>
+    console.error('❌ Unhandled reminder cron error:', err)
+  );
+});
+
 
 // ============ REMINDER EMAIL TEMPLATES ============
 
