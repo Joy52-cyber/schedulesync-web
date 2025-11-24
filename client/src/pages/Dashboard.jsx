@@ -25,7 +25,7 @@ import TimezoneSelector from '../components/TimezoneSelector';
 export default function Dashboard() {
   const navigate = useNavigate();
 
-  // Dashboard state
+  // ---------- CORE DASHBOARD STATE ----------
   const [stats, setStats] = useState({
     totalBookings: 0,
     upcomingBookings: 0,
@@ -33,6 +33,7 @@ export default function Dashboard() {
   });
   const [recentBookings, setRecentBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const [timezone, setTimezone] = useState('');
   const [user, setUser] = useState(null);
 
@@ -43,20 +44,19 @@ export default function Dashboard() {
 
   // Availability modal
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
-  const [savingAvailability, setSavingAvailability] = useState(false);
 
-  // Editable availability state
+  // ---------- AVAILABILITY STATE ----------
   const defaultHours = {
-    Monday: { start: '09:00', end: '17:00' },
-    Tuesday: { start: '09:00', end: '17:00' },
-    Wednesday: { start: '09:00', end: '17:00' },
-    Thursday: { start: '09:00', end: '17:00' },
-    Friday: { start: '09:00', end: '17:00' },
+    Monday:    { enabled: true,  start: '09:00', end: '17:00' },
+    Tuesday:   { enabled: true,  start: '09:00', end: '17:00' },
+    Wednesday: { enabled: true,  start: '09:00', end: '17:00' },
+    Thursday:  { enabled: true,  start: '09:00', end: '17:00' },
+    Friday:    { enabled: true,  start: '09:00', end: '17:00' },
   };
 
   const [editedAvailability, setEditedAvailability] = useState(defaultHours);
 
-  // ===== EFFECTS =====
+  // ---------- INITIAL LOAD ----------
   useEffect(() => {
     loadAllData();
   }, []);
@@ -75,7 +75,7 @@ export default function Dashboard() {
   const loadDashboardData = async () => {
     try {
       const response = await api.get('/dashboard/stats');
-      setStats(response.data.stats);
+      setStats(response.data.stats || { totalBookings: 0, upcomingBookings: 0, activeTeams: 0 });
       setRecentBookings(response.data.recentBookings || []);
     } catch (error) {
       console.error('Dashboard load error:', error);
@@ -111,19 +111,26 @@ export default function Dashboard() {
 
   const loadAvailability = async () => {
     try {
-      const response = await api.get('/availability/me');
-      if (response.data.availability) {
+      const response = await api.get('/availability/me'); // server should map to /api/availability/me
+
+      // If backend already returns a map keyed by day, trust it
+      if (response.data && response.data.availability) {
         setEditedAvailability({
           ...defaultHours,
           ...response.data.availability,
         });
       }
     } catch (error) {
-      console.error('Availability load error:', error);
+      // 404 = endpoint not implemented yet – just keep defaults, no scary alert
+      if (error?.response?.status === 404) {
+        console.warn('Availability endpoint not found yet, using defaults');
+      } else {
+        console.warn('Availability load error:', error);
+      }
     }
   };
 
-  // ===== HANDLERS =====
+  // ---------- HANDLERS ----------
   const handleCreateLink = async () => {
     setGeneratingLink(true);
     try {
@@ -131,10 +138,17 @@ export default function Dashboard() {
       await loadUserProfile();
     } catch (error) {
       console.error('Generate link error:', error);
-      alert('Could not generate link. Please try again.');
+      alert('Could not generate booking link. Please try again.');
     } finally {
       setGeneratingLink(false);
     }
+  };
+
+  const handleCopyLink = () => {
+    if (!bookingLink) return;
+    navigator.clipboard.writeText(bookingLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleTimezoneChange = async (newTimezone) => {
@@ -144,13 +158,6 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Failed to update timezone:', error);
     }
-  };
-
-  const handleCopyLink = () => {
-    if (!bookingLink) return;
-    navigator.clipboard.writeText(bookingLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const getStatusIcon = (status) => {
@@ -179,7 +186,6 @@ export default function Dashboard() {
     }
   };
 
-  // ===== LOADING STATE =====
   if (loading) {
     return (
       <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30 flex items-center justify-center">
@@ -215,7 +221,9 @@ export default function Dashboard() {
     },
   ];
 
-  // ===== RENDER =====
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+  // ---------- RENDER ----------
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30">
       {/* HEADER */}
@@ -254,20 +262,18 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* MAIN CONTENT */}
+      {/* MAIN */}
       <main className="w-full relative">
         <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8">
           <div className="space-y-6">
-            {/* Timezone Selector */}
+            {/* Timezone card */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-50 rounded-lg">
                   <Globe className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">
-                    Your Timezone
-                  </h3>
+                  <h3 className="font-semibold text-gray-900">Your Timezone</h3>
                   <p className="text-xs text-gray-500">
                     Used for all your calendar events
                   </p>
@@ -282,13 +288,13 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Booking Link Card */}
+            {/* Booking link card */}
             {bookingLink ? (
-              <div className="bg-blue-50/50 rounded-2xl border border-blue-200 p-5 shadow-sm animate-in fade-in slide-in-from-top-2">
+              <div className="bg-blue-50/50 rounded-2xl border border-blue-200 p-5 shadow-sm">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="w-full">
                     <label className="text-sm font-bold text-blue-900 mb-2 block">
-                      Your Main Booking Link:
+                      Your Booking Link
                     </label>
                     <div className="font-mono text-sm text-blue-700 bg-white border border-blue-200 rounded-lg px-4 py-3 w-full break-all">
                       {bookingLink}
@@ -300,11 +306,7 @@ export default function Dashboard() {
                       onClick={handleCopyLink}
                       className="whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm w-full md:w-auto"
                     >
-                      {copied ? (
-                        <Check className="h-4 w-4" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
+                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       {copied ? 'Copied' : 'Copy'}
                     </button>
 
@@ -325,9 +327,7 @@ export default function Dashboard() {
                     <LinkIcon className="h-6 w-6 text-orange-600" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-orange-900">
-                      Setup Required
-                    </h3>
+                    <h3 className="text-lg font-bold text-orange-900">Setup Required</h3>
                     <p className="text-sm text-orange-800">
                       You don&apos;t have a personal booking link yet.
                     </p>
@@ -348,21 +348,17 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Stats Grid */}
+            {/* Stats grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {statCards.map((stat, index) => (
+              {statCards.map((stat, idx) => (
                 <div
-                  key={index}
+                  key={idx}
                   className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100 hover:shadow-xl transition-all"
                 >
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                      <p className="text-gray-600 text-sm font-medium">
-                        {stat.label}
-                      </p>
-                      <p className={`text-3xl font-bold ${stat.color}`}>
-                        {stat.value}
-                      </p>
+                      <p className="text-gray-600 text-sm font-medium">{stat.label}</p>
+                      <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
                     </div>
                     <div
                       className={`${stat.bg} h-14 w-14 rounded-xl flex items-center justify-center shadow-md`}
@@ -374,13 +370,11 @@ export default function Dashboard() {
               ))}
             </div>
 
-            {/* Recent Bookings */}
+            {/* Recent bookings */}
             <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-gray-900">
-                    Recent Bookings
-                  </h3>
+                  <h3 className="text-xl font-bold text-gray-900">Recent Bookings</h3>
                   <button
                     onClick={() => navigate('/bookings')}
                     className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all font-semibold text-sm flex items-center gap-1"
@@ -388,11 +382,10 @@ export default function Dashboard() {
                     View All <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
+
                 {recentBookings.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-gray-500 mb-4 font-medium">
-                      No bookings yet
-                    </p>
+                  <div className="text-center py-10">
+                    <p className="text-gray-500 font-medium">No bookings yet</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -407,24 +400,19 @@ export default function Dashboard() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <p className="text-gray-900 font-bold">
-                                {booking.attendee_name}
-                              </p>
+                              <p className="text-gray-900 font-bold">{booking.attendee_name}</p>
                               <span
                                 className={`text-xs font-semibold px-2 py-1 rounded-full border flex items-center gap-1 ${getStatusColor(
                                   booking.status
                                 )}`}
                               >
-                                {getStatusIcon(booking.status)}{' '}
-                                {booking.status}
+                                {getStatusIcon(booking.status)} {booking.status}
                               </span>
                             </div>
                             <div className="flex items-center gap-2 text-gray-600 text-sm">
                               <span className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
-                                {new Date(
-                                  booking.start_time
-                                ).toLocaleDateString()}
+                                {new Date(booking.start_time).toLocaleDateString()}
                               </span>
                             </div>
                           </div>
@@ -439,11 +427,11 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* EDITABLE AVAILABILITY MODAL */}
+      {/* ============== EDIT AVAILABILITY MODAL (WITH TOGGLES) ============== */}
       {showAvailabilityModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden">
-            {/* Modal Header */}
+            {/* Header */}
             <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 flex items-center justify-between">
               <div className="text-white">
                 <h2 className="text-xl font-bold flex items-center gap-2">
@@ -453,7 +441,6 @@ export default function Dashboard() {
                   Update your standard working hours
                 </p>
               </div>
-
               <button
                 onClick={() => setShowAvailabilityModal(false)}
                 className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white"
@@ -462,102 +449,116 @@ export default function Dashboard() {
               </button>
             </div>
 
-            {/* Modal Content */}
+            {/* Content */}
             <div className="p-6">
               <div className="space-y-4">
-                {Object.keys(editedAvailability).map((day) => (
-                  <div
-                    key={day}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100"
-                  >
-                    <span className="font-semibold text-gray-700">{day}</span>
+                {days.map((day) => {
+                  const dayData = editedAvailability[day] || defaultHours[day];
+                  const enabled = dayData.enabled ?? true;
 
-                    <div className="flex gap-2">
-                      <input
-                        type="time"
-                        value={editedAvailability[day]?.start || ''}
-                        onChange={(e) =>
-                          setEditedAvailability((prev) => ({
-                            ...prev,
-                            [day]: {
-                              ...prev[day],
-                              start: e.target.value,
-                            },
-                          }))
-                        }
-                        className="border rounded-lg px-2 py-1 text-sm"
-                      />
+                  return (
+                    <div
+                      key={day}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-semibold text-gray-800">{day}</span>
 
-                      <input
-                        type="time"
-                        value={editedAvailability[day]?.end || ''}
-                        onChange={(e) =>
-                          setEditedAvailability((prev) => ({
-                            ...prev,
-                            [day]: {
-                              ...prev[day],
-                              end: e.target.value,
-                            },
-                          }))
-                        }
-                        className="border rounded-lg px-2 py-1 text-sm"
-                      />
+                        {/* Toggle */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditedAvailability((prev) => ({
+                              ...prev,
+                              [day]: { ...prev[day], enabled: !enabled },
+                            }))
+                          }
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                            enabled ? 'bg-blue-600' : 'bg-gray-300'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                              enabled ? 'translate-x-4' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Time inputs */}
+                      <div className="flex gap-2">
+                        <input
+                          type="time"
+                          value={dayData.start}
+                          disabled={!enabled}
+                          onChange={(e) =>
+                            setEditedAvailability((prev) => ({
+                              ...prev,
+                              [day]: { ...prev[day], start: e.target.value },
+                            }))
+                          }
+                          className={`border rounded-lg px-2 py-1 text-sm ${
+                            !enabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
+                          }`}
+                        />
+                        <input
+                          type="time"
+                          value={dayData.end}
+                          disabled={!enabled}
+                          onChange={(e) =>
+                            setEditedAvailability((prev) => ({
+                              ...prev,
+                              [day]: { ...prev[day], end: e.target.value },
+                            }))
+                          }
+                          className={`border rounded-lg px-2 py-1 text-sm ${
+                            !enabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
+                          }`}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
-            {/* Modal Footer */}
-            <div className="p-6 bg-gray-50 border-t flex justify-end gap-3">
+            {/* Footer */}
+            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
               <button
                 onClick={() => setShowAvailabilityModal(false)}
-                className="px-4 py-2 text-gray-600 border rounded-xl hover:bg-gray-100"
+                className="px-4 py-2 text-gray-600 font-semibold hover:bg-gray-100 rounded-xl transition-colors"
               >
                 Close
               </button>
 
               <button
-                disabled={savingAvailability}
                 onClick={async () => {
                   try {
-                    setSavingAvailability(true);
                     const response = await api.post('/availability/update', {
                       availability: editedAvailability,
                     });
 
-                    if (response.data.success) {
-                      alert('Availability saved!');
+                    if (response.data?.success) {
+                      alert('Availability saved successfully!');
                       setShowAvailabilityModal(false);
                     } else {
-                      alert('Failed saving availability.');
+                      alert('Failed to save availability. Please try again.');
                     }
                   } catch (error) {
                     console.error('Save availability error:', error);
                     alert('Server error saving availability.');
-                  } finally {
-                    setSavingAvailability(false);
                   }
                 }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2 disabled:opacity-60"
+                className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2"
               >
-                {savingAvailability ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving…
-                  </>
-                ) : (
-                  <>
-                    Save Changes <ChevronRight className="h-4 w-4" />
-                  </>
-                )}
+                Save Changes <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* AI Chat Widget */}
+      {/* AI chat widget */}
       <AISchedulerChat />
     </div>
   );
