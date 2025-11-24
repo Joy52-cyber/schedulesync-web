@@ -13,10 +13,13 @@ import {
   ChevronRight,
   MoreHorizontal,
   Globe,
-  Copy, // Added Copy icon
-  Check // Added Check icon for feedback
+  Copy, 
+  Check,
+  Link as LinkIcon,
+  Loader2
 } from 'lucide-react';
-import api from '../utils/api';
+import api from '../utils/api'; // We use raw api for the fix
+import { auth, timezone as timezoneApi } from '../utils/api'; // Use typed helpers for others
 import AISchedulerChat from '../components/AISchedulerChat';
 import TimezoneSelector from '../components/TimezoneSelector';
 
@@ -26,21 +29,29 @@ export default function Dashboard() {
     totalBookings: 0,
     upcomingBookings: 0,
     activeTeams: 0,
-    // Removed revenue
   });
   const [recentBookings, setRecentBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timezone, setTimezone] = useState('');
   
-  // New State for Booking Link UI
+  // Booking Link State
   const [bookingLink, setBookingLink] = useState('');
   const [copied, setCopied] = useState(false);
+  const [generatingLink, setGeneratingLink] = useState(false);
 
   useEffect(() => {
-    loadDashboardData();
-    loadUserTimezone();
-    loadUserProfile(); // Fetch user to get the booking token
+    loadAllData();
   }, []);
+
+  const loadAllData = async () => {
+    setLoading(true);
+    await Promise.all([
+      loadDashboardData(),
+      loadUserTimezone(),
+      loadUserProfile()
+    ]);
+    setLoading(false);
+  };
 
   const loadDashboardData = async () => {
     try {
@@ -49,14 +60,12 @@ export default function Dashboard() {
       setRecentBookings(response.data.recentBookings || []);
     } catch (error) {
       console.error('Error loading dashboard:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
   const loadUserTimezone = async () => {
     try {
-      const response = await api.timezone.get();
+      const response = await timezoneApi.get();
       if (response.data.timezone) {
         setTimezone(response.data.timezone);
       }
@@ -65,25 +74,40 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch profile to construct the link
   const loadUserProfile = async () => {
     try {
-        // Assuming you have an endpoint that returns the current user's info
-        // If not, you might need to adjust this endpoint
-        const response = await api.get('/auth/me'); 
+        const response = await auth.me(); 
         if (response.data.user?.booking_token) {
             const link = `${window.location.origin}/book/${response.data.user.booking_token}`;
             setBookingLink(link);
+        } else {
+            setBookingLink(''); // Ensure it's empty if not found
         }
     } catch (error) {
         console.error("Could not load user profile for link", error);
     }
   };
 
+  // ✅ FORCE CREATE LINK FUNCTION
+  const handleCreateLink = async () => {
+    setGeneratingLink(true);
+    try {
+        // This endpoint auto-generates the personal team/link if missing
+        await api.get('/my-booking-link');
+        // Reload profile to get the new token
+        await loadUserProfile();
+    } catch (error) {
+        console.error("Failed to generate link:", error);
+        alert("Could not generate link. Please try again.");
+    } finally {
+        setGeneratingLink(false);
+    }
+  };
+
   const handleTimezoneChange = async (newTimezone) => {
     try {
       setTimezone(newTimezone);
-      await api.timezone.update({ timezone: newTimezone });
+      await timezoneApi.update({ timezone: newTimezone });
     } catch (error) {
       console.error('Failed to update timezone:', error);
     }
@@ -118,11 +142,7 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30 flex items-center justify-center">
         <div className="text-center">
-          <div className="relative w-20 h-20 mx-auto mb-4">
-            <div className="absolute inset-0 border-4 border-blue-200 rounded-full" />
-            <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin" />
-            <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 text-blue-600" />
-          </div>
+          <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600 font-medium">Loading your dashboard...</p>
         </div>
       </div>
@@ -146,7 +166,6 @@ export default function Dashboard() {
       bg: 'bg-yellow-50',
       badge: 'This week',
     },
-    // Removed Revenue Card
     {
       label: 'Active Teams',
       value: stats.activeTeams,
@@ -219,9 +238,10 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* NEW: Booking Link Copy Card (Replaces Revenue focus) */}
-            {bookingLink && (
-                <div className="bg-blue-50/50 rounded-2xl border border-blue-200 p-5 shadow-sm">
+            {/* BOOKING LINK CARD - NOW HANDLES MISSING LINK */}
+            {bookingLink ? (
+                // CASE A: Link Exists
+                <div className="bg-blue-50/50 rounded-2xl border border-blue-200 p-5 shadow-sm animate-in fade-in slide-in-from-top-2">
                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                         <div className="w-full">
                             <label className="text-sm font-bold text-blue-900 mb-2 block">
@@ -248,6 +268,27 @@ export default function Dashboard() {
                             </button>
                         </div>
                     </div>
+                </div>
+            ) : (
+                // CASE B: Link Missing (Fixes the blank space!)
+                <div className="bg-orange-50 rounded-2xl border border-orange-200 p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                   <div className="flex items-center gap-4">
+                      <div className="p-3 bg-orange-100 rounded-full">
+                         <LinkIcon className="h-6 w-6 text-orange-600" />
+                      </div>
+                      <div>
+                         <h3 className="text-lg font-bold text-orange-900">Setup Required</h3>
+                         <p className="text-sm text-orange-800">You don't have a personal booking link yet.</p>
+                      </div>
+                   </div>
+                   <button
+                      onClick={handleCreateLink}
+                      disabled={generatingLink}
+                      className="w-full sm:w-auto px-6 py-3 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                   >
+                      {generatingLink ? <Loader2 className="animate-spin h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
+                      {generatingLink ? "Generating..." : "Create Booking Link"}
+                   </button>
                 </div>
             )}
 
@@ -436,14 +477,7 @@ export default function Dashboard() {
                       <p className="text-white font-bold">Share with clients</p>
                     </div>
                   </div>
-
-                  <button
-                    onClick={() => navigate('/my-booking-link')}
-                    className="w-full bg-white text-blue-600 px-6 py-3 rounded-xl hover:shadow-xl transition-all font-bold flex items-center justify-center gap-2 mt-6"
-                  >
-                    <Sparkles className="h-5 w-5" />
-                    Get Your Booking Link
-                  </button>
+                  {/* Button removed here because it's now at the top */}
                 </div>
               </div>
             )}
