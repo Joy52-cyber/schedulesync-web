@@ -15,7 +15,6 @@ import {
   Check,
   Link as LinkIcon,
   Loader2,
-  X,
 } from 'lucide-react';
 
 import api, { auth, timezone as timezoneApi } from '../utils/api';
@@ -42,20 +41,6 @@ export default function Dashboard() {
   const [copied, setCopied] = useState(false);
   const [generatingLink, setGeneratingLink] = useState(false);
 
-  // Availability modal
-  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
-
-  // ---------- AVAILABILITY STATE ----------
-  const defaultHours = {
-    Monday:    { enabled: true,  start: '09:00', end: '17:00' },
-    Tuesday:   { enabled: true,  start: '09:00', end: '17:00' },
-    Wednesday: { enabled: true,  start: '09:00', end: '17:00' },
-    Thursday:  { enabled: true,  start: '09:00', end: '17:00' },
-    Friday:    { enabled: true,  start: '09:00', end: '17:00' },
-  };
-
-  const [editedAvailability, setEditedAvailability] = useState(defaultHours);
-
   // ---------- INITIAL LOAD ----------
   useEffect(() => {
     loadAllData();
@@ -63,19 +48,16 @@ export default function Dashboard() {
 
   const loadAllData = async () => {
     setLoading(true);
-    await Promise.all([
-      loadDashboardData(),
-      loadUserTimezone(),
-      loadUserProfile(),
-      loadAvailability(),
-    ]);
+    await Promise.all([loadDashboardData(), loadUserTimezone(), loadUserProfile()]);
     setLoading(false);
   };
 
   const loadDashboardData = async () => {
     try {
       const response = await api.get('/dashboard/stats');
-      setStats(response.data.stats || { totalBookings: 0, upcomingBookings: 0, activeTeams: 0 });
+      setStats(
+        response.data.stats || { totalBookings: 0, upcomingBookings: 0, activeTeams: 0 }
+      );
       setRecentBookings(response.data.recentBookings || []);
     } catch (error) {
       console.error('Dashboard load error:', error);
@@ -106,27 +88,6 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Profile load error:', error);
-    }
-  };
-
-  const loadAvailability = async () => {
-    try {
-      const response = await api.get('/availability/me'); // server should map to /api/availability/me
-
-      // If backend already returns a map keyed by day, trust it
-      if (response.data && response.data.availability) {
-        setEditedAvailability({
-          ...defaultHours,
-          ...response.data.availability,
-        });
-      }
-    } catch (error) {
-      // 404 = endpoint not implemented yet – just keep defaults, no scary alert
-      if (error?.response?.status === 404) {
-        console.warn('Availability endpoint not found yet, using defaults');
-      } else {
-        console.warn('Availability load error:', error);
-      }
     }
   };
 
@@ -221,8 +182,6 @@ export default function Dashboard() {
     },
   ];
 
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-
   // ---------- RENDER ----------
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30">
@@ -274,9 +233,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">Your Timezone</h3>
-                  <p className="text-xs text-gray-500">
-                    Used for all your calendar events
-                  </p>
+                  <p className="text-xs text-gray-500">Used for all your calendar events</p>
                 </div>
               </div>
               <div className="w-full sm:w-72">
@@ -308,14 +265,6 @@ export default function Dashboard() {
                     >
                       {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       {copied ? 'Copied' : 'Copy'}
-                    </button>
-
-                    <button
-                      onClick={() => setShowAvailabilityModal(true)}
-                      className="whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 bg-white text-blue-700 border border-blue-200 rounded-xl font-semibold hover:bg-blue-50 transition-colors w-full md:w-auto"
-                    >
-                      <Users className="h-4 w-4" />
-                      Availability
                     </button>
                   </div>
                 </div>
@@ -426,137 +375,6 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
-
-      {/* ============== EDIT AVAILABILITY MODAL (WITH TOGGLES) ============== */}
-      {showAvailabilityModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 flex items-center justify-between">
-              <div className="text-white">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Clock className="h-5 w-5" /> Edit Availability
-                </h2>
-                <p className="text-blue-100 text-sm">
-                  Update your standard working hours
-                </p>
-              </div>
-              <button
-                onClick={() => setShowAvailabilityModal(false)}
-                className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-6">
-              <div className="space-y-4">
-                {days.map((day) => {
-                  const dayData = editedAvailability[day] || defaultHours[day];
-                  const enabled = dayData.enabled ?? true;
-
-                  return (
-                    <div
-                      key={day}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="font-semibold text-gray-800">{day}</span>
-
-                        {/* Toggle */}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setEditedAvailability((prev) => ({
-                              ...prev,
-                              [day]: { ...prev[day], enabled: !enabled },
-                            }))
-                          }
-                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                            enabled ? 'bg-blue-600' : 'bg-gray-300'
-                          }`}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                              enabled ? 'translate-x-4' : 'translate-x-1'
-                            }`}
-                          />
-                        </button>
-                      </div>
-
-                      {/* Time inputs */}
-                      <div className="flex gap-2">
-                        <input
-                          type="time"
-                          value={dayData.start}
-                          disabled={!enabled}
-                          onChange={(e) =>
-                            setEditedAvailability((prev) => ({
-                              ...prev,
-                              [day]: { ...prev[day], start: e.target.value },
-                            }))
-                          }
-                          className={`border rounded-lg px-2 py-1 text-sm ${
-                            !enabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
-                          }`}
-                        />
-                        <input
-                          type="time"
-                          value={dayData.end}
-                          disabled={!enabled}
-                          onChange={(e) =>
-                            setEditedAvailability((prev) => ({
-                              ...prev,
-                              [day]: { ...prev[day], end: e.target.value },
-                            }))
-                          }
-                          className={`border rounded-lg px-2 py-1 text-sm ${
-                            !enabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
-                          }`}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-              <button
-                onClick={() => setShowAvailabilityModal(false)}
-                className="px-4 py-2 text-gray-600 font-semibold hover:bg-gray-100 rounded-xl transition-colors"
-              >
-                Close
-              </button>
-
-              <button
-                onClick={async () => {
-                  try {
-                    const response = await api.post('/availability/update', {
-                      availability: editedAvailability,
-                    });
-
-                    if (response.data?.success) {
-                      alert('Availability saved successfully!');
-                      setShowAvailabilityModal(false);
-                    } else {
-                      alert('Failed to save availability. Please try again.');
-                    }
-                  } catch (error) {
-                    console.error('Save availability error:', error);
-                    alert('Server error saving availability.');
-                  }
-                }}
-                className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2"
-              >
-                Save Changes <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* AI chat widget */}
       <AISchedulerChat />
