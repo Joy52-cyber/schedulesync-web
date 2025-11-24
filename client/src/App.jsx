@@ -20,6 +20,7 @@ import AdminPanel from './pages/AdminPanel'; // <--- NEW IMPORT
 // Dashboard / App Pages
 import Dashboard from './pages/Dashboard';
 import Bookings from './pages/Bookings';
+import EventTypes from './pages/EventTypes';
 
 // Team & Member Management
 import Teams from './pages/Teams';
@@ -117,9 +118,10 @@ export default function App() {
             }
           >
             <Route path="/dashboard" element={<Dashboard />} />
+
             <Route path="/bookings" element={<Bookings />} />
             <Route path="/my-booking-link" element={<MyBookingLink />} />
-
+            <Route path="/events" element={<EventTypes />} />
             <Route path="/teams" element={<Teams />} />
             <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
             <Route path="/teams/:teamId/members" element={<TeamMembers />} />

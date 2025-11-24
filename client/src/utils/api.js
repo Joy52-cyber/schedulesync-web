@@ -27,6 +27,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Response interceptor for global error handling (optional but recommended)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // If 401 Unauthorized, maybe redirect to login?
+    // if (error.response && error.response.status === 401) {
+    //   window.location.href = '/login';
+    // }
+    return Promise.reject(error);
+  }
+);
+
 // ---------- AUTH ----------
 export const auth = {
   login: (email, password) => api.post('/auth/login', { email, password }),
@@ -39,6 +51,9 @@ export const auth = {
     api.post('/auth/reset-password', { token, newPassword }),
   resendVerification: (email) =>
     api.post('/auth/resend-verification', { email }),
+  
+  // ✅ NEW: Onboarding / Profile Update
+  updateProfile: (data) => api.put('/users/profile', data),
 };
 
 // ---------- TEAMS & MEMBERS ----------
@@ -155,6 +170,14 @@ export const timezone = {
     api.put(`/team-members/${memberId}/timezone`, { timezone }),
 };
 
+// ---------- EVENT TYPES (NEW) ----------
+export const eventTypes = {
+  getAll: () => api.get('/event-types'),
+  create: (data) => api.post('/event-types', data),
+  update: (id, data) => api.put(`/event-types/${id}`, data),
+  delete: (id) => api.delete(`/event-types/${id}`),
+};
+
 // Attach all helpers to default export for `import api from '../utils/api'`
 Object.assign(api, {
   auth,
@@ -167,6 +190,7 @@ Object.assign(api, {
   payments,
   ai,
   timezone,
+  eventTypes, // ✅ Ensure this is added
 });
 
 export default api;

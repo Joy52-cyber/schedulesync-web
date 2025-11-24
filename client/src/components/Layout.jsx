@@ -29,6 +29,7 @@ export default function Layout() {
 
   const navigation = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { name: "Event Types", path: "/events", icon: Clock },
     { name: "Teams", path: "/teams", icon: Users },
     { name: "Bookings", path: "/bookings", icon: Calendar },
     { name: "My Link", path: "/my-booking-link", icon: Link2 },
