@@ -17,7 +17,7 @@ import {
   Check,
   Link as LinkIcon,
   Loader2,
-  X // Added X for closing the modal
+  X 
 } from 'lucide-react';
 import api from '../utils/api'; 
 import { auth, timezone as timezoneApi } from '../utils/api'; 
@@ -40,7 +40,7 @@ export default function Dashboard() {
   const [copied, setCopied] = useState(false);
   const [generatingLink, setGeneratingLink] = useState(false);
 
-  // ✅ NEW STATE: For the Availability Pop-up
+  // Availability Pop-up State
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
 
   useEffect(() => {
@@ -260,7 +260,7 @@ export default function Dashboard() {
                                 {copied ? 'Copied!' : 'Copy Link'}
                             </button>
                             
-                            {/* ✅ MODIFIED BUTTON: TRIGGERS POPUP */}
+                            {/* AVAILABILITY BUTTON */}
                             <button
                                 onClick={() => setShowAvailabilityModal(true)}
                                 className="whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 bg-white text-blue-700 border border-blue-200 rounded-xl font-semibold hover:bg-blue-50 transition-colors w-full md:w-auto"
@@ -332,15 +332,107 @@ export default function Dashboard() {
               ))}
             </div>
 
-            {/* REST OF YOUR DASHBOARD CODE (Welcome Message, Recent Bookings, etc)... */}
-            
-            {/* ... keeping the rest of the file exactly as you had it ... */}
+            {/* Recent Bookings List */}
+            <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">
+                      Recent Bookings
+                    </h3>
+                    <p className="text-gray-600 text-sm">
+                      Your latest scheduled meetings
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate('/bookings')}
+                    className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all font-semibold text-sm flex items-center gap-1"
+                  >
+                    View All
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
 
+                {recentBookings.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <Calendar className="h-10 w-10 text-gray-300" />
+                    </div>
+                    <p className="text-gray-500 mb-4 font-medium">
+                      No bookings yet
+                    </p>
+                    <button
+                      onClick={() => navigate('/my-booking-link')}
+                      className="text-blue-600 hover:text-blue-700 font-semibold"
+                    >
+                      Share your booking link to get started
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {recentBookings.slice(0, 5).map((booking) => (
+                      <div
+                        key={booking.id}
+                        className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md">
+                            {booking.attendee_name?.charAt(0) || 'G'}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-gray-900 font-bold">
+                                {booking.attendee_name || 'Guest'}
+                              </p>
+                              <span
+                                className={`text-xs font-semibold px-2 py-1 rounded-full border flex items-center gap-1 ${getStatusColor(
+                                  booking.status || 'confirmed',
+                                )}`}
+                              >
+                                {getStatusIcon(booking.status || 'confirmed')}
+                                {booking.status || 'confirmed'}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 text-gray-600 text-sm">
+                              <span className="truncate max-w-[140px] sm:max-w-none">
+                                {booking.attendee_email}
+                              </span>
+                              <span>•</span>
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {new Date(
+                                  booking.start_time,
+                                ).toLocaleDateString()}
+                              </span>
+                              <span>•</span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {new Date(
+                                  booking.start_time,
+                                ).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-gray-100 rounded-lg">
+                          <MoreHorizontal className="h-5 w-5 text-gray-400" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </main>
 
-      {/* ✅ AVAILABILITY POP-UP MODAL */}
+      {/* AVAILABILITY POP-UP MODAL */}
       {showAvailabilityModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
@@ -363,7 +455,6 @@ export default function Dashboard() {
                 {/* Modal Content - Quick Preview */}
                 <div className="p-6">
                     <div className="space-y-4">
-                        {/* Sample schedule preview - You can replace this with your actual Availability component */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(day => (
                                 <div key={day} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
@@ -389,8 +480,9 @@ export default function Dashboard() {
                     >
                         Close
                     </button>
+                    {/* ✅ FIXED: Now points to /availability instead of /my-booking-link */}
                     <button 
-                        onClick={() => navigate('/my-booking-link')}
+                        onClick={() => navigate('/availability')} 
                         className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2"
                     >
                         Edit Full Schedule <ChevronRight className="h-4 w-4" />
