@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
   Users,
-  DollarSign,
   Clock,
   Sparkles,
   CheckCircle2,
@@ -14,10 +13,11 @@ import {
   ChevronRight,
   MoreHorizontal,
   Globe,
+  Copy, // Added Copy icon
+  Check // Added Check icon for feedback
 } from 'lucide-react';
 import api from '../utils/api';
 import AISchedulerChat from '../components/AISchedulerChat';
-// ✅ IMPORT TIMEZONE SELECTOR
 import TimezoneSelector from '../components/TimezoneSelector';
 
 export default function Dashboard() {
@@ -25,18 +25,21 @@ export default function Dashboard() {
   const [stats, setStats] = useState({
     totalBookings: 0,
     upcomingBookings: 0,
-    revenue: 0,
     activeTeams: 0,
+    // Removed revenue
   });
   const [recentBookings, setRecentBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  
-  // ✅ NEW: Timezone State
   const [timezone, setTimezone] = useState('');
+  
+  // New State for Booking Link UI
+  const [bookingLink, setBookingLink] = useState('');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
     loadUserTimezone();
+    loadUserProfile(); // Fetch user to get the booking token
   }, []);
 
   const loadDashboardData = async () => {
@@ -51,7 +54,6 @@ export default function Dashboard() {
     }
   };
 
-  // ✅ NEW: Load User Timezone
   const loadUserTimezone = async () => {
     try {
       const response = await api.timezone.get();
@@ -63,15 +65,35 @@ export default function Dashboard() {
     }
   };
 
-  // ✅ NEW: Save Timezone Change
+  // Fetch profile to construct the link
+  const loadUserProfile = async () => {
+    try {
+        // Assuming you have an endpoint that returns the current user's info
+        // If not, you might need to adjust this endpoint
+        const response = await api.get('/auth/me'); 
+        if (response.data.user?.booking_token) {
+            const link = `${window.location.origin}/book/${response.data.user.booking_token}`;
+            setBookingLink(link);
+        }
+    } catch (error) {
+        console.error("Could not load user profile for link", error);
+    }
+  };
+
   const handleTimezoneChange = async (newTimezone) => {
     try {
       setTimezone(newTimezone);
       await api.timezone.update({ timezone: newTimezone });
-      console.log('✅ Timezone updated to:', newTimezone);
     } catch (error) {
       console.error('Failed to update timezone:', error);
     }
+  };
+
+  const handleCopyLink = () => {
+    if (!bookingLink) return;
+    navigator.clipboard.writeText(bookingLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const getStatusIcon = (status) => {
@@ -124,14 +146,7 @@ export default function Dashboard() {
       bg: 'bg-yellow-50',
       badge: 'This week',
     },
-    {
-      label: 'Revenue',
-      value: `$${stats.revenue}`,
-      icon: DollarSign,
-      color: 'text-green-600',
-      bg: 'bg-green-50',
-      change: '+8%',
-    },
+    // Removed Revenue Card
     {
       label: 'Active Teams',
       value: stats.activeTeams,
@@ -184,7 +199,7 @@ export default function Dashboard() {
         <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8">
           <div className="space-y-6">
 
-            {/* ✅ NEW: Timezone Selector Section */}
+            {/* Timezone Selector */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-50 rounded-lg">
@@ -204,8 +219,40 @@ export default function Dashboard() {
                 </div>
             </div>
 
+            {/* NEW: Booking Link Copy Card (Replaces Revenue focus) */}
+            {bookingLink && (
+                <div className="bg-blue-50/50 rounded-2xl border border-blue-200 p-5 shadow-sm">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div className="w-full">
+                            <label className="text-sm font-bold text-blue-900 mb-2 block">
+                                Your Main Booking Link:
+                            </label>
+                            <div className="font-mono text-sm text-blue-700 bg-white border border-blue-200 rounded-lg px-4 py-3 w-full break-all">
+                                {bookingLink}
+                            </div>
+                        </div>
+                        <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-6">
+                            <button
+                                onClick={handleCopyLink}
+                                className="whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm w-full md:w-auto"
+                            >
+                                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                                {copied ? 'Copied!' : 'Copy Link'}
+                            </button>
+                            <button
+                                onClick={() => navigate('/my-booking-link')}
+                                className="whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 bg-white text-blue-700 border border-blue-200 rounded-xl font-semibold hover:bg-blue-50 transition-colors w-full md:w-auto"
+                            >
+                                <Users className="h-4 w-4" />
+                                Availability
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {statCards.map((stat, index) => (
                 <div
                   key={index}

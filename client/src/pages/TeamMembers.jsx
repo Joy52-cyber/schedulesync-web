@@ -13,13 +13,13 @@ import {
   XCircle,
   Calendar,
   Settings,
-  DollarSign,
   Link2,
   Copy,
+  // Removed DollarSign
 } from 'lucide-react';
 import api, { teams } from '../utils/api';
 import MemberExternalLinkModal from '../components/MemberExternalLinkModal';
-import MemberPricingSettings from '../components/MemberPricingSettings';
+// Removed MemberPricingSettings import
 
 export default function TeamMembers() {
   const { teamId } = useParams();
@@ -30,7 +30,7 @@ export default function TeamMembers() {
   const [members, setMembers] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showExternalLinkModal, setShowExternalLinkModal] = useState(false);
-  const [showPricingModal, setShowPricingModal] = useState(false);
+  // Removed showPricingModal
   const [selectedMember, setSelectedMember] = useState(null);
   const [newMember, setNewMember] = useState({
     email: '',
@@ -154,10 +154,7 @@ export default function TeamMembers() {
     setShowExternalLinkModal(true);
   };
 
-  const openPricingModal = (member) => {
-    setSelectedMember(member);
-    setShowPricingModal(true);
-  };
+  // Removed openPricingModal function
 
   if (loading) {
     return (
@@ -328,13 +325,7 @@ export default function TeamMembers() {
                       Availability
                     </button>
 
-                    <button
-                      onClick={() => openPricingModal(member)}
-                      className="w-full bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700 transition-colors text-sm font-semibold flex items-center justify-center gap-2"
-                    >
-                      <DollarSign className="h-4 w-4" />
-                      Pricing
-                    </button>
+                    {/* Pricing button removed */}
 
                     <button
                       onClick={() => openExternalLinkModal(member)}
@@ -443,14 +434,8 @@ export default function TeamMembers() {
           onClose={() => setShowExternalLinkModal(false)}
         />
       )}
-      {showPricingModal && selectedMember && (
-  <MemberPricingSettings
-    member={selectedMember}
-    teamId={teamId}
-    onClose={() => setShowPricingModal(false)}
-    onSaved={loadTeamMembers}
-  />
-)}
+      
+      {/* Removed MemberPricingSettings modal rendering */}
 
     </div>
   );

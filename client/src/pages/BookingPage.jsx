@@ -1,16 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import {
-  Calendar, User, Mail, MessageSquare, CheckCircle, Loader2, Clock,
-  Sparkles, Shield, Zap, ArrowRight, Star, Check, DollarSign, CreditCard,
-  ExternalLink
+  Calendar, User, Clock,
+  Sparkles, ArrowRight, ExternalLink, Loader2
 } from 'lucide-react';
 // Import the centralized API helper
-import { bookings, payments, oauth, api } from '../utils/api';
+import { bookings, oauth } from '../utils/api';
 import SmartSlotPicker from '../components/SmartSlotPicker';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements } from '@stripe/react-stripe-js';
-import PaymentForm from '../components/PaymentForm';
 
 export default function BookingPage() {
   const { token } = useParams();
@@ -19,7 +15,7 @@ export default function BookingPage() {
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [redirecting, setRedirecting] = useState(false); // ✅ New state for redirect
+  const [redirecting, setRedirecting] = useState(false);
   const [teamInfo, setTeamInfo] = useState(null);
   const [memberInfo, setMemberInfo] = useState(null);
   const [error, setError] = useState('');
@@ -35,10 +31,6 @@ export default function BookingPage() {
   });
   
   const [selectedSlot, setSelectedSlot] = useState(null);
-  const [pricingInfo, setPricingInfo] = useState(null);
-  const [showPayment, setShowPayment] = useState(false);
-  const [stripePromise, setStripePromise] = useState(null);
-  const [paymentIntentId, setPaymentIntentId] = useState(null);
 
   useEffect(() => {
     loadBookingInfo();
@@ -100,11 +92,11 @@ export default function BookingPage() {
         throw new Error('Missing team or member information');
       }
 
-      // ✅ LOGIC FIX: Handle External Links
+      // Handle External Links
       if (payload.member.external_booking_link) {
         console.log('🔀 External link detected. Redirecting to:', payload.member.external_booking_link);
         setRedirecting(true);
-        setMemberInfo(payload.member); // Set member info to show "Redirecting..." UI
+        setMemberInfo(payload.member);
         
         // Small delay for UX so they see what's happening
         setTimeout(() => {
@@ -116,41 +108,14 @@ export default function BookingPage() {
       setTeamInfo(payload.team);
       setMemberInfo(payload.member);
       
-      // Only load pricing if NOT redirecting
-      loadPricingInfo();
-
     } catch (err) {
       console.error('❌ Error loading booking info:', err);
       setError(err.response?.data?.error || 'Invalid booking link');
       setTeamInfo(null);
       setMemberInfo(null);
     } finally {
-      // If we are redirecting, keep loading state effectively "true" (or handle via redirecting state)
-      // to prevent flashing the normal UI
       setLoading(false);
     }
-  };
-
-  const loadPricingInfo = async () => {
-    try {
-      const response = await payments.getPricing(token);
-      const data = response.data;
-      setPricingInfo(data);
-
-      if (data.paymentRequired && data.price > 0) {
-        const configResponse = await payments.getConfig();
-        const config = configResponse.data;
-        setStripePromise(loadStripe(config.publishableKey));
-      }
-    } catch (error) {
-      console.error('⚠️ Error loading pricing:', error);
-      setPricingInfo({ paymentRequired: false, price: 0, currency: 'USD' });
-    }
-  };
-
-  const getCurrencySymbol = (currency) => {
-    const symbols = { USD: '$', EUR: '€', GBP: '£', AUD: 'A$', CAD: 'C$', SGD: 'S$', PHP: '₱', JPY: '¥', INR: '₹' };
-    return symbols[currency] || currency;
   };
 
   const handleCalendarConnect = (provider) => {
@@ -175,32 +140,11 @@ export default function BookingPage() {
   const handleSkipCalendar = () => setStep('form');
   const handleSlotSelected = (slot) => setSelectedSlot(slot);
 
-  const handlePaymentSuccess = async (paymentIntentId) => {
-    setPaymentIntentId(paymentIntentId);
-    try {
-      setSubmitting(true);
-      const response = await payments.confirmBooking(
-        paymentIntentId, token, selectedSlot, 
-        formData.attendee_name, formData.attendee_email, formData.notes
-      );
-      if (response.data.success) {
-        navigateBookingSuccess(response.data.booking);
-      }
-    } catch (error) {
-      alert('Payment successful but booking creation failed.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedSlot) return alert('Please select a time slot');
     
-    if (pricingInfo?.paymentRequired && pricingInfo?.price > 0) {
-      setShowPayment(true);
-      return;
-    }
+    // Pricing checks removed
 
     try {
       setSubmitting(true);
@@ -217,19 +161,19 @@ export default function BookingPage() {
 
   const navigateBookingSuccess = (booking) => {
      const bookingData = {
-        id: booking?.id,
-        start_time: selectedSlot.start,
-        end_time: selectedSlot.end,
-        attendee_name: formData.attendee_name,
-        attendee_email: formData.attendee_email,
-        organizer_name: memberInfo?.name,
-        team_name: teamInfo?.name,
-        notes: formData.notes,
-        meet_link: booking?.meet_link || null,
-        booking_token: booking?.booking_token || token,
-      };
-      const dataParam = encodeURIComponent(JSON.stringify(bookingData));
-      navigate(`/booking-confirmation?data=${dataParam}`);
+       id: booking?.id,
+       start_time: selectedSlot.start,
+       end_time: selectedSlot.end,
+       attendee_name: formData.attendee_name,
+       attendee_email: formData.attendee_email,
+       organizer_name: memberInfo?.name,
+       team_name: teamInfo?.name,
+       notes: formData.notes,
+       meet_link: booking?.meet_link || null,
+       booking_token: booking?.booking_token || token,
+     };
+     const dataParam = encodeURIComponent(JSON.stringify(bookingData));
+     navigate(`/booking-confirmation?data=${dataParam}`);
   };
 
   if (loading || redirecting) {
@@ -299,30 +243,7 @@ export default function BookingPage() {
           </div>
         </div>
 
-        {/* Pricing Banner */}
-        {pricingInfo?.paymentRequired && pricingInfo?.price > 0 && (
-          <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-3xl shadow-xl p-6 sm:p-8 mb-6 text-white">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-white bg-opacity-20 rounded-2xl flex items-center justify-center flex-shrink-0">
-                  <DollarSign className="h-7 w-7" />
-                </div>
-                <div>
-                  <p className="text-sm opacity-90 mb-1">Session Price</p>
-                  <p className="text-3xl sm:text-4xl font-black">
-                    {getCurrencySymbol(pricingInfo.currency)}{pricingInfo.price.toFixed(2)}
-                  </p>
-                </div>
-              </div>
-              <div className="text-center sm:text-right">
-                <div className="flex items-center justify-center sm:justify-end gap-2 text-sm opacity-90 mb-1">
-                  <CreditCard className="h-4 w-4" />
-                  <span className="font-semibold">Payment Required</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Pricing Banner Removed */}
 
         {/* Steps */}
         {step === 'calendar-choice' && (
@@ -379,7 +300,7 @@ export default function BookingPage() {
               <div className="relative animate-slideUp">
                 <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-3xl opacity-30 blur-xl"></div>
                 <button type="submit" disabled={submitting} className="relative w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white px-8 py-5 rounded-2xl text-lg font-bold hover:scale-[1.02] transition-all flex items-center justify-center gap-3">
-                   {submitting ? <Loader2 className="h-6 w-6 animate-spin" /> : (pricingInfo?.paymentRequired ? 'Pay & Confirm' : 'Confirm Booking')}
+                   {submitting ? <Loader2 className="h-6 w-6 animate-spin" /> : 'Confirm Booking'}
                 </button>
               </div>
             )}
@@ -387,15 +308,7 @@ export default function BookingPage() {
         )}
       </div>
 
-      {showPayment && pricingInfo && stripePromise && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
-             <Elements stripe={stripePromise}>
-                <PaymentForm amount={pricingInfo.price} currency={pricingInfo.currency} onPaymentSuccess={handlePaymentSuccess} onCancel={() => setShowPayment(false)} bookingDetails={{ token, slot: selectedSlot, ...formData }} />
-             </Elements>
-          </div>
-        </div>
-      )}
+      {/* Payment Modal Removed */}
     </div>
   );
 }
