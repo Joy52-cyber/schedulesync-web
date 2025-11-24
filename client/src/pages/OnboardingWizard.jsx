@@ -1,4 +1,5 @@
-﻿import { useState, useEffect } from 'react';
+﻿// client/src/pages/OnboardingWizard.jsx
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -15,7 +16,7 @@ import api from '../utils/api';
 export default function OnboardingWizard() {
   const navigate = useNavigate();
   const { updateUser, user } = useAuth();
-  
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -35,7 +36,7 @@ export default function OnboardingWizard() {
   const onboardingKey =
     user ? `onboardingCompleted:${user.id || user.email}` : null;
 
-  // If user already completed onboarding (flag or context), skip wizard
+  // If user already completed onboarding, skip wizard
   useEffect(() => {
     if (!user) return;
 
@@ -75,10 +76,10 @@ export default function OnboardingWizard() {
           end: formData.availableTo,
           days: formData.workDays,
         },
-        has_completed_onboarding: true, // optional if backend supports it
+        has_completed_onboarding: true, // if backend supports this
       });
 
-      // 2. Update auth context so the rest of the app knows onboarding is done
+      // 2. Update auth context
       updateUser({
         ...user,
         username: formData.username,
@@ -92,7 +93,6 @@ export default function OnboardingWizard() {
 
       // 4. Redirect to dashboard
       navigate('/dashboard', { replace: true });
-
     } catch (err) {
       console.error('Onboarding failed:', err);
       setError(
@@ -107,7 +107,6 @@ export default function OnboardingWizard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center px-4 font-sans">
       <div className="w-full max-w-lg bg-white/90 backdrop-blur-xl border border-purple-100 shadow-2xl rounded-3xl overflow-hidden transition-all duration-500">
-        
         {/* Progress Bar */}
         <div className="bg-gray-100 h-1.5 w-full">
           <div
@@ -134,7 +133,7 @@ export default function OnboardingWizard() {
                   Welcome to ScheduleSync!
                 </h2>
                 <p className="text-gray-500">
-                  Let's claim your unique booking link.
+                  Let&apos;s claim your unique booking link.
                 </p>
               </div>
 
@@ -175,7 +174,8 @@ export default function OnboardingWizard() {
                     Timezone Detected
                   </p>
                   <p className="text-sm text-blue-700 mt-0.5">
-                    We've set your timezone to <strong>{formData.timezone}</strong>.
+                    We&apos;ve set your timezone to{' '}
+                    <strong>{formData.timezone}</strong>.
                   </p>
                 </div>
               </div>
@@ -200,7 +200,9 @@ export default function OnboardingWizard() {
                 <h2 className="text-3xl font-bold text-gray-900 tracking-tight">
                   Set availability
                 </h2>
-                <p className="text-gray-500">Define your standard working hours.</p>
+                <p className="text-gray-500">
+                  Define your standard working hours.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -212,7 +214,10 @@ export default function OnboardingWizard() {
                     <select
                       value={formData.availableFrom}
                       onChange={(e) =>
-                        setFormData({ ...formData, availableFrom: e.target.value })
+                        setFormData({
+                          ...formData,
+                          availableFrom: e.target.value,
+                        })
                       }
                       className="block w-full pl-4 pr-10 py-3 text-base border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent sm:text-sm rounded-xl bg-gray-50"
                     >
@@ -230,7 +235,10 @@ export default function OnboardingWizard() {
                     <select
                       value={formData.availableTo}
                       onChange={(e) =>
-                        setFormData({ ...formData, availableTo: e.target.value })
+                        setFormData({
+                          ...formData,
+                          availableTo: e.target.value,
+                        })
                       }
                       className="block w-full pl-4 pr-10 py-3 text-base border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent sm:text-sm rounded-xl bg-gray-50"
                     >
@@ -280,7 +288,7 @@ export default function OnboardingWizard() {
           {step === 3 && (
             <div className="text-center space-y-8 animate-in fade-in slide-in-from-right-8 duration-500">
               <div className="relative w-24 h-24 mx-auto">
-                <div className="absolute inset-0 bg-green-100 rounded-full animate-ping opacity-25"></div>
+                <div className="absolute inset-0 bg-green-100 rounded-full animate-ping opacity-25" />
                 <div className="relative w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center shadow-sm">
                   <CheckCircle2 size={48} strokeWidth={2.5} />
                 </div>
@@ -288,16 +296,18 @@ export default function OnboardingWizard() {
 
               <div className="space-y-2">
                 <h2 className="text-3xl font-bold text-gray-900 tracking-tight">
-                  You're all set!
+                  You&apos;re all set!
                 </h2>
                 <p className="text-gray-500 max-w-xs mx-auto">
-                  We've created your booking page and a default 30-min meeting type.
+                  We&apos;ve created your booking page and a default 30-min
+                  meeting type.
                 </p>
               </div>
 
               <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-6 rounded-2xl border border-gray-200 transform transition-transform hover:scale-[1.02] cursor-default">
                 <p className="text-xs text-gray-500 uppercase tracking-wider font-bold mb-2 flex items-center justify-center gap-2">
-                  <Sparkles size={12} className="text-purple-500" /> Your Personal Link
+                  <Sparkles size={12} className="text-purple-500" /> Your
+                  Personal Link
                 </p>
                 <p className="text-lg font-bold text-purple-600 break-all">
                   schedulesync.com/{formData.username}
@@ -311,8 +321,19 @@ export default function OnboardingWizard() {
               >
                 {loading ? (
                   <>
-                    <Loader2 size={20} className="animate-spin" /> Setting up dashboard...
+                    <Loader2 size={20} className="animate-spin" />
+                    Setting up dashboard...
                   </>
                 ) : (
                   <>
-                    Go to Dashboard <ChevronR
+                    Go to Dashboard <ChevronRight size={20} />
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
