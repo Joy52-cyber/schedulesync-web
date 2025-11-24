@@ -7,8 +7,8 @@ import {
   Menu,
   X,
   ShieldAlert,
-  Clock,
-  Settings
+  Clock,     // ✅ Ensure Clock is imported for "Scheduling"
+  Settings   // ✅ Ensure Settings is imported
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -29,7 +29,7 @@ export default function Layout() {
     { name: "Scheduling", path: "/events", icon: Clock }, // ✅ Renamed to Scheduling
     { name: "Teams", path: "/teams", icon: Users },
     { name: "Bookings", path: "/bookings", icon: Calendar },
-    { name: "Settings", path: "/settings", icon: Settings }, 
+    { name: "Settings", path: "/settings", icon: Settings }, // ✅ Added Settings
   ];
 
   // Add Admin Panel to navigation if user is admin
