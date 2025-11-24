@@ -1,5 +1,4 @@
-﻿// client/src/components/Layout.jsx
-import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+﻿import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -7,9 +6,9 @@ import {
   LogOut,
   Menu,
   X,
-  Link2,
   ShieldAlert,
-  Clock // <--- ✅ ADDED THIS (Critical fix)
+  Clock,
+  Settings // <--- 1. IMPORT THIS
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -20,16 +19,18 @@ export default function Layout() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  // ✅ ADMIN CHECK (Correct)
+  // Case-insensitive admin check
   const adminEmails = ['jaybersales95@gmail.com'];
   const userEmail = user?.email?.toLowerCase() || '';
   const isAdmin = adminEmails.includes(userEmail);
 
   const navigation = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-    { name: "Event Types", path: "/events", icon: Clock }, // Now this will work
+    { name: "Event Types", path: "/events", icon: Clock },
     { name: "Teams", path: "/teams", icon: Users },
     { name: "Bookings", path: "/bookings", icon: Calendar },
+    // ✅ 2. ADD SETTINGS HERE
+    { name: "Settings", path: "/settings", icon: Settings }, 
   ];
 
   // Add Admin Panel to navigation if user is admin
@@ -44,12 +45,7 @@ export default function Layout() {
 
   const getUserInitials = () => {
     if (user?.name) {
-      return user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
+      return user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
     }
     if (user?.email) {
       return user.email[0].toUpperCase();
@@ -77,7 +73,6 @@ export default function Layout() {
               {navigation.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
-                // Special styling for Admin link
                 const isAdminLink = item.path === "/admin";
                 
                 return (
@@ -118,7 +113,6 @@ export default function Layout() {
                 </span>
               </div>
 
-              {/* Desktop logout */}
               <button
                 onClick={handleLogout}
                 className="hidden lg:flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium text-sm"
@@ -131,7 +125,6 @@ export default function Layout() {
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                aria-label="Toggle menu"
               >
                 {mobileMenuOpen ? (
                   <X className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600" />
@@ -195,7 +188,6 @@ export default function Layout() {
         )}
       </header>
 
-      {/* Main content */}
       <main className="mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 max-w-[1600px]">
         <Outlet />
       </main>
