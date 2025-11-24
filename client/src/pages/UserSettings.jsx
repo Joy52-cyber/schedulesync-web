@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
 import { 
   User, 
-  Mail, 
   Globe, 
   Calendar, 
   Save, 
   Check, 
   Loader2,
-  AlertCircle,
   Plus,
   Copy,
   Trash2,
@@ -16,23 +14,23 @@ import {
 import api, { auth, timezone as timezoneApi } from '../utils/api';
 
 const WEEKDAYS = [
-  { key: 'sunday', label: 'S' },
-  { key: 'monday', label: 'M' },
-  { key: 'tuesday', label: 'T' },
-  { key: 'wednesday', label: 'W' },
-  { key: 'thursday', label: 'T' },
-  { key: 'friday', label: 'F' },
-  { key: 'saturday', label: 'S' },
+  { key: 'sunday', label: 'Sun' },
+  { key: 'monday', label: 'Mon' },
+  { key: 'tuesday', label: 'Tue' },
+  { key: 'wednesday', label: 'Wed' },
+  { key: 'thursday', label: 'Thu' },
+  { key: 'friday', label: 'Fri' },
+  { key: 'saturday', label: 'Sat' },
 ];
 
-const DEFAULT_WORKING_HOURS = {
-  monday: { enabled: true, start: '09:00', end: '17:00' },
-  tuesday: { enabled: true, start: '09:00', end: '17:00' },
-  wednesday: { enabled: true, start: '09:00', end: '17:00' },
-  thursday: { enabled: true, start: '09:00', end: '17:00' },
-  friday: { enabled: true, start: '09:00', end: '17:00' },
-  saturday: { enabled: false, start: '09:00', end: '17:00' },
-  sunday: { enabled: false, start: '09:00', end: '17:00' },
+const DAY_FULL_NAMES = {
+  sunday: 'Sunday',
+  monday: 'Monday',
+  tuesday: 'Tuesday',
+  wednesday: 'Wednesday',
+  thursday: 'Thursday',
+  friday: 'Friday',
+  saturday: 'Saturday',
 };
 
 export default function UserSettings() {
@@ -49,7 +47,15 @@ export default function UserSettings() {
 
   const [memberId, setMemberId] = useState(null);
   const [availability, setAvailability] = useState({
-    workingHours: DEFAULT_WORKING_HOURS,
+    workingHours: { 
+      monday: { enabled: true, start: '09:00', end: '17:00' },
+      tuesday: { enabled: true, start: '09:00', end: '17:00' },
+      wednesday: { enabled: true, start: '09:00', end: '17:00' },
+      thursday: { enabled: true, start: '09:00', end: '17:00' },
+      friday: { enabled: true, start: '09:00', end: '17:00' },
+      saturday: { enabled: false, start: '09:00', end: '17:00' },
+      sunday: { enabled: false, start: '09:00', end: '17:00' }
+    },
     bufferTime: 0
   });
 
@@ -69,7 +75,9 @@ export default function UserSettings() {
       });
 
       const teamsRes = await api.get('/teams');
-      const personalTeam = teamsRes.data.teams.find(t => t.name.includes("Personal Bookings"));
+      const personalTeam = teamsRes.data.teams.find(t =>
+        t.name.includes('Personal Bookings')
+      );
       
       if (personalTeam) {
         const membersRes = await api.get(`/teams/${personalTeam.id}/members`);
@@ -79,12 +87,8 @@ export default function UserSettings() {
           setMemberId(me.id);
           const availRes = await api.get(`/team-members/${me.id}/availability`);
           if (availRes.data.member?.working_hours) {
-            // Merge with defaults so all days exist
             setAvailability({
-              workingHours: {
-                ...DEFAULT_WORKING_HOURS,
-                ...availRes.data.member.working_hours,
-              },
+              workingHours: availRes.data.member.working_hours,
               bufferTime: availRes.data.member.buffer_time || 0
             });
           }
@@ -125,67 +129,25 @@ export default function UserSettings() {
       workingHours: {
         ...prev.workingHours,
         [day]: {
-          ...(prev.workingHours[day] || DEFAULT_WORKING_HOURS[day]),
+          ...prev.workingHours[day],
           [field]: value
         }
       }
     }));
   };
 
-  // Copy a day's schedule to all weekdays
   const copyToAll = (sourceDay) => {
-    const source = availability.workingHours[sourceDay] || DEFAULT_WORKING_HOURS[sourceDay];
+    const source = availability.workingHours[sourceDay];
     const newHours = { ...availability.workingHours };
-
     Object.keys(newHours).forEach(day => {
-      if (day !== 'saturday' && day !== 'sunday') { // Only copy to weekdays by default
+      if (day !== 'saturday' && day !== 'sunday') {
         newHours[day] = { ...source };
       }
     });
-
     setAvailability(prev => ({
       ...prev,
-      workingHours: newHours
+      workingHours: newHours,
     }));
-  };
-
-  // Quick actions
-  const resetWeekdaysToDefault = () => {
-    setAvailability(prev => ({
-      ...prev,
-      workingHours: {
-        ...prev.workingHours,
-        ...DEFAULT_WORKING_HOURS,
-      }
-    }));
-  };
-
-  const clearAllAvailability = () => {
-    const cleared = {};
-    Object.keys(DEFAULT_WORKING_HOURS).forEach(day => {
-      cleared[day] = {
-        ...DEFAULT_WORKING_HOURS[day],
-        enabled: false,
-      };
-    });
-
-    setAvailability(prev => ({
-      ...prev,
-      workingHours: cleared
-    }));
-  };
-
-  const getAvailabilitySummary = () => {
-    const enabledDays = Object.entries(availability.workingHours || {}).filter(
-      ([_, v]) => v?.enabled
-    );
-    if (!enabledDays.length) return 'No regular working hours set yet.';
-    if (enabledDays.length === 5 &&
-        enabledDays.every(([d]) => ['monday','tuesday','wednesday','thursday','friday'].includes(d))) {
-      const sample = availability.workingHours.monday || DEFAULT_WORKING_HOURS.monday;
-      return `Mon–Fri · ${sample.start}–${sample.end}`;
-    }
-    return `${enabledDays.length} day(s) with availability configured.`;
   };
 
   if (loading) {
@@ -198,7 +160,6 @@ export default function UserSettings() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
-      
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
@@ -221,7 +182,6 @@ export default function UserSettings() {
       </div>
 
       <div className="flex flex-col md:flex-row gap-8">
-        
         {/* Sidebar Navigation */}
         <div className="w-full md:w-64 flex-shrink-0">
           <nav className="space-y-1">
@@ -250,11 +210,12 @@ export default function UserSettings() {
 
         {/* Content Area */}
         <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm min-h-[600px]">
-          
           {/* PROFILE TAB */}
           {activeTab === 'profile' && (
             <div className="p-8 max-w-xl">
-              <h2 className="text-xl font-bold text-gray-900 mb-6">Profile Details</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-6">
+                Profile Details
+              </h2>
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -308,42 +269,26 @@ export default function UserSettings() {
           {/* AVAILABILITY TAB */}
           {activeTab === 'availability' && (
             <div className="p-6 sm:p-8">
-              <div className="flex items-start justify-between mb-6 border-b border-gray-100 pb-5">
+              <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-6">
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">Working hours</h2>
+                  <h2 className="text-lg font-bold text-gray-900">
+                    Working hours
+                  </h2>
                   <p className="text-sm text-gray-500 mt-1">
                     Set when you are typically available for meetings.
                   </p>
-                  <p className="text-xs text-gray-400 mt-2">
-                    {getAvailabilitySummary()}
-                  </p>
                 </div>
-                <div className="flex flex-col items-end gap-3">
-                  <MoreHorizontal className="text-gray-400 cursor-pointer hover:text-gray-600" />
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={resetWeekdaysToDefault}
-                      className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50"
-                    >
-                      Reset weekdays 9–5
-                    </button>
-                    <button
-                      type="button"
-                      onClick={clearAllAvailability}
-                      className="text-xs px-3 py-1.5 rounded-full border border-red-100 text-red-500 hover:bg-red-50"
-                    >
-                      Mark all unavailable
-                    </button>
-                  </div>
-                </div>
+                <MoreHorizontal className="text-gray-400 cursor-pointer hover:text-gray-600" />
               </div>
 
               <div className="space-y-1">
                 {WEEKDAYS.map((day) => {
                   const settings =
-                    availability.workingHours[day.key] ||
-                    DEFAULT_WORKING_HOURS[day.key];
+                    availability.workingHours[day.key] || {
+                      enabled: false,
+                      start: '09:00',
+                      end: '17:00',
+                    };
 
                   const isWeekend =
                     day.key === 'saturday' || day.key === 'sunday';
@@ -351,37 +296,29 @@ export default function UserSettings() {
                   return (
                     <div
                       key={day.key}
-                      className={`group flex flex-col sm:flex-row sm:items-center py-3 rounded-lg -mx-4 px-4 transition-colors ${
-                        settings.enabled
-                          ? 'bg-blue-50/40 border border-blue-100'
-                          : 'border border-transparent hover:border-gray-100 hover:bg-gray-50'
-                      } ${isWeekend ? 'mt-2' : ''}`}
+                      className="group flex flex-col sm:flex-row sm:items-center py-3 border-b border-transparent hover:border-gray-100 hover:bg-gray-50 -mx-4 px-4 transition-colors rounded-md"
                     >
-                      {/* Day Checkbox + Label */}
-                      <div className="w-32 flex items-center gap-3 mb-2 sm:mb-0">
+                      {/* Day + toggle */}
+                      <div className="w-full sm:w-56 flex items-center gap-3 mb-2 sm:mb-0">
                         <input
                           type="checkbox"
                           checked={settings.enabled}
                           onChange={(e) =>
                             updateDay(day.key, 'enabled', e.target.checked)
                           }
-                          className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
-                        <span
-                          className={`text-xs font-semibold uppercase px-2 py-1 rounded-full ${
-                            settings.enabled
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-100 text-gray-500'
-                          }`}
-                        >
-                          {day.label}
-                        </span>
-                        <span className="hidden sm:inline text-xs text-gray-500">
-                          {day.key.charAt(0).toUpperCase() + day.key.slice(1)}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold uppercase text-gray-400">
+                            {DAY_FULL_NAMES[day.key]}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {isWeekend ? 'Weekend' : 'Weekday'}
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Time Inputs */}
+                      {/* Time inputs */}
                       <div className="flex-1">
                         {settings.enabled ? (
                           <div className="flex flex-wrap items-center gap-2">
@@ -393,7 +330,7 @@ export default function UserSettings() {
                               }
                               className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none w-32 bg-white"
                             />
-                            <span className="text-gray-400">–</span>
+                            <span className="text-gray-400">-</span>
                             <input
                               type="time"
                               value={settings.end}
@@ -403,11 +340,11 @@ export default function UserSettings() {
                               className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none w-32 bg-white"
                             />
                             <button
+                              type="button"
                               onClick={() =>
                                 updateDay(day.key, 'enabled', false)
                               }
-                              className="ml-2 text-gray-400 hover:text-red-500 p-1"
-                              title="Mark this day as unavailable"
+                              className="ml-1 text-gray-400 hover:text-red-500 p-1"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -419,21 +356,25 @@ export default function UserSettings() {
                         )}
                       </div>
 
-                      {/* Hover Actions */}
-                      <div className="w-24 flex justify-end gap-3 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity mt-2 sm:mt-0">
+                      {/* Row actions */}
+                      <div className="w-full sm:w-32 flex justify-end gap-3 mt-2 sm:mt-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
+                          type="button"
                           title="Add interval (coming soon)"
                           className="text-gray-400 hover:text-blue-600"
                         >
                           <Plus size={18} />
                         </button>
-                        <button
-                          title="Copy to weekdays"
-                          onClick={() => copyToAll(day.key)}
-                          className="text-gray-400 hover:text-blue-600"
-                        >
-                          <Copy size={18} />
-                        </button>
+                        {day.key === 'monday' && (
+                          <button
+                            type="button"
+                            title="Copy Monday to all weekdays"
+                            onClick={() => copyToAll('monday')}
+                            className="text-gray-400 hover:text-blue-600 flex items-center gap-1 text-xs"
+                          >
+                            <Copy size={16} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -455,10 +396,10 @@ export default function UserSettings() {
                       min={0}
                       value={availability.bufferTime}
                       onChange={(e) =>
-                        setAvailability({
-                          ...availability,
+                        setAvailability((prev) => ({
+                          ...prev,
                           bufferTime: parseInt(e.target.value || '0', 10),
-                        })
+                        }))
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                     />
@@ -466,13 +407,11 @@ export default function UserSettings() {
                       min
                     </span>
                   </div>
-                  <p className="text-xs text-gray-400">
-                    A small gap helps prevent back-to-back meetings.
-                  </p>
                 </div>
               </div>
             </div>
           )}
+
         </div>
       </div>
     </div>
