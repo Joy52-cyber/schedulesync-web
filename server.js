@@ -275,6 +275,21 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    // ✅ NEW: Event Types Table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS event_types (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) NOT NULL,
+        duration INTEGER NOT NULL DEFAULT 30,
+        description TEXT,
+        color VARCHAR(50) DEFAULT 'blue',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, slug)
+      )
+    `);
 
     console.log('✅ Database initialized successfully');
   } catch (error) {
@@ -4136,6 +4151,33 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, 
   } catch (error) {
     console.error('❌ Admin delete user error:', error);
     res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// ============ MIGRATION HELPER (Run once then delete) ============
+app.get('/api/admin/migrate-event-types', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    console.log('🔄 seeding default event types...');
+    
+    // Get all users
+    const users = await pool.query('SELECT id FROM users');
+    
+    for (const user of users.rows) {
+      // Check if they already have events
+      const check = await pool.query('SELECT id FROM event_types WHERE user_id = $1', [user.id]);
+      
+      if (check.rows.length === 0) {
+        await pool.query(`
+          INSERT INTO event_types (user_id, title, slug, duration, description, color)
+          VALUES ($1, '30 Min Meeting', '30min', 30, 'A standard 30 minute meeting.', 'blue')
+        `, [user.id]);
+      }
+    }
+    
+    res.json({ success: true, message: "Default event types created for all users." });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
   }
 });
 
