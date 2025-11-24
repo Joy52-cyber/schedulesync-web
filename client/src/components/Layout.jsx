@@ -30,7 +30,6 @@ export default function Layout() {
     { name: "Event Types", path: "/events", icon: Clock }, // Now this will work
     { name: "Teams", path: "/teams", icon: Users },
     { name: "Bookings", path: "/bookings", icon: Calendar },
-    { name: "My Link", path: "/my-booking-link", icon: Link2 },
   ];
 
   // Add Admin Panel to navigation if user is admin
