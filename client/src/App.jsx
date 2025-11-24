@@ -21,7 +21,7 @@ import AdminPanel from './pages/AdminPanel';
 import Dashboard from './pages/Dashboard';
 import Bookings from './pages/Bookings';
 import EventTypes from './pages/EventTypes';
-import AvailabilitySettings from './pages/AvailabilitySettings'; // <-- Corrected path assumed to be in ./pages
+ 
 
 // Team & Member Management
 import Teams from './pages/Teams';
@@ -122,9 +122,13 @@ export default function App() {
             <Route path="/events" element={<EventTypes />} />
             
             {/* ✅ NEW ROUTE FOR AVAILABILITY SETTINGS */}
-            {/* Assuming AvailabilitySettings is the intended page for /availability */}
-            <Route path="/availability" element={<MemberAvailability />} />
+            <Route
+  path="/teams/:teamId/members/:memberId/availability"
+  element={<MemberAvailability />}
+/>
 
+            {/* Assuming AvailabilitySettings is the intended page for /availability */}
+            
             <Route path="/teams" element={<Teams />} />
             <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
             <Route path="/teams/:teamId/members" element={<TeamMembers />} />
