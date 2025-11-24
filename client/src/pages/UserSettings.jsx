@@ -8,21 +8,19 @@ import {
   Check, 
   Loader2,
   AlertCircle,
-  Plus,
-  Copy,
   Trash2,
   MoreHorizontal
 } from 'lucide-react';
 import api, { auth, timezone as timezoneApi, reminders as remindersApi } from '../utils/api';
 
 const WEEKDAYS = [
-  { key: 'sunday', label: 'S' },
-  { key: 'monday', label: 'M' },
-  { key: 'tuesday', label: 'T' },
-  { key: 'wednesday', label: 'W' },
-  { key: 'thursday', label: 'T' },
-  { key: 'friday', label: 'F' },
-  { key: 'saturday', label: 'S' },
+  { key: 'monday', label: 'Monday' },
+  { key: 'tuesday', label: 'Tuesday' },
+  { key: 'wednesday', label: 'Wednesday' },
+  { key: 'thursday', label: 'Thursday' },
+  { key: 'friday', label: 'Friday' },
+  { key: 'saturday', label: 'Saturday' },
+  { key: 'sunday', label: 'Sunday' },
 ];
 
 export default function UserSettings() {
@@ -325,10 +323,10 @@ export default function UserSettings() {
                   return (
                     <div
                       key={day.key}
-                      className="group flex flex-col sm:flex-row sm:items-center py-3 border-b border-transparent hover:border-gray-100 hover:bg-gray-50 -mx-4 px-4 transition-colors"
+                      className="flex flex-col sm:flex-row sm:items-center py-3 border-b border-transparent hover:border-gray-100 hover:bg-gray-50 -mx-4 px-4 transition-colors"
                     >
                       {/* Day Checkbox */}
-                      <div className="w-32 flex items-center gap-3 mb-2 sm:mb-0">
+                      <div className="w-40 flex items-center gap-3 mb-2 sm:mb-0">
                         <input
                           type="checkbox"
                           checked={settings.enabled}
@@ -337,7 +335,7 @@ export default function UserSettings() {
                           }
                           className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
-                        <span className="text-sm font-bold text-gray-700 uppercase w-6">
+                        <span className="text-sm font-semibold text-gray-700">
                           {day.label}
                         </span>
                       </div>
@@ -375,23 +373,6 @@ export default function UserSettings() {
                             Unavailable
                           </span>
                         )}
-                      </div>
-
-                      {/* Hover Actions */}
-                      <div className="w-20 flex justify-end gap-3 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity mt-2 sm:mt-0">
-                        <button
-                          title="Add Interval (Coming Soon)"
-                          className="text-gray-400 hover:text-blue-600"
-                        >
-                          <Plus size={18} />
-                        </button>
-                        <button
-                          title="Copy to weekdays"
-                          onClick={() => copyToAll(day.key)}
-                          className="text-gray-400 hover:text-blue-600"
-                        >
-                          <Copy size={18} />
-                        </button>
                       </div>
                     </div>
                   );
