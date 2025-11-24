@@ -1389,53 +1389,261 @@ app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken,
     console.error('Update external link error:', error);
     res.status(500).json({ error: 'Failed to update external link' });
   }
-});// ============ REMINDER SETTINGS ROUTES ============
+});
 
-// Get reminder settings for user
+// ========== REMINDER SETTINGS ROUTES (PER TEAM / PERSONAL USER) ==========
 
-app.get('/api/user/reminder-settings', authenticateToken, async (req, res) => {
+// GET /api/teams/:teamId/reminder-settings
+app.get('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const teamId = parseInt(req.params.teamId, 10);
 
-    const { rows } = await pool.query(
-      `SELECT reminder_enabled, reminder_hours_before 
-       FROM users 
-       WHERE id = $1`,
-      [userId]
+    // Make sure the user belongs to this team (optional but safer)
+    const membershipCheck = await pool.query(
+      `SELECT 1 
+       FROM team_members 
+       WHERE team_id = $1 AND user_id = $2 
+       LIMIT 1`,
+      [teamId, req.user.id]
     );
 
-    const user = rows[0];
+    if (membershipCheck.rowCount === 0) {
+      return res.status(403).json({ error: 'Not a member of this team' });
+    }
+
+    const result = await pool.query(
+      `SELECT enabled,
+              hours_before,
+              send_to_host,
+              send_to_guest
+       FROM team_reminder_settings
+       WHERE team_id = $1`,
+      [teamId]
+    );
+
+    if (result.rowCount === 0) {
+      // Defaults
+      return res.json({
+        settings: {
+          enabled: true,
+          hours_before: 24,
+          send_to_host: true,
+          send_to_guest: true,
+        },
+      });
+    }
+
+    return res.json({ settings: result.rows[0] });
+  } catch (err) {
+    console.error('Error loading reminder settings:', err);
+    return res.status(500).json({ error: 'Failed to load reminder settings' });
+  }
+});
+
+// PUT /api/teams/:teamId/reminder-settings
+app.put('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, res) => {
+  try {
+    const teamId = parseInt(req.params.teamId, 10);
+    const { enabled, hours_before, send_to_host, send_to_guest } = req.body;
+
+    // Check membership
+    const membershipCheck = await pool.query(
+      `SELECT 1 
+       FROM team_members 
+       WHERE team_id = $1 AND user_id = $2 
+       LIMIT 1`,
+      [teamId, req.user.id]
+    );
+
+    if (membershipCheck.rowCount === 0) {
+      return res.status(403).json({ error: 'Not a member of this team' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO team_reminder_settings (team_id, enabled, hours_before, send_to_host, send_to_guest, updated_at)
+       VALUES ($1, COALESCE($2, TRUE), COALESCE($3, 24), COALESCE($4, TRUE), COALESCE($5, TRUE), NOW())
+       ON CONFLICT (team_id)
+       DO UPDATE SET
+         enabled = COALESCE(EXCLUDED.enabled, TRUE),
+         hours_before = COALESCE(EXCLUDED.hours_before, 24),
+         send_to_host = COALESCE(EXCLUDED.send_to_host, TRUE),
+         send_to_guest = COALESCE(EXCLUDED.send_to_guest, TRUE),
+         updated_at = NOW()
+       RETURNING enabled, hours_before, send_to_host, send_to_guest`,
+      [teamId, enabled, hours_before, send_to_host, send_to_guest]
+    );
+
+    console.log(`✅ Updated reminder settings for team ${teamId}`);
+
+    return res.json({ settings: result.rows[0] });
+  } catch (err) {
+    console.error('Error updating reminder settings:', err);
+    return res.status(500).json({ error: 'Failed to update reminder settings' });
+  }
+});
+
+// Optional: status endpoint for debugging
+app.get('/api/reminders/status', authenticateToken, async (req, res) => {
+  try {
+    // You can expose last run, count pending today, etc.
+    const upcoming = await pool.query(
+      `SELECT COUNT(*) AS count
+       FROM bookings
+       WHERE status = 'confirmed'
+         AND start_time > NOW()
+         AND reminder_sent = FALSE`
+    );
 
     res.json({
-      reminder_enabled: user?.reminder_enabled ?? true,
-      reminder_hours_before: user?.reminder_hours_before ?? 24,
+      ok: true,
+      upcomingWithoutReminders: parseInt(upcoming.rows[0].count, 10),
     });
   } catch (err) {
-    console.error('Error loading user reminder settings:', err);
-    res.status(500).json({ error: 'Failed to load reminder settings' });
+    console.error('Error in reminders status:', err);
+    res.status(500).json({ error: 'Failed to get reminder status' });
   }
 });
 
-app.put('/api/user/reminder-settings', authenticateToken, async (req, res) => {
+// ========== REMINDER ENGINE ==========
+
+// Run every 5 minutes
+const REMINDER_CRON = '*/5 * * * *';
+let lastReminderRun = null;
+
+async function checkAndSendReminders() {
+  const now = new Date();
+  lastReminderRun = now;
+  console.log('⏰ Running reminder check at', now.toISOString());
+
   try {
-    const userId = req.user.id;
-    const { reminder_enabled, reminder_hours_before } = req.body;
+    // We select bookings that:
+    // - are confirmed
+    // - in the future
+    // - have not sent a reminder yet
+    // - belong to a team whose reminder settings are enabled
+    // - and are within that team's "hours_before" window.
+    //
+    // IMPORTANT: we do this per-team based on team_reminder_settings
+    const query = `
+      SELECT
+        b.id,
+        b.start_time,
+        b.end_time,
+        b.title,
+        b.status,
+        b.guest_email,
+        b.guest_name,
+        b.host_email,
+        b.host_name,
+        b.meeting_url,
+        b.timezone,
+        b.reminder_sent,
+        tm.id AS team_member_id,
+        t.id AS team_id,
+        trs.enabled,
+        trs.hours_before,
+        trs.send_to_host,
+        trs.send_to_guest
+      FROM bookings b
+      JOIN team_members tm ON b.team_member_id = tm.id
+      JOIN teams t ON tm.team_id = t.id
+      LEFT JOIN team_reminder_settings trs ON trs.team_id = t.id
+      WHERE b.status = 'confirmed'
+        AND b.start_time > NOW()
+        AND COALESCE(b.reminder_sent, FALSE) = FALSE
+        AND COALESCE(trs.enabled, TRUE) = TRUE
+    `;
 
-    await pool.query(
-      `UPDATE users
-       SET reminder_enabled = $1,
-           reminder_hours_before = $2
-       WHERE id = $3`,
-      [reminder_enabled, reminder_hours_before, reminder_hours_before ? userId : userId] // same userId, just to make it obvious
-    );
+    const result = await pool.query(query);
+    if (result.rowCount === 0) {
+      console.log('ℹ️ No bookings eligible for reminders right now');
+      return;
+    }
 
-    console.log(`✅ Updated reminder settings for user ${userId}`);
-    res.json({ success: true });
+    for (const row of result.rows) {
+      const startTime = new Date(row.start_time);
+      const diffMs = startTime.getTime() - now.getTime();
+      const diffHours = diffMs / (1000 * 60 * 60);
+
+      const hoursBefore = row.hours_before ?? 24;
+
+      // Only send when we are within the window AND positive
+      if (diffHours <= hoursBefore && diffHours > 0) {
+        console.log(
+          `📧 Sending reminder for booking ${row.id} (team ${row.team_id})`,
+          `diffHours=${diffHours.toFixed(2)} window=${hoursBefore}h`
+        );
+
+        const bookingForTemplate = {
+          id: row.id,
+          start_time: row.start_time,
+          end_time: row.end_time,
+          title: row.title,
+          guest_email: row.guest_email,
+          guest_name: row.guest_name,
+          host_email: row.host_email,
+          host_name: row.host_name,
+          meeting_url: row.meeting_url,
+          timezone: row.timezone,
+        };
+
+        const html = reminderEmailTemplate(bookingForTemplate, hoursBefore);
+
+        const recipients = [];
+        if (row.send_to_guest ?? true) {
+          if (row.guest_email) recipients.push(row.guest_email);
+        }
+        if (row.send_to_host ?? true) {
+          if (row.host_email) recipients.push(row.host_email);
+        }
+
+        if (recipients.length === 0) {
+          console.log(`⚠️ No recipients for booking ${row.id}, skipping reminder`);
+          continue;
+        }
+
+        try {
+          await sendBookingEmail({
+            to: recipients,
+            subject: `Reminder: ${row.title || 'Upcoming meeting'}`,
+            html,
+            // If you have ICS for reminders, pass it here; otherwise omit
+            icsAttachment: null,
+          });
+
+          // Mark as reminder_sent so we don't send again
+          await pool.query(
+            `UPDATE bookings
+             SET reminder_sent = TRUE
+             WHERE id = $1`,
+            [row.id]
+          );
+
+          console.log(`✅ Reminder sent and marked for booking ${row.id}`);
+        } catch (sendErr) {
+          console.error(`❌ Failed to send reminder for booking ${row.id}:`, sendErr);
+        }
+      } else {
+        // Not yet eligible
+        console.log(
+          `⏭ Skipping booking ${row.id}, diffHours=${diffHours.toFixed(
+            2
+          )}, window=${hoursBefore}h`
+        );
+      }
+    }
   } catch (err) {
-    console.error('Error updating user reminder settings:', err);
-    res.status(500).json({ error: 'Failed to update reminder settings' });
+    console.error('❌ Error in checkAndSendReminders:', err);
   }
+}
+
+// Schedule the cron
+cron.schedule(REMINDER_CRON, () => {
+  checkAndSendReminders().catch((err) =>
+    console.error('❌ Unhandled error in reminder cron:', err)
+  );
 });
+
 
 
 // ============ PRICING SETTINGS ENDPOINT ============
