@@ -1442,31 +1442,31 @@ app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async
 });
 
 // ========== USER AVAILABILITY UPDATE ==========
- app.post('/api/availability/update', authenticateToken, async (req, res) => {
+app.post('/api/availability/update', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const availability = req.body.availability;
 
-    if (!Array.isArray(availability)) {
+    if (!availability || typeof availability !== 'object') {
       return res.status(400).json({ error: 'Invalid availability format' });
     }
 
-    // Save to database
-    const result = await pool.query(
-      `UPDATE users SET availability = $1 WHERE id = $2 RETURNING id`,
+    await pool.query(
+      `UPDATE users SET availability = $1 WHERE id = $2`,
       [JSON.stringify(availability), userId]
     );
 
     return res.json({
       success: true,
-      message: "Availability saved successfully",
+      message: "Availability saved successfully"
     });
 
   } catch (err) {
-    console.error('Availability update error:', err);
-    return res.status(500).json({ error: 'Server error saving availability' });
+    console.error("Availability update error:", err);
+    return res.status(500).json({ error: "Server error saving availability" });
   }
 });
+
 
 
 // ============ AVAILABILITY SETTINGS ENDPOINTS ============
