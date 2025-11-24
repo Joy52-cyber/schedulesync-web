@@ -1,4 +1,6 @@
-﻿// ============ STARTUP DEBUGGING ============
+﻿
+
+// ============ STARTUP DEBUGGING ============
 console.log('========================================');
 console.log('🚀 SERVER STARTUP INITIATED');
 console.log('Time:', new Date().toISOString());
@@ -17,6 +19,7 @@ console.log('- GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? '✅ S
 console.log('- FRONTEND_URL:', process.env.FRONTEND_URL || '❌ Missing');
 console.log('- PORT:', process.env.PORT || '3000');
 console.log('========================================');
+
 
 
 // Catch any require errors
@@ -49,6 +52,7 @@ try {
 }
 
 
+
 require('dotenv').config();
 
 const PORT = process.env.PORT || 3000; 
@@ -65,8 +69,6 @@ const path = require('path');
 const { google } = require('googleapis');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const cron = require('node-cron');
-const fetch = require('node-fetch');
 
 const app = express();
 
@@ -74,6 +76,7 @@ const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
   try {
     console.log('📤 Attempting to send email to:', to);
     console.log('🔑 Resend API key exists?', !!process.env.RESEND_API_KEY);
+    console.log('🔑 Resend API key starts with:', process.env.RESEND_API_KEY?.substring(0, 10));
     
     const emailOptions = {
       from: 'ScheduleSync <hello@trucal.xyz>',
@@ -91,11 +94,14 @@ const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
       ];
     }
 
+    console.log('📨 Calling resend.emails.send...');
     const result = await resend.emails.send(emailOptions);
-    console.log('✅ Email sent - ID:', result.id);
+    console.log('✅ Email sent - FULL RESULT:', JSON.stringify(result, null, 2));
     return result;
   } catch (error) {
-    console.error('❌ Email error:', error);
+    console.error('❌ Email error - FULL ERROR:', error);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
     throw error;
   }
 };
@@ -188,7 +194,7 @@ pool.connect((err, client, release) => {
   }
 });
 
-// ============ DATABASE INITIALIZATION (Cleaned SQL) ============
+// ============ DATABASE INITIALIZATION ============
 
 async function initDB() {
   try {
@@ -269,8 +275,7 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
-    
-    // Event Types Table
+    // ✅ NEW: Event Types Table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS event_types (
         id SERIAL PRIMARY KEY,
@@ -283,18 +288,6 @@ async function initDB() {
         is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT NOW(),
         UNIQUE(user_id, slug)
-      )
-    `);
-
-    // Blocked Times Table (CLEANED)
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS blocked_times (
-        id SERIAL PRIMARY KEY,
-        team_member_id INTEGER REFERENCES team_members(id) ON DELETE CASCADE,
-        start_time TIMESTAMP NOT NULL,
-        end_time TIMESTAMP NOT NULL,
-        reason TEXT,
-        created_at TIMESTAMP DEFAULT NOW()
       )
     `);
 
@@ -347,10 +340,10 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT u.id, u.email, u.name, u.calendar_sync_enabled, u.timezone,
-            (SELECT tm.booking_token FROM team_members tm
-             JOIN teams t ON tm.team_id = t.id
-             WHERE tm.user_id = u.id AND t.name LIKE '%Personal Bookings%'
-             LIMIT 1) as booking_token
+              (SELECT tm.booking_token FROM team_members tm   -- <--- CHANGED to tm.booking_token
+               JOIN teams t ON tm.team_id = t.id 
+               WHERE tm.user_id = u.id AND t.name LIKE '%Personal Bookings%' 
+               LIMIT 1) as booking_token
        FROM users u
        WHERE u.id = $1`,
       [req.user.id]
@@ -752,6 +745,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     console.log('🔐 Login attempt:', email);
 
+    // Validate input
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
@@ -1036,27 +1030,27 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT 
-          t.id,
-          t.name,
-          t.description,
-          t.booking_mode,
-          t.owner_id,
-          t.created_at,
-          t.updated_at,
-          MAX(tm.booking_token) as booking_token,
-          COUNT(DISTINCT tm.id) as member_count,
-          COUNT(DISTINCT b.id) as booking_count
-        FROM teams t
-        LEFT JOIN team_members tm ON t.id = tm.team_id 
-          AND (tm.user_id = t.owner_id OR tm.id = (
-              SELECT id FROM team_members WHERE team_id = t.id ORDER BY id ASC LIMIT 1
-          ))
-        LEFT JOIN bookings b ON t.id = b.team_id
-        WHERE t.owner_id = $1
-        GROUP BY t.id, t.name, t.description, t.booking_mode, t.owner_id, t.created_at, t.updated_at
-        ORDER BY 
-          CASE WHEN t.name LIKE '%Personal Bookings%' THEN 0 ELSE 1 END,
-          t.created_at DESC`,
+         t.id,
+         t.name,
+         t.description,
+         t.booking_mode,
+         t.owner_id,
+         t.created_at,
+         t.updated_at,
+         MAX(tm.booking_token) as booking_token,
+         COUNT(DISTINCT tm.id) as member_count,
+         COUNT(DISTINCT b.id) as booking_count
+       FROM teams t
+       LEFT JOIN team_members tm ON t.id = tm.team_id 
+           AND (tm.user_id = t.owner_id OR tm.id = (
+               SELECT id FROM team_members WHERE team_id = t.id ORDER BY id ASC LIMIT 1
+           ))
+       LEFT JOIN bookings b ON t.id = b.team_id
+       WHERE t.owner_id = $1
+       GROUP BY t.id, t.name, t.description, t.booking_mode, t.owner_id, t.created_at, t.updated_at
+       ORDER BY 
+         CASE WHEN t.name LIKE '%Personal Bookings%' THEN 0 ELSE 1 END,
+         t.created_at DESC`,
       [req.user.id]
     );
     
@@ -1300,13 +1294,13 @@ app.get('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
 
     const result = await pool.query(
       `SELECT tm.*, 
-              tm.is_active, 
+              tm.is_active,  -- Add this line
               u.name as user_name, 
               u.email as user_email 
-        FROM team_members tm
-        LEFT JOIN users u ON tm.user_id = u.id 
-        WHERE tm.team_id = $1 
-        ORDER BY tm.created_at DESC`,
+       FROM team_members tm
+       LEFT JOIN users u ON tm.user_id = u.id 
+       WHERE tm.team_id = $1 
+       ORDER BY tm.created_at DESC`,
       [teamId]
     );
     res.json({ members: result.rows });
@@ -1447,184 +1441,171 @@ app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async
   }
 });
 
-// ============ AVAILABILITY SETTINGS ENDPOINTS (FIXED) ============
 
-// NOTE: This helper function encapsulates the core GET logic
-const getAvailabilitySettings = async (req, res, memberId, userId) => {
+
+
+
+
+// ============ AVAILABILITY SETTINGS ENDPOINTS ============
+
+// Get team member availability settings
+app.get('/api/team-members/:id/availability', authenticateToken, async (req, res) => {
   try {
+    const memberId = parseInt(req.params.id);
+    const userId = req.user.id;
+
+    console.log('📋 Getting availability for member:', memberId);
+
+    // Get team member and verify ownership
     const memberResult = await pool.query(
-      `SELECT tm.*, t.owner_id FROM team_members tm JOIN teams t ON tm.team_id = t.id WHERE tm.id = $1`,
+      `SELECT tm.*, t.owner_id 
+       FROM team_members tm 
+       JOIN teams t ON tm.team_id = t.id 
+       WHERE tm.id = $1`,
       [memberId]
     );
 
-    if (memberResult.rows.length === 0) return res.status(404).json({ error: 'Team member not found' });
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Team member not found' });
+    }
+
     const member = memberResult.rows[0];
 
+    // Verify ownership
     if (member.owner_id !== userId && member.user_id !== userId) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
+    // Get blocked times
     const blockedResult = await pool.query(
-      `SELECT start_time, end_time, reason FROM blocked_times WHERE team_member_id = $1 ORDER BY start_time ASC`,
+      `SELECT * FROM blocked_times 
+       WHERE team_member_id = $1 
+       ORDER BY start_time ASC`,
       [memberId]
     );
-    
-    // Ensure working_hours is parsed if it's stored as JSONB/TEXT
-    let workingHoursData = member.working_hours;
-    if (typeof workingHoursData === 'string') {
-        try {
-            workingHoursData = JSON.parse(workingHoursData);
-        } catch (e) {
-            console.error("Failed to parse working_hours JSON:", e);
-            workingHoursData = null; // Fallback to defaults
-        }
-    }
 
     res.json({
       member: {
         id: member.id,
         name: member.name,
         buffer_time: member.buffer_time || 0,
-        lead_time_hours: member.lead_time_hours || 0,
-        booking_horizon_days: member.booking_horizon_days || 30,
-        daily_booking_cap: member.daily_booking_cap || null,
-        working_hours: workingHoursData || { /* default structure will be applied by frontend if null */ }, 
+        working_hours: member.working_hours || {
+          monday: { enabled: true, start: '09:00', end: '17:00' },
+          tuesday: { enabled: true, start: '09:00', end: '17:00' },
+          wednesday: { enabled: true, start: '09:00', end: '17:00' },
+          thursday: { enabled: true, start: '09:00', end: '17:00' },
+          friday: { enabled: true, start: '09:00', end: '17:00' },
+          saturday: { enabled: false, start: '09:00', end: '17:00' },
+          sunday: { enabled: false, start: '09:00', end: '17:00' },
+        },
       },
       blocked_times: blockedResult.rows,
     });
   } catch (error) {
-    console.error('Get member availability error:', error);
+    console.error('Get availability error:', error);
     res.status(500).json({ error: 'Failed to get availability settings' });
   }
-};
+});
 
-// ** FIX 1: GET /api/availability/me (Handles the Dashboard link) **
-app.get('/api/availability/me', authenticateToken, async (req, res) => {
+// Update team member availability settings
+app.put('/api/team-members/:id/availability', authenticateToken, async (req, res) => {
   try {
+    const memberId = parseInt(req.params.id);
     const userId = req.user.id;
-    
-    // Find the user's personal member ID
+   const { 
+  buffer_time, 
+  lead_time_hours,       
+  booking_horizon_days,  
+  daily_booking_cap,      
+  working_hours, 
+  blocked_times 
+} = req.body;
+
+    console.log('⚙️ Updating availability for member:', memberId);
+
+    // Verify ownership
     const memberResult = await pool.query(
-      `SELECT tm.id FROM team_members tm JOIN teams t ON tm.team_id = t.id 
-       WHERE tm.user_id = $1 AND t.owner_id = $1 LIMIT 1`,
-      [userId]
+      `SELECT tm.*, t.owner_id 
+       FROM team_members tm 
+       JOIN teams t ON tm.team_id = t.id 
+       WHERE tm.id = $1`,
+      [memberId]
     );
 
     if (memberResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Personal booking schedule not found. Please create a link on the Dashboard first.' });
+      return res.status(404).json({ error: 'Team member not found' });
     }
 
-    const memberId = memberResult.rows[0].id;
-    
-    // Forward the request logic to the core handler
-    return getAvailabilitySettings(req, res, memberId, userId);
-
-  } catch (error) {
-    console.error('❌ Get /availability/me error:', error);
-    res.status(500).json({ error: 'Failed to resolve personal availability settings' });
-  }
-});
-
-// GET /api/teams/:teamId/members/:memberId/availability (Detailed route)
-app.get('/api/teams/:teamId/members/:memberId/availability', authenticateToken, async (req, res) => {
-  const { memberId } = req.params;
-  const userId = req.user.id;
-  await getAvailabilitySettings(req, res, parseInt(memberId), userId);
-});
-
-// NOTE: This handler encapsulates the core PUT logic
-const updateAvailabilitySettings = async (req, res, memberId, userId) => {
-  try {
-    const memberIdInt = parseInt(memberId);
-
-    // 1. Verify ownership
-    const memberResult = await pool.query(
-      `SELECT tm.*, t.owner_id, tm.user_id FROM team_members tm JOIN teams t ON tm.team_id = t.id WHERE tm.id = $1`,
-      [memberIdInt]
-    );
-    if (memberResult.rows.length === 0) return res.status(404).json({ error: 'Team member not found' });
     const member = memberResult.rows[0];
-    if (member.owner_id !== userId && member.user_id !== userId) return res.status(403).json({ error: 'Not authorized' });
 
-    const { buffer_time, lead_time_hours, booking_horizon_days, daily_booking_cap, working_hours, blocked_times } = req.body;
-
-    // 2. Update core settings
-    await pool.query(
-      `UPDATE team_members 
-       SET buffer_time = $1, 
-           lead_time_hours = $2, 
-           booking_horizon_days = $3, 
-           daily_booking_cap = $4, 
-           working_hours = $5
-       WHERE id = $6`,
-      [
-        buffer_time || 0, 
-        lead_time_hours || 0, 
-        booking_horizon_days || 30,
-        daily_booking_cap,
-        JSON.stringify(working_hours), 
-        memberIdInt
-      ]
-    );
-
-    // 3. Update blocked times: Clear existing and insert new ones
-    await pool.query('DELETE FROM blocked_times WHERE team_member_id = $1', [memberIdInt]);
-
-    if (blocked_times && blocked_times.length > 0) {
-      for (const block of blocked_times) {
-        if (block.start_time && block.end_time) {
-          await pool.query(
-            `INSERT INTO blocked_times (team_member_id, start_time, end_time, reason) 
-             VALUES ($1, $2, $3, $4)`,
-            [memberIdInt, block.start_time, block.end_time, block.reason || null]
-          );
-        }
-      }
+    if (member.owner_id !== userId && member.user_id !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
     }
 
-    console.log(`✅ Availability settings updated for member ${memberId}`);
+    // Update team member settings
+    await pool.query(
+  `UPDATE team_members 
+   SET buffer_time = $1, 
+       lead_time_hours = $2,        
+       booking_horizon_days = $3,   
+       daily_booking_cap = $4,  
+       working_hours = $5
+   WHERE id = $6`,
+  [buffer_time || 0, lead_time_hours || 0, booking_horizon_days || 30, 
+   daily_booking_cap, JSON.stringify(working_hours), memberId]
+);
+
+    // Update blocked times
+    await pool.query('DELETE FROM blocked_times WHERE team_member_id = $1', [memberId]);
+
+    // Handle blocked times
+console.log('🔧 Processing blocked times:', blocked_times);
+
+if (blocked_times && blocked_times.length > 0) {
+  console.log(`📝 Saving ${blocked_times.length} blocked time(s)`);
+  
+  for (const block of blocked_times) {
+    console.log('Processing block:', block);
+    
+    // Skip blocks with temp IDs and no dates
+    if (!block.start_time || !block.end_time) {
+      console.log('⚠️ Skipping block - missing dates');
+      continue;
+    }
+    
+    // Convert datetime-local format to ISO timestamp
+    const startTime = new Date(block.start_time).toISOString();
+    const endTime = new Date(block.end_time).toISOString();
+    
+    console.log('📅 Inserting blocked time:', {
+      memberId,
+      startTime,
+      endTime,
+      reason: block.reason
+    });
+    
+    try {
+      await pool.query(
+        `INSERT INTO blocked_times (team_member_id, start_time, end_time, reason) 
+         VALUES ($1, $2, $3, $4)`,
+        [memberId, startTime, endTime, block.reason || null]
+      );
+      console.log('✅ Blocked time inserted');
+    } catch (blockError) {
+      console.error('❌ Failed to insert blocked time:', blockError);
+    }
+  }
+} else {
+  console.log('ℹ️ No blocked times to save');
+}
+
+    console.log('✅ Availability settings updated');
     res.json({ success: true, message: 'Availability settings updated' });
   } catch (error) {
-    console.error('❌ Update availability error:', error);
+    console.error('Update availability error:', error);
     res.status(500).json({ error: 'Failed to update availability settings' });
   }
-};
-
-// ** FIX 2: PUT /api/availability/me (Handles the Dashboard save) **
-app.put('/api/availability/me', authenticateToken, async (req, res) => {
-    try {
-        const userId = req.user.id;
-        
-        // Resolve Member ID
-        const memberResult = await pool.query(
-          `SELECT tm.id FROM team_members tm JOIN teams t ON tm.team_id = t.id 
-           WHERE tm.user_id = $1 AND t.owner_id = $1 LIMIT 1`,
-          [userId]
-        );
-
-        if (memberResult.rows.length === 0) {
-          return res.status(404).json({ error: 'Personal schedule not found for update' });
-        }
-        
-        const memberId = memberResult.rows[0].id;
-
-        // Delegate to the core handler
-        return updateAvailabilitySettings(req, res, memberId, userId);
-
-    } catch (error) {
-        console.error('❌ Put /availability/me error:', error);
-        res.status(500).json({ error: 'Failed to update personal availability settings' });
-    }
 });
-
-
-// PUT /api/teams/:teamId/members/:memberId/availability (Detailed route for saving)
-app.put('/api/teams/:teamId/members/:memberId/availability', authenticateToken, async (req, res) => {
-  const { memberId } = req.params;
-  const userId = req.user.id;
-  await updateAvailabilitySettings(req, res, memberId, userId);
-});
-
 
 // ============ AI SLOT RANKING ALGORITHM ============
 
@@ -1757,10 +1738,10 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
               u.google_refresh_token, 
               u.name as organizer_name,
               t.id as team_id
-        FROM team_members tm
-        LEFT JOIN users u ON tm.user_id = u.id
-        LEFT JOIN teams t ON tm.team_id = t.id
-        WHERE tm.booking_token = $1`,
+       FROM team_members tm
+       LEFT JOIN users u ON tm.user_id = u.id
+       LEFT JOIN teams t ON tm.team_id = t.id
+       WHERE tm.booking_token = $1`,
       [token]
     );
 
@@ -1776,28 +1757,15 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     const horizonDays = member.booking_horizon_days || 30; // max days ahead
     const dailyCap = member.daily_booking_cap || null; // max bookings per day
     
-    let workingHours = member.working_hours;
-    if (typeof workingHours === 'string') {
-        try {
-            workingHours = JSON.parse(workingHours);
-        } catch (e) {
-            console.error("Failed to parse working_hours JSON during slot generation:", e);
-            workingHours = null;
-        }
-    }
-
-    if (!workingHours) {
-        workingHours = {
-          monday: { enabled: true, start: '09:00', end: '17:00' },
-          tuesday: { enabled: true, start: '09:00', end: '17:00' },
-          wednesday: { enabled: true, start: '09:00', end: '17:00' },
-          thursday: { enabled: true, start: '09:00', end: '17:00' },
-          friday: { enabled: true, start: '09:00', end: '17:00' },
-          saturday: { enabled: false, start: '09:00', end: '17:00' },
-          sunday: { enabled: false, start: '09:00', end: '17:00' },
-        };
-    }
-
+    const workingHours = member.working_hours || {
+      monday: { enabled: true, start: '09:00', end: '17:00' },
+      tuesday: { enabled: true, start: '09:00', end: '17:00' },
+      wednesday: { enabled: true, start: '09:00', end: '17:00' },
+      thursday: { enabled: true, start: '09:00', end: '17:00' },
+      friday: { enabled: true, start: '09:00', end: '17:00' },
+      saturday: { enabled: false, start: '09:00', end: '17:00' },
+      sunday: { enabled: false, start: '09:00', end: '17:00' },
+    };
 
     console.log('⚙️ Settings:', {
       bufferTime,
@@ -1808,7 +1776,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
 
     // ========== 2. GET BLOCKED TIMES ==========
     const blockedResult = await pool.query(
-      `SELECT start_time, end_time, reason FROM blocked_times 
+      `SELECT * FROM blocked_times 
        WHERE team_member_id = $1 
        AND end_time > NOW()
        ORDER BY start_time ASC`,
@@ -2098,46 +2066,46 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
           }).format(slotStart);
 
           const slotData = {
-            start: slotStart.toISOString(),
-            end: slotEnd.toISOString(),
-            status,
-            reason,
-            details,
-            time,
-            timestamp: slotStart.getTime()
-          };
+  start: slotStart.toISOString(),
+  end: slotEnd.toISOString(),
+  status,
+  reason,
+  details,
+  time,
+  timestamp: slotStart.getTime()
+};
 
-          // Calculate match score for available slots
-          if (status === 'available') {
-            slotData.matchScore = calculateSlotScore(slotData, existingBookings, timezone);
-            slotData.matchLabel = getMatchLabel(slotData.matchScore);
-            slotData.matchColor = getMatchColor(slotData.matchScore);
-          } else {
-            slotData.matchScore = 0;
-            slotData.matchLabel = 'Unavailable';
-            slotData.matchColor = 'gray';
-          }
+// Calculate match score for available slots
+if (status === 'available') {
+  slotData.matchScore = calculateSlotScore(slotData, existingBookings, timezone);
+  slotData.matchLabel = getMatchLabel(slotData.matchScore);
+  slotData.matchColor = getMatchColor(slotData.matchScore);
+} else {
+  slotData.matchScore = 0;
+  slotData.matchLabel = 'Unavailable';
+  slotData.matchColor = 'gray';
+}
 
-          slots.push(slotData);
+slots.push(slotData);
         }
       }
     }
 
     // ========== 7.5. SORT BY MATCH SCORE ==========
-    console.log('🎯 Sorting slots by match score...');
-    slots.sort((a, b) => {
-      // Available slots first
-      if (a.status === 'available' && b.status !== 'available') return -1;
-      if (a.status !== 'available' && b.status === 'available') return 1;
-      
-      // Then by match score (highest first)
-      if (a.matchScore !== b.matchScore) {
-        return b.matchScore - a.matchScore;
-      }
-      
-      // Then by timestamp (earliest first)
-      return a.timestamp - b.timestamp;
-    });
+console.log('🎯 Sorting slots by match score...');
+slots.sort((a, b) => {
+  // Available slots first
+  if (a.status === 'available' && b.status !== 'available') return -1;
+  if (a.status !== 'available' && b.status === 'available') return 1;
+  
+  // Then by match score (highest first)
+  if (a.matchScore !== b.matchScore) {
+    return b.matchScore - a.matchScore;
+  }
+  
+  // Then by timestamp (earliest first)
+  return a.timestamp - b.timestamp;
+});
     // ========== 8. GROUP BY DATE ==========
     const slotsByDate = {};
     slots.forEach(slot => {
@@ -2407,7 +2375,7 @@ app.post('/api/bookings/:id/reschedule', authenticateToken, async (req, res) => 
     console.log('✅ Booking rescheduled successfully');
 
     // TODO: Send reschedule email
-        try {
+       try {
       const icsFile = generateICS({
         id: updatedBooking.id,
         start_time: updatedBooking.start_time,
@@ -2433,7 +2401,7 @@ app.post('/api/bookings/:id/reschedule', authenticateToken, async (req, res) => 
         ),
         icsAttachment: icsFile,
       });
-      console.log('✅ Reschedule emails sent');
+      console.log('✅ Reschedule email sent');
     } catch (emailError) {
       console.error('⚠️ Failed to send reschedule email:', emailError);
     }
@@ -2555,8 +2523,6 @@ app.delete('/api/event-types/:id', authenticateToken, async (req, res) => {
 
 app.get('/api/bookings', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
-    
     const result = await pool.query(
       `SELECT b.*, t.name as team_name, tm.name as member_name 
        FROM bookings b
@@ -2639,8 +2605,8 @@ app.post('/api/bookings', async (req, res) => {
 
     const memberResult = await pool.query(
       `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
-       u.google_access_token, u.google_refresh_token, 
-       u.email as member_email, u.name as member_name
+              u.google_access_token, u.google_refresh_token, 
+              u.email as member_email, u.name as member_name
        FROM team_members tm 
        JOIN teams t ON tm.team_id = t.id 
        LEFT JOIN users u ON tm.user_id = u.id 
@@ -2682,7 +2648,6 @@ app.post('/api/bookings', async (req, res) => {
           assignedMembers = [rrResult.rows[0]];
           console.log('🔄 Round-robin: Assigning to', rrResult.rows[0].name);
         } else {
-          console.log('⚠️ No available members, falling back to token member');
           assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
         }
         break;
@@ -2736,10 +2701,10 @@ app.post('/api/bookings', async (req, res) => {
     for (const assignedMember of assignedMembers) {
       const bookingResult = await pool.query(
         `INSERT INTO bookings (team_id, member_id, user_id, attendee_name, attendee_email, 
-          start_time, end_time, notes, booking_token, status)
+         start_time, end_time, notes, booking_token, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
         [member.team_id, assignedMember.id, assignedMember.user_id, attendee_name, attendee_email, 
-          slot.start, slot.end, notes || '', token, 'confirmed']
+         slot.start, slot.end, notes || '', token, 'confirmed']
       );
 
       createdBookings.push(bookingResult.rows[0]);
@@ -2910,16 +2875,16 @@ app.get('/api/bookings/manage/:token', async (req, res) => {
     
     const result = await pool.query(
       `SELECT b.*, 
-       b.meet_link,
-       b.calendar_event_id,
+      b.meet_link,
+      b.calendar_event_id,
               t.name as team_name,
               tm.name as organizer_name,
               tm.email as organizer_email,
               tm.booking_token as member_booking_token
-        FROM bookings b
-        JOIN teams t ON b.team_id = t.id
-        LEFT JOIN team_members tm ON b.member_id = tm.id
-        WHERE b.booking_token = $1`,
+       FROM bookings b
+       JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE b.booking_token = $1`,
       [token]
     );
     
@@ -2947,8 +2912,8 @@ app.get('/api/bookings/manage/:token', async (req, res) => {
         organizer_name: booking.organizer_name,
         organizer_email: booking.organizer_email,
         member_booking_token: booking.member_booking_token,
-        meet_link: booking.meet_link,          
-        calendar_event_id: booking.calendar_event_id,
+        meet_link: booking.meet_link,              
+    calendar_event_id: booking.calendar_event_id,
         can_modify: canModify,
         is_past: bookingTime < now
       }
@@ -2973,12 +2938,12 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
 
     // Get booking by token
     const bookingCheck = await pool.query(
-      `SELECT b.*, b.meet_link, b.calendar_event_id, t.owner_id, tm.user_id as member_user_id, tm.name as member_name,
+      `SELECT b.*, b.meet_link, b.calendar_event_id,  t.owner_id, tm.user_id as member_user_id, tm.name as member_name,
               tm.email as member_email, t.name as team_name
-        FROM bookings b
-        JOIN teams t ON b.team_id = t.id
-        LEFT JOIN team_members tm ON b.member_id = tm.id
-        WHERE b.booking_token = $1 AND b.status = 'confirmed'`,
+       FROM bookings b
+       JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE b.booking_token = $1 AND b.status = 'confirmed'`,
       [token]
     );
 
@@ -3037,7 +3002,7 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
             organizer_name: booking.member_name,
             team_name: booking.team_name,
             booking_token: token,
-            meet_link: booking.meet_link,  
+            meet_link: booking.meet_link, 
           },
           oldStartTime
         ),
@@ -3095,10 +3060,10 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
     const bookingCheck = await pool.query(
       `SELECT b.*, b.meet_link, b.calendar_event_id, t.owner_id, tm.user_id as member_user_id, tm.name as member_name,
               tm.email as member_email, t.name as team_name, tm.booking_token as member_booking_token
-        FROM bookings b
-        JOIN teams t ON b.team_id = t.id
-        LEFT JOIN team_members tm ON b.member_id = tm.id
-        WHERE b.booking_token = $1 AND b.status = 'confirmed'`,
+       FROM bookings b
+       JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE b.booking_token = $1 AND b.status = 'confirmed'`,
       [token]
     );
 
@@ -3209,19 +3174,19 @@ app.get('/api/reminders/status', authenticateToken, async (req, res) => {
     
     // Failed reminders
     const failedResult = await pool.query(
-      `SELECT b.*, tm.name as organizer_name, t.name as team_name, 
-              br.error_message, br.sent_at as reminder_failed_at
-       FROM bookings b
-       LEFT JOIN team_members tm ON b.member_id = tm.id
-       LEFT JOIN teams t ON b.team_id = t.id
-       INNER JOIN booking_reminders br ON b.id = br.booking_id
-       WHERE (t.owner_id = $1 OR tm.user_id = $1)
-         AND br.status = 'failed'
-         AND br.sent_at >= NOW() - INTERVAL '7 days'
-       ORDER BY br.sent_at DESC
-       LIMIT 10`,
-      [userId]
-    );
+  `SELECT b.*, tm.name as organizer_name, t.name as team_name, 
+          br.error_message, br.sent_at as reminder_failed_at
+   FROM bookings b
+   LEFT JOIN team_members tm ON b.member_id = tm.id
+   LEFT JOIN teams t ON b.team_id = t.id
+   INNER JOIN booking_reminders br ON b.id = br.booking_id
+   WHERE (t.owner_id = $1 OR tm.user_id = $1)
+     AND br.status = 'failed'
+     AND br.sent_at >= NOW() - INTERVAL '7 days'
+   ORDER BY br.sent_at DESC
+   LIMIT 10`,
+  [userId]
+);
     
     res.json({
       pending: pendingResult.rows,
@@ -3331,9 +3296,9 @@ app.get('/api/book/:token/pricing', async (req, res) => {
     const memberResult = await pool.query(
       `SELECT tm.booking_price, tm.currency, tm.payment_required, tm.name,
               t.name as team_name
-        FROM team_members tm
-        JOIN teams t ON tm.team_id = t.id
-        WHERE tm.booking_token = $1`,
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       WHERE tm.booking_token = $1`,
       [token]
     );
 
@@ -3379,9 +3344,9 @@ app.post('/api/payments/create-intent', async (req, res) => {
     const memberResult = await pool.query(
       `SELECT tm.booking_price, tm.currency, tm.payment_required, tm.name,
               t.name as team_name
-        FROM team_members tm
-        JOIN teams t ON tm.team_id = t.id
-        WHERE tm.booking_token = $1`,
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       WHERE tm.booking_token = $1`,
       [bookingToken]
     );
 
@@ -3441,10 +3406,10 @@ app.post('/api/payments/confirm-booking', async (req, res) => {
       `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
               u.google_access_token, u.google_refresh_token, 
               u.email as member_email, u.name as member_name
-        FROM team_members tm 
-        JOIN teams t ON tm.team_id = t.id 
-        LEFT JOIN users u ON tm.user_id = u.id 
-        WHERE tm.booking_token = $1`,
+       FROM team_members tm 
+       JOIN teams t ON tm.team_id = t.id 
+       LEFT JOIN users u ON tm.user_id = u.id 
+       WHERE tm.booking_token = $1`,
       [bookingToken]
     );
 
@@ -3568,10 +3533,10 @@ app.post('/api/payments/refund', authenticateToken, async (req, res) => {
     // Get booking with payment info
     const bookingResult = await pool.query(
       `SELECT b.*, t.owner_id, tm.user_id as member_user_id
-        FROM bookings b
-        JOIN teams t ON b.team_id = t.id
-        LEFT JOIN team_members tm ON b.member_id = tm.id
-        WHERE b.id = $1`,
+       FROM bookings b
+       JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE b.id = $1`,
       [bookingId]
     );
 
@@ -3819,9 +3784,9 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
     // Call Claude API
 
     const aiResponse = await callAnthropicWithRetry({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1500,
-      system: `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
+  model: "claude-sonnet-4-20250514",
+  max_tokens: 1500,
+  system: `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
 
 User context: ${JSON.stringify(userContext)}
 
@@ -3840,7 +3805,7 @@ Return JSON structure:
     "title": "string or null",
     "attendees": ["email@example.com"],
     "date": "YYYY-MM-DD (always use 2025 or later)",
-    "time": "HH:MM in 24-hour format",  
+    "time": "HH:MM in 24-hour format", 
     "duration_minutes": number or null,
     "notes": "string or null",
     "time_window": "tomorrow morning" | "next week" | "this afternoon" etc
@@ -3848,14 +3813,24 @@ Return JSON structure:
   "missing_fields": ["field1", "field2"],
   "clarifying_question": "What time works best for you?",
   "action": "create" | "list" | "suggest_slots" | "cancel" | null
-}`,
-      messages: [
-        ...formattedHistory,
-        { role: "user", content: message.trim() }
-      ]
-    });
+}
 
-    
+Examples:
+- "2 pm monday december 1" → date: "2025-12-01", time: "14:00"
+- "tomorrow at 3pm" → calculate tomorrow's date, time: "15:00"
+
+For "show bookings" intent, set action to "list".
+For "find time" or vague scheduling, set action to "suggest_slots".
+For specific time/date provided, set action to "create".
+If missing info, set intent to "clarify".`,
+  messages: [
+    ...formattedHistory,
+    { role: "user", content: message.trim() }
+  ]
+});
+
+
+   
     const aiData = await aiResponse.json();
 
     if (!aiData || !aiData.content || !aiData.content[0] || !aiData.content[0].text) {
@@ -4029,12 +4004,12 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
     const memberResult = await pool.query(
       `SELECT tm.booking_token, tm.id, tm.name, t.id as team_id, t.name as team_name,
               u.google_access_token, u.google_refresh_token
-        FROM team_members tm
-        JOIN teams t ON tm.team_id = t.id
-        JOIN users u ON tm.user_id = u.id
-        WHERE tm.user_id = $1
-        AND t.name LIKE '%Personal Bookings%'
-        LIMIT 1`,
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       JOIN users u ON tm.user_id = u.id
+       WHERE tm.user_id = $1
+       AND t.name LIKE '%Personal Bookings%'
+       LIMIT 1`,
       [userId]
     );
 
@@ -4294,6 +4269,7 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) =>
         u.email, 
         u.provider, 
         u.created_at,
+        -- u.last_login_at,  <-- REMOVED THIS LINE because the column doesn't exist
         (SELECT COUNT(*) FROM teams WHERE owner_id = u.id) as team_count,
         (SELECT COUNT(*) FROM bookings WHERE user_id = u.id) as booking_count
       FROM users u
@@ -4444,6 +4420,290 @@ if (process.env.NODE_ENV === 'production') {
     if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'API endpoint not found' });
     res.sendFile(path.join(distPath, 'index.html'));
   });
+}
+
+const cron = require('node-cron');
+
+// ============ REMINDER EMAIL TEMPLATES ============
+
+const reminderEmailTemplate = (booking, hoursUntil) => {
+  const meetingDate = new Date(booking.start_time).toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  
+  const meetingTime = new Date(booking.start_time).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
+        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+        .meeting-details { background: white; border: 2px solid #e5e7eb; border-radius: 10px; padding: 20px; margin: 20px 0; }
+        .detail-row { display: flex; align-items: center; margin: 15px 0; }
+        .alert { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 5px; }
+        .meet-box { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 12px; text-align: center; margin: 25px 0; }
+        .meet-button { display: inline-block; background: white; color: #667eea; padding: 15px 40px; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px; margin: 10px 0; }
+        .action-buttons { margin: 25px 0; padding: 20px; background: #f3f4f6; border-radius: 10px; text-align: center; }
+        .btn { display: inline-block; padding: 12px 24px; margin: 5px; text-decoration: none; border-radius: 8px; font-weight: 600; }
+        .btn-reschedule { background: #3b82f6; color: white; }
+        .btn-cancel { background: #ef4444; color: white; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin: 0; font-size: 28px;">⏰ Meeting Reminder</h1>
+          <p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 16px;">Your meeting is coming up soon!</p>
+        </div>
+        <div class="content">
+          <div class="alert">
+            <strong style="font-size: 16px;">⏰ Reminder:</strong> Your meeting is in <strong>${hoursUntil} hours</strong>
+          </div>
+          
+          ${booking.meet_link ? `
+          <div class="meet-box">
+            <p style="color: white; font-size: 20px; font-weight: bold; margin: 0 0 15px 0;">🎥 Ready to Join?</p>
+            <a href="${booking.meet_link}" class="meet-button">
+              Join Google Meet
+            </a>
+            <p style="color: rgba(255,255,255,0.9); font-size: 13px; margin: 15px 0 5px 0;">
+              Meeting Link:
+            </p>
+            <p style="color: rgba(255,255,255,0.7); font-size: 11px; margin: 0; word-break: break-all;">
+              ${booking.meet_link}
+            </p>
+            <p style="color: rgba(255,255,255,0.8); font-size: 13px; margin: 15px 0 0 0;">
+              💡 Join a few minutes early to test your setup
+            </p>
+          </div>
+          ` : ''}
+          
+          <div class="meeting-details">
+            <h2 style="margin-top: 0; color: #667eea; font-size: 20px;">Meeting Details</h2>
+            
+            <div class="detail-row">
+              <span style="font-size: 24px; margin-right: 10px;">📅</span>
+              <div>
+                <strong>Date:</strong><br>
+                ${meetingDate}
+              </div>
+            </div>
+            
+            <div class="detail-row">
+              <span style="font-size: 24px; margin-right: 10px;">🕐</span>
+              <div>
+                <strong>Time:</strong><br>
+                ${meetingTime}
+              </div>
+            </div>
+            
+            <div class="detail-row">
+              <span style="font-size: 24px; margin-right: 10px;">👤</span>
+              <div>
+                <strong>${booking.is_organizer ? 'With' : 'Organizer'}:</strong><br>
+                ${booking.is_organizer ? booking.attendee_name : booking.organizer_name}
+              </div>
+            </div>
+            
+            ${booking.notes ? `
+            <div class="detail-row">
+              <span style="font-size: 24px; margin-right: 10px;">📝</span>
+              <div>
+                <strong>Notes:</strong><br>
+                ${booking.notes}
+              </div>
+            </div>
+            ` : ''}
+          </div>
+
+          ${booking.booking_token ? `
+          <div class="action-buttons">
+            <p style="font-weight: bold; color: #374151; margin: 0 0 15px 0; font-size: 15px;">Need to make changes?</p>
+            <a href="${process.env.FRONTEND_URL}/manage/${booking.booking_token}?action=reschedule" class="btn btn-reschedule">
+              🔄 Reschedule
+            </a>
+            <a href="${process.env.FRONTEND_URL}/manage/${booking.booking_token}?action=cancel" class="btn btn-cancel">
+              ❌ Cancel Meeting
+            </a>
+          </div>
+          ` : ''}
+          
+          <p style="margin: 20px 0; color: #4b5563; font-size: 14px;">
+            📌 <strong>Quick Checklist:</strong><br>
+            • Test your camera and microphone<br>
+            • Have any materials ready<br>
+            • Find a quiet space<br>
+            • Join a few minutes early
+          </p>
+          
+          <p style="color: #6b7280; font-size: 13px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+            This is an automated reminder from ScheduleSync. Meeting scheduled on ${new Date(booking.created_at).toLocaleDateString()}.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+// ============ REMINDER SENDING FUNCTION ============
+
+async function sendBookingReminder(booking, recipientEmail, recipientName, isOrganizer) {
+  try {
+    // Calculate hours until meeting
+    const now = new Date();
+    const meetingTime = new Date(booking.start_time);
+    const hoursUntil = Math.round((meetingTime - now) / (1000 * 60 * 60));
+    
+    // Prepare email data
+    const bookingWithRecipient = {
+      ...booking,
+      is_organizer: isOrganizer,
+      attendee_name: isOrganizer ? booking.attendee_name : recipientName,
+      organizer_name: isOrganizer ? recipientName : booking.organizer_name,
+    };
+    
+    // Generate ICS attachment
+    const icsFile = generateICS({
+      id: booking.id,
+      start_time: booking.start_time,
+      end_time: booking.end_time,
+      attendee_name: booking.attendee_name,
+      attendee_email: booking.attendee_email,
+      organizer_name: booking.organizer_name || 'ScheduleSync',
+      organizer_email: booking.organizer_email || 'noreply@schedulesync.com',
+      team_name: booking.team_name || 'Meeting',
+      notes: booking.notes,
+    });
+    
+    // Send email
+    await sendBookingEmail({
+      to: recipientEmail,
+      subject: `⏰ Reminder: Meeting in ${hoursUntil} hours`,
+      html: reminderEmailTemplate(bookingWithRecipient, hoursUntil),
+      icsAttachment: icsFile,
+    });
+    
+    console.log(`✅ Reminder sent to ${recipientEmail} for booking ${booking.id}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to send reminder to ${recipientEmail}:`, error);
+    return false;
+  }
+}
+
+// ============ REMINDER CHECKER (RUNS EVERY HOUR) ============
+
+async function checkAndSendReminders() {
+  try {
+    console.log('🔔 Checking for bookings that need reminders...');
+    
+    // Get bookings that:
+    // 1. Are confirmed
+    // 2. Start in 24-26 hours (to catch all bookings in hourly check)
+    // 3. Haven't had reminder sent yet
+    const now = new Date();
+    const reminderWindowStart = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // 24 hours from now
+    const reminderWindowEnd = new Date(now.getTime() + (26 * 60 * 60 * 1000)); // 26 hours from now
+    
+    const bookingsResult = await pool.query(
+      `SELECT b.*, 
+       b.meet_link,   
+        b.calendar_event_id,   
+        b.booking_token,
+              tm.name as organizer_name,
+              tm.email as organizer_email,
+              t.name as team_name
+       FROM bookings b
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN teams t ON b.team_id = t.id
+       WHERE b.status = 'confirmed'
+         AND b.reminder_sent = false
+         AND b.start_time >= $1
+         AND b.start_time <= $2
+       ORDER BY b.start_time ASC`,
+      [reminderWindowStart, reminderWindowEnd]
+    );
+    
+    const bookings = bookingsResult.rows;
+    console.log(`📋 Found ${bookings.length} booking(s) needing reminders`);
+    
+    for (const booking of bookings) {
+      try {
+        // Send reminder to attendee
+        const attendeeSuccess = await sendBookingReminder(
+          booking,
+          booking.attendee_email,
+          booking.attendee_name,
+          false // attendee
+        );
+        
+        // Send reminder to organizer (if email exists)
+        let organizerSuccess = true;
+        if (booking.organizer_email) {
+          organizerSuccess = await sendBookingReminder(
+            booking,
+            booking.organizer_email,
+            booking.organizer_name,
+            true // organizer
+          );
+        }
+        
+        // Update booking if at least one reminder was sent
+        if (attendeeSuccess || organizerSuccess) {
+          await pool.query(
+            `UPDATE bookings 
+             SET reminder_sent = true, reminder_sent_at = CURRENT_TIMESTAMP 
+             WHERE id = $1`,
+            [booking.id]
+          );
+          
+          // Log to reminder tracking table
+          if (attendeeSuccess) {
+            await pool.query(
+              `INSERT INTO booking_reminders (booking_id, reminder_type, recipient_email, status)
+               VALUES ($1, $2, $3, $4)`,
+              [booking.id, '24h', booking.attendee_email, 'sent']
+            );
+          }
+          
+          if (organizerSuccess && booking.organizer_email) {
+            await pool.query(
+              `INSERT INTO booking_reminders (booking_id, reminder_type, recipient_email, status)
+               VALUES ($1, $2, $3, $4)`,
+              [booking.id, '24h', booking.organizer_email, 'sent']
+            );
+          }
+          
+          console.log(`✅ Reminders processed for booking ${booking.id}`);
+        }
+      } catch (bookingError) {
+        console.error(`❌ Error processing booking ${booking.id}:`, bookingError);
+        
+        // Log failed reminder
+        await pool.query(
+          `INSERT INTO booking_reminders (booking_id, reminder_type, recipient_email, status, error_message)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [booking.id, '24h', booking.attendee_email, 'failed', bookingError.message]
+        );
+      }
+    }
+    
+    console.log('✅ Reminder check completed');
+  } catch (error) {
+    console.error('❌ Error in reminder checker:', error);
+  }
 }
 
 // ============ SCHEDULE REMINDER CHECKER ============
@@ -4696,6 +4956,8 @@ app.use((err, req, res, next) => {
   console.error('Global error handler:', err);
   res.status(500).json({ error: 'Internal server error' });
 });
+
+
 
 // ============ GRACEFUL SHUTDOWN ============
 
