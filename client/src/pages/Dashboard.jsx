@@ -17,9 +17,7 @@ import {
   Check,
   Link as LinkIcon,
   Loader2,
-  X,
-  ShieldCheck, // ✅ Added for Single Use Link
-  RefreshCw    // ✅ Added for regenerating link
+  X 
 } from 'lucide-react';
 import api from '../utils/api'; 
 import { auth, timezone as timezoneApi } from '../utils/api'; 
@@ -44,12 +42,6 @@ export default function Dashboard() {
 
   // Availability Pop-up State
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
-
-  // ✅ SINGLE USE LINK STATE
-  const [showSingleUseModal, setShowSingleUseModal] = useState(false);
-  const [singleUseLink, setSingleUseLink] = useState('');
-  const [loadingSingleUse, setLoadingSingleUse] = useState(false);
-  const [copiedSingleUse, setCopiedSingleUse] = useState(false);
 
   useEffect(() => {
     loadAllData();
@@ -111,36 +103,6 @@ export default function Dashboard() {
     } finally {
         setGeneratingLink(false);
     }
-  };
-
-  // ✅ NEW FUNCTION: Generate Single Use Link
-  const handleGenerateSingleUse = async () => {
-    setLoadingSingleUse(true);
-    setSingleUseLink(''); 
-    try {
-        // Calls your backend to generate a token into the 'magic_links' table
-        const response = await api.post('/single-use-links');
-        
-        const token = response.data.token || response.data.data?.token;
-        if (token) {
-            const fullLink = `${window.location.origin}/book/${token}`;
-            setSingleUseLink(fullLink);
-        } else {
-            throw new Error("No token returned");
-        }
-    } catch (error) {
-        console.error("Failed to create single-use link:", error);
-        // alert("Backend endpoint /single-use-links is missing."); // Uncomment for debugging
-    } finally {
-        setLoadingSingleUse(false);
-    }
-  };
-
-  const handleCopySingleUse = () => {
-    if (!singleUseLink) return;
-    navigator.clipboard.writeText(singleUseLink);
-    setCopiedSingleUse(true);
-    setTimeout(() => setCopiedSingleUse(false), 2000);
   };
 
   const handleTimezoneChange = async (newTimezone) => {
@@ -280,7 +242,7 @@ export default function Dashboard() {
             {/* BOOKING LINK CARD */}
             {bookingLink ? (
                 <div className="bg-blue-50/50 rounded-2xl border border-blue-200 p-5 shadow-sm animate-in fade-in slide-in-from-top-2">
-                    <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                         <div className="w-full">
                             <label className="text-sm font-bold text-blue-900 mb-2 block">
                                 Your Main Booking Link:
@@ -290,32 +252,19 @@ export default function Dashboard() {
                             </div>
                         </div>
                         {/* ACTION BUTTONS */}
-                        <div className="flex flex-wrap gap-2 w-full xl:w-auto mt-2 xl:mt-6">
-                            {/* COPY BUTTON */}
+                        <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-6">
                             <button
                                 onClick={handleCopyLink}
-                                className="flex-1 xl:flex-none whitespace-nowrap flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                                className="whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm w-full md:w-auto"
                             >
                                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                                 {copied ? 'Copied' : 'Copy'}
                             </button>
                             
-                            {/* ✅ ONE-TIME LINK BUTTON */}
-                            <button
-                                onClick={() => {
-                                    setShowSingleUseModal(true);
-                                    handleGenerateSingleUse(); // Auto generate on open
-                                }}
-                                className="flex-1 xl:flex-none whitespace-nowrap flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition-colors shadow-sm"
-                            >
-                                <ShieldCheck className="h-4 w-4" />
-                                One-Time Link
-                            </button>
-
-                            {/* AVAILABILITY BUTTON */}
+                            {/* AVAILABILITY BUTTON - Opens the Modal */}
                             <button
                                 onClick={() => setShowAvailabilityModal(true)}
-                                className="flex-1 xl:flex-none whitespace-nowrap flex items-center justify-center gap-2 px-4 py-3 bg-white text-blue-700 border border-blue-200 rounded-xl font-semibold hover:bg-blue-50 transition-colors"
+                                className="whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 bg-white text-blue-700 border border-blue-200 rounded-xl font-semibold hover:bg-blue-50 transition-colors w-full md:w-auto"
                             >
                                 <Users className="h-4 w-4" />
                                 Availability
@@ -406,67 +355,11 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* ✅ MODAL 1: SINGLE USE LINK GENERATOR */}
-      {showSingleUseModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 flex items-center justify-between">
-                    <div className="text-white">
-                        <h2 className="text-xl font-bold flex items-center gap-2">
-                            <ShieldCheck className="h-5 w-5" /> One-Time Link
-                        </h2>
-                        <p className="text-purple-100 text-sm">Expires after one booking</p>
-                    </div>
-                    <button onClick={() => setShowSingleUseModal(false)} className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors">
-                        <X className="h-5 w-5" />
-                    </button>
-                </div>
-                
-                <div className="p-8">
-                    {loadingSingleUse ? (
-                        <div className="text-center py-8">
-                            <Loader2 className="h-10 w-10 animate-spin text-purple-600 mx-auto mb-4" />
-                            <p className="text-gray-600">Generating secure link...</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
-                                <label className="text-xs font-bold text-purple-900 uppercase tracking-wide mb-2 block">Secure Booking URL</label>
-                                <div className="flex gap-2">
-                                    <input 
-                                        type="text" 
-                                        readOnly 
-                                        value={singleUseLink} 
-                                        className="flex-1 bg-white border border-purple-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none"
-                                    />
-                                    <button 
-                                        onClick={handleCopySingleUse}
-                                        className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 transition-colors flex items-center gap-2"
-                                    >
-                                        {copiedSingleUse ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                                    </button>
-                                </div>
-                            </div>
-                            <p className="text-sm text-gray-500 text-center">
-                                This link is valid for <strong>one booking only</strong>. <br/>Once used, it will automatically expire.
-                            </p>
-                            <button 
-                                onClick={handleGenerateSingleUse}
-                                className="w-full py-3 border border-gray-200 rounded-xl text-gray-600 font-semibold hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-                            >
-                                <RefreshCw className="h-4 w-4" /> Generate New Link
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-      )}
-
-      {/* ✅ MODAL 2: AVAILABILITY CHECK */}
+      {/* ✅ MODAL: AVAILABILITY CHECK */}
       {showAvailabilityModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                {/* Modal Header */}
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 flex items-center justify-between">
                     <div className="text-white">
                         <h2 className="text-xl font-bold flex items-center gap-2">
@@ -474,11 +367,15 @@ export default function Dashboard() {
                         </h2>
                         <p className="text-blue-100 text-sm">Your standard working hours</p>
                     </div>
-                    <button onClick={() => setShowAvailabilityModal(false)} className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors">
+                    <button 
+                        onClick={() => setShowAvailabilityModal(false)}
+                        className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors"
+                    >
                         <X className="h-5 w-5" />
                     </button>
                 </div>
                 
+                {/* Modal Content - Quick Preview */}
                 <div className="p-6">
                     <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -498,11 +395,20 @@ export default function Dashboard() {
                     </div>
                 </div>
 
+                {/* Modal Footer */}
                 <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-                    <button onClick={() => setShowAvailabilityModal(false)} className="px-4 py-2 text-gray-600 font-semibold hover:bg-gray-100 rounded-xl transition-colors">
+                    <button 
+                        onClick={() => setShowAvailabilityModal(false)}
+                        className="px-4 py-2 text-gray-600 font-semibold hover:bg-gray-100 rounded-xl transition-colors"
+                    >
                         Close
                     </button>
-                    <button onClick={() => navigate('/availability')} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2">
+                    
+                    {/* ✅ CORRECTED: Reroutes to /availability which loads the AvailabilitySettings component */}
+                    <button 
+                        onClick={() => navigate('/availability')} 
+                        className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
                         Edit Full Schedule <ChevronRight className="h-4 w-4" />
                     </button>
                 </div>
@@ -510,6 +416,7 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* AI Chat Widget */}
       <AISchedulerChat />
     </div>
   );
