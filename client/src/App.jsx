@@ -14,7 +14,8 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import VerifyEmail from './pages/VerifyEmail';
 import OAuthCallback from './pages/OAuthCallback';
-import OnboardingWizard from './pages/OnboardingWizard'; // <--- NEW IMPORT
+import OnboardingWizard from './pages/OnboardingWizard'; 
+import AdminPanel from './pages/AdminPanel'; // <--- NEW IMPORT
 
 // Dashboard / App Pages
 import Dashboard from './pages/Dashboard';
@@ -45,9 +46,6 @@ function LoginWrapper({ Component }) {
 
   const handleLogin = (token, user) => {
     login(token, user);
-    // If the user hasn't completed onboarding, you might want to redirect to /onboarding here
-    // checking a user flag like user.hasOnboarded.
-    // For now, we keep the default to dashboard, and let the dashboard or verify email redirect.
     window.location.href = '/dashboard';
   };
 
@@ -77,13 +75,23 @@ export default function App() {
           />
 
           {/* ============================================================
-              1. NEW ONBOARDING FLOW (Protected but No Sidebar Layout)
+              1. SPECIAL FLOWS (Onboarding & Admin)
              ============================================================ */}
           <Route
             path="/onboarding"
             element={
               <ProtectedRoute>
                 <OnboardingWizard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ADMIN ROUTE */}
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <AdminPanel />
               </ProtectedRoute>
             }
           />

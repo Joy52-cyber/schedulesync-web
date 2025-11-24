@@ -4066,6 +4066,79 @@ app.get('/api/test/anthropic', authenticateToken, async (req, res) => {
   }
 });
 
+// ============ ADMIN PANEL ROUTES ============
+
+// Middleware to protect admin routes
+const requireAdmin = (req, res, next) => {
+  const adminEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(',') : [];
+  // Check if the current logged-in user's email is in the allowed list
+  if (!adminEmails.includes(req.user.email)) {
+    console.warn(`⚠️ Unauthorized admin access attempt by: ${req.user.email}`);
+    return res.status(403).json({ error: 'Access denied: Admins only' });
+  }
+  next();
+};
+
+// 1. GET ALL USERS (for the admin list)
+app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    console.log('👮 Admin fetching user list...');
+    const result = await pool.query(`
+      SELECT 
+        u.id, 
+        u.name, 
+        u.email, 
+        u.provider, 
+        u.created_at,
+        u.last_login_at, -- assuming you might track this, otherwise remove
+        (SELECT COUNT(*) FROM teams WHERE owner_id = u.id) as team_count,
+        (SELECT COUNT(*) FROM bookings WHERE user_id = u.id) as booking_count
+      FROM users u
+      ORDER BY u.created_at DESC
+    `);
+    res.json({ users: result.rows });
+  } catch (error) {
+    console.error('❌ Admin get users error:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// 2. DELETE A USER (The "Ban Hammer")
+app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id);
+
+    // Safety: Prevent deleting yourself
+    if (targetId === req.user.id) {
+      return res.status(400).json({ error: 'You cannot delete your own admin account.' });
+    }
+
+    console.log(`🚨 ADMIN ACTION: User ${req.user.email} is deleting user ID ${targetId}`);
+
+    // Perform delete
+    // Note: Because your initDB uses "ON DELETE CASCADE", this will automatically 
+    // remove their teams, bookings, and membership records.
+    const result = await pool.query(
+      'DELETE FROM users WHERE id = $1 RETURNING id, email', 
+      [targetId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    console.log(`✅ User ${result.rows[0].email} deleted successfully.`);
+    res.json({ 
+      success: true, 
+      message: `User ${result.rows[0].email} and all associated data have been deleted.` 
+    });
+
+  } catch (error) {
+    console.error('❌ Admin delete user error:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
 // ============ SERVE STATIC FILES ============
 // ============ SERVE STATIC FILES ============
 
