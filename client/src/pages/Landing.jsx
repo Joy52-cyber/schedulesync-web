@@ -1,17 +1,17 @@
-﻿// client/src/pages/Landing.jsx
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
   Zap,
-  Share2,
   Users,
   Clock,
-  CheckCircle,
   Sparkles,
   ArrowRight,
   Shield,
-  Smartphone
+  Smartphone,
+  CheckCircle,
+  Menu,
+  MoreHorizontal
 } from 'lucide-react';
 import LoginPanel from '../components/LoginPanel';
 
@@ -24,120 +24,52 @@ export default function Landing({ defaultLoginOpen = false }) {
   // Detect source system from pasted booking link
   const handleBookingLinkChange = (value) => {
     setBookingLink(value);
-
     if (!value) {
       setDetectedSource(null);
       return;
     }
-
-    try {
-      const normalized = value.startsWith('http') ? value : `https://${value}`;
-      const url = new URL(normalized);
-      const host = url.hostname.toLowerCase();
-      const path = url.pathname.toLowerCase();
-
-      let source = null;
-
-      if (host.includes('calendly.com')) source = 'calendly';
-      else if (host.includes('cal.com')) source = 'cal.com';
-      else if (host.includes('hubspot')) source = 'hubspot';
-      else if (host.includes('google.com') && path.includes('calendar')) source = 'google-calendar';
-      else if (host.includes('meet.google.com')) source = 'google-meet';
-      else if (host.includes('outlook.') || host.includes('office.com') || host.includes('microsoft.')) source = 'microsoft';
-
-      setDetectedSource(source);
-    } catch {
-      setDetectedSource(null);
-    }
+    const lower = value.toLowerCase();
+    if (lower.includes('calendly')) setDetectedSource('calendly');
+    else if (lower.includes('cal.com')) setDetectedSource('cal.com');
+    else if (lower.includes('hubspot')) setDetectedSource('hubspot');
+    else if (lower.includes('google') && lower.includes('calendar')) setDetectedSource('google-calendar');
+    else if (lower.includes('outlook') || lower.includes('office')) setDetectedSource('microsoft');
+    else setDetectedSource(null);
   };
 
   const handleBookingLinkSubmit = (e) => {
     e.preventDefault();
     if (!bookingLink) return;
-    // Ideally: Save this link to localStorage so you can auto-import it during registration!
-    localStorage.setItem('importedLink', bookingLink); 
+    localStorage.setItem('importedLink', bookingLink);
     navigate('/register');
-  };
-
-  const renderDetectedSuggestion = () => {
-    if (!detectedSource) return null;
-
-    let title = '';
-    let body = '';
-    
-    switch (detectedSource) {
-      case 'calendly':
-        title = 'Calendly link detected';
-        body = 'Migrate your Calendly settings instantly.';
-        break;
-      case 'cal.com':
-        title = 'Cal.com link detected';
-        body = 'Switch from Cal.com without losing data.';
-        break;
-      case 'hubspot':
-        title = 'HubSpot link detected';
-        body = 'Connect HubSpot for seamless CRM syncing.';
-        break;
-      default:
-        title = 'Booking link detected';
-        body = 'We can import your availability from this link.';
-    }
-
-    return (
-      <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-300 inline-flex flex-col sm:flex-row sm:items-center gap-3 max-w-lg text-left bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-4 py-3 text-white shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-emerald-400/20 flex items-center justify-center">
-            <CheckCircle className="w-4 h-4 text-emerald-300" />
-          </div>
-          <div>
-            <div className="font-semibold text-sm">{title}</div>
-            <div className="text-xs text-white/80">{body}</div>
-          </div>
-        </div>
-        <button
-          onClick={() => navigate('/register')}
-          className="whitespace-nowrap bg-white text-indigo-600 text-xs font-bold px-3 py-2 rounded-lg hover:bg-indigo-50 transition-colors"
-        >
-          Import & Start
-        </button>
-      </div>
-    );
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       <LoginPanel isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
 
-      {/* ================= HERO SECTION ================= */}
-      <div className="relative bg-gradient-to-br from-indigo-900 via-purple-800 to-indigo-900 text-white overflow-hidden">
-        
-        {/* Abstract Background Shapes */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-           <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-purple-500/20 blur-[100px]" />
-           <div className="absolute top-[40%] -right-[10%] w-[40%] h-[40%] rounded-full bg-indigo-500/20 blur-[100px]" />
+      {/* ================= HERO SECTION (Compact) ================= */}
+      <div className="relative bg-indigo-900 text-white overflow-hidden pb-32">
+        {/* Background Gradients */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+           <div className="absolute -top-[20%] -left-[10%] w-[40%] h-[40%] rounded-full bg-purple-500/20 blur-[80px]" />
+           <div className="absolute top-[20%] -right-[10%] w-[30%] h-[30%] rounded-full bg-blue-500/20 blur-[80px]" />
         </div>
 
-        {/* Header */}
+        {/* Header - Slim */}
         <header className="relative z-20 border-b border-white/5 bg-white/5 backdrop-blur-md">
           <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg">
                 <Calendar className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-lg tracking-tight">ScheduleSync</span>
+              <span className="font-bold text-base tracking-tight">ScheduleSync</span>
             </div>
-
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setIsLoginOpen(true)}
-                className="text-sm font-medium text-white/70 hover:text-white transition-colors"
-              >
+            <div className="flex items-center gap-3">
+              <button onClick={() => setIsLoginOpen(true)} className="text-xs font-medium text-white/70 hover:text-white transition-colors">
                 Log in
               </button>
-              <button
-                onClick={() => navigate('/register')}
-                className="text-sm font-semibold text-white bg-white/10 border border-white/10 rounded-full px-5 py-2 hover:bg-white/20 transition-all"
-              >
+              <button onClick={() => navigate('/register')} className="text-xs font-bold text-indigo-900 bg-white rounded-full px-4 py-1.5 hover:bg-indigo-50 transition-all">
                 Get Started
               </button>
             </div>
@@ -145,146 +77,181 @@ export default function Landing({ defaultLoginOpen = false }) {
         </header>
 
         {/* Hero Content */}
-        <section className="relative z-10 max-w-5xl mx-auto px-4 pt-16 pb-24 text-center">
-          <div className="flex flex-col items-center gap-6">
+        <section className="relative z-10 max-w-3xl mx-auto px-4 pt-12 pb-16 text-center">
+          <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-indigo-800/50 border border-indigo-700 text-indigo-200 text-[10px] uppercase font-bold tracking-wider mb-6">
+            <Sparkles className="w-3 h-3 mr-1.5 text-amber-400" />
+            AI-Powered Scheduling
+          </div>
+
+          <h1 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight mb-4 drop-shadow-sm">
+            Scheduling made <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-purple-300">effortless.</span>
+          </h1>
+
+          <p className="text-base text-indigo-200/80 max-w-lg mx-auto mb-8 leading-relaxed">
+            Share your link, let people book a time, and never worry about double bookings again.
+          </p>
+
+          {/* Input Field */}
+          <div className="max-w-md mx-auto relative group">
+            <form onSubmit={handleBookingLinkSubmit} className="relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full blur opacity-20 group-hover:opacity-40 transition duration-700"></div>
+              <input
+                type="text"
+                value={bookingLink}
+                onChange={(e) => handleBookingLinkChange(e.target.value)}
+                placeholder="Paste your Calendly link to import..."
+                className="relative w-full bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder:text-white/40 text-sm rounded-full pl-5 pr-12 py-3 focus:outline-none focus:bg-white/20 transition-all"
+              />
+              <button 
+                type="submit"
+                className="absolute right-1.5 top-1.5 bottom-1.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded-full w-9 h-9 flex items-center justify-center transition-colors shadow-lg"
+              >
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
             
-            {/* Announcement Pill */}
-            <div className="inline-flex items-center px-3 py-1 rounded-full bg-indigo-500/30 border border-indigo-400/30 text-indigo-100 text-xs font-medium backdrop-blur-sm animate-fade-in-up">
-              <Sparkles className="w-3 h-3 mr-2 text-amber-300" />
-              <span>New: AI-Powered Conflict Detection</span>
-            </div>
-
-            {/* Headline */}
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-[1.15] drop-shadow-sm max-w-3xl">
-              Scheduling infrastructure for <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 via-indigo-200 to-purple-200">
-                everyone.
-              </span>
-            </h1>
-
-            <p className="text-lg text-indigo-100/80 max-w-2xl mx-auto leading-relaxed">
-              Paste your existing booking link below. We'll import your settings, 
-              connect your calendar, and upgrade you to a better experience in seconds.
-            </p>
-
-            {/* Input & Detector */}
-            <div className="w-full max-w-lg mt-4 relative">
-              <form onSubmit={handleBookingLinkSubmit} className="relative group">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full blur opacity-25 group-hover:opacity-40 transition duration-1000"></div>
-                <input
-                  type="text"
-                  value={bookingLink}
-                  onChange={(e) => handleBookingLinkChange(e.target.value)}
-                  placeholder="Paste your Calendly or Cal.com link..."
-                  className="relative w-full bg-white text-slate-900 placeholder:text-slate-400 text-base rounded-full pl-6 pr-14 py-4 shadow-xl focus:outline-none focus:ring-4 focus:ring-indigo-500/30"
-                />
-                <button 
-                  type="submit"
-                  className="absolute right-2 top-2 bottom-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full w-10 h-10 flex items-center justify-center transition-colors"
-                >
-                  <ArrowRight className="w-5 h-5" />
-                </button>
-              </form>
-              {renderDetectedSuggestion()}
-            </div>
-
-            {/* Social Proof (Light) */}
-            <div className="pt-8 flex items-center justify-center gap-8 opacity-60 grayscale mix-blend-screen">
-               {/* Placeholders for logos (Google, Microsoft, etc.) - simple text for now */}
-               <span className="font-bold text-xl">Google</span>
-               <span className="font-bold text-xl">Microsoft</span>
-               <span className="font-bold text-xl">HubSpot</span>
-               <span className="font-bold text-xl">Zoom</span>
-            </div>
+            {/* Detection Badge */}
+            {detectedSource && (
+              <div className="absolute -bottom-8 left-0 right-0 flex justify-center animate-in fade-in slide-in-from-top-1">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wide">
+                  <CheckCircle className="w-3 h-3" /> {detectedSource} Detected
+                </span>
+              </div>
+            )}
           </div>
         </section>
       </div>
 
-      {/* ================= DASHBOARD PREVIEW (The "Bridge") ================= */}
-      {/* This overlaps the hero to create depth */}
-      <div className="relative z-20 -mt-16 px-4 mb-20">
-        <div className="max-w-5xl mx-auto">
-            <div className="rounded-2xl bg-white p-2 shadow-2xl border border-slate-200/60 ring-1 ring-slate-900/5">
-                {/* CSS Mockup of Dashboard Interface */}
-                <div className="aspect-[16/9] rounded-xl bg-slate-50 border border-slate-100 overflow-hidden relative group cursor-default">
-                    {/* Sidebar */}
-                    <div className="absolute left-0 top-0 bottom-0 w-48 bg-white border-r border-slate-100 hidden sm:block p-4 space-y-3">
-                        <div className="h-2 w-20 bg-slate-200 rounded mb-6"></div>
-                        <div className="h-8 w-full bg-indigo-50 rounded-lg border border-indigo-100"></div>
-                        <div className="h-8 w-full bg-white rounded-lg"></div>
-                        <div className="h-8 w-full bg-white rounded-lg"></div>
-                    </div>
-                    {/* Header */}
-                    <div className="absolute top-0 left-0 sm:left-48 right-0 h-16 bg-white border-b border-slate-100 flex items-center px-6 justify-between">
-                        <div className="h-4 w-32 bg-slate-200 rounded"></div>
-                        <div className="flex gap-2">
-                           <div className="h-8 w-8 rounded-full bg-slate-100"></div>
-                           <div className="h-8 w-24 rounded-lg bg-indigo-600"></div>
-                        </div>
-                    </div>
-                    {/* Main Area */}
-                    <div className="absolute top-16 left-0 sm:left-48 right-0 bottom-0 p-6 bg-slate-50/50">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {[1, 2, 3].map((i) => (
-                                <div key={i} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-3">
-                                    <div className="h-3 w-16 bg-green-100 rounded-full"></div>
-                                    <div className="h-5 w-3/4 bg-slate-800 rounded"></div>
-                                    <div className="h-3 w-1/2 bg-slate-200 rounded"></div>
-                                    <div className="mt-2 h-8 w-full bg-slate-50 rounded border border-slate-100"></div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    {/* Overlay Tag */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900/90 text-white px-6 py-3 rounded-full backdrop-blur-sm shadow-xl flex items-center gap-3 transition-transform hover:scale-105">
-                         <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-                         <span className="font-medium text-sm">Dashboard Live Preview</span>
-                    </div>
+      {/* ================= DASHBOARD MOCKUP (Overlapping) ================= */}
+      <div className="relative z-20 px-4 -mt-24 mb-16">
+        <div className="max-w-4xl mx-auto">
+          {/* Main Container Frame */}
+          <div className="rounded-xl bg-white p-1.5 shadow-2xl border border-slate-200/60 ring-1 ring-slate-900/5">
+            <div className="aspect-[16/10] sm:aspect-[2/1] rounded-lg bg-slate-50 border border-slate-100 overflow-hidden relative flex">
+              
+              {/* Sidebar (Fake) */}
+              <div className="w-16 sm:w-48 bg-white border-r border-slate-100 flex-shrink-0 flex flex-col pt-4">
+                <div className="px-4 mb-6 hidden sm:block">
+                  <div className="h-2 w-20 bg-slate-200 rounded"></div>
                 </div>
+                <div className="flex flex-col gap-1 px-2 sm:px-3">
+                   <div className="h-8 w-full bg-indigo-50 rounded-md flex items-center justify-center sm:justify-start sm:px-3 gap-2">
+                      <div className="w-4 h-4 bg-indigo-200 rounded"></div>
+                      <div className="hidden sm:block h-2 w-16 bg-indigo-200 rounded"></div>
+                   </div>
+                   <div className="h-8 w-full hover:bg-slate-50 rounded-md flex items-center justify-center sm:justify-start sm:px-3 gap-2">
+                      <div className="w-4 h-4 bg-slate-200 rounded"></div>
+                      <div className="hidden sm:block h-2 w-20 bg-slate-200 rounded"></div>
+                   </div>
+                   <div className="h-8 w-full hover:bg-slate-50 rounded-md flex items-center justify-center sm:justify-start sm:px-3 gap-2">
+                      <div className="w-4 h-4 bg-slate-200 rounded"></div>
+                      <div className="hidden sm:block h-2 w-12 bg-slate-200 rounded"></div>
+                   </div>
+                </div>
+              </div>
+
+              {/* Main Area */}
+              <div className="flex-1 flex flex-col min-w-0 bg-slate-50/50">
+                {/* Header (Fake) */}
+                <div className="h-12 bg-white border-b border-slate-100 flex items-center justify-between px-4 sm:px-6">
+                   <div className="h-3 w-24 bg-slate-800 rounded-sm"></div>
+                   <div className="flex gap-2">
+                      <div className="h-7 w-7 rounded-full bg-slate-100 border border-slate-200"></div>
+                      <div className="h-7 w-20 rounded-md bg-indigo-600 shadow-sm hidden sm:block"></div>
+                   </div>
+                </div>
+
+                {/* Dashboard Content (Fake) */}
+                <div className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                   
+                   {/* Card 1: 30 Min Meeting */}
+                   <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] flex flex-col gap-3 group">
+                      <div className="flex justify-between items-start">
+                         <div className="h-3 w-3 rounded-full bg-purple-500"></div>
+                         <MoreHorizontal className="w-4 h-4 text-slate-300" />
+                      </div>
+                      <div>
+                         <div className="h-3 w-3/4 bg-slate-800 rounded mb-1.5"></div>
+                         <div className="h-2 w-1/2 bg-slate-400 rounded"></div>
+                      </div>
+                      <div className="mt-2 h-6 w-full bg-slate-50 border border-slate-100 rounded flex items-center px-2">
+                         <div className="h-1.5 w-1/3 bg-slate-200 rounded"></div>
+                      </div>
+                   </div>
+
+                   {/* Card 2: 15 Min Call */}
+                   <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] flex flex-col gap-3">
+                      <div className="flex justify-between items-start">
+                         <div className="h-3 w-3 rounded-full bg-blue-500"></div>
+                         <MoreHorizontal className="w-4 h-4 text-slate-300" />
+                      </div>
+                      <div>
+                         <div className="h-3 w-2/3 bg-slate-800 rounded mb-1.5"></div>
+                         <div className="h-2 w-1/2 bg-slate-400 rounded"></div>
+                      </div>
+                      <div className="mt-2 h-6 w-full bg-slate-50 border border-slate-100 rounded flex items-center px-2">
+                         <div className="h-1.5 w-1/3 bg-slate-200 rounded"></div>
+                      </div>
+                   </div>
+
+                   {/* Card 3: Stats (Only visible on larger screens) */}
+                   <div className="hidden lg:flex bg-gradient-to-br from-indigo-500 to-purple-600 p-4 rounded-xl shadow-lg text-white flex-col justify-between">
+                      <div className="flex gap-2 items-center opacity-80">
+                         <Users className="w-4 h-4" />
+                         <span className="text-[10px] font-bold uppercase">Bookings</span>
+                      </div>
+                      <div className="text-2xl font-bold">12</div>
+                      <div className="h-1 w-full bg-white/20 rounded-full overflow-hidden">
+                         <div className="h-full w-2/3 bg-white rounded-full"></div>
+                      </div>
+                   </div>
+
+                </div>
+              </div>
+
+              {/* Live Tag - Subtle */}
+              <div className="absolute bottom-3 right-3 bg-white/80 backdrop-blur text-[10px] font-semibold text-slate-500 px-2 py-1 rounded border border-slate-200 shadow-sm flex items-center gap-1.5">
+                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                 Live Preview
+              </div>
             </div>
+          </div>
         </div>
       </div>
 
-      {/* ================= VALUE PROPS ================= */}
-      <section className="py-16 px-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">Why teams switch to ScheduleSync</h2>
-            <p className="text-slate-500 max-w-2xl mx-auto">
-              We took the complexity out of scheduling. No more double bookings, 
-              no more "what time works for you?" emails.
-            </p>
+      {/* ================= FEATURES (Grid) ================= */}
+      <section className="py-10 px-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-xl md:text-2xl font-bold text-slate-900">Why teams switch to ScheduleSync</h2>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="p-6 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-4">
-                <Zap className="w-6 h-6 text-blue-600" />
+          <div className="grid md:grid-cols-3 gap-6">
+            <div className="p-5 rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center mb-3">
+                <Zap className="w-5 h-5 text-blue-600" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">Instant Setup</h3>
-              <p className="text-slate-600 leading-relaxed text-sm">
-                Connect Google, Outlook, or Apple Calendar in one click. 
-                We auto-detect your busy slots instantly.
+              <h3 className="font-bold text-slate-900 text-sm mb-1">Instant Setup</h3>
+              <p className="text-slate-600 text-xs leading-relaxed">
+                Connect Google, Outlook, or Apple Calendar in one click. We auto-detect your busy slots instantly.
               </p>
             </div>
-            <div className="p-6 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center mb-4">
-                <Shield className="w-6 h-6 text-purple-600" />
+            <div className="p-5 rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center mb-3">
+                <Shield className="w-5 h-5 text-purple-600" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">Conflict Protection</h3>
-              <p className="text-slate-600 leading-relaxed text-sm">
-                Our algorithm checks across all your connected calendars 
-                to ensure you never get double-booked.
+              <h3 className="font-bold text-slate-900 text-sm mb-1">Conflict Protection</h3>
+              <p className="text-slate-600 text-xs leading-relaxed">
+                Our algorithm checks across all your connected calendars to ensure you never get double-booked.
               </p>
             </div>
-            <div className="p-6 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-pink-50 rounded-xl flex items-center justify-center mb-4">
-                <Smartphone className="w-6 h-6 text-pink-600" />
+            <div className="p-5 rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-10 h-10 bg-pink-50 rounded-lg flex items-center justify-center mb-3">
+                <Smartphone className="w-5 h-5 text-pink-600" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">Mobile Optimized</h3>
-              <p className="text-slate-600 leading-relaxed text-sm">
-                Your booking page looks perfect on any device, making it 
-                easy for clients to book on the go.
+              <h3 className="font-bold text-slate-900 text-sm mb-1">Mobile Optimized</h3>
+              <p className="text-slate-600 text-xs leading-relaxed">
+                Your booking page looks perfect on any device, making it easy for clients to book on the go.
               </p>
             </div>
           </div>
@@ -292,32 +259,15 @@ export default function Landing({ defaultLoginOpen = false }) {
       </section>
 
       {/* ================= FINAL CTA ================= */}
-      <section className="py-20 px-4">
-        <div className="max-w-4xl mx-auto bg-slate-900 rounded-3xl overflow-hidden relative px-6 py-16 text-center shadow-2xl">
-           {/* Background Glows */}
-           <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 blur-[80px]"></div>
-           <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/20 blur-[80px]"></div>
-
+      <section className="py-10 px-4 mb-6">
+        <div className="max-w-3xl mx-auto bg-slate-900 rounded-2xl overflow-hidden relative px-6 py-10 text-center shadow-lg">
            <div className="relative z-10">
-             <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+             <h2 className="text-2xl font-bold text-white mb-3">
                 Ready to take back your time?
              </h2>
-             <p className="text-slate-400 mb-8 max-w-lg mx-auto">
-                Join thousands of professionals who save 5+ hours a week with ScheduleSync.
-                No credit card required.
-             </p>
-             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <button 
-                  onClick={() => navigate('/register')}
-                  className="w-full sm:w-auto px-8 py-3.5 bg-white text-slate-900 rounded-full font-bold hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
-                >
-                  Start Scheduling for Free <ArrowRight className="w-4 h-4" />
-                </button>
-                <button 
-                   onClick={() => setIsLoginOpen(true)}
-                   className="text-white/70 hover:text-white font-medium text-sm px-4"
-                >
-                  Or log in to existing account
+             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6">
+                <button onClick={() => navigate('/register')} className="w-full sm:w-auto px-6 py-2.5 bg-white text-slate-900 rounded-full text-sm font-bold hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2">
+                  Start for Free <ArrowRight className="w-3 h-3" />
                 </button>
              </div>
            </div>
@@ -325,18 +275,15 @@ export default function Landing({ defaultLoginOpen = false }) {
       </section>
 
       {/* FOOTER */}
-      <footer className="bg-white border-t border-slate-100 pt-12 pb-8">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-2 opacity-80">
-              <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
-                <Calendar className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-semibold text-slate-900">ScheduleSync</span>
-            </div>
-            <div className="text-slate-500 text-sm">
-              &copy; {new Date().getFullYear()} ScheduleSync Inc.
-            </div>
+      <footer className="bg-white border-t border-slate-100 py-6">
+        <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-900">ScheduleSync</span>
+            <span>&copy; {new Date().getFullYear()}</span>
+          </div>
+          <div className="flex gap-4">
+            <span className="hover:text-slate-900 cursor-pointer">Privacy</span>
+            <span className="hover:text-slate-900 cursor-pointer">Terms</span>
           </div>
         </div>
       </footer>
