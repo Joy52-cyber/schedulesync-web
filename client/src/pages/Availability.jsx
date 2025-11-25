@@ -1,16 +1,14 @@
 ﻿// client/src/pages/Availability.jsx
 import { useState, useEffect } from 'react';
 import {
-  Calendar,
   Globe,
   Save,
   Check,
   Loader2,
   Trash2,
-  AlertCircle,
   Copy,
 } from 'lucide-react';
-import api, { auth, timezone as timezoneApi, reminders as remindersApi } from '../utils/api';
+import api, { auth, timezone as timezoneApi } from '../utils/api';
 
 const WEEKDAYS = [
   { key: 'monday', label: 'Monday' },
@@ -34,7 +32,6 @@ export default function Availability() {
   });
 
   const [memberId, setMemberId] = useState(null);
-  const [personalTeamId, setPersonalTeamId] = useState(null);
 
   const [availability, setAvailability] = useState({
     workingHours: {
@@ -48,15 +45,6 @@ export default function Availability() {
     },
     bufferTime: 0,
   });
-
-  // 🔔 Reminder settings (same behavior as in UserSettings)
-  const [reminderSettings, setReminderSettings] = useState({
-    enabled: true,
-    hoursBefore: 24,
-    sendToHost: true,
-    sendToGuest: true,
-  });
-  const [remindersLoading, setRemindersLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -81,8 +69,6 @@ export default function Availability() {
       );
 
       if (personalTeam) {
-        setPersonalTeamId(personalTeam.id);
-
         // Load member + availability
         const membersRes = await api.get(`/teams/${personalTeam.id}/members`);
         const me = membersRes.data.members.find(
@@ -99,25 +85,6 @@ export default function Availability() {
             });
           }
         }
-
-        // Load reminder settings for this personal team
-        try {
-          setRemindersLoading(true);
-          const remRes = await remindersApi.getSettings(personalTeam.id);
-          const s = remRes.data?.settings || remRes.data || {};
-
-          setReminderSettings({
-            enabled: s.enabled ?? true,
-            hoursBefore: s.hours_before ?? 24,
-            sendToHost: s.send_to_host ?? true,
-            sendToGuest: s.send_to_guest ?? true,
-          });
-        } catch (err) {
-          console.error('Error loading reminder settings:', err);
-          // Fallback defaults already in state
-        } finally {
-          setRemindersLoading(false);
-        }
       }
     } catch (error) {
       console.error('Error loading availability data:', error);
@@ -129,24 +96,14 @@ export default function Availability() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // 1) Save timezone
-      await timezoneApi.update({ timezone: profile.timezone });
+      // 1) Save timezone (api.js: update(tz) => { timezone: tz })
+      await timezoneApi.update(profile.timezone);
 
       // 2) Save availability (working hours + buffer) if we have a member
       if (memberId) {
         await api.put(`/team-members/${memberId}/availability`, {
           working_hours: availability.workingHours,
           buffer_time: availability.bufferTime,
-        });
-      }
-
-      // 3) Save reminder settings for personal team
-      if (personalTeamId) {
-        await remindersApi.updateSettings(personalTeamId, {
-          enabled: reminderSettings.enabled,
-          hours_before: reminderSettings.hoursBefore,
-          send_to_host: reminderSettings.sendToHost,
-          send_to_guest: reminderSettings.sendToGuest,
         });
       }
 
@@ -191,49 +148,43 @@ export default function Availability() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-xs font-semibold text-blue-600 mb-2">
-            <Calendar className="h-3 w-3" />
-            Availability & Scheduling
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Availability</h1>
+            <p className="text-gray-500 mt-1 text-sm">
+              Set when people can book appointments with you. These rules power
+              your personal booking link.
+            </p>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Set when people can book you
-          </h1>
-          <p className="text-gray-500 mt-1 text-sm">
-            These rules apply to your personal booking link and any events using
-            your personal availability.
-          </p>
+
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="bg-blue-600 text-white px-6 py-2.5 rounded-full hover:bg-blue-700 transition-all flex items-center gap-2 font-bold text-sm shadow-sm disabled:opacity-70"
+          >
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : saved ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {saving ? 'Saving...' : saved ? 'Saved' : 'Save Changes'}
+          </button>
         </div>
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-blue-600 text-white px-6 py-2.5 rounded-full hover:bg-blue-700 transition-all flex items-center gap-2 font-bold text-sm shadow-sm disabled:opacity-70"
-        >
-          {saving ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : saved ? (
-            <Check className="h-4 w-4" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
-          {saving ? 'Saving...' : saved ? 'Saved' : 'Save Changes'}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6 lg:gap-8">
-        {/* LEFT: Timezone + Working hours */}
-        <div className="space-y-6">
+        {/* Main content */}
+        <div className="space-y-6 lg:space-y-8">
           {/* Timezone card */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-1">
@@ -241,8 +192,8 @@ export default function Availability() {
               Timezone
             </h2>
             <p className="text-xs text-gray-500 mb-4">
-              Your availability will be shown in this timezone to you, and
-              auto-converted for guests.
+              Your availability is stored in this timezone and automatically
+              converted for guests.
             </p>
 
             <div className="relative max-w-xs">
@@ -265,7 +216,8 @@ export default function Availability() {
             </div>
 
             <p className="mt-3 text-xs text-gray-400">
-              Logged in as <span className="font-medium">{profile.email}</span>
+              Logged in as{' '}
+              <span className="font-medium">{profile.email}</span>
             </p>
           </div>
 
@@ -295,10 +247,15 @@ export default function Availability() {
             <div className="divide-y divide-gray-100 -mx-4">
               {WEEKDAYS.map((day) => {
                 const settings = availability.workingHours[day.key];
+                const isWeekend =
+                  day.key === 'saturday' || day.key === 'sunday';
+
                 return (
                   <div
                     key={day.key}
-                    className="flex flex-col sm:flex-row sm:items-center py-3 px-4 hover:bg-gray-50 transition-colors"
+                    className={`flex flex-col sm:flex-row sm:items-center py-3 px-4 transition-colors ${
+                      isWeekend ? 'bg-gray-50/40' : 'hover:bg-gray-50'
+                    }`}
                   >
                     {/* Day + toggle */}
                     <div className="w-40 flex items-center gap-3 mb-2 sm:mb-0">
@@ -385,121 +342,6 @@ export default function Availability() {
                 </div>
                 <p className="text-xs text-gray-400">
                   We’ll make sure there’s breathing room between bookings.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT: Reminder settings */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <h2 className="text-sm font-semibold text-gray-900">
-                  Email reminders
-                </h2>
-                <p className="text-xs text-gray-500 mt-1">
-                  Control reminder emails sent before each meeting.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setReminderSettings((prev) => ({
-                    ...prev,
-                    enabled: !prev.enabled,
-                  }))
-                }
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  reminderSettings.enabled ? 'bg-blue-600' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                    reminderSettings.enabled ? 'translate-x-5' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {remindersLoading && (
-              <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Loading reminder settings…
-              </div>
-            )}
-
-            <div
-              className={`space-y-5 mt-4 ${
-                !reminderSettings.enabled ? 'opacity-60 pointer-events-none' : ''
-              }`}
-            >
-              {/* Timing */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-2">
-                  When should we send the reminder?
-                </label>
-                <select
-                  value={reminderSettings.hoursBefore}
-                  onChange={(e) =>
-                    setReminderSettings((prev) => ({
-                      ...prev,
-                      hoursBefore: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
-                >
-                  <option value={1}>1 hour before</option>
-                  <option value={3}>3 hours before</option>
-                  <option value={6}>6 hours before</option>
-                  <option value={24}>24 hours before</option>
-                </select>
-                <p className="mt-1 text-xs text-gray-400">
-                  Applies to upcoming meetings booked through your personal link.
-                </p>
-              </div>
-
-              {/* Recipients */}
-              <div className="space-y-2">
-                <h3 className="text-xs font-semibold text-gray-700">
-                  Who should receive reminders?
-                </h3>
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={reminderSettings.sendToHost}
-                    onChange={(e) =>
-                      setReminderSettings((prev) => ({
-                        ...prev,
-                        sendToHost: e.target.checked,
-                      }))
-                    }
-                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span>Send to me (host)</span>
-                </label>
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={reminderSettings.sendToGuest}
-                    onChange={(e) =>
-                      setReminderSettings((prev) => ({
-                        ...prev,
-                        sendToGuest: e.target.checked,
-                      }))
-                    }
-                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span>Send to guest</span>
-                </label>
-              </div>
-
-              <div className="rounded-lg border border-blue-50 bg-blue-50/60 px-4 py-3 text-xs text-blue-800 flex gap-2">
-                <AlertCircle className="h-4 w-4 mt-0.5" />
-                <p>
-                  Reminders are only sent for future bookings that have a valid
-                  guest email and are not cancelled.
                 </p>
               </div>
             </div>
