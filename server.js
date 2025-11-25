@@ -2810,39 +2810,6 @@ app.get('/api/book/:token', async (req, res) => {
 
     const member = result.rows[0];
 
-    // Get event types
-    let eventTypes = [];
-    if (member.user_id) {
-      const eventsRes = await pool.query(
-        'SELECT * FROM event_types WHERE user_id = $1 AND is_active = true ORDER BY duration ASC',
-        [member.user_id]
-      );
-      eventTypes = eventsRes.rows;
-    }
-
-    res.json({
-      data: {
-        team: { 
-          id: member.team_id, 
-          name: member.team_name, 
-          description: member.team_description 
-        },
-        member: { 
-          name: member.name || member.member_name || member.email, 
-          email: member.email || member.member_email, 
-          external_booking_link: member.external_booking_link, 
-          external_booking_platform: member.external_booking_platform 
-        },
-        eventTypes: eventTypes
-      }
-    });
-  } catch (error) {
-    console.error('Get booking by token error:', error);
-    res.status(500).json({ error: 'Failed to fetch booking details' });
-  }
-});
-    const member = result.rows[0];
-
     // 2. ✅ NEW: Fetch Event Types for this user
     // This allows the frontend to switch between "15 min", "30 min", etc.
     let eventTypes = [];
