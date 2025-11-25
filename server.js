@@ -373,7 +373,10 @@ await pool.query(`
   )
 `);
 
-
+ await pool.query(`
+      ALTER TABLE bookings 
+      ADD COLUMN IF NOT EXISTS title VARCHAR(255) DEFAULT 'Meeting'
+    `);
 
     console.log('✅ Database initialized successfully');
   } catch (error) {
@@ -2883,22 +2886,43 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     // Create booking(s) FIRST (without meet link yet)
-    const createdBookings = [];
+const createdBookings = [];
 
-    for (const assignedMember of assignedMembers) {
-      const bookingResult = await pool.query(
-        `INSERT INTO bookings (team_id, member_id, user_id, attendee_name, attendee_email, 
-         start_time, end_time, notes, booking_token, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-        [member.team_id, assignedMember.id, assignedMember.user_id, attendee_name, attendee_email, 
-         slot.start, slot.end, notes || '', token, 'confirmed']
-      );
+for (const assignedMember of assignedMembers) {
+  const bookingResult = await pool.query(
+    `INSERT INTO bookings (
+      team_id, member_id, user_id, 
+      attendee_name, attendee_email, 
+      start_time, end_time, 
+      title,
+      notes, 
+      booking_token, status
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+    RETURNING *`,
+    [
+      member.team_id,
+      assignedMember.id,
+      assignedMember.user_id,
+      attendee_name,
+      attendee_email,
+      slot.start,
+      slot.end,
+      `Meeting with ${attendee_name}`,
+      notes || '',
+      token,
+      'confirmed'
+    ]
+  );
 
-      createdBookings.push(bookingResult.rows[0]);
-      console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
-    }
+  createdBookings.push(bookingResult.rows[0]);
+  console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
+}
 
-    console.log(`✅ Created ${createdBookings.length} booking(s)`);
+console.log(`✅ Created ${createdBookings.length} booking(s)`);
+
+// ========== RESPOND IMMEDIATELY ==========
+    
 
     // ========== RESPOND IMMEDIATELY ==========
     res.json({ 
