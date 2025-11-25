@@ -456,18 +456,7 @@ export function NotificationBell() {
               )}
             </div>
 
-            {/* Footer */}
-            {notifications.length > 0 && (
-              <div className="p-3 border-t bg-gray-50">
-                <a
-                  href="/notifications"
-                  className="block text-center text-sm text-blue-600 hover:text-blue-800 font-medium"
-                  onClick={() => setIsOpen(false)}
-                >
-                  View all notifications
-                </a>
-              </div>
-            )}
+            {/* Footer - Removed "View all" link since notifications page doesn't exist yet */}
           </div>
         </>
       )}
