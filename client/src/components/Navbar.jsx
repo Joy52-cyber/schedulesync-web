@@ -8,6 +8,7 @@ import {
   Settings,
   Menu,
   X,
+  Clock,          // ⭐ import Clock for Availability
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -27,22 +28,22 @@ export default function Navbar() {
 
   const isActive = (path) => location.pathname === path;
 
+  // ⭐ Use /dashboard to match your protected route
   const navLinks = [
-  { path: '/', label: 'Dashboard', icon: Calendar },
-  { path: '/availability', label: 'Availability', icon: Clock }, // ⭐ NEW
-  { path: '/teams', label: 'Teams', icon: Users },
-  { path: '/bookings', label: 'Bookings', icon: Calendar },
-  { path: '/my-booking-link', label: 'My Link', icon: Link2 },
-  { path: '/settings', label: 'Settings', icon: Settings },
-];
-
+    { path: '/dashboard', label: 'Dashboard', icon: Calendar },
+    { path: '/availability', label: 'Availability', icon: Clock }, // ⭐ NEW
+    { path: '/teams', label: 'Teams', icon: Users },
+    { path: '/bookings', label: 'Bookings', icon: Calendar },
+    { path: '/my-booking-link', label: 'My Link', icon: Link2 },
+    { path: '/settings', label: 'Settings', icon: Settings },
+  ];
 
   return (
     <nav className="bg-white border-b-2 border-gray-200 sticky top-0 z-50 shadow-sm">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group">
+          <Link to="/dashboard" className="flex items-center gap-2 group">
             <span className="text-base sm:text-lg font-bold tracking-tight text-gray-900">
               ScheduleSync
             </span>
