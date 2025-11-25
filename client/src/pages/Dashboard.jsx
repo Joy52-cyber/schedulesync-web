@@ -327,29 +327,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Availability quick access card */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-50 rounded-lg">
-                  <Clock className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">
-                    Availability &amp; Working Hours
-                  </h3>
-                  <p className="text-xs text-gray-500">
-                    Control when people can book time with you.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => navigate('/availability')}
-                className="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 hover:bg-green-700 transition-colors"
-              >
-                <Clock className="h-4 w-4" />
-                Manage Availability
-              </button>
-            </div>
 
             {/* Booking link card */}
             {bookingLink ? (
