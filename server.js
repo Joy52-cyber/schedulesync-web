@@ -161,6 +161,225 @@ async function callAnthropicWithRetry(requestBody, retries = 2) {
       if (i === retries) throw error;
       await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
     }
+  
+
+// ============ MICROSOFT OAUTH CONFIG ============
+const MICROSOFT_CONFIG = {
+  clientId: process.env.MICROSOFT_CLIENT_ID,
+  clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
+  redirectUri: process.env.MICROSOFT_REDIRECT_URI || `${process.env.FRONTEND_URL}/oauth/callback/microsoft`,
+  scopes: [
+    'openid',
+    'profile',
+    'email',
+    'offline_access',
+    'Calendars.ReadWrite',
+    'OnlineMeetings.ReadWrite'
+  ]
+};
+
+// ============ CALENDLY API CONFIG ============
+const CALENDLY_CONFIG = {
+  apiKey: process.env.CALENDLY_API_KEY,
+  baseUrl: 'https://api.calendly.com'
+};
+
+// ============ MICROSOFT GRAPH API HELPERS ============
+
+async function refreshMicrosoftToken(refreshToken) {
+  try {
+    const response = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: MICROSOFT_CONFIG.clientId,
+        client_secret: MICROSOFT_CONFIG.clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+        scope: MICROSOFT_CONFIG.scopes.join(' '),
+      }),
+    });
+
+    if (!response.ok) throw new Error('Token refresh failed');
+    return await response.json();
+  } catch (error) {
+    console.error('❌ Microsoft token refresh error:', error);
+    throw error;
+  }
+}
+
+async function getMicrosoftCalendarEvents(accessToken, refreshToken, startTime, endTime) {
+  try {
+    let token = accessToken;
+
+    let response = await fetch(
+      `https://graph.microsoft.com/v1.0/me/calendarview?startDateTime=${startTime}&endDateTime=${endTime}`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+
+    if (response.status === 401) {
+      console.log('🔄 Refreshing Microsoft token...');
+      const newTokens = await refreshMicrosoftToken(refreshToken);
+      token = newTokens.access_token;
+      
+      response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/calendarview?startDateTime=${startTime}&endDateTime=${endTime}`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+    }
+
+    const data = await response.json();
+    return data.value || [];
+  } catch (error) {
+    console.error('❌ Microsoft calendar fetch error:', error);
+    return [];
+  }
+}
+
+async function createMicrosoftCalendarEvent(accessToken, refreshToken, eventData) {
+  try {
+    let token = accessToken;
+
+    const event = {
+      subject: eventData.title,
+      body: {
+        contentType: 'HTML',
+        content: eventData.description || 'Scheduled via ScheduleSync'
+      },
+      start: {
+        dateTime: eventData.startTime,
+        timeZone: 'UTC'
+      },
+      end: {
+        dateTime: eventData.endTime,
+        timeZone: 'UTC'
+      },
+      attendees: eventData.attendees.map(a => ({
+        emailAddress: { address: a.email, name: a.name },
+        type: 'required'
+      })),
+      isOnlineMeeting: true,
+      onlineMeetingProvider: 'teamsForBusiness'
+    };
+
+    let response = await fetch('https://graph.microsoft.com/v1.0/me/events', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(event)
+    });
+
+    if (response.status === 401) {
+      console.log('🔄 Refreshing Microsoft token...');
+      const newTokens = await refreshMicrosoftToken(refreshToken);
+      token = newTokens.access_token;
+      
+      response = await fetch('https://graph.microsoft.com/v1.0/me/events', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(event)
+      });
+    }
+
+    const createdEvent = await response.json();
+    return {
+      id: createdEvent.id,
+      meetingUrl: createdEvent.onlineMeeting?.joinUrl || null
+    };
+  } catch (error) {
+    console.error('❌ Microsoft event creation error:', error);
+    throw error;
+  }
+}
+
+// ============ CALENDLY API HELPERS ============
+
+async function getCalendlyUser(apiKey) {
+  try {
+    const response = await fetch(`${CALENDLY_CONFIG.baseUrl}/users/me`, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) throw new Error('Failed to get Calendly user');
+    const data = await response.json();
+    return data.resource;
+  } catch (error) {
+    console.error('❌ Calendly user fetch error:', error);
+    throw error;
+  }
+}
+
+async function getCalendlyEventTypes(apiKey, userUri) {
+  try {
+    const response = await fetch(`${CALENDLY_CONFIG.baseUrl}/event_types?user=${encodeURIComponent(userUri)}`, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) throw new Error('Failed to get event types');
+    const data = await response.json();
+    return data.collection || [];
+  } catch (error) {
+    console.error('❌ Calendly event types fetch error:', error);
+    return [];
+  }
+}
+
+async function createCalendlyScheduledEvent(apiKey, eventTypeUri, startTime, inviteeEmail, inviteeName) {
+  try {
+    const response = await fetch(`${CALENDLY_CONFIG.baseUrl}/scheduled_events`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        event_type: eventTypeUri,
+        start_time: startTime,
+        invitee_email: inviteeEmail,
+        invitee_name: inviteeName
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to create event');
+    }
+
+    const data = await response.json();
+    return data.resource;
+  } catch (error) {
+    console.error('❌ Calendly event creation error:', error);
+    throw error;
+  }
+}
+
+async function cancelCalendlyEvent(apiKey, eventUri, reason) {
+  try {
+    const response = await fetch(`${CALENDLY_CONFIG.baseUrl}/scheduled_events/${eventUri}/cancellation`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ reason: reason || 'Cancelled via ScheduleSync' })
+    });
+
+    if (!response.ok) throw new Error('Failed to cancel event');
+    return await response.json();
+  } catch (error) {
+    console.error('❌ Calendly cancellation error:', error);
+    throw error;
   }
 }
 
@@ -168,15 +387,6 @@ async function callAnthropicWithRetry(requestBody, retries = 2) {
 
 app.use(cors());
 app.use(express.json());
-
-
-// 4. Healthcheck (AFTER app exists)
-app.get('/health', (req, res) => res.send('OK'));
-
-// finally
-const server = app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
 
 // ============ DATABASE CONNECTION ============
 
@@ -200,20 +410,22 @@ async function initDB() {
   try {
     console.log('Initializing database...');
 
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        google_id VARCHAR(255) UNIQUE,
-        microsoft_id VARCHAR(255) UNIQUE,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        name VARCHAR(255),
-        google_access_token TEXT,
-        google_refresh_token TEXT,
-        calendar_sync_enabled BOOLEAN DEFAULT false,
-        provider VARCHAR(50) DEFAULT 'google',
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
+   await pool.query(`
+  CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    google_id VARCHAR(255) UNIQUE,
+    microsoft_id VARCHAR(255) UNIQUE,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(255),
+    google_access_token TEXT,
+    google_refresh_token TEXT,
+    microsoft_access_token TEXT,
+    microsoft_refresh_token TEXT,
+    calendar_sync_enabled BOOLEAN DEFAULT false,
+    provider VARCHAR(50) DEFAULT 'google',
+    created_at TIMESTAMP DEFAULT NOW()
+  )
+`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS teams (
@@ -229,21 +441,23 @@ async function initDB() {
       )
     `);
 
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS team_members (
-        id SERIAL PRIMARY KEY,
-        team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        email VARCHAR(255) NOT NULL,
-        name VARCHAR(255),
-        booking_token VARCHAR(255) UNIQUE NOT NULL,
-        invited_by INTEGER REFERENCES users(id),
-        external_booking_link TEXT,
-        external_booking_platform VARCHAR(50) DEFAULT 'calendly',
-        booking_count INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
+   await pool.query(`
+  CREATE TABLE IF NOT EXISTS team_members (
+    id SERIAL PRIMARY KEY,
+    team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    email VARCHAR(255) NOT NULL,
+    name VARCHAR(255),
+    booking_token VARCHAR(255) UNIQUE NOT NULL,
+    invited_by INTEGER REFERENCES users(id),
+    external_booking_link TEXT,
+    external_booking_platform VARCHAR(50) DEFAULT 'calendly',
+    calendly_api_key TEXT,
+    calendly_user_uri TEXT,
+    booking_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW()
+  )
+`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS bookings (
@@ -716,15 +930,253 @@ app.post('/api/auth/google/callback', async (req, res) => {
       processedOAuthCodes.delete(req.body.code);
       console.log('🔓 Code unlocked for retry');
     }
+
+// ============ MICROSOFT OAUTH (ORGANIZER LOGIN) ============
+
+app.get('/api/auth/microsoft/url', (req, res) => {
+  try {
+    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
+      `client_id=${MICROSOFT_CONFIG.clientId}` +
+      `&response_type=code` +
+      `&redirect_uri=${encodeURIComponent(MICROSOFT_CONFIG.redirectUri)}` +
+      `&response_mode=query` +
+      `&scope=${encodeURIComponent(MICROSOFT_CONFIG.scopes.join(' '))}` +
+      `&prompt=select_account`;
+
+    console.log('🔗 Generated Microsoft OAuth URL:', authUrl);
+    res.json({ url: authUrl });
+  } catch (error) {
+    console.error('❌ Error generating Microsoft OAuth URL:', error);
+    res.status(500).json({ error: 'Failed to generate OAuth URL' });
+  }
+});
+
+app.post('/api/auth/microsoft/callback', async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    console.log('🔵 Microsoft OAuth callback received');
+
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+
+    if (processedOAuthCodes.has(code)) {
+      console.log('⚠️ Code already processed');
+      return res.status(400).json({ error: 'Code already used' });
+    }
+
+    processedOAuthCodes.set(code, Date.now());
+    console.log('🔒 Code locked for processing');
+
+    const tokenResponse = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: MICROSOFT_CONFIG.clientId,
+        client_secret: MICROSOFT_CONFIG.clientSecret,
+        code: code,
+        redirect_uri: MICROSOFT_CONFIG.redirectUri,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.text();
+      console.error('❌ Token exchange failed:', errorData);
+      throw new Error('Failed to exchange code for tokens');
+    }
+
+    const tokens = await tokenResponse.json();
+    console.log('✅ Microsoft tokens received');
+
+    const userInfoResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`,
+      },
+    });
+
+    const userInfo = await userInfoResponse.json();
+    console.log('✅ User info retrieved:', userInfo.mail || userInfo.userPrincipalName);
+
+    const email = userInfo.mail || userInfo.userPrincipalName;
+    let userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+
+    let user;
+    if (userResult.rows.length === 0) {
+      console.log('➕ Creating new Microsoft user');
+      const insertResult = await pool.query(
+        `INSERT INTO users (microsoft_id, email, name, microsoft_access_token, microsoft_refresh_token, calendar_sync_enabled, provider)
+         VALUES ($1, $2, $3, $4, $5, true, 'microsoft') RETURNING *`,
+        [userInfo.id, email, userInfo.displayName, tokens.access_token, tokens.refresh_token]
+      );
+      user = insertResult.rows[0];
+    } else {
+      console.log('🔄 Updating existing user with Microsoft');
+      const updateResult = await pool.query(
+        `UPDATE users SET microsoft_id = $1, name = $2, microsoft_access_token = $3, microsoft_refresh_token = $4, calendar_sync_enabled = true, provider = 'microsoft'
+         WHERE email = $5 RETURNING *`,
+        [userInfo.id, userInfo.displayName, tokens.access_token, tokens.refresh_token, email]
+      );
+      user = updateResult.rows[0];
+    }
+
+    await pool.query('UPDATE team_members SET user_id = $1 WHERE email = $2 AND user_id IS NULL', [user.id, user.email]);
+
+    const jwtToken = jwt.sign(
+      { id: user.id, email: user.email, name: user.name },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    console.log('✅ Microsoft OAuth successful for:', user.email);
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        calendar_sync_enabled: user.calendar_sync_enabled
+      },
+      token: jwtToken,
+    });
+  } catch (error) {
+    console.error('❌ Microsoft OAuth error:', error.message);
     
-    res.status(500).json({ 
+    if (req.body.code) {
+      processedOAuthCodes.delete(req.body.code);
+      console.log('🔓 Code unlocked for retry');
+    }
+    
+    res.status(500).json({
       error: 'Authentication failed',
-      details: error.message.includes('invalid_grant') 
-        ? 'Authorization code expired or already used. Please try logging in again.'
-        : error.message
+      details: error.message
     });
   }
 });
+
+// ============ CALENDLY OAUTH ============
+
+app.get('/api/auth/calendly/url', (req, res) => {
+  try {
+    const authUrl = `https://auth.calendly.com/oauth/authorize?` +
+      `client_id=${process.env.CALENDLY_CLIENT_ID}` +
+      `&response_type=code` +
+      `&redirect_uri=${encodeURIComponent(process.env.CALENDLY_REDIRECT_URI)}`;
+
+    console.log('🔗 Generated Calendly OAuth URL');
+    res.json({ url: authUrl });
+  } catch (error) {
+    console.error('❌ Error generating Calendly OAuth URL:', error);
+    res.status(500).json({ error: 'Failed to generate OAuth URL' });
+  }
+});
+
+app.post('/api/auth/calendly/callback', authenticateToken, async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+
+    const tokenResponse = await fetch('https://auth.calendly.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: process.env.CALENDLY_REDIRECT_URI,
+        client_id: process.env.CALENDLY_CLIENT_ID,
+        client_secret: process.env.CALENDLY_CLIENT_SECRET
+      })
+    });
+
+    const tokens = await tokenResponse.json();
+    
+    if (!tokenResponse.ok) {
+      throw new Error(tokens.error_description || 'Token exchange failed');
+    }
+
+    const user = await getCalendlyUser(tokens.access_token);
+
+    const userId = req.user.id;
+    await pool.query(
+      `UPDATE team_members SET calendly_api_key = $1, calendly_user_uri = $2 
+       WHERE user_id = $3`,
+      [tokens.access_token, user.uri, userId]
+    );
+
+    console.log('✅ Calendly OAuth successful');
+
+    res.json({
+      success: true,
+      calendlyConnected: true,
+      userUri: user.uri
+    });
+  } catch (error) {
+    console.error('❌ Calendly OAuth error:', error);
+    res.status(500).json({ error: 'Calendly authentication failed' });
+  }
+});
+
+// ============ CALENDLY SYNC ENDPOINTS ============
+
+app.get('/api/calendly/event-types', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const memberResult = await pool.query(
+      `SELECT calendly_api_key, calendly_user_uri FROM team_members WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
+
+    if (memberResult.rows.length === 0 || !memberResult.rows[0].calendly_api_key) {
+      return res.status(404).json({ error: 'Calendly not connected' });
+    }
+
+    const member = memberResult.rows[0];
+    const eventTypes = await getCalendlyEventTypes(member.calendly_api_key, member.calendly_user_uri);
+
+    res.json({ eventTypes });
+  } catch (error) {
+    console.error('❌ Calendly event types error:', error);
+    res.status(500).json({ error: 'Failed to fetch Calendly event types' });
+  }
+});
+
+app.post('/api/calendly/create-event', authenticateToken, async (req, res) => {
+  try {
+    const { eventTypeUri, startTime, inviteeEmail, inviteeName } = req.body;
+    const userId = req.user.id;
+
+    const memberResult = await pool.query(
+      `SELECT calendly_api_key FROM team_members WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
+
+    if (memberResult.rows.length === 0 || !memberResult.rows[0].calendly_api_key) {
+      return res.status(404).json({ error: 'Calendly not connected' });
+    }
+
+    const event = await createCalendlyScheduledEvent(
+      memberResult.rows[0].calendly_api_key,
+      eventTypeUri,
+      startTime,
+      inviteeEmail,
+      inviteeName
+    );
+
+    res.json({ success: true, event });
+  } catch (error) {
+    console.error('❌ Calendly create event error:', error);
+    res.status(500).json({ error: 'Failed to create Calendly event' });
+  }
+});
+
 // ============ EMAIL/PASSWORD AUTHENTICATION ============
 
 // Register with email/password
@@ -2069,37 +2521,56 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     );
     const existingBookings = bookingsResult.rows;
 
-    // ========== 4. GET ORGANIZER CALENDAR BUSY TIMES ==========
-    let organizerBusy = [];
-    if (member.google_access_token && member.google_refresh_token) {
-      try {
-        const calendar = google.calendar({ version: 'v3' });
-        const organizerAuth = new google.auth.OAuth2(
-          process.env.GOOGLE_CLIENT_ID,
-          process.env.GOOGLE_CLIENT_SECRET
-        );
-        organizerAuth.setCredentials({
-          access_token: member.google_access_token,
-          refresh_token: member.google_refresh_token
-        });
+  // ========== 4. GET ORGANIZER CALENDAR BUSY TIMES ==========
+let organizerBusy = [];
+if (member.provider === 'google' && member.google_access_token && member.google_refresh_token) {
+  try {
+    const calendar = google.calendar({ version: 'v3' });
+    const organizerAuth = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET
+    );
+    organizerAuth.setCredentials({
+      access_token: member.google_access_token,
+      refresh_token: member.google_refresh_token
+    });
 
-        const freeBusyResponse = await calendar.freebusy.query({
-          auth: organizerAuth,
-          requestBody: {
-            timeMin: now.toISOString(),
-            timeMax: endDate.toISOString(),
-            items: [{ id: 'primary' }],
-          },
-        });
+    const freeBusyResponse = await calendar.freebusy.query({
+      auth: organizerAuth,
+      requestBody: {
+        timeMin: now.toISOString(),
+        timeMax: endDate.toISOString(),
+        items: [{ id: 'primary' }],
+      },
+    });
 
-        organizerBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
-        console.log('✅ Organizer calendar loaded:', organizerBusy.length, 'busy blocks');
-      } catch (error) {
-        console.error('⚠️ Failed to fetch organizer calendar:', error.message);
-      }
-    }
+    organizerBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
+    console.log('✅ Google calendar loaded:', organizerBusy.length, 'busy blocks');
+  } catch (error) {
+    console.error('⚠️ Failed to fetch Google calendar:', error.message);
+  }
+} else if (member.provider === 'microsoft' && member.microsoft_access_token && member.microsoft_refresh_token) {
+  try {
+    const events = await getMicrosoftCalendarEvents(
+      member.microsoft_access_token,
+      member.microsoft_refresh_token,
+      now.toISOString(),
+      endDate.toISOString()
+    );
+
+    organizerBusy = events.map(e => ({
+      start: e.start.dateTime,
+      end: e.end.dateTime
+    }));
+    
+    console.log('✅ Microsoft calendar loaded:', organizerBusy.length, 'busy blocks');
+  } catch (error) {
+    console.error('⚠️ Failed to fetch Microsoft calendar:', error.message);
+  }
+}
 
     // ========== 5. GET GUEST CALENDAR BUSY TIMES ==========
+   
     let guestBusy = [];
     if (guestAccessToken) {
       try {
@@ -3185,79 +3656,113 @@ app.post('/api/bookings', async (req, res) => {
         let meetLink = null;
         let calendarEventId = null;
 
-        // Create calendar event with Meet link
-        if (member.google_access_token && member.google_refresh_token) {
-          try {
-            console.log('📅 Creating calendar event with Meet link (async)...');
+        // 
 
-            const oauth2Client = new google.auth.OAuth2(
-              process.env.GOOGLE_CLIENT_ID,
-              process.env.GOOGLE_CLIENT_SECRET,
-              process.env.GOOGLE_REDIRECT_URI
-            );
+        // Create calendar event with meeting link
+if (member.provider === 'google' && member.google_access_token && member.google_refresh_token) {
+  try {
+    console.log('📅 Creating Google Calendar event with Meet link (async)...');
 
-            oauth2Client.setCredentials({
-              access_token: member.google_access_token,
-              refresh_token: member.google_refresh_token
-            });
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
 
-            const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    oauth2Client.setCredentials({
+      access_token: member.google_access_token,
+      refresh_token: member.google_refresh_token
+    });
 
-            const event = {
-              summary: `Meeting with ${attendee_name}`,
-              description: notes || 'Scheduled via ScheduleSync',
-              start: {
-                dateTime: slot.start,
-                timeZone: 'UTC',
-              },
-              end: {
-                dateTime: slot.end,
-                timeZone: 'UTC',
-              },
-              attendees: [
-                { email: attendee_email, displayName: attendee_name },
-                { email: member.member_email, displayName: member.member_name }
-              ],
-              conferenceData: {
-                createRequest: {
-                  requestId: `schedulesync-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                  conferenceSolutionKey: {
-                    type: 'hangoutsMeet'
-                  }
-                }
-              },
-              reminders: {
-                useDefault: false,
-                overrides: [
-                  { method: 'email', minutes: 24 * 60 },
-                  { method: 'popup', minutes: 30 }
-                ]
-              }
-            };
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
-            const calendarResponse = await calendar.events.insert({
-              calendarId: 'primary',
-              resource: event,
-              conferenceDataVersion: 1,
-              sendUpdates: 'all'
-            });
-
-            meetLink = calendarResponse.data.hangoutLink || null;
-            calendarEventId = calendarResponse.data.id;
-
-            // Update bookings with meet link
-            for (const booking of createdBookings) {
-              await pool.query(
-                `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
-                [meetLink, calendarEventId, booking.id]
-              );
-            }
-
-            console.log('✅ Calendar event created with Meet link:', meetLink);
-          } catch (calendarError) {
-            console.error('⚠️ Calendar event creation failed:', calendarError.message);
+    const event = {
+      summary: `Meeting with ${attendee_name}`,
+      description: notes || 'Scheduled via ScheduleSync',
+      start: {
+        dateTime: slot.start,
+        timeZone: 'UTC',
+      },
+      end: {
+        dateTime: slot.end,
+        timeZone: 'UTC',
+      },
+      attendees: [
+        { email: attendee_email, displayName: attendee_name },
+        { email: member.member_email, displayName: member.member_name }
+      ],
+      conferenceData: {
+        createRequest: {
+          requestId: `schedulesync-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          conferenceSolutionKey: {
+            type: 'hangoutsMeet'
           }
         }
+      },
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: 'email', minutes: 24 * 60 },
+          { method: 'popup', minutes: 30 }
+        ]
+      }
+    };
+
+    const calendarResponse = await calendar.events.insert({
+      calendarId: 'primary',
+      resource: event,
+      conferenceDataVersion: 1,
+      sendUpdates: 'all'
+    });
+
+    meetLink = calendarResponse.data.hangoutLink || null;
+    calendarEventId = calendarResponse.data.id;
+
+    for (const booking of createdBookings) {
+      await pool.query(
+        `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
+        [meetLink, calendarEventId, booking.id]
+      );
+    }
+
+    console.log('✅ Google Calendar event created with Meet link:', meetLink);
+  } catch (calendarError) {
+    console.error('⚠️ Google Calendar event creation failed:', calendarError.message);
+  }
+} else if (member.provider === 'microsoft' && member.microsoft_access_token && member.microsoft_refresh_token) {
+  try {
+    console.log('📅 Creating Microsoft Calendar event with Teams link (async)...');
+
+    const eventResult = await createMicrosoftCalendarEvent(
+      member.microsoft_access_token,
+      member.microsoft_refresh_token,
+      {
+        title: `Meeting with ${attendee_name}`,
+        description: notes || 'Scheduled via ScheduleSync',
+        startTime: slot.start,
+        endTime: slot.end,
+        attendees: [
+          { email: attendee_email, name: attendee_name },
+          { email: member.member_email, name: member.member_name }
+        ]
+      }
+    );
+
+    meetLink = eventResult.meetingUrl;
+    calendarEventId = eventResult.id;
+
+    for (const booking of createdBookings) {
+      await pool.query(
+        `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
+        [meetLink, calendarEventId, booking.id]
+      );
+    }
+
+    console.log('✅ Microsoft Calendar event created with Teams link:', meetLink);
+  } catch (calendarError) {
+    console.error('⚠️ Microsoft Calendar event creation failed:', calendarError.message);
+  }
+}    
 
         // Send confirmation emails
         try {
@@ -3589,9 +4094,6 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
     res.status(500).json({ error: 'Failed to cancel booking' });
   }
 });
-
-
-// ============ REMINDER ENDPOINTS ============
 
 // ============ REMINDER ENDPOINTS ============
 
@@ -4415,6 +4917,8 @@ If missing info, set intent to "clarify".`,
 
     console.log('🎯 Parsed intent:', parsedIntent);
 
+
+
     // ========== HANDLE DIFFERENT INTENTS ==========
 
     // INTENT: Show bookings
@@ -4735,21 +5239,6 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/api/debug/env', authenticateToken, (req, res) => {
-  res.json({
-    hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
-    keyLength: process.env.ANTHROPIC_API_KEY?.length || 0,
-    keyPrefix: process.env.ANTHROPIC_API_KEY?.substring(0, 10) || 'missing'
-  });
-});
-
-app.get('/api/debug/env', authenticateToken, (req, res) => {
-  res.json({
-    hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
-    keyLength: process.env.ANTHROPIC_API_KEY?.length || 0,
-    keyPrefix: process.env.ANTHROPIC_API_KEY?.substring(0, 10) || 'missing'
-  });
-});
 
 // Test Anthropic API connection
 app.get('/api/test/anthropic', authenticateToken, async (req, res) => {
@@ -5620,7 +6109,9 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-
+const server = app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
 
 // ============ GRACEFUL SHUTDOWN ============
 
