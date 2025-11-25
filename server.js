@@ -2735,6 +2735,40 @@ app.post('/api/single-use-links', authenticateToken, async (req, res) => {
   }
 });
 
+// Get recent single-use links
+app.get('/api/single-use-links/recent', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Find the user's personal member ID
+    const memberResult = await pool.query(
+      `SELECT tm.id FROM team_members tm JOIN teams t ON tm.team_id = t.id 
+       WHERE tm.user_id = $1 AND t.owner_id = $1 LIMIT 1`,
+      [userId]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.json({ links: [] });
+    }
+    
+    const memberId = memberResult.rows[0].id;
+    
+    const result = await pool.query(
+      `SELECT token, used, created_at, expires_at 
+       FROM single_use_links 
+       WHERE member_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT 10`,
+      [memberId]
+    );
+
+    res.json({ links: result.rows });
+  } catch (error) {
+    console.error('Get recent single-use links error:', error);
+    res.status(500).json({ error: 'Failed to fetch links' });
+  }
+});
+
 // ============ BOOKING ROUTES ============
 
 app.get('/api/bookings', authenticateToken, async (req, res) => {

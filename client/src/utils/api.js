@@ -27,16 +27,10 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor for global error handling (optional but recommended)
+// Global response interceptor
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    // If 401 Unauthorized, maybe redirect to login?
-    // if (error.response && error.response.status === 401) {
-    //   window.location.href = '/login';
-    // }
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // ---------- AUTH ----------
@@ -51,8 +45,7 @@ export const auth = {
     api.post('/auth/reset-password', { token, newPassword }),
   resendVerification: (email) =>
     api.post('/auth/resend-verification', { email }),
-  
-  // ✅ NEW: Onboarding / Profile Update
+
   updateProfile: (data) => api.put('/users/profile', data),
 };
 
@@ -74,28 +67,20 @@ export const teams = {
   updateMemberStatus: (teamId, memberId, is_active) =>
     api.patch(`/teams/${teamId}/members/${memberId}/status`, { is_active }),
 
-  // PUT /api/teams/:teamId/members/:memberId/pricing
   updateMemberPricing: (teamId, memberId, data) =>
     api.put(`/teams/${teamId}/members/${memberId}/pricing`, data),
 
-  // PUT /api/teams/:teamId/members/:memberId/external-link
   updateMemberExternalLink: (teamId, memberId, data) =>
     api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
 };
 
-// ---------- AVAILABILITY (TEAM MEMBER) ----------
+// ---------- AVAILABILITY ----------
 export const availability = {
-  // Uses backend: GET /api/team-members/:id/availability
-  getSettings: (teamId, memberId) =>
+  getSettings: (_, memberId) =>
     api.get(`/team-members/${memberId}/availability`),
 
-  // Uses backend: PUT /api/team-members/:id/availability
-  updateSettings: (teamId, memberId, data) =>
+  updateSettings: (_, memberId, data) =>
     api.put(`/team-members/${memberId}/availability`, data),
-
-  // Alias helper (same as getSettings)
-  get: (teamId, memberId) =>
-    api.get(`/team-members/${memberId}/availability`),
 };
 
 // ---------- BOOKINGS ----------
@@ -117,8 +102,7 @@ export const bookings = {
 
 // ---------- REMINDERS ----------
 export const reminders = {
-  getSettings: (teamId) =>
-    api.get(`/teams/${teamId}/reminder-settings`),
+  getSettings: (teamId) => api.get(`/teams/${teamId}/reminder-settings`),
   updateSettings: (teamId, data) =>
     api.put(`/teams/${teamId}/reminder-settings`, data),
   getStatus: () => api.get('/reminders/status'),
@@ -152,45 +136,4 @@ export const ai = {
       message,
       conversationHistory: history,
     }),
-  confirm: (bookingData) =>
-    api.post('/ai/schedule/confirm', { bookingData }),
-};
-
-// ---------- TIMEZONE ----------
-export const timezone = {
-  // User-level timezone
-  get: () => api.get('/user/timezone'),
-  update: (data) => api.put('/user/timezone', data),
-
-  // Team member timezone (matches /api/team-members/:id/timezone)
-  getMemberTimezone: (memberId) =>
-    api.get(`/team-members/${memberId}/timezone`),
-
-  updateMemberTimezone: (memberId, timezone) =>
-    api.put(`/team-members/${memberId}/timezone`, { timezone }),
-};
-
-// ---------- EVENT TYPES (NEW) ----------
-export const eventTypes = {
-  getAll: () => api.get('/event-types'),
-  create: (data) => api.post('/event-types', data),
-  update: (id, data) => api.put(`/event-types/${id}`, data),
-  delete: (id) => api.delete(`/event-types/${id}`),
-};
-
-// Attach all helpers to default export for `import api from '../utils/api'`
-Object.assign(api, {
-  auth,
-  teams,
-  availability,
-  bookings,
-  reminders,
-  calendar,
-  oauth,
-  payments,
-  ai,
-  timezone,
-  eventTypes, // ✅ Ensure this is added
-});
-
-export default api;
+  confirm:

@@ -15,9 +15,12 @@ import {
   Check,
   Link as LinkIcon,
   Loader2,
+  Ticket,
+  X,
+  ExternalLink,
 } from 'lucide-react';
 
-import api, { auth, timezone as timezoneApi } from '../utils/api';
+import api, { auth, timezone as timezoneApi, singleUseLinks } from '../utils/api';
 import AISchedulerChat from '../components/AISchedulerChat';
 import TimezoneSelector from '../components/TimezoneSelector';
 
@@ -36,10 +39,17 @@ export default function Dashboard() {
   const [timezone, setTimezone] = useState('');
   const [user, setUser] = useState(null);
 
-  // Booking link
+  // Permanent booking link
   const [bookingLink, setBookingLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [generatingLink, setGeneratingLink] = useState(false);
+
+  // Single-use links
+  const [singleUseLinksData, setSingleUseLinksData] = useState([]);
+  const [generatingSingleUse, setGeneratingSingleUse] = useState(false);
+  const [newSingleUseToken, setNewSingleUseToken] = useState('');
+  const [showSingleUseModal, setShowSingleUseModal] = useState(false);
+  const [copiedSingleUse, setCopiedSingleUse] = useState('');
 
   // ---------- INITIAL LOAD ----------
   useEffect(() => {
@@ -48,7 +58,12 @@ export default function Dashboard() {
 
   const loadAllData = async () => {
     setLoading(true);
-    await Promise.all([loadDashboardData(), loadUserTimezone(), loadUserProfile()]);
+    await Promise.all([
+      loadDashboardData(),
+      loadUserTimezone(),
+      loadUserProfile(),
+      loadSingleUseLinks(),
+    ]);
     setLoading(false);
   };
 
@@ -91,6 +106,15 @@ export default function Dashboard() {
     }
   };
 
+  const loadSingleUseLinks = async () => {
+    try {
+      const response = await singleUseLinks.getRecent();
+      setSingleUseLinksData(response.data.links || []);
+    } catch (error) {
+      console.error('Load single-use links error:', error);
+    }
+  };
+
   // ---------- HANDLERS ----------
   const handleCreateLink = async () => {
     setGeneratingLink(true);
@@ -110,6 +134,29 @@ export default function Dashboard() {
     navigator.clipboard.writeText(bookingLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleGenerateSingleUse = async () => {
+    setGeneratingSingleUse(true);
+    try {
+      const response = await singleUseLinks.generate();
+      const token = response.data.token;
+      setNewSingleUseToken(token);
+      setShowSingleUseModal(true);
+      await loadSingleUseLinks();
+    } catch (error) {
+      console.error('Generate single-use link error:', error);
+      alert('Could not generate single-use link. Please try again.');
+    } finally {
+      setGeneratingSingleUse(false);
+    }
+  };
+
+  const handleCopySingleUse = (token) => {
+    const link = `${window.location.origin}/book/${token}`;
+    navigator.clipboard.writeText(link);
+    setCopiedSingleUse(token);
+    setTimeout(() => setCopiedSingleUse(''), 2000);
   };
 
   const handleTimezoneChange = async (newTimezone) => {
@@ -145,6 +192,25 @@ export default function Dashboard() {
       default:
         return 'bg-green-100 text-green-700 border-green-200';
     }
+  };
+
+  const getSingleUseLinkStatus = (link) => {
+    const now = new Date();
+    const expiresAt = new Date(link.expires_at);
+    
+    if (link.used) {
+      return { label: 'Used', color: 'bg-gray-100 text-gray-600', icon: CheckCircle2 };
+    }
+    if (expiresAt < now) {
+      return { label: 'Expired', color: 'bg-red-100 text-red-600', icon: XCircle };
+    }
+    
+    const hoursRemaining = Math.floor((expiresAt - now) / (1000 * 60 * 60));
+    return { 
+      label: `Active (${hoursRemaining}h left)`, 
+      color: 'bg-green-100 text-green-600', 
+      icon: Sparkles 
+    };
   };
 
   if (loading) {
@@ -245,57 +311,135 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Booking link card */}
-            {bookingLink ? (
-              <div className="bg-blue-50/50 rounded-2xl border border-blue-200 p-5 shadow-sm">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                  <div className="w-full">
-                    <label className="text-sm font-bold text-blue-900 mb-2 block">
-                      Your Booking Link
-                    </label>
-                    <div className="font-mono text-sm text-blue-700 bg-white border border-blue-200 rounded-lg px-4 py-3 w-full break-all">
-                      {bookingLink}
-                    </div>
-                  </div>
+            {/* 🆕 BOOKING LINKS CARD (Combined) */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <LinkIcon className="h-5 w-5 text-blue-600" />
+                Your Booking Links
+              </h3>
 
-                  <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-6">
+              {/* PERMANENT LINK */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold text-gray-900">🔗 Permanent Link</h4>
+                </div>
+                <p className="text-sm text-gray-600 mb-3">
+                  Use unlimited times. Great for email signatures and public sharing.
+                </p>
+
+                {bookingLink ? (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={bookingLink}
+                      readOnly
+                      className="flex-1 px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl font-mono text-sm"
+                    />
                     <button
                       onClick={handleCopyLink}
-                      className="whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm w-full md:w-auto"
+                      className="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
                     >
                       {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       {copied ? 'Copied' : 'Copy'}
                     </button>
                   </div>
-                </div>
+                ) : (
+                  <button
+                    onClick={handleCreateLink}
+                    disabled={generatingLink}
+                    className="w-full px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {generatingLink ? (
+                      <Loader2 className="animate-spin h-5 w-5" />
+                    ) : (
+                      <Sparkles className="h-5 w-5" />
+                    )}
+                    {generatingLink ? 'Generating...' : 'Create Booking Link'}
+                  </button>
+                )}
               </div>
-            ) : (
-              <div className="bg-orange-50 rounded-2xl border border-orange-200 p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-orange-100 rounded-full">
-                    <LinkIcon className="h-6 w-6 text-orange-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-orange-900">Setup Required</h3>
-                    <p className="text-sm text-orange-800">
-                      You don&apos;t have a personal booking link yet.
-                    </p>
-                  </div>
+
+              <hr className="my-6 border-gray-200" />
+
+              {/* SINGLE-USE LINKS */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold text-gray-900">🎫 Single-Use Links</h4>
                 </div>
+                <p className="text-sm text-gray-600 mb-3">
+                  One-time use only. Expires in 24 hours. Perfect for specific clients.
+                </p>
+
                 <button
-                  onClick={handleCreateLink}
-                  disabled={generatingLink}
-                  className="w-full sm:w-auto px-6 py-3 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  onClick={handleGenerateSingleUse}
+                  disabled={generatingSingleUse}
+                  className="w-full mb-4 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {generatingLink ? (
+                  {generatingSingleUse ? (
                     <Loader2 className="animate-spin h-5 w-5" />
                   ) : (
-                    <Sparkles className="h-5 w-5" />
+                    <Ticket className="h-5 w-5" />
                   )}
-                  {generatingLink ? 'Generating...' : 'Create Booking Link'}
+                  {generatingSingleUse ? 'Generating...' : 'Generate New Single-Use Link'}
                 </button>
+
+                {/* Recent Single-Use Links */}
+                {singleUseLinksData.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Recent Links:
+                    </p>
+                    {singleUseLinksData.slice(0, 5).map((link) => {
+                      const status = getSingleUseLinkStatus(link);
+                      const StatusIcon = status.icon;
+                      const isActive = !link.used && new Date(link.expires_at) > new Date();
+
+                      return (
+                        <div
+                          key={link.token}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                        >
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className={`px-2 py-1 rounded-md ${status.color} text-xs font-semibold flex items-center gap-1`}>
+                              <StatusIcon className="h-3 w-3" />
+                              {status.label}
+                            </div>
+                            <code className="text-xs text-gray-600 font-mono truncate">
+                              {link.token.substring(0, 16)}...
+                            </code>
+                          </div>
+
+                          {isActive && (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleCopySingleUse(link.token)}
+                                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors flex items-center gap-1"
+                              >
+                                {copiedSingleUse === link.token ? (
+                                  <Check className="h-3 w-3" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                                {copiedSingleUse === link.token ? 'Copied' : 'Copy'}
+                              </button>
+                              
+                                href={`${window.location.origin}/book/${link.token}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-300 transition-colors flex items-center gap-1"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                Open
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
             {/* Stats grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -375,6 +519,79 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
+
+      {/* 🆕 SINGLE-USE LINK MODAL */}
+      {showSingleUseModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 relative">
+            <button
+              onClick={() => setShowSingleUseModal(false)}
+              className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <X className="h-5 w-5 text-gray-500" />
+            </button>
+
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full mb-4">
+                <Ticket className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                🎫 Single-Use Link Generated!
+              </h3>
+              <p className="text-gray-600">
+                This link can only be used once and expires in 24 hours.
+              </p>
+            </div>
+
+            <div className="bg-gray-50 rounded-xl p-4 mb-6">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">
+                Your Link:
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={`${window.location.origin}/book/${newSingleUseToken}`}
+                  readOnly
+                  className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg font-mono text-sm"
+                />
+                <button
+                  onClick={() => handleCopySingleUse(newSingleUseToken)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  {copiedSingleUse === newSingleUseToken ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                  {copiedSingleUse === newSingleUseToken ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="bg-blue-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-blue-600 font-semibold mb-1">⏰ Expires</p>
+                <p className="text-sm font-bold text-blue-900">24 hours</p>
+              </div>
+              <div className="bg-purple-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-purple-600 font-semibold mb-1">🎯 Usage</p>
+                <p className="text-sm font-bold text-purple-900">One time</p>
+              </div>
+              <div className="bg-pink-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-pink-600 font-semibold mb-1">🔒 Secure</p>
+                <p className="text-sm font-bold text-pink-900">Private</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowSingleUseModal(false)}
+              className="w-full px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* AI chat widget */}
       <AISchedulerChat />
