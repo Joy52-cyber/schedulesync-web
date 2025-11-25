@@ -1,12 +1,11 @@
 ﻿import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 
 // Layouts
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
-import MyBookingLink from './components/MyBookingLink';
-
 
 // Auth / Marketing pages
 import Landing from './pages/Landing';
@@ -24,7 +23,6 @@ import Bookings from './pages/Bookings';
 import EventTypes from './pages/EventTypes';
 import Availability from './pages/Availability';
 
-
 // Team
 import Teams from './pages/Teams';
 import TeamSettings from './pages/TeamSettings';
@@ -40,10 +38,9 @@ import BookingPage from './pages/BookingPage';
 import ManageBooking from './pages/ManageBooking';
 import PaymentStatus from './pages/PaymentStatus';
 import Book from './pages/Book';
-
 import BookingConfirmation from './components/BookingConfirmation';
-import { NotificationProvider } from './contexts/NotificationContext';
-// ---------- Login Wrapper ----------
+
+// Login Wrapper
 function LoginWrapper({ Component }) {
   const { login } = useAuth();
 
@@ -55,77 +52,77 @@ function LoginWrapper({ Component }) {
   return <Component onLogin={handleLogin} />;
 }
 
-// ---------- APP ----------
+// Main App Component
 function App() {
   return (
     <Router>
       <AuthProvider>
-        <Routes>
+        <NotificationProvider>
+          <Routes>
+            {/* Marketing */}
+            <Route path="/" element={<Landing />} />
+            <Route path="/login" element={<Landing defaultLoginOpen />} />
+            <Route path="/register" element={<LoginWrapper Component={Register} />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/oauth/callback" element={<LoginWrapper Component={OAuthCallback} />} />
 
-          {/* Marketing */}
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Landing defaultLoginOpen />} />
-          <Route path="/register" element={<LoginWrapper Component={Register} />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/verify-email" element={<VerifyEmail />} />
-          <Route path="/oauth/callback" element={<LoginWrapper Component={OAuthCallback} />} />
+            {/* Onboarding */}
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute>
+                  <OnboardingWizard />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Onboarding */}
-          <Route
-            path="/onboarding"
-            element={
-              <ProtectedRoute>
-                <OnboardingWizard />
-              </ProtectedRoute>
-            }
-          />
+            {/* Admin */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <AdminPanel />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Admin */}
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute>
-                <AdminPanel />
-              </ProtectedRoute>
-            }
-          />
+            {/* Public Guest Routes */}
+            <Route path="/book/:token" element={<BookingPage />} />
+            <Route path="/book" element={<Book />} />
+            <Route path="/manage/:token" element={<ManageBooking />} />
+            <Route path="/payment/status" element={<PaymentStatus />} />
+            <Route path="/booking-success" element={<BookingConfirmation />} />
 
-          {/* Public Guest Routes */}
-          <Route path="/book/:token" element={<BookingPage />} />
-          <Route path="/book" element={<Book />} />
-          <Route path="/manage/:token" element={<ManageBooking />} />
-          <Route path="/payment/status" element={<PaymentStatus />} />
-          <Route path="/booking-success" element={<BookingConfirmation />} />
+            {/* Protected App Layout */}
+            <Route
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/bookings" element={<Bookings />} />
+              <Route path="/availability" element={<Availability />} />
+              <Route path="/events" element={<EventTypes />} />
 
-          {/* Protected App Layout */}
-          <Route
-            element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/bookings" element={<Bookings />} />
-     <Route path="/availability" element={<Availability />} />
+              {/* Teams */}
+              <Route path="/teams" element={<Teams />} />
+              <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
+              <Route path="/teams/:teamId/members" element={<TeamMembers />} />
+              <Route path="/teams/:teamId/members/:memberId/availability" element={<MemberAvailability />} />
 
-            <Route path="/events" element={<EventTypes />} />
+              {/* Settings */}
+              <Route path="/settings" element={<UserSettings />} />
+              <Route path="/settings/calendar" element={<CalendarSettings />} />
+            </Route>
 
-            {/* Teams */}
-            <Route path="/teams" element={<Teams />} />
-            <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
-            <Route path="/teams/:teamId/members" element={<TeamMembers />} />
-            <Route path="/teams/:teamId/members/:memberId/availability" element={<MemberAvailability />} />
-
-            {/* Settings */}
-            <Route path="/settings" element={<UserSettings />} />
-            <Route path="/settings/calendar" element={<CalendarSettings />} />
-          </Route>
-
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </NotificationProvider>
       </AuthProvider>
     </Router>
   );

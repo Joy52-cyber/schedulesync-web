@@ -2,7 +2,7 @@
 import { CheckCircle, XCircle, Info, AlertTriangle, X, Bell } from 'lucide-react';
 
 // Create Notification Context
-const NotificationContext = createContext();
+const NotificationContext = createContext(null);
 
 // Notification Types
 export const NOTIFICATION_TYPES = {
@@ -34,7 +34,7 @@ const Toast = ({ notification, onClose }) => {
     }, notification.duration || 5000);
 
     return () => clearTimeout(timer);
-  }, [notification, onClose]);
+  }, [notification.id, notification.duration, onClose]);
 
   return (
     <div
@@ -60,6 +60,7 @@ const Toast = ({ notification, onClose }) => {
       <button
         onClick={() => onClose(notification.id)}
         className="text-gray-400 hover:text-gray-600 transition-colors"
+        aria-label="Close notification"
       >
         <X className="w-4 h-4" />
       </button>
@@ -106,7 +107,7 @@ export const NotificationProvider = ({ children }) => {
       type: NOTIFICATION_TYPES.ERROR,
       title,
       message,
-      duration: 7000, // Longer duration for errors
+      duration: 7000,
       ...options,
     });
   };
@@ -143,8 +144,7 @@ export const NotificationProvider = ({ children }) => {
         action: {
           label: 'View Details',
           onClick: () => {
-            // Navigate to booking details
-            window.location.href = `/bookings/${bookingDetails.id}`;
+            window.location.href = `/bookings`;
           },
         },
       }
@@ -176,7 +176,7 @@ export const NotificationProvider = ({ children }) => {
         action: {
           label: 'View Details',
           onClick: () => {
-            window.location.href = `/bookings/${bookingDetails.id}`;
+            window.location.href = `/bookings`;
           },
         },
       }
@@ -221,14 +221,16 @@ export const NotificationProvider = ({ children }) => {
       {children}
       
       {/* Toast Container */}
-      <div className="fixed top-4 right-4 z-50 space-y-3 max-w-md">
-        {notifications.map((notification) => (
-          <Toast
-            key={notification.id}
-            notification={notification}
-            onClose={removeNotification}
-          />
-        ))}
+      <div className="fixed top-4 right-4 z-50 space-y-3 max-w-md pointer-events-none">
+        <div className="pointer-events-auto">
+          {notifications.map((notification) => (
+            <Toast
+              key={notification.id}
+              notification={notification}
+              onClose={removeNotification}
+            />
+          ))}
+        </div>
       </div>
     </NotificationContext.Provider>
   );
@@ -254,6 +256,7 @@ export const NotificationBell = () => {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-100 transition-colors"
+        aria-label="Notifications"
       >
         <Bell className="w-6 h-6" />
         {unreadCount > 0 && (
@@ -283,7 +286,7 @@ export const NotificationBell = () => {
                 persistentNotifications.map((notification) => (
                   <div
                     key={notification.id}
-                    className={`p-4 hover:bg-gray-50 cursor-pointer ${
+                    className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
                       !notification.read ? 'bg-blue-50' : ''
                     }`}
                   >
@@ -300,7 +303,7 @@ export const NotificationBell = () => {
                         </p>
                       </div>
                       {!notification.read && (
-                        <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                        <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
                       )}
                     </div>
                   </div>
