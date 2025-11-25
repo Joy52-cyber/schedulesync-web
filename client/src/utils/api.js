@@ -50,7 +50,7 @@ export const auth = {
 
   updateProfile: (data) => api.put('/users/profile', data),
   
-  // ✅ Google OAuth (for backwards compatibility)
+  // ✅ Google OAuth
   getGoogleUrl: () => api.get('/auth/google/url'),
 };
 
@@ -191,7 +191,6 @@ export const eventTypes = {
   toggle: (id, active) => api.patch(`/event-types/${id}/toggle`, { active }),
 };
 
-// ✅ ALIAS: Support "events" naming for backwards compatibility
 export const events = eventTypes;
 
 // ============================================
@@ -239,29 +238,16 @@ export const user = {
   deleteAccount: () => api.delete('/profile'),
 };
 
-// ============================================
-// BACKWARDS COMPATIBILITY - DIRECT EXPORTS
-// ============================================
-
-// ✅ Export Google OAuth functions directly for backwards compatibility
-// This supports: import { getGoogleUrl } from '../utils/api'
 export const getGoogleUrl = oauth.getGoogleUrl;
 export const handleGoogleCallback = oauth.handleCallback;
 
-// ============================================
-// UTILITY FUNCTIONS
-// ============================================
-
-// Check if user is authenticated
 export const isAuthenticated = () => {
   return !!localStorage.getItem('token');
 };
 
-// Get current user from token
 export const getCurrentUser = () => {
   const token = localStorage.getItem('token');
   if (!token) return null;
-  
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
     return payload;
@@ -270,7 +256,6 @@ export const getCurrentUser = () => {
   }
 };
 
-// Format error message
 export const getErrorMessage = (error) => {
   if (error.response?.data?.error) {
     return error.response.data.error;
@@ -284,24 +269,16 @@ export const getErrorMessage = (error) => {
   return 'An unexpected error occurred';
 };
 
-// File upload helper
 export const uploadFile = async (file, endpoint) => {
   const formData = new FormData();
   formData.append('file', file);
-  
   return api.post(endpoint, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    headers: { 'Content-Type': 'multipart/form-data' },
   });
 };
 
-// Download file helper
 export const downloadFile = async (endpoint, filename) => {
-  const response = await api.get(endpoint, {
-    responseType: 'blob',
-  });
-  
+  const response = await api.get(endpoint, { responseType: 'blob' });
   const url = window.URL.createObjectURL(new Blob([response.data]));
   const link = document.createElement('a');
   link.href = url;
@@ -311,31 +288,30 @@ export const downloadFile = async (endpoint, filename) => {
   link.remove();
 };
 
-// Batch request helper
 export const batchRequest = async (requests) => {
   return Promise.all(requests.map(req => api(req)));
 };
 
 // ============================================
-// DEFAULT EXPORT
+// ✅ VITAL FIX: ATTACH MODULES TO DEFAULT EXPORT
 // ============================================
-export default api;
+// This ensures that `api.auth.getGoogleUrl()` works!
+api.auth = auth;
+api.oauth = oauth;
+api.teams = teams;
+api.bookings = bookings;
+api.availability = availability;
+api.reminders = reminders;
+api.calendar = calendar;
+api.payments = payments;
+api.ai = ai;
+api.singleUseLinks = singleUseLinks;
+api.eventTypes = eventTypes;
+api.events = events;
+api.analytics = analytics;
+api.notifications = notifications;
+api.timezone = timezone;
+api.user = user;
 
-// ============================================
-// SUMMARY OF ALL EXPORTS
-// ============================================
-// This file supports ALL of these import patterns:
-//
-// ✅ import api from '../utils/api'
-// ✅ import { api } from '../utils/api'
-// ✅ import { auth, oauth } from '../utils/api'
-// ✅ import { bookings, teams } from '../utils/api'
-// ✅ import { events } from '../utils/api'
-// ✅ import { eventTypes } from '../utils/api'
-// ✅ import { payments } from '../utils/api'
-// ✅ import { reminders } from '../utils/api'
-// ✅ import { notifications } from '../utils/api'
-// ✅ import { getGoogleUrl } from '../utils/api'
-// ✅ import { handleGoogleCallback } from '../utils/api'
-// ✅ import api, { auth, bookings } from '../utils/api'
-// ✅ Any combination of the above
+// Default export
+export default api;
