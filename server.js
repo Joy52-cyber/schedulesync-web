@@ -1881,27 +1881,65 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       timezone = 'America/New_York'
     } = req.body;
 
-    console.log('📅 Generating slots with FULL availability rules for:', token);
+    console.log('📅 Generating slots for token:', token, 'Length:', token.length);
 
-    // ========== 1. GET MEMBER & SETTINGS ==========
-    const memberResult = await pool.query(
-      `SELECT tm.*, 
-              tm.buffer_time,
-              tm.working_hours,
-              tm.lead_time_hours,
-              tm.booking_horizon_days,
-              tm.daily_booking_cap,
-              u.google_access_token, 
-              u.google_refresh_token, 
-              u.name as organizer_name,
-              t.id as team_id
-       FROM team_members tm
-       LEFT JOIN users u ON tm.user_id = u.id
-       LEFT JOIN teams t ON tm.team_id = t.id
-       WHERE tm.booking_token = $1`,
-      [token]
-    );
+    // ========== 1. GET MEMBER & SETTINGS (WITH SINGLE-USE SUPPORT) ==========
+    let memberResult;
+    
+    // Check if it's a single-use link (64 chars)
+    if (token.length === 64) {
+      console.log('🔑 Looking up single-use link in slots endpoint...');
+      memberResult = await pool.query(
+        `SELECT tm.*, 
+                tm.buffer_time,
+                tm.working_hours,
+                tm.lead_time_hours,
+                tm.booking_horizon_days,
+                tm.daily_booking_cap,
+                u.google_access_token, 
+                u.google_refresh_token, 
+                u.name as organizer_name,
+                t.id as team_id
+         FROM single_use_links sul
+         JOIN team_members tm ON sul.member_id = tm.id
+         LEFT JOIN users u ON tm.user_id = u.id
+         LEFT JOIN teams t ON tm.team_id = t.id
+         WHERE sul.token = $1
+           AND sul.used = false
+           AND sul.expires_at > NOW()`,
+        [token]
+      );
+    } else {
+      // Regular 32-char token
+      console.log('🔑 Looking up regular booking token...');
+      memberResult = await pool.query(
+        `SELECT tm.*, 
+                tm.buffer_time,
+                tm.working_hours,
+                tm.lead_time_hours,
+                tm.booking_horizon_days,
+                tm.daily_booking_cap,
+                u.google_access_token, 
+                u.google_refresh_token, 
+                u.name as organizer_name,
+                t.id as team_id
+         FROM team_members tm
+         LEFT JOIN users u ON tm.user_id = u.id
+         LEFT JOIN teams t ON tm.team_id = t.id
+         WHERE tm.booking_token = $1`,
+        [token]
+      );
+    }
 
+    if (memberResult.rows.length === 0) {
+      console.log('❌ Token not found or expired');
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    const member = memberResult.rows[0];
+    console.log('✅ Member found:', member.organizer_name);
+    
+    // ... rest of your existing code continues unchanged ...
     if (memberResult.rows.length === 0) {
       return res.status(404).json({ error: 'Invalid booking token' });
     }
