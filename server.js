@@ -291,6 +291,90 @@ async function initDB() {
       )
     `);
 
+    // ✅ Blocked Times Table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS blocked_times (
+    id SERIAL PRIMARY KEY,
+    team_member_id INTEGER REFERENCES team_members(id) ON DELETE CASCADE,
+    start_time TIMESTAMP NOT NULL,
+    end_time TIMESTAMP NOT NULL,
+    reason TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+  )
+`);
+
+// ✅ Single-Use Links Table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS single_use_links (
+    id SERIAL PRIMARY KEY,
+    token VARCHAR(255) UNIQUE NOT NULL,
+    member_id INTEGER REFERENCES team_members(id) ON DELETE CASCADE,
+    used BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT NOW(),
+    expires_at TIMESTAMP DEFAULT NOW() + INTERVAL '24 hours'
+  )
+`);
+
+// ✅ Team Reminder Settings Table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS team_reminder_settings (
+    id SERIAL PRIMARY KEY,
+    team_id INTEGER UNIQUE REFERENCES teams(id) ON DELETE CASCADE,
+    enabled BOOLEAN DEFAULT true,
+    hours_before INTEGER DEFAULT 24,
+    send_to_host BOOLEAN DEFAULT true,
+    send_to_guest BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )
+`);
+
+// ✅ Booking Reminders Tracking Table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS booking_reminders (
+    id SERIAL PRIMARY KEY,
+    booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+    reminder_type VARCHAR(50) NOT NULL,
+    recipient_email VARCHAR(255) NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending',
+    sent_at TIMESTAMP DEFAULT NOW(),
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+  )
+`);
+
+// ✅ Payments Table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS payments (
+    id SERIAL PRIMARY KEY,
+    booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+    stripe_payment_intent_id VARCHAR(255) UNIQUE NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'USD',
+    status VARCHAR(50) DEFAULT 'pending',
+    payment_method_id VARCHAR(255),
+    receipt_url TEXT,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+  )
+`);
+
+// ✅ Refunds Table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS refunds (
+    id SERIAL PRIMARY KEY,
+    booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+    stripe_refund_id VARCHAR(255) UNIQUE NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'USD',
+    status VARCHAR(50) DEFAULT 'pending',
+    reason TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+  )
+`);
+
+
+
     console.log('✅ Database initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);
