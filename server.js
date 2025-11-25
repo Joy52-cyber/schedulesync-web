@@ -2730,11 +2730,69 @@ app.get('/api/bookings', authenticateToken, async (req, res) => {
 });
 
 // Get booking by token (Public Booking Page)
+// Get booking by token (Public Booking Page)
 app.get('/api/book/:token', async (req, res) => {
   try {
     const { token } = req.params;
     
-    // 1. Get Team Member & User Info
+    console.log('🔍 Looking up token:', token, 'Length:', token.length);
+    
+    // 1. First, check if it's a single-use link (64 chars)
+    if (token.length === 64) {
+      console.log('🔑 Checking single-use links table...');
+      const singleUseCheck = await pool.query(
+        `SELECT sul.token as single_use_token, tm.*, t.name as team_name, t.description as team_description,
+                u.name as member_name, u.email as member_email, u.id as user_id
+         FROM single_use_links sul
+         JOIN team_members tm ON sul.member_id = tm.id
+         JOIN teams t ON tm.team_id = t.id
+         LEFT JOIN users u ON tm.user_id = u.id
+         WHERE sul.token = $1 
+           AND sul.used = false 
+           AND sul.expires_at > NOW()`,
+        [token]
+      );
+      
+      if (singleUseCheck.rows.length > 0) {
+        console.log('✅ Valid single-use link found');
+        const member = singleUseCheck.rows[0];
+        
+        // Get event types
+        let eventTypes = [];
+        if (member.user_id) {
+          const eventsRes = await pool.query(
+            'SELECT * FROM event_types WHERE user_id = $1 AND is_active = true ORDER BY duration ASC',
+            [member.user_id]
+          );
+          eventTypes = eventsRes.rows;
+        }
+        
+        return res.json({
+          data: {
+            team: { 
+              id: member.team_id, 
+              name: member.team_name, 
+              description: member.team_description 
+            },
+            member: { 
+              name: member.name || member.member_name || member.email, 
+              email: member.email || member.member_email, 
+              external_booking_link: member.external_booking_link, 
+              external_booking_platform: member.external_booking_platform 
+            },
+            eventTypes: eventTypes,
+            isSingleUse: true,
+            singleUseToken: member.single_use_token
+          }
+        });
+      } else {
+        console.log('❌ Single-use link not found, expired, or already used');
+        return res.status(404).json({ error: 'This link has expired or been used' });
+      }
+    }
+    
+    // 2. Otherwise, check regular team member booking tokens (32 chars)
+    console.log('🔑 Checking team_members table...');
     const result = await pool.query(
       `SELECT tm.*, t.name as team_name, t.description as team_description, 
        u.name as member_name, u.email as member_email, u.id as user_id
@@ -2745,8 +2803,44 @@ app.get('/api/book/:token', async (req, res) => {
       [token]
     );
 
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Booking link not found' });
+    if (result.rows.length === 0) {
+      console.log('❌ Token not found in team_members');
+      return res.status(404).json({ error: 'Booking link not found' });
+    }
 
+    const member = result.rows[0];
+
+    // Get event types
+    let eventTypes = [];
+    if (member.user_id) {
+      const eventsRes = await pool.query(
+        'SELECT * FROM event_types WHERE user_id = $1 AND is_active = true ORDER BY duration ASC',
+        [member.user_id]
+      );
+      eventTypes = eventsRes.rows;
+    }
+
+    res.json({
+      data: {
+        team: { 
+          id: member.team_id, 
+          name: member.team_name, 
+          description: member.team_description 
+        },
+        member: { 
+          name: member.name || member.member_name || member.email, 
+          email: member.email || member.member_email, 
+          external_booking_link: member.external_booking_link, 
+          external_booking_platform: member.external_booking_platform 
+        },
+        eventTypes: eventTypes
+      }
+    });
+  } catch (error) {
+    console.error('Get booking by token error:', error);
+    res.status(500).json({ error: 'Failed to fetch booking details' });
+  }
+});
     const member = result.rows[0];
 
     // 2. ✅ NEW: Fetch Event Types for this user
@@ -2921,6 +3015,15 @@ for (const assignedMember of assignedMembers) {
 
 console.log(`✅ Created ${createdBookings.length} booking(s)`);
  
+// Mark single-use link as used
+if (token.length === 64) {
+  await pool.query(
+    'UPDATE single_use_links SET used = true WHERE token = $1',
+    [token]
+  );
+  console.log('✅ Single-use link marked as used');
+}
+
 // ========== 🆕 ADD THIS: Mark single-use link as used ==========
     const singleUseCheck = await pool.query(
       'SELECT id FROM single_use_links WHERE token = $1 AND used = false',
