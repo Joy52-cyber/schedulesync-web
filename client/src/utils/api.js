@@ -179,6 +179,7 @@ export const singleUseLinks = {
 // EVENT TYPES
 // ============================================
 export const eventTypes = {
+  getAll: () => api.get('/event-types'),  // ⭐ FIXED: Added this method
   list: (memberId) => api.get(`/event-types?member_id=${memberId}`),
   create: (data) => api.post('/event-types', data),
   get: (id) => api.get(`/event-types/${id}`),
@@ -214,6 +215,8 @@ export const notifications = {
 // TIMEZONE
 // ============================================
 export const timezone = {
+  get: () => api.get('/user/timezone'),           // ⭐ FIXED: Added this method
+  update: (tz) => api.put('/user/timezone', { timezone: tz }), // ⭐ FIXED: Added this method
   list: () => api.get('/timezones'),
   detect: () => api.get('/timezones/detect'),
   convert: (fromTimezone, toTimezone, datetime) => 
