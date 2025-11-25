@@ -2,7 +2,7 @@
 import { CheckCircle, XCircle, Info, AlertTriangle, X, Bell } from 'lucide-react';
 
 // Create Notification Context
-const NotificationContext = createContext(undefined);
+const NotificationContext = createContext(null);
 
 // Notification Types
 export const NOTIFICATION_TYPES = {
@@ -29,6 +29,8 @@ const Toast = ({ notification, onClose }) => {
   };
 
   useEffect(() => {
+    if (notification.duration === Infinity) return;
+    
     const timer = setTimeout(() => {
       onClose(notification.id);
     }, notification.duration || 5000);
@@ -141,12 +143,12 @@ export function NotificationProvider({ children }) {
       ).toLocaleDateString()}`,
       '📅 Booking Confirmed',
       {
-        action: {
+        action: bookingDetails.id ? {
           label: 'View Details',
           onClick: () => {
-            window.location.href = `/bookings`;
+            window.location.href = `/bookings/${bookingDetails.id}`;
           },
-        },
+        } : undefined,
       }
     );
   };
@@ -173,12 +175,12 @@ export function NotificationProvider({ children }) {
       ).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`,
       '🔄 Booking Rescheduled',
       {
-        action: {
+        action: bookingDetails.id ? {
           label: 'View Details',
           onClick: () => {
-            window.location.href = `/bookings`;
+            window.location.href = `/bookings/${bookingDetails.id}`;
           },
-        },
+        } : undefined,
       }
     );
   };
@@ -235,16 +237,23 @@ export function NotificationProvider({ children }) {
 // Custom Hook
 export function useNotification() {
   const context = useContext(NotificationContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useNotification must be used within NotificationProvider');
   }
   return context;
 }
 
-// Notification Bell Component
+// Notification Bell Component (MOVED OUTSIDE to prevent circular dependency)
 export function NotificationBell() {
-  const { persistentNotifications } = useNotification();
   const [isOpen, setIsOpen] = useState(false);
+  const context = useContext(NotificationContext);
+  
+  if (!context) {
+    console.error('NotificationBell must be used within NotificationProvider');
+    return null;
+  }
+
+  const { persistentNotifications = [] } = context;
   const unreadCount = persistentNotifications.filter((n) => !n.read).length;
 
   return (
