@@ -33,7 +33,9 @@ api.interceptors.response.use(
   (error) => Promise.reject(error)
 );
 
-// ---------- AUTH ----------
+// ============================================
+// AUTH
+// ============================================
 export const auth = {
   login: (email, password) => api.post('/auth/login', { email, password }),
   register: (data) => api.post('/auth/register', data),
@@ -49,7 +51,9 @@ export const auth = {
   updateProfile: (data) => api.put('/users/profile', data),
 };
 
-// ---------- TEAMS & MEMBERS ----------
+// ============================================
+// TEAMS & MEMBERS
+// ============================================
 export const teams = {
   getAll: () => api.get('/teams'),
   create: (data) => api.post('/teams', data),
@@ -72,9 +76,14 @@ export const teams = {
 
   updateMemberExternalLink: (teamId, memberId, data) =>
     api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
+  
+  // Alias for compatibility
+  list: () => api.get('/teams'),
 };
 
-// ---------- AVAILABILITY ----------
+// ============================================
+// AVAILABILITY
+// ============================================
 export const availability = {
   getSettings: (_, memberId) =>
     api.get(`/team-members/${memberId}/availability`),
@@ -83,7 +92,9 @@ export const availability = {
     api.put(`/team-members/${memberId}/availability`, data),
 };
 
-// ---------- BOOKINGS ----------
+// ============================================
+// BOOKINGS
+// ============================================
 export const bookings = {
   list: (params) => api.get('/bookings', { params }),
   getAll: (params) => api.get('/bookings', { params }),
@@ -100,7 +111,9 @@ export const bookings = {
     api.post(`/bookings/manage/${token}/cancel`, { reason }),
 };
 
-// ---------- REMINDERS ----------
+// ============================================
+// REMINDERS
+// ============================================
 export const reminders = {
   getSettings: (teamId) => api.get(`/teams/${teamId}/reminder-settings`),
   updateSettings: (teamId, data) =>
@@ -108,10 +121,16 @@ export const reminders = {
   getStatus: () => api.get('/reminders/status'),
 };
 
-// ---------- CALENDAR / OAUTH ----------
+// ============================================
+// CALENDAR / OAUTH
+// ============================================
 export const calendar = {
   connectGoogle: () => api.get('/auth/google/url'),
   disconnectGoogle: () => api.post('/calendar/google/disconnect'),
+  getStatus: () => api.get('/calendar/status'),
+  listEvents: (startDate, endDate) => 
+    api.get(`/calendar/events?start=${startDate}&end=${endDate}`),
+  syncEvents: () => api.post('/calendar/sync'),
 };
 
 export const oauth = {
@@ -121,19 +140,165 @@ export const oauth = {
     api.post('/book/auth/google', { code, bookingToken }),
 };
 
-// ---------- PAYMENTS ----------
+// ============================================
+// PAYMENTS
+// ============================================
 export const payments = {
   getConfig: () => api.get('/payments/config'),
   getPricing: (token) => api.get(`/book/${token}/pricing`),
   createIntent: (data) => api.post('/payments/create-intent', data),
   confirmBooking: (data) => api.post('/payments/confirm-booking', data),
+  getPaymentStatus: (paymentIntentId) => 
+    api.get(`/payments/status/${paymentIntentId}`),
 };
 
-// ---------- AI ----------
+// ============================================
+// AI
+// ============================================
 export const ai = {
   schedule: (message, history) =>
     api.post('/ai/schedule', {
       message,
       conversationHistory: history,
     }),
-  confirm:
+  confirm: (data) => api.post('/ai/confirm', data),
+  suggest: (preferences) => api.post('/ai/suggest', { preferences }),
+};
+
+// ============================================
+// SINGLE-USE LINKS ⭐ NEW
+// ============================================
+export const singleUseLinks = {
+  generate: () => api.post('/single-use-links'),
+  getRecent: () => api.get('/single-use-links/recent'),
+  get: (token) => api.get(`/single-use-links/${token}`),
+  revoke: (token) => api.delete(`/single-use-links/${token}`),
+};
+
+// ============================================
+// EVENT TYPES
+// ============================================
+export const eventTypes = {
+  list: (memberId) => api.get(`/event-types?member_id=${memberId}`),
+  create: (data) => api.post('/event-types', data),
+  get: (id) => api.get(`/event-types/${id}`),
+  update: (id, data) => api.put(`/event-types/${id}`, data),
+  delete: (id) => api.delete(`/event-types/${id}`),
+  toggle: (id, active) => api.patch(`/event-types/${id}/toggle`, { active }),
+};
+
+// ============================================
+// ANALYTICS
+// ============================================
+export const analytics = {
+  getDashboard: () => api.get('/analytics/dashboard'),
+  getBookingStats: (startDate, endDate) => 
+    api.get(`/analytics/bookings?start=${startDate}&end=${endDate}`),
+  getTeamStats: (teamId) => api.get(`/analytics/teams/${teamId}`),
+  getMemberStats: (memberId) => api.get(`/analytics/members/${memberId}`),
+  exportData: (format = 'csv') => api.get(`/analytics/export?format=${format}`),
+};
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+export const notifications = {
+  list: () => api.get('/notifications'),
+  markAsRead: (id) => api.put(`/notifications/${id}/read`),
+  markAllAsRead: () => api.put('/notifications/read-all'),
+  delete: (id) => api.delete(`/notifications/${id}`),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+};
+
+// ============================================
+// TIMEZONE
+// ============================================
+export const timezone = {
+  list: () => api.get('/timezones'),
+  detect: () => api.get('/timezones/detect'),
+  convert: (fromTimezone, toTimezone, datetime) => 
+    api.post('/timezones/convert', { fromTimezone, toTimezone, datetime }),
+};
+
+// ============================================
+// USER
+// ============================================
+export const user = {
+  getProfile: () => api.get('/profile'),
+  updateProfile: (data) => api.put('/profile', data),
+  updatePassword: (data) => api.put('/profile/password', data),
+  deleteAccount: () => api.delete('/profile'),
+};
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+
+// Check if user is authenticated
+export const isAuthenticated = () => {
+  return !!localStorage.getItem('token');
+};
+
+// Get current user from token
+export const getCurrentUser = () => {
+  const token = localStorage.getItem('token');
+  if (!token) return null;
+  
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload;
+  } catch (error) {
+    return null;
+  }
+};
+
+// Format error message
+export const getErrorMessage = (error) => {
+  if (error.response?.data?.error) {
+    return error.response.data.error;
+  }
+  if (error.response?.data?.message) {
+    return error.response.data.message;
+  }
+  if (error.message) {
+    return error.message;
+  }
+  return 'An unexpected error occurred';
+};
+
+// File upload helper
+export const uploadFile = async (file, endpoint) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  return api.post(endpoint, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+};
+
+// Download file helper
+export const downloadFile = async (endpoint, filename) => {
+  const response = await api.get(endpoint, {
+    responseType: 'blob',
+  });
+  
+  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
+
+// Batch request helper
+export const batchRequest = async (requests) => {
+  return Promise.all(requests.map(req => api(req)));
+};
+
+// ============================================
+// DEFAULT EXPORT
+// ============================================
+export default api;
