@@ -1,8 +1,8 @@
-﻿import React, { createContext, useContext, useState, useEffect } from 'react';
+﻿import { createContext, useContext, useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Info, AlertTriangle, X, Bell } from 'lucide-react';
 
 // Create Notification Context
-const NotificationContext = createContext(null);
+const NotificationContext = createContext(undefined);
 
 // Notification Types
 export const NOTIFICATION_TYPES = {
@@ -69,7 +69,7 @@ const Toast = ({ notification, onClose }) => {
 };
 
 // Notification Provider Component
-export const NotificationProvider = ({ children }) => {
+export function NotificationProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [persistentNotifications, setPersistentNotifications] = useState([]);
 
@@ -205,13 +205,11 @@ export const NotificationProvider = ({ children }) => {
     error,
     info,
     warning,
-    // Booking-specific helpers
     bookingCreated,
     bookingCancelled,
     bookingRescheduled,
     reminderSent,
     paymentReceived,
-    // Persistent notifications (for notification center)
     persistentNotifications,
     setPersistentNotifications,
   };
@@ -221,32 +219,30 @@ export const NotificationProvider = ({ children }) => {
       {children}
       
       {/* Toast Container */}
-      <div className="fixed top-4 right-4 z-50 space-y-3 max-w-md pointer-events-none">
-        <div className="pointer-events-auto">
-          {notifications.map((notification) => (
-            <Toast
-              key={notification.id}
-              notification={notification}
-              onClose={removeNotification}
-            />
-          ))}
-        </div>
+      <div className="fixed top-4 right-4 z-50 space-y-3 max-w-md">
+        {notifications.map((notification) => (
+          <Toast
+            key={notification.id}
+            notification={notification}
+            onClose={removeNotification}
+          />
+        ))}
       </div>
     </NotificationContext.Provider>
   );
-};
+}
 
 // Custom Hook
-export const useNotification = () => {
+export function useNotification() {
   const context = useContext(NotificationContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useNotification must be used within NotificationProvider');
   }
   return context;
-};
+}
 
-// Notification Bell Component (for navbar)
-export const NotificationBell = () => {
+// Notification Bell Component
+export function NotificationBell() {
   const { persistentNotifications } = useNotification();
   const [isOpen, setIsOpen] = useState(false);
   const unreadCount = persistentNotifications.filter((n) => !n.read).length;
@@ -315,6 +311,4 @@ export const NotificationBell = () => {
       )}
     </div>
   );
-};
-
-export default NotificationContext;
+}
