@@ -2920,11 +2920,126 @@ for (const assignedMember of assignedMembers) {
 }
 
 console.log(`✅ Created ${createdBookings.length} booking(s)`);
-
-// ========== RESPOND IMMEDIATELY ==========
+ 
+// ========== 🆕 ADD THIS: Mark single-use link as used ==========
+    const singleUseCheck = await pool.query(
+      'SELECT id FROM single_use_links WHERE token = $1 AND used = false',
+      [token]
+    );
     
+    if (singleUseCheck.rows.length > 0) {
+      await pool.query(
+        'UPDATE single_use_links SET used = true WHERE token = $1',
+        [token]
+      );
+      console.log('✅ Single-use link marked as used:', token);
+    }
+   app.get('/api/book/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    console.log('🔍 Looking up token:', token);
+    
+    // 1. First, check if it's a single-use link
+    const singleUseCheck = await pool.query(
+      `SELECT sul.*, tm.*, t.name as team_name, t.description as team_description,
+              u.name as member_name, u.email as member_email, u.id as user_id
+       FROM single_use_links sul
+       JOIN team_members tm ON sul.member_id = tm.id
+       JOIN teams t ON tm.team_id = t.id
+       LEFT JOIN users u ON tm.user_id = u.id
+       WHERE sul.token = $1 
+         AND sul.used = false 
+         AND sul.expires_at > NOW()`,
+      [token]
+    );
+    
+    if (singleUseCheck.rows.length > 0) {
+      console.log('✅ Valid single-use link found');
+      const member = singleUseCheck.rows[0];
+      
+      // Get event types
+      let eventTypes = [];
+      if (member.user_id) {
+        const eventsRes = await pool.query(
+          'SELECT * FROM event_types WHERE user_id = $1 AND is_active = true ORDER BY duration ASC',
+          [member.user_id]
+        );
+        eventTypes = eventsRes.rows;
+      }
+      
+      return res.json({
+        data: {
+          team: { 
+            id: member.team_id, 
+            name: member.team_name, 
+            description: member.team_description 
+          },
+          member: { 
+            name: member.name || member.member_name || member.email, 
+            email: member.email || member.member_email, 
+            external_booking_link: member.external_booking_link, 
+            external_booking_platform: member.external_booking_platform 
+          },
+          eventTypes: eventTypes,
+          isSingleUse: true, // Flag for frontend
+          singleUseToken: token
+        }
+      });
+    }
+    
+    // 2. Otherwise, check regular team member booking tokens
+    const result = await pool.query(
+      `SELECT tm.*, t.name as team_name, t.description as team_description, 
+       u.name as member_name, u.email as member_email, u.id as user_id
+       FROM team_members tm 
+       JOIN teams t ON tm.team_id = t.id 
+       LEFT JOIN users u ON tm.user_id = u.id
+       WHERE tm.booking_token = $1`,
+      [token]
+    );
 
+    if (result.rows.length === 0) {
+      console.log('❌ Token not found in either table');
+      return res.status(404).json({ error: 'Booking link not found or expired' });
+    }
+
+    const member = result.rows[0];
+
+    // Get event types
+    let eventTypes = [];
+    if (member.user_id) {
+      const eventsRes = await pool.query(
+        'SELECT * FROM event_types WHERE user_id = $1 AND is_active = true ORDER BY duration ASC',
+        [member.user_id]
+      );
+      eventTypes = eventsRes.rows;
+    }
+
+    res.json({
+      data: {
+        team: { 
+          id: member.team_id, 
+          name: member.team_name, 
+          description: member.team_description 
+        },
+        member: { 
+          name: member.name || member.member_name || member.email, 
+          email: member.email || member.member_email, 
+          external_booking_link: member.external_booking_link, 
+          external_booking_platform: member.external_booking_platform 
+        },
+        eventTypes: eventTypes,
+        isSingleUse: false
+      }
+    });
+  } catch (error) {
+    console.error('Get booking by token error:', error);
+    res.status(500).json({ error: 'Failed to fetch booking details' });
+  }
+});
     // ========== RESPOND IMMEDIATELY ==========
+
     res.json({ 
       success: true,
       booking: createdBookings[0],
