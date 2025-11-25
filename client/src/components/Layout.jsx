@@ -7,11 +7,12 @@ import {
   Menu,
   X,
   ShieldAlert,
-  Clock,     // ✅ Ensure Clock is imported for "Scheduling"
-  Settings   // ✅ Ensure Settings is imported
+  Clock,
+  Settings
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { NotificationBell } from "../contexts/NotificationContext";
 
 export default function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -26,10 +27,10 @@ export default function Layout() {
 
   const navigation = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-    { name: "Event Types", path: "/events", icon: Clock }, // ✅ Renamed to Scheduling
+    { name: "Event Types", path: "/events", icon: Clock },
     { name: "Teams", path: "/teams", icon: Users },
     { name: "Bookings", path: "/bookings", icon: Calendar },
-    { name: "Settings", path: "/settings", icon: Settings }, // ✅ Added Settings
+    { name: "Settings", path: "/settings", icon: Settings },
   ];
 
   // Add Admin Panel to navigation if user is admin
@@ -97,6 +98,9 @@ export default function Layout() {
 
             {/* Right side */}
             <div className="flex items-center gap-2 sm:gap-3">
+              {/* Notification Bell - Added here */}
+              <NotificationBell />
+
               <div className="hidden sm:block text-right">
                 <p className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-[150px]">
                   {user?.name || "User"}

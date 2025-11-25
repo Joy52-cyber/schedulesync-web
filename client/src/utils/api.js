@@ -1,16 +1,14 @@
 ﻿import axios from 'axios';
 
-// ============================================
-// BASE URL HANDLING
-// ============================================
+// 1. Get the base URL from env or default
 let rawBaseUrl =
   import.meta.env.VITE_API_URL ||
   'https://schedulesync-web-production.up.railway.app';
 
-// Remove trailing slash
+// Remove trailing slash if present
 rawBaseUrl = rawBaseUrl.replace(/\/$/, '');
 
-// Ensure .../api suffix
+// Ensure we end up with .../api
 const API_BASE = rawBaseUrl.endsWith('/api')
   ? rawBaseUrl
   : `${rawBaseUrl}/api`;
@@ -22,17 +20,17 @@ export const api = axios.create({
   baseURL: API_BASE,
 });
 
-// Attach JWT token
+// Attach JWT token to every request if present
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Global error interceptor
+// Global response interceptor
 api.interceptors.response.use(
-  (res) => res,
-  (err) => Promise.reject(err)
+  (response) => response,
+  (error) => Promise.reject(error)
 );
 
 // ============================================
@@ -42,7 +40,8 @@ export const auth = {
   login: (email, password) => api.post('/auth/login', { email, password }),
   register: (data) => api.post('/auth/register', data),
   me: () => api.get('/auth/me'),
-  verifyEmail: (token) => api.get('/auth/verify-email', { params: { token } }),
+  verifyEmail: (token) =>
+    api.get('/auth/verify-email', { params: { token } }),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (token, newPassword) =>
     api.post('/auth/reset-password', { token, newPassword }),
@@ -50,17 +49,20 @@ export const auth = {
     api.post('/auth/resend-verification', { email }),
 
   updateProfile: (data) => api.put('/users/profile', data),
+  
+  // ✅ Google OAuth (for backwards compatibility)
+  getGoogleUrl: () => api.get('/auth/google/url'),
 };
 
 // ============================================
-// TEAMS
+// TEAMS & MEMBERS
 // ============================================
 export const teams = {
   getAll: () => api.get('/teams'),
   create: (data) => api.post('/teams', data),
-  get: (id) => api.get(`/teams/${id}`),
-  update: (id, data) => api.put(`/teams/${id}`, data),
-  delete: (id) => api.delete(`/teams/${id}`),
+  get: (teamId) => api.get(`/teams/${teamId}`),
+  update: (teamId, data) => api.put(`/teams/${teamId}`, data),
+  delete: (teamId) => api.delete(`/teams/${teamId}`),
 
   getMembers: (teamId) => api.get(`/teams/${teamId}/members`),
   addMember: (teamId, data) => api.post(`/teams/${teamId}/members`, data),
@@ -77,7 +79,8 @@ export const teams = {
 
   updateMemberExternalLink: (teamId, memberId, data) =>
     api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
-
+  
+  // Alias for compatibility
   list: () => api.get('/teams'),
 };
 
@@ -98,19 +101,15 @@ export const availability = {
 export const bookings = {
   list: (params) => api.get('/bookings', { params }),
   getAll: (params) => api.get('/bookings', { params }),
-
   getByToken: (token) => api.get(`/book/${token}`),
   getSlots: (token, data) =>
     api.post(`/book/${token}/slots-with-status`, data),
-
   create: (payload) => api.post('/bookings', payload),
 
   getManagementDetails: (token) =>
     api.get(`/bookings/manage/${token}`),
-
   rescheduleByToken: (token, data) =>
     api.post(`/bookings/manage/${token}/reschedule`, data),
-
   cancelByToken: (token, reason) =>
     api.post(`/bookings/manage/${token}/cancel`, { reason }),
 };
@@ -126,16 +125,14 @@ export const reminders = {
 };
 
 // ============================================
-// OAUTH / CALENDAR
+// CALENDAR / OAUTH
 // ============================================
 export const calendar = {
   connectGoogle: () => api.get('/auth/google/url'),
   disconnectGoogle: () => api.post('/calendar/google/disconnect'),
   getStatus: () => api.get('/calendar/status'),
-
-  listEvents: (start, end) =>
-    api.get(`/calendar/events?start=${start}&end=${end}`),
-
+  listEvents: (startDate, endDate) => 
+    api.get(`/calendar/events?start=${startDate}&end=${endDate}`),
   syncEvents: () => api.post('/calendar/sync'),
 };
 
@@ -154,7 +151,8 @@ export const payments = {
   getPricing: (token) => api.get(`/book/${token}/pricing`),
   createIntent: (data) => api.post('/payments/create-intent', data),
   confirmBooking: (data) => api.post('/payments/confirm-booking', data),
-  getPaymentStatus: (id) => api.get(`/payments/status/${id}`),
+  getPaymentStatus: (paymentIntentId) => 
+    api.get(`/payments/status/${paymentIntentId}`),
 };
 
 // ============================================
@@ -193,30 +191,30 @@ export const eventTypes = {
   toggle: (id, active) => api.patch(`/event-types/${id}/toggle`, { active }),
 };
 
+// ✅ ALIAS: Support "events" naming for backwards compatibility
+export const events = eventTypes;
+
 // ============================================
 // ANALYTICS
 // ============================================
 export const analytics = {
   getDashboard: () => api.get('/analytics/dashboard'),
-  getBookingStats: (start, end) =>
-    api.get(`/analytics/bookings?start=${start}&end=${end}`),
+  getBookingStats: (startDate, endDate) => 
+    api.get(`/analytics/bookings?start=${startDate}&end=${endDate}`),
   getTeamStats: (teamId) => api.get(`/analytics/teams/${teamId}`),
   getMemberStats: (memberId) => api.get(`/analytics/members/${memberId}`),
-  exportData: (format = 'csv') =>
-    api.get(`/analytics/export?format=${format}`),
+  exportData: (format = 'csv') => api.get(`/analytics/export?format=${format}`),
 };
 
 // ============================================
-// NOTIFICATIONS (UPDATED ⭐⭐⭐)
+// NOTIFICATIONS
 // ============================================
 export const notifications = {
   list: () => api.get('/notifications'),
-  getUnread: () => api.get('/notifications?unread_only=true'),
-  getUnreadCount: () => api.get('/notifications/unread-count'),
   markAsRead: (id) => api.put(`/notifications/${id}/read`),
   markAllAsRead: () => api.put('/notifications/read-all'),
   delete: (id) => api.delete(`/notifications/${id}`),
-  deleteRead: () => api.delete('/notifications/read'),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
 };
 
 // ============================================
@@ -227,12 +225,12 @@ export const timezone = {
   update: (tz) => api.put('/user/timezone', { timezone: tz }),
   list: () => api.get('/timezones'),
   detect: () => api.get('/timezones/detect'),
-  convert: (from, to, datetime) =>
-    api.post('/timezones/convert', { fromTimezone: from, toTimezone: to, datetime }),
+  convert: (fromTimezone, toTimezone, datetime) => 
+    api.post('/timezones/convert', { fromTimezone, toTimezone, datetime }),
 };
 
 // ============================================
-// USER PROFILE
+// USER
 // ============================================
 export const user = {
   getProfile: () => api.get('/profile'),
@@ -242,40 +240,68 @@ export const user = {
 };
 
 // ============================================
-// HELPERS
+// BACKWARDS COMPATIBILITY - DIRECT EXPORTS
 // ============================================
-export const isAuthenticated = () => !!localStorage.getItem('token');
 
+// ✅ Export Google OAuth functions directly for backwards compatibility
+// This supports: import { getGoogleUrl } from '../utils/api'
+export const getGoogleUrl = oauth.getGoogleUrl;
+export const handleGoogleCallback = oauth.handleCallback;
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+
+// Check if user is authenticated
+export const isAuthenticated = () => {
+  return !!localStorage.getItem('token');
+};
+
+// Get current user from token
 export const getCurrentUser = () => {
   const token = localStorage.getItem('token');
   if (!token) return null;
-
+  
   try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload;
+  } catch (error) {
     return null;
   }
 };
 
+// Format error message
 export const getErrorMessage = (error) => {
-  return (
-    error.response?.data?.error ||
-    error.response?.data?.message ||
-    error.message ||
-    'An unexpected error occurred'
-  );
+  if (error.response?.data?.error) {
+    return error.response.data.error;
+  }
+  if (error.response?.data?.message) {
+    return error.response.data.message;
+  }
+  if (error.message) {
+    return error.message;
+  }
+  return 'An unexpected error occurred';
 };
 
+// File upload helper
 export const uploadFile = async (file, endpoint) => {
   const formData = new FormData();
   formData.append('file', file);
+  
   return api.post(endpoint, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
   });
 };
 
+// Download file helper
 export const downloadFile = async (endpoint, filename) => {
-  const response = await api.get(endpoint, { responseType: 'blob' });
+  const response = await api.get(endpoint, {
+    responseType: 'blob',
+  });
+  
   const url = window.URL.createObjectURL(new Blob([response.data]));
   const link = document.createElement('a');
   link.href = url;
@@ -285,7 +311,31 @@ export const downloadFile = async (endpoint, filename) => {
   link.remove();
 };
 
-export const batchRequest = async (requests) =>
-  Promise.all(requests.map((req) => api(req)));
+// Batch request helper
+export const batchRequest = async (requests) => {
+  return Promise.all(requests.map(req => api(req)));
+};
 
+// ============================================
+// DEFAULT EXPORT
+// ============================================
 export default api;
+
+// ============================================
+// SUMMARY OF ALL EXPORTS
+// ============================================
+// This file supports ALL of these import patterns:
+//
+// ✅ import api from '../utils/api'
+// ✅ import { api } from '../utils/api'
+// ✅ import { auth, oauth } from '../utils/api'
+// ✅ import { bookings, teams } from '../utils/api'
+// ✅ import { events } from '../utils/api'
+// ✅ import { eventTypes } from '../utils/api'
+// ✅ import { payments } from '../utils/api'
+// ✅ import { reminders } from '../utils/api'
+// ✅ import { notifications } from '../utils/api'
+// ✅ import { getGoogleUrl } from '../utils/api'
+// ✅ import { handleGoogleCallback } from '../utils/api'
+// ✅ import api, { auth, bookings } from '../utils/api'
+// ✅ Any combination of the above
