@@ -27,14 +27,11 @@ import api, {
 } from '../utils/api';
 import AISchedulerChat from '../components/AISchedulerChat';
 import TimezoneSelector from '../components/TimezoneSelector';
-
 import { useNotification } from '../contexts/NotificationContext';
-
-const notify = useNotification();
-notify.success('Test notification! 🎉');
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const notify = useNotification();
 
   // ---------- CORE DASHBOARD STATE ----------
   const [stats, setStats] = useState({
@@ -89,6 +86,7 @@ export default function Dashboard() {
       setRecentBookings(response.data.recentBookings || []);
     } catch (error) {
       console.error('Dashboard load error:', error);
+      notify.error('Failed to load dashboard data');
     }
   };
 
@@ -116,6 +114,7 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Profile load error:', error);
+      notify.error('Failed to load profile');
     }
   };
 
@@ -134,9 +133,10 @@ export default function Dashboard() {
     try {
       await api.get('/my-booking-link');
       await loadUserProfile();
+      notify.success('Booking link created successfully! 🎉');
     } catch (error) {
       console.error('Generate link error:', error);
-      alert('Could not generate booking link. Please try again.');
+      notify.error('Could not generate booking link. Please try again.');
     } finally {
       setGeneratingLink(false);
     }
@@ -146,6 +146,7 @@ export default function Dashboard() {
     if (!bookingLink) return;
     navigator.clipboard.writeText(bookingLink);
     setCopied(true);
+    notify.success('Link copied to clipboard! 📋');
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -157,9 +158,10 @@ export default function Dashboard() {
       setNewSingleUseToken(token);
       setShowSingleUseModal(true);
       await loadSingleUseLinks();
+      notify.success('Single-use link generated! 🎫');
     } catch (error) {
       console.error('Generate single-use link error:', error);
-      alert('Could not generate single-use link. Please try again.');
+      notify.error('Could not generate single-use link. Please try again.');
     } finally {
       setGeneratingSingleUse(false);
     }
@@ -169,15 +171,18 @@ export default function Dashboard() {
     const link = `${window.location.origin}/book/${token}`;
     navigator.clipboard.writeText(link);
     setCopiedSingleUse(token);
+    notify.success('Single-use link copied! 📋');
     setTimeout(() => setCopiedSingleUse(''), 2000);
   };
 
   const handleTimezoneChange = async (newTimezone) => {
     try {
       setTimezone(newTimezone);
-      await timezoneApi.update(newTimezone); // api.js: update(tz) => { timezone: tz }
+      await timezoneApi.update(newTimezone);
+      notify.success('Timezone updated successfully! 🌍');
     } catch (error) {
       console.error('Failed to update timezone:', error);
+      notify.error('Failed to update timezone');
     }
   };
 
@@ -234,6 +239,7 @@ export default function Dashboard() {
     };
   };
 
+  // ---------- LOADING STATE ----------
   if (loading) {
     return (
       <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30 flex items-center justify-center">
@@ -285,7 +291,7 @@ export default function Dashboard() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
                 <p className="text-gray-500 text-sm">
-                  Welcome back! Here&apos;s what&apos;s happening today.
+                  Welcome back{user?.name ? `, ${user.name}` : ''}! Here&apos;s what&apos;s happening today.
                 </p>
               </div>
             </div>
@@ -308,7 +314,7 @@ export default function Dashboard() {
       <main className="w-full relative">
         <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8">
           <div className="space-y-6">
-            {/* Timezone card - more compact */}
+            {/* Timezone card */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 bg-blue-50 rounded-lg">
@@ -331,7 +337,6 @@ export default function Dashboard() {
                 />
               </div>
             </div>
-
 
             {/* Booking link card */}
             {bookingLink ? (
@@ -470,7 +475,7 @@ export default function Dashboard() {
                                 </>
                               )}
                             </button>
-                            <a
+                            
                               href={`${window.location.origin}/book/${link.token}`}
                               target="_blank"
                               rel="noopener noreferrer"
@@ -531,8 +536,12 @@ export default function Dashboard() {
 
                 {recentBookings.length === 0 ? (
                   <div className="text-center py-10">
+                    <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-500 font-medium">
                       No bookings yet
+                    </p>
+                    <p className="text-gray-400 text-sm mt-1">
+                      Share your booking link to get started
                     </p>
                   </div>
                 ) : (
@@ -540,15 +549,16 @@ export default function Dashboard() {
                     {recentBookings.slice(0, 5).map((booking) => (
                       <div
                         key={booking.id}
-                        className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-blue-300 transition-all"
+                        className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-blue-300 transition-all cursor-pointer"
+                        onClick={() => navigate('/bookings')}
                       >
                         <div className="flex items-center gap-4 flex-1 min-w-0">
                           <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md">
-                            {booking.attendee_name?.charAt(0) || 'G'}
+                            {booking.attendee_name?.charAt(0)?.toUpperCase() || 'G'}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <p className="text-gray-900 font-bold">
+                              <p className="text-gray-900 font-bold truncate">
                                 {booking.attendee_name}
                               </p>
                               <span
@@ -566,6 +576,15 @@ export default function Dashboard() {
                                 {new Date(
                                   booking.start_time
                                 ).toLocaleDateString()}
+                              </span>
+                              <span className="text-gray-400">•</span>
+                              <span>
+                                {new Date(
+                                  booking.start_time
+                                ).toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                })}
                               </span>
                             </div>
                           </div>
@@ -638,25 +657,19 @@ export default function Dashboard() {
                 <p className="text-xs text-purple-600 font-semibold mb-1">
                   ⏰ Expires
                 </p>
-                <p className="text-sm font-bold text-purple-900">
-                  24 hours
-                </p>
+                <p className="text-sm font-bold text-purple-900">24 hours</p>
               </div>
               <div className="bg-pink-50 rounded-lg p-3 text-center">
                 <p className="text-xs text-pink-600 font-semibold mb-1">
                   🎯 Usage
                 </p>
-                <p className="text-sm font-bold text-pink-900">
-                  One time
-                </p>
+                <p className="text-sm font-bold text-pink-900">One time</p>
               </div>
               <div className="bg-blue-50 rounded-lg p-3 text-center">
                 <p className="text-xs text-blue-600 font-semibold mb-1">
                   🔒 Secure
                 </p>
-                <p className="text-sm font-bold text-blue-900">
-                  Private
-                </p>
+                <p className="text-sm font-bold text-blue-900">Private</p>
               </div>
             </div>
 
