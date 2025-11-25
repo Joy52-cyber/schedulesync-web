@@ -26,7 +26,7 @@ export default function Layout() {
 
   const navigation = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-    { name: "Scheduling", path: "/events", icon: Clock }, // ✅ Renamed to Scheduling
+    { name: "Event Types", path: "/events", icon: Clock }, // ✅ Renamed to Scheduling
     { name: "Teams", path: "/teams", icon: Users },
     { name: "Bookings", path: "/bookings", icon: Calendar },
     { name: "Settings", path: "/settings", icon: Settings }, // ✅ Added Settings
