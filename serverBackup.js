@@ -291,6 +291,93 @@ async function initDB() {
       )
     `);
 
+    // ✅ Blocked Times Table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS blocked_times (
+    id SERIAL PRIMARY KEY,
+    team_member_id INTEGER REFERENCES team_members(id) ON DELETE CASCADE,
+    start_time TIMESTAMP NOT NULL,
+    end_time TIMESTAMP NOT NULL,
+    reason TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+  )
+`);
+
+// ✅ Single-Use Links Table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS single_use_links (
+    id SERIAL PRIMARY KEY,
+    token VARCHAR(255) UNIQUE NOT NULL,
+    member_id INTEGER REFERENCES team_members(id) ON DELETE CASCADE,
+    used BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT NOW(),
+    expires_at TIMESTAMP DEFAULT NOW() + INTERVAL '24 hours'
+  )
+`);
+
+// ✅ Team Reminder Settings Table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS team_reminder_settings (
+    id SERIAL PRIMARY KEY,
+    team_id INTEGER UNIQUE REFERENCES teams(id) ON DELETE CASCADE,
+    enabled BOOLEAN DEFAULT true,
+    hours_before INTEGER DEFAULT 24,
+    send_to_host BOOLEAN DEFAULT true,
+    send_to_guest BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )
+`);
+
+// ✅ Booking Reminders Tracking Table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS booking_reminders (
+    id SERIAL PRIMARY KEY,
+    booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+    reminder_type VARCHAR(50) NOT NULL,
+    recipient_email VARCHAR(255) NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending',
+    sent_at TIMESTAMP DEFAULT NOW(),
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+  )
+`);
+
+// ✅ Payments Table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS payments (
+    id SERIAL PRIMARY KEY,
+    booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+    stripe_payment_intent_id VARCHAR(255) UNIQUE NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'USD',
+    status VARCHAR(50) DEFAULT 'pending',
+    payment_method_id VARCHAR(255),
+    receipt_url TEXT,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+  )
+`);
+
+// ✅ Refunds Table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS refunds (
+    id SERIAL PRIMARY KEY,
+    booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+    stripe_refund_id VARCHAR(255) UNIQUE NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'USD',
+    status VARCHAR(50) DEFAULT 'pending',
+    reason TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+  )
+`);
+
+ await pool.query(`
+      ALTER TABLE bookings 
+      ADD COLUMN IF NOT EXISTS title VARCHAR(255) DEFAULT 'Meeting'
+    `);
+
     console.log('✅ Database initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);
@@ -1391,6 +1478,76 @@ app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken,
   }
 });
 
+// ========== REMINDER SETTINGS ROUTES (PER TEAM / PERSONAL USER) ==========
+
+// GET /api/teams/:teamId/reminder-settings
+
+app.put('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, res) => {
+  const teamId = parseInt(req.params.teamId, 10);
+  const { enabled, hours_before, send_to_host, send_to_guest } = req.body;
+
+  try {
+    const upsertQuery = `
+      INSERT INTO team_reminder_settings (team_id, enabled, hours_before, send_to_host, send_to_guest)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (team_id) DO UPDATE
+      SET enabled      = EXCLUDED.enabled,
+          hours_before = EXCLUDED.hours_before,
+          send_to_host = EXCLUDED.send_to_host,
+          send_to_guest = EXCLUDED.send_to_guest,
+          updated_at   = NOW()
+      RETURNING *;
+    `;
+
+    const result = await pool.query(upsertQuery, [
+      teamId,
+      enabled,
+      hours_before,
+      send_to_host,
+      send_to_guest,
+    ]);
+
+    console.log(`✅ Updated reminder settings for team ${teamId}`);
+    res.json({ settings: result.rows[0] });
+  } catch (err) {
+    console.error('Error updating reminder settings:', err);
+    res.status(500).json({ error: 'Failed to update reminder settings' });
+  }
+});
+
+app.get('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, res) => {
+  const teamId = parseInt(req.params.teamId, 10);
+
+  try {
+    const result = await pool.query(
+      `SELECT team_id, enabled, hours_before, send_to_host, send_to_guest
+       FROM team_reminder_settings
+       WHERE team_id = $1`,
+      [teamId]
+    );
+
+    if (result.rowCount === 0) {
+      // Defaults if nothing saved yet
+      return res.json({
+        settings: {
+          team_id: teamId,
+          enabled: true,
+          hours_before: 24,
+          send_to_host: true,
+          send_to_guest: true,
+        },
+      });
+    }
+
+    res.json({ settings: result.rows[0] });
+  } catch (err) {
+    console.error('Error loading reminder settings:', err);
+    res.status(500).json({ error: 'Failed to load reminder settings' });
+  }
+});
+
+
+
 // ============ PRICING SETTINGS ENDPOINT ============
 
 // Update team member pricing settings
@@ -1724,27 +1881,53 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       timezone = 'America/New_York'
     } = req.body;
 
-    console.log('📅 Generating slots with FULL availability rules for:', token);
+    console.log('📅 Generating slots for token:', token, 'Length:', token.length);
 
     // ========== 1. GET MEMBER & SETTINGS ==========
-    const memberResult = await pool.query(
-      `SELECT tm.*, 
-              tm.buffer_time,
-              tm.working_hours,
-              tm.lead_time_hours,
-              tm.booking_horizon_days,
-              tm.daily_booking_cap,
-              u.google_access_token, 
-              u.google_refresh_token, 
-              u.name as organizer_name,
-              t.id as team_id
-       FROM team_members tm
-       LEFT JOIN users u ON tm.user_id = u.id
-       LEFT JOIN teams t ON tm.team_id = t.id
-       WHERE tm.booking_token = $1`,
-      [token]
-    );
-
+    let memberResult;
+    
+    if (token.length === 64) {
+      console.log('🔑 Looking up single-use link...');
+      memberResult = await pool.query(
+        `SELECT tm.*, 
+                tm.buffer_time,
+                tm.working_hours,
+                tm.lead_time_hours,
+                tm.booking_horizon_days,
+                tm.daily_booking_cap,
+                u.google_access_token, 
+                u.google_refresh_token, 
+                u.name as organizer_name,
+                t.id as team_id
+         FROM single_use_links sul
+         JOIN team_members tm ON sul.member_id = tm.id
+         LEFT JOIN users u ON tm.user_id = u.id
+         LEFT JOIN teams t ON tm.team_id = t.id
+         WHERE sul.token = $1
+           AND sul.used = false
+           AND sul.expires_at > NOW()`,
+        [token]
+      );
+    } else {
+      console.log('🔑 Looking up regular token...');
+      memberResult = await pool.query(
+        `SELECT tm.*, 
+                tm.buffer_time,
+                tm.working_hours,
+                tm.lead_time_hours,
+                tm.booking_horizon_days,
+                tm.daily_booking_cap,
+                u.google_access_token, 
+                u.google_refresh_token, 
+                u.name as organizer_name,
+                t.id as team_id
+         FROM team_members tm
+         LEFT JOIN users u ON tm.user_id = u.id
+         LEFT JOIN teams t ON tm.team_id = t.id
+         WHERE tm.booking_token = $1`,
+        [token]
+      );
+    }
     if (memberResult.rows.length === 0) {
       return res.status(404).json({ error: 'Invalid booking token' });
     }
@@ -2519,6 +2702,73 @@ app.delete('/api/event-types/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// ============ SINGLE USE LINK ENDPOINTS ============
+
+// Generate a Single-Use Link
+app.post('/api/single-use-links', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Find the user's personal member ID
+    const memberResult = await pool.query(
+      `SELECT tm.id FROM team_members tm JOIN teams t ON tm.team_id = t.id 
+       WHERE tm.user_id = $1 AND t.owner_id = $1 LIMIT 1`,
+      [userId]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Personal schedule not found.' });
+    }
+    
+    const memberId = memberResult.rows[0].id;
+    const token = crypto.randomBytes(32).toString('hex');
+
+    await pool.query(
+      `INSERT INTO single_use_links (token, member_id) VALUES ($1, $2)`,
+      [token, memberId]
+    );
+
+    res.json({ success: true, token: token });
+  } catch (error) {
+    console.error('Generate single-use link error:', error);
+    res.status(500).json({ error: 'Failed to generate link' });
+  }
+});
+
+// Get recent single-use links
+app.get('/api/single-use-links/recent', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Find the user's personal member ID
+    const memberResult = await pool.query(
+      `SELECT tm.id FROM team_members tm JOIN teams t ON tm.team_id = t.id 
+       WHERE tm.user_id = $1 AND t.owner_id = $1 LIMIT 1`,
+      [userId]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.json({ links: [] });
+    }
+    
+    const memberId = memberResult.rows[0].id;
+    
+    const result = await pool.query(
+      `SELECT token, used, created_at, expires_at 
+       FROM single_use_links 
+       WHERE member_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT 10`,
+      [memberId]
+    );
+
+    res.json({ links: result.rows });
+  } catch (error) {
+    console.error('Get recent single-use links error:', error);
+    res.status(500).json({ error: 'Failed to fetch links' });
+  }
+});
+
 // ============ BOOKING ROUTES ============
 
 app.get('/api/bookings', authenticateToken, async (req, res) => {
@@ -2544,7 +2794,64 @@ app.get('/api/book/:token', async (req, res) => {
   try {
     const { token } = req.params;
     
-    // 1. Get Team Member & User Info
+    console.log('🔍 Looking up token:', token, 'Length:', token.length);
+    
+    // 1. First, check if it's a single-use link (64 chars)
+    if (token.length === 64) {
+      console.log('🔑 Checking single-use links table...');
+      const singleUseCheck = await pool.query(
+        `SELECT sul.token as single_use_token, tm.*, t.name as team_name, t.description as team_description,
+                u.name as member_name, u.email as member_email, u.id as user_id
+         FROM single_use_links sul
+         JOIN team_members tm ON sul.member_id = tm.id
+         JOIN teams t ON tm.team_id = t.id
+         LEFT JOIN users u ON tm.user_id = u.id
+         WHERE sul.token = $1 
+           AND sul.used = false 
+           AND sul.expires_at > NOW()`,
+        [token]
+      );
+      
+      if (singleUseCheck.rows.length > 0) {
+        console.log('✅ Valid single-use link found');
+        const member = singleUseCheck.rows[0];
+        
+        // Get event types
+        let eventTypes = [];
+        if (member.user_id) {
+          const eventsRes = await pool.query(
+            'SELECT * FROM event_types WHERE user_id = $1 AND is_active = true ORDER BY duration ASC',
+            [member.user_id]
+          );
+          eventTypes = eventsRes.rows;
+        }
+        
+        return res.json({
+          data: {
+            team: { 
+              id: member.team_id, 
+              name: member.team_name, 
+              description: member.team_description 
+            },
+            member: { 
+              name: member.name || member.member_name || member.email, 
+              email: member.email || member.member_email, 
+              external_booking_link: member.external_booking_link, 
+              external_booking_platform: member.external_booking_platform 
+            },
+            eventTypes: eventTypes,
+            isSingleUse: true,
+            singleUseToken: member.single_use_token
+          }
+        });
+      } else {
+        console.log('❌ Single-use link not found, expired, or already used');
+        return res.status(404).json({ error: 'This link has expired or been used' });
+      }
+    }
+    
+    // 2. Otherwise, check regular team member booking tokens (32 chars)
+    console.log('🔑 Checking team_members table...');
     const result = await pool.query(
       `SELECT tm.*, t.name as team_name, t.description as team_description, 
        u.name as member_name, u.email as member_email, u.id as user_id
@@ -2555,12 +2862,14 @@ app.get('/api/book/:token', async (req, res) => {
       [token]
     );
 
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Booking link not found' });
+    if (result.rows.length === 0) {
+      console.log('❌ Token not found in team_members');
+      return res.status(404).json({ error: 'Booking link not found' });
+    }
 
     const member = result.rows[0];
 
-    // 2. ✅ NEW: Fetch Event Types for this user
-    // This allows the frontend to switch between "15 min", "30 min", etc.
+    // Get event types
     let eventTypes = [];
     if (member.user_id) {
       const eventsRes = await pool.query(
@@ -2583,7 +2892,7 @@ app.get('/api/book/:token', async (req, res) => {
           external_booking_link: member.external_booking_link, 
           external_booking_platform: member.external_booking_platform 
         },
-        eventTypes: eventTypes // <--- Returning this list
+        eventTypes: eventTypes
       }
     });
   } catch (error) {
@@ -2592,7 +2901,7 @@ app.get('/api/book/:token', async (req, res) => {
   }
 });
 
-// REPLACE your entire app.post('/api/bookings', ...) endpoint with this:
+// Create booking
 app.post('/api/bookings', async (req, res) => {
   try {
     const { token, slot, attendee_name, attendee_email, notes } = req.body;
@@ -2603,18 +2912,40 @@ app.post('/api/bookings', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const memberResult = await pool.query(
-      `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
-              u.google_access_token, u.google_refresh_token, 
-              u.email as member_email, u.name as member_name
-       FROM team_members tm 
-       JOIN teams t ON tm.team_id = t.id 
-       LEFT JOIN users u ON tm.user_id = u.id 
-       WHERE tm.booking_token = $1`,
-      [token]
-    );
+    // ========== SUPPORT SINGLE-USE LINKS ==========
+    let memberResult;
+    
+    if (token.length === 64) {
+      console.log('🔑 Looking up single-use link for booking...');
+      memberResult = await pool.query(
+        `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
+                u.google_access_token, u.google_refresh_token, 
+                u.email as member_email, u.name as member_name
+         FROM single_use_links sul
+         JOIN team_members tm ON sul.member_id = tm.id
+         JOIN teams t ON tm.team_id = t.id 
+         LEFT JOIN users u ON tm.user_id = u.id 
+         WHERE sul.token = $1
+           AND sul.used = false
+           AND sul.expires_at > NOW()`,
+        [token]
+      );
+    } else {
+      console.log('🔑 Looking up regular token for booking...');
+      memberResult = await pool.query(
+        `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
+                u.google_access_token, u.google_refresh_token, 
+                u.email as member_email, u.name as member_name
+         FROM team_members tm 
+         JOIN teams t ON tm.team_id = t.id 
+         LEFT JOIN users u ON tm.user_id = u.id 
+         WHERE tm.booking_token = $1`,
+        [token]
+      );
+    }
 
     if (memberResult.rows.length === 0) {
+      console.log('❌ Invalid or expired booking token');
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
@@ -2622,6 +2953,7 @@ app.post('/api/bookings', async (req, res) => {
     const bookingMode = member.booking_mode || 'individual';
 
     console.log('🎯 Booking mode:', bookingMode);
+    console.log('👤 Member:', member.member_name);
 
     let assignedMembers = [];
 
@@ -2700,11 +3032,29 @@ app.post('/api/bookings', async (req, res) => {
 
     for (const assignedMember of assignedMembers) {
       const bookingResult = await pool.query(
-        `INSERT INTO bookings (team_id, member_id, user_id, attendee_name, attendee_email, 
-         start_time, end_time, notes, booking_token, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-        [member.team_id, assignedMember.id, assignedMember.user_id, attendee_name, attendee_email, 
-         slot.start, slot.end, notes || '', token, 'confirmed']
+        `INSERT INTO bookings (
+          team_id, member_id, user_id, 
+          attendee_name, attendee_email, 
+          start_time, end_time, 
+          title,
+          notes, 
+          booking_token, status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+        RETURNING *`,
+        [
+          member.team_id,
+          assignedMember.id,
+          assignedMember.user_id,
+          attendee_name,
+          attendee_email,
+          slot.start,
+          slot.end,
+          `Meeting with ${attendee_name}`,
+          notes || '',
+          token,
+          'confirmed'
+        ]
       );
 
       createdBookings.push(bookingResult.rows[0]);
@@ -2712,6 +3062,15 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     console.log(`✅ Created ${createdBookings.length} booking(s)`);
+     
+    // Mark single-use link as used
+    if (token.length === 64) {
+      await pool.query(
+        'UPDATE single_use_links SET used = true WHERE token = $1',
+        [token]
+      );
+      console.log('✅ Single-use link marked as used');
+    }
 
     // ========== RESPOND IMMEDIATELY ==========
     res.json({ 
@@ -2719,14 +3078,13 @@ app.post('/api/bookings', async (req, res) => {
       booking: createdBookings[0],
       bookings: createdBookings,
       mode: bookingMode,
-      meet_link: null, // Will be updated in background
+      meet_link: null,
       message: bookingMode === 'collective' 
         ? `Booking confirmed with all ${createdBookings.length} team members!`
         : 'Booking confirmed! Calendar invite with Google Meet link will arrive shortly.'
     });
 
     // ========== ASYNC: CREATE CALENDAR EVENT & SEND EMAILS ==========
-    // Don't await this - let it run in background
     (async () => {
       try {
         let meetLink = null;
@@ -2820,7 +3178,6 @@ app.post('/api/bookings', async (req, res) => {
             notes: notes,
           });
 
-          // Update booking object with meet_link for email
           const bookingWithMeetLink = {
             ...createdBookings[0],
             attendee_name,
@@ -2865,6 +3222,7 @@ app.post('/api/bookings', async (req, res) => {
 });
 
 // ============ BOOKING MANAGEMENT BY TOKEN (NO AUTH REQUIRED) ============
+   
 
 // Get booking by token (for guest management page)
 app.get('/api/bookings/manage/:token', async (req, res) => {
@@ -3135,14 +3493,17 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
 
 // ============ REMINDER ENDPOINTS ============
 
+// ============ REMINDER ENDPOINTS ============
+
+// Get reminder status for dashboard UI
 app.get('/api/reminders/status', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    
+
     const now = new Date();
     const reminderWindowStart = new Date(now.getTime() + (23 * 60 * 60 * 1000));
     const reminderWindowEnd = new Date(now.getTime() + (72 * 60 * 60 * 1000));
-    
+
     // Pending reminders
     const pendingResult = await pool.query(
       `SELECT b.*, tm.name as organizer_name, t.name as team_name
@@ -3157,8 +3518,8 @@ app.get('/api/reminders/status', authenticateToken, async (req, res) => {
        ORDER BY b.start_time ASC`,
       [userId, reminderWindowStart, reminderWindowEnd]
     );
-    
-    // Recently sent reminders
+
+    // Recently sent
     const sentResult = await pool.query(
       `SELECT b.*, tm.name as organizer_name, t.name as team_name
        FROM bookings b
@@ -3171,97 +3532,105 @@ app.get('/api/reminders/status', authenticateToken, async (req, res) => {
        LIMIT 10`,
       [userId]
     );
-    
+
     // Failed reminders
     const failedResult = await pool.query(
-  `SELECT b.*, tm.name as organizer_name, t.name as team_name, 
-          br.error_message, br.sent_at as reminder_failed_at
-   FROM bookings b
-   LEFT JOIN team_members tm ON b.member_id = tm.id
-   LEFT JOIN teams t ON b.team_id = t.id
-   INNER JOIN booking_reminders br ON b.id = br.booking_id
-   WHERE (t.owner_id = $1 OR tm.user_id = $1)
-     AND br.status = 'failed'
-     AND br.sent_at >= NOW() - INTERVAL '7 days'
-   ORDER BY br.sent_at DESC
-   LIMIT 10`,
-  [userId]
-);
-    
+      `SELECT b.*, tm.name as organizer_name, t.name as team_name,
+              br.error_message, br.sent_at as reminder_failed_at
+       FROM bookings b
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN teams t ON b.team_id = t.id
+       INNER JOIN booking_reminders br ON b.id = br.booking_id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND br.status = 'failed'
+         AND br.sent_at >= NOW() - INTERVAL '7 days'
+       ORDER BY br.sent_at DESC
+       LIMIT 10`,
+      [userId]
+    );
+
     res.json({
       pending: pendingResult.rows,
       sent: sentResult.rows,
       failed: failedResult.rows,
     });
+
   } catch (error) {
     console.error('Get reminder status error:', error);
     res.status(500).json({ error: 'Failed to get reminder status' });
   }
 });
 
+
+// ========= GET TEAM REMINDER SETTINGS =========
 app.get('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, res) => {
   try {
     const { teamId } = req.params;
     const userId = req.user.id;
-    
+
     const teamCheck = await pool.query(
       'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
       [teamId, userId]
     );
-    
+
     if (teamCheck.rows.length === 0) {
       return res.status(403).json({ error: 'Not authorized' });
     }
-    
+
     const team = teamCheck.rows[0];
-    
+
     res.json({
       reminder_enabled: team.reminder_enabled !== false,
       reminder_hours_before: team.reminder_hours_before || 24,
       reminder_template: team.reminder_template || 'default',
     });
+
   } catch (error) {
     console.error('Get reminder settings error:', error);
     res.status(500).json({ error: 'Failed to get reminder settings' });
   }
 });
 
+
+// ========= UPDATE TEAM REMINDER SETTINGS =========
 app.put('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, res) => {
   try {
     const { teamId } = req.params;
     const userId = req.user.id;
     const { reminder_enabled, reminder_hours_before } = req.body;
-    
+
     const teamCheck = await pool.query(
       'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
       [teamId, userId]
     );
-    
+
     if (teamCheck.rows.length === 0) {
       return res.status(403).json({ error: 'Not authorized' });
     }
-    
+
+    const team = teamCheck.rows[0];
+
     await pool.query(
-      `UPDATE teams 
-       SET reminder_enabled = $1, 
+      `UPDATE teams
+       SET reminder_enabled = $1,
            reminder_hours_before = $2
        WHERE id = $3`,
       [reminder_enabled, reminder_hours_before, teamId]
     );
-    
-    console.log(`✅ Updated reminder settings for team ${teamId}`);
-    
-    res.json({ 
+
+    console.log(`✅ Updated reminder settings for team ${teamId} (${team.name})`);
+
+    res.json({
       success: true,
       reminder_enabled,
       reminder_hours_before,
     });
+
   } catch (error) {
     console.error('Update reminder settings error:', error);
     res.status(500).json({ error: 'Failed to update reminder settings' });
   }
 });
-
 
 
 
@@ -4345,7 +4714,50 @@ app.get('/api/admin/migrate-event-types', authenticateToken, requireAdmin, async
   }
 });
 
-// ============ SERVE STATIC FILES ============
+// ===============================
+// REMINDER SETTINGS ROUTES
+// ===============================
+
+// Get current reminder settings for the user
+app.get('/api/reminders/settings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await pool.query(
+      `SELECT reminder_enabled, reminder_hours_before
+       FROM users
+       WHERE id = $1`,
+      [userId]
+    );
+
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error loading reminder settings:", err);
+    res.status(500).json({ error: "Failed to load reminder settings" });
+  }
+});
+
+// Update reminder settings for the user
+app.post('/api/reminders/settings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { enabled, hoursBefore } = req.body;
+
+    await pool.query(
+      `UPDATE users
+       SET reminder_enabled = $1,
+           reminder_hours_before = $2
+       WHERE id = $3`,
+      [enabled, hoursBefore, userId]
+    );
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Error updating reminder settings:", err);
+    res.status(500).json({ error: "Failed to update settings" });
+  }
+});
+
+
 // ============ SERVE STATIC FILES ============
 
 // DEBUG: Check dist files
@@ -4424,303 +4836,283 @@ if (process.env.NODE_ENV === 'production') {
 
 const cron = require('node-cron');
 
-// ============ REMINDER EMAIL TEMPLATES ============
 
-const reminderEmailTemplate = (booking, hoursUntil) => {
-  const meetingDate = new Date(booking.start_time).toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
+// ========== REMINDER ENGINE ==========
+
+// Run every 5 minutes
+const REMINDER_CRON = '*/5 * * * *';
+let lastReminderRun = null;
+
+// ============ REMINDER EMAIL TEMPLATE ============
+
+function reminderEmailTemplate(booking, hoursBefore) {
+  const startTime = new Date(booking.start_time);
+  const endTime = new Date(booking.end_time);
+  
+  // Format date and time
+  const dateStr = startTime.toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
   });
   
-  const meetingTime = new Date(booking.start_time).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
+  const timeStr = startTime.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit', 
+    hour12: true 
+  });
+  
+  const endTimeStr = endTime.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit', 
+    hour12: true 
   });
 
   return `
     <!DOCTYPE html>
     <html>
     <head>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
-        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-        .meeting-details { background: white; border: 2px solid #e5e7eb; border-radius: 10px; padding: 20px; margin: 20px 0; }
-        .detail-row { display: flex; align-items: center; margin: 15px 0; }
-        .alert { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 5px; }
-        .meet-box { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 12px; text-align: center; margin: 25px 0; }
-        .meet-button { display: inline-block; background: white; color: #667eea; padding: 15px 40px; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px; margin: 10px 0; }
-        .action-buttons { margin: 25px 0; padding: 20px; background: #f3f4f6; border-radius: 10px; text-align: center; }
-        .btn { display: inline-block; padding: 12px 24px; margin: 5px; text-decoration: none; border-radius: 8px; font-weight: 600; }
-        .btn-reschedule { background: #3b82f6; color: white; }
-        .btn-cancel { background: #ef4444; color: white; }
-      </style>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Meeting Reminder</title>
     </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1 style="margin: 0; font-size: 28px;">⏰ Meeting Reminder</h1>
-          <p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 16px;">Your meeting is coming up soon!</p>
-        </div>
-        <div class="content">
-          <div class="alert">
-            <strong style="font-size: 16px;">⏰ Reminder:</strong> Your meeting is in <strong>${hoursUntil} hours</strong>
-          </div>
-          
-          ${booking.meet_link ? `
-          <div class="meet-box">
-            <p style="color: white; font-size: 20px; font-weight: bold; margin: 0 0 15px 0;">🎥 Ready to Join?</p>
-            <a href="${booking.meet_link}" class="meet-button">
-              Join Google Meet
-            </a>
-            <p style="color: rgba(255,255,255,0.9); font-size: 13px; margin: 15px 0 5px 0;">
-              Meeting Link:
-            </p>
-            <p style="color: rgba(255,255,255,0.7); font-size: 11px; margin: 0; word-break: break-all;">
-              ${booking.meet_link}
-            </p>
-            <p style="color: rgba(255,255,255,0.8); font-size: 13px; margin: 15px 0 0 0;">
-              💡 Join a few minutes early to test your setup
-            </p>
-          </div>
-          ` : ''}
-          
-          <div class="meeting-details">
-            <h2 style="margin-top: 0; color: #667eea; font-size: 20px;">Meeting Details</h2>
-            
-            <div class="detail-row">
-              <span style="font-size: 24px; margin-right: 10px;">📅</span>
-              <div>
-                <strong>Date:</strong><br>
-                ${meetingDate}
-              </div>
-            </div>
-            
-            <div class="detail-row">
-              <span style="font-size: 24px; margin-right: 10px;">🕐</span>
-              <div>
-                <strong>Time:</strong><br>
-                ${meetingTime}
-              </div>
-            </div>
-            
-            <div class="detail-row">
-              <span style="font-size: 24px; margin-right: 10px;">👤</span>
-              <div>
-                <strong>${booking.is_organizer ? 'With' : 'Organizer'}:</strong><br>
-                ${booking.is_organizer ? booking.attendee_name : booking.organizer_name}
-              </div>
-            </div>
-            
-            ${booking.notes ? `
-            <div class="detail-row">
-              <span style="font-size: 24px; margin-right: 10px;">📝</span>
-              <div>
-                <strong>Notes:</strong><br>
-                ${booking.notes}
-              </div>
-            </div>
-            ` : ''}
-          </div>
+    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+        <tr>
+          <td style="padding: 40px 20px;">
+            <table role="presentation" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);" width="100%" cellspacing="0" cellpadding="0" border="0">
+              
+              <!-- Header -->
+              <tr>
+                <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
+                  <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 600;">⏰ Meeting Reminder</h1>
+                  <p style="margin: 10px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 16px;">
+                    Your meeting starts in ${hoursBefore} hour${hoursBefore !== 1 ? 's' : ''}
+                  </p>
+                </td>
+              </tr>
 
-          ${booking.booking_token ? `
-          <div class="action-buttons">
-            <p style="font-weight: bold; color: #374151; margin: 0 0 15px 0; font-size: 15px;">Need to make changes?</p>
-            <a href="${process.env.FRONTEND_URL}/manage/${booking.booking_token}?action=reschedule" class="btn btn-reschedule">
-              🔄 Reschedule
-            </a>
-            <a href="${process.env.FRONTEND_URL}/manage/${booking.booking_token}?action=cancel" class="btn btn-cancel">
-              ❌ Cancel Meeting
-            </a>
-          </div>
-          ` : ''}
-          
-          <p style="margin: 20px 0; color: #4b5563; font-size: 14px;">
-            📌 <strong>Quick Checklist:</strong><br>
-            • Test your camera and microphone<br>
-            • Have any materials ready<br>
-            • Find a quiet space<br>
-            • Join a few minutes early
-          </p>
-          
-          <p style="color: #6b7280; font-size: 13px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-            This is an automated reminder from ScheduleSync. Meeting scheduled on ${new Date(booking.created_at).toLocaleDateString()}.
-          </p>
-        </div>
-      </div>
+              <!-- Content -->
+              <tr>
+                <td style="padding: 40px 30px;">
+                  
+                  <!-- Greeting -->
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #333; line-height: 1.6;">
+                    Hi ${booking.guest_name || booking.host_name || 'there'} 👋
+                  </p>
+                  
+                  <p style="margin: 0 0 30px 0; font-size: 16px; color: #555; line-height: 1.6;">
+                    This is a friendly reminder about your upcoming meeting:
+                  </p>
+
+                  <!-- Meeting Details Card -->
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                    <tr>
+                      <td style="padding: 20px;">
+                        
+                        <!-- Meeting Title -->
+                        <h2 style="margin: 0 0 15px 0; font-size: 20px; color: #333; font-weight: 600;">
+                          ${booking.title || 'Meeting'}
+                        </h2>
+                        
+                        <!-- Date -->
+                        <p style="margin: 0 0 10px 0; font-size: 15px; color: #555;">
+                          <strong style="color: #667eea;">📅 Date:</strong> ${dateStr}
+                        </p>
+                        
+                        <!-- Time -->
+                        <p style="margin: 0 0 10px 0; font-size: 15px; color: #555;">
+                          <strong style="color: #667eea;">🕐 Time:</strong> ${timeStr} - ${endTimeStr}${booking.timezone ? ` (${booking.timezone})` : ''}
+                        </p>
+                        
+                        <!-- Attendees -->
+                        ${booking.host_name && booking.guest_name ? `
+                          <p style="margin: 0; font-size: 15px; color: #555;">
+                            <strong style="color: #667eea;">👥 With:</strong> ${booking.guest_name === (booking.guest_name || booking.host_name) ? booking.host_name : booking.guest_name}
+                          </p>
+                        ` : ''}
+                        
+                      </td>
+                    </tr>
+                  </table>
+
+                  <!-- Meeting Link Button -->
+                  ${booking.meeting_url ? `
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top: 30px;">
+                      <tr>
+                        <td align="center">
+                          <a href="${booking.meeting_url}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);">
+                            🔗 Join Meeting
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  ` : ''}
+
+                  <!-- Preparation Tip -->
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top: 30px; background: #e8f5e9; border-radius: 8px;">
+                    <tr>
+                      <td style="padding: 15px;">
+                        <p style="margin: 0; font-size: 14px; color: #2e7d32; line-height: 1.5;">
+                          💡 <strong>Tip:</strong> Join a few minutes early to test your audio and video!
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+
+                </td>
+              </tr>
+
+              <!-- Footer -->
+              <tr>
+                <td style="padding: 30px; background: #f8f9fa; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e0e0e0;">
+                  <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">
+                    Scheduled via <strong style="color: #667eea;">ScheduleSync</strong>
+                  </p>
+                  <p style="margin: 0; font-size: 12px; color: #999;">
+                    Need to reschedule? <a href="${process.env.FRONTEND_URL}/manage/${booking.id}" style="color: #667eea; text-decoration: none;">Manage your booking</a>
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+      </table>
     </body>
     </html>
   `;
-};
-
-// ============ REMINDER SENDING FUNCTION ============
-
-async function sendBookingReminder(booking, recipientEmail, recipientName, isOrganizer) {
-  try {
-    // Calculate hours until meeting
-    const now = new Date();
-    const meetingTime = new Date(booking.start_time);
-    const hoursUntil = Math.round((meetingTime - now) / (1000 * 60 * 60));
-    
-    // Prepare email data
-    const bookingWithRecipient = {
-      ...booking,
-      is_organizer: isOrganizer,
-      attendee_name: isOrganizer ? booking.attendee_name : recipientName,
-      organizer_name: isOrganizer ? recipientName : booking.organizer_name,
-    };
-    
-    // Generate ICS attachment
-    const icsFile = generateICS({
-      id: booking.id,
-      start_time: booking.start_time,
-      end_time: booking.end_time,
-      attendee_name: booking.attendee_name,
-      attendee_email: booking.attendee_email,
-      organizer_name: booking.organizer_name || 'ScheduleSync',
-      organizer_email: booking.organizer_email || 'noreply@schedulesync.com',
-      team_name: booking.team_name || 'Meeting',
-      notes: booking.notes,
-    });
-    
-    // Send email
-    await sendBookingEmail({
-      to: recipientEmail,
-      subject: `⏰ Reminder: Meeting in ${hoursUntil} hours`,
-      html: reminderEmailTemplate(bookingWithRecipient, hoursUntil),
-      icsAttachment: icsFile,
-    });
-    
-    console.log(`✅ Reminder sent to ${recipientEmail} for booking ${booking.id}`);
-    return true;
-  } catch (error) {
-    console.error(`❌ Failed to send reminder to ${recipientEmail}:`, error);
-    return false;
-  }
 }
 
-// ============ REMINDER CHECKER (RUNS EVERY HOUR) ============
+// ============ REMINDER CHECKER ============
 
 async function checkAndSendReminders() {
+  const now = new Date();
+  lastReminderRun = now;
+  console.log('⏰ Running reminder check at', now.toISOString());
+
   try {
-    console.log('🔔 Checking for bookings that need reminders...');
-    
-    // Get bookings that:
-    // 1. Are confirmed
-    // 2. Start in 24-26 hours (to catch all bookings in hourly check)
-    // 3. Haven't had reminder sent yet
-    const now = new Date();
-    const reminderWindowStart = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // 24 hours from now
-    const reminderWindowEnd = new Date(now.getTime() + (26 * 60 * 60 * 1000)); // 26 hours from now
-    
-    const bookingsResult = await pool.query(
-      `SELECT b.*, 
-       b.meet_link,   
-        b.calendar_event_id,   
-        b.booking_token,
-              tm.name as organizer_name,
-              tm.email as organizer_email,
-              t.name as team_name
-       FROM bookings b
-       LEFT JOIN team_members tm ON b.member_id = tm.id
-       LEFT JOIN teams t ON b.team_id = t.id
-       WHERE b.status = 'confirmed'
-         AND b.reminder_sent = false
-         AND b.start_time >= $1
-         AND b.start_time <= $2
-       ORDER BY b.start_time ASC`,
-      [reminderWindowStart, reminderWindowEnd]
-    );
-    
-    const bookings = bookingsResult.rows;
-    console.log(`📋 Found ${bookings.length} booking(s) needing reminders`);
-    
-    for (const booking of bookings) {
-      try {
-        // Send reminder to attendee
-        const attendeeSuccess = await sendBookingReminder(
-          booking,
-          booking.attendee_email,
-          booking.attendee_name,
-          false // attendee
+    const query = `
+      SELECT
+        b.id,
+        b.start_time,
+        b.end_time,
+        b.title,
+        b.status,
+        b.attendee_email as guest_email,
+        b.attendee_name as guest_name,
+        b.meet_link as meeting_url,
+        tm.email as host_email,
+        tm.name as host_name,
+        tm.timezone,
+        b.reminder_sent,
+        tm.id AS team_member_id,
+        t.id AS team_id,
+        trs.enabled,
+        trs.hours_before,
+        trs.send_to_host,
+        trs.send_to_guest
+      FROM bookings b
+      JOIN team_members tm ON b.member_id = tm.id
+      JOIN teams t ON tm.team_id = t.id
+      LEFT JOIN team_reminder_settings trs ON trs.team_id = t.id
+      WHERE b.status = 'confirmed'
+        AND b.start_time > NOW()
+        AND COALESCE(b.reminder_sent, FALSE) = FALSE
+        AND COALESCE(trs.enabled, TRUE) = TRUE
+    `;
+
+    const result = await pool.query(query);
+    if (result.rowCount === 0) {
+      console.log('ℹ️ No bookings eligible for reminders right now');
+      return;
+    }
+
+    for (const row of result.rows) {
+      const startTime = new Date(row.start_time);
+      const diffMs = startTime.getTime() - now.getTime();
+      const diffHours = diffMs / (1000 * 60 * 60);
+
+      const hoursBefore = row.hours_before ?? 24;
+
+      if (diffHours <= hoursBefore && diffHours > 0) {
+        console.log(
+          `📧 Sending reminder for booking ${row.id} (team ${row.team_id}) diff=${diffHours.toFixed(
+            2
+          )}h window=${hoursBefore}h`
         );
-        
-        // Send reminder to organizer (if email exists)
-        let organizerSuccess = true;
-        if (booking.organizer_email) {
-          organizerSuccess = await sendBookingReminder(
-            booking,
-            booking.organizer_email,
-            booking.organizer_name,
-            true // organizer
-          );
+
+        const bookingForTemplate = {
+          id: row.id,
+          start_time: row.start_time,
+          end_time: row.end_time,
+          title: row.title || 'Meeting',
+          guest_email: row.guest_email,
+          guest_name: row.guest_name,
+          host_email: row.host_email,
+          host_name: row.host_name,
+          meeting_url: row.meeting_url,
+          timezone: row.timezone,
+        };
+
+        const html = reminderEmailTemplate(bookingForTemplate, hoursBefore);
+
+        const recipients = [];
+        if (row.send_to_guest ?? true) {
+          if (row.guest_email) recipients.push(row.guest_email);
         }
-        
-        // Update booking if at least one reminder was sent
-        if (attendeeSuccess || organizerSuccess) {
-          await pool.query(
-            `UPDATE bookings 
-             SET reminder_sent = true, reminder_sent_at = CURRENT_TIMESTAMP 
-             WHERE id = $1`,
-            [booking.id]
-          );
-          
-          // Log to reminder tracking table
-          if (attendeeSuccess) {
-            await pool.query(
-              `INSERT INTO booking_reminders (booking_id, reminder_type, recipient_email, status)
-               VALUES ($1, $2, $3, $4)`,
-              [booking.id, '24h', booking.attendee_email, 'sent']
-            );
-          }
-          
-          if (organizerSuccess && booking.organizer_email) {
-            await pool.query(
-              `INSERT INTO booking_reminders (booking_id, reminder_type, recipient_email, status)
-               VALUES ($1, $2, $3, $4)`,
-              [booking.id, '24h', booking.organizer_email, 'sent']
-            );
-          }
-          
-          console.log(`✅ Reminders processed for booking ${booking.id}`);
+        if (row.send_to_host ?? true) {
+          if (row.host_email) recipients.push(row.host_email);
         }
-      } catch (bookingError) {
-        console.error(`❌ Error processing booking ${booking.id}:`, bookingError);
-        
-        // Log failed reminder
+
+        if (recipients.length === 0) {
+          console.log(
+            `⚠️ No recipients for booking ${row.id}, skipping reminder`
+          );
+          continue;
+        }
+
+        await sendBookingEmail({
+          to: recipients,
+          subject: `Reminder: ${bookingForTemplate.title}`,
+          html,
+          icsAttachment: null,
+        });
+
         await pool.query(
-          `INSERT INTO booking_reminders (booking_id, reminder_type, recipient_email, status, error_message)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [booking.id, '24h', booking.attendee_email, 'failed', bookingError.message]
+          `UPDATE bookings SET reminder_sent = TRUE WHERE id = $1`,
+          [row.id]
+        );
+
+        console.log(`✅ Reminder sent and marked for booking ${row.id}`);
+      } else {
+        console.log(
+          `⏭ Skipping ${row.id}, diffHours=${diffHours.toFixed(
+            2
+          )} window=${hoursBefore}h`
         );
       }
     }
-    
-    console.log('✅ Reminder check completed');
-  } catch (error) {
-    console.error('❌ Error in reminder checker:', error);
+  } catch (err) {
+    console.error('❌ Error in reminder engine:', err);
   }
 }
 
-// ============ SCHEDULE REMINDER CHECKER ============
-
-// Run every hour at :00 minutes
-cron.schedule('0 * * * *', () => {
-  console.log('⏰ Running scheduled reminder check...');
-  checkAndSendReminders();
+// Run every 5 minutes
+cron.schedule(REMINDER_CRON, () => {
+  checkAndSendReminders().catch((err) =>
+    console.error('❌ Unhandled reminder cron error:', err)
+  );
 });
 
-// Also run on server startup (after 1 minute to let everything initialize)
+// Check once on startup after 60 seconds
 setTimeout(() => {
-  console.log('🚀 Running initial reminder check...');
-  checkAndSendReminders();
+  console.log('🔔 Running initial reminder check on startup...');
+  checkAndSendReminders().catch((err) =>
+    console.error('❌ Startup reminder check error:', err)
+  );
 }, 60000);
-
-console.log('✅ Booking reminder scheduler initialized');
 
 // ============ TIMEZONE ENDPOINTS ============
 
@@ -4948,6 +5340,102 @@ app.put('/api/users/profile', authenticateToken, async (req, res) => {
   }
 });
 
+// ============ AVAILABILITY SETTINGS ROUTES ============
+
+// Helper to get settings
+const getAvailabilitySettings = async (req, res, memberId, userId) => {
+  try {
+    const memberResult = await pool.query(`SELECT tm.*, t.owner_id FROM team_members tm JOIN teams t ON tm.team_id = t.id WHERE tm.id = $1`, [memberId]);
+    if (memberResult.rows.length === 0) return res.status(404).json({ error: 'Team member not found' });
+    
+    const member = memberResult.rows[0];
+    if (member.owner_id !== userId && member.user_id !== userId) return res.status(403).json({ error: 'Not authorized' });
+
+    const blockedResult = await pool.query(`SELECT start_time, end_time, reason FROM blocked_times WHERE team_member_id = $1`, [memberId]);
+    
+    // Parse JSON if needed
+    let workingHours = member.working_hours;
+    if (typeof workingHours === 'string') {
+        try { workingHours = JSON.parse(workingHours); } catch(e) {}
+    }
+
+    res.json({
+      member: { ...member, working_hours: workingHours },
+      blocked_times: blockedResult.rows,
+    });
+  } catch (error) {
+    console.error('Get availability error:', error);
+    res.status(500).json({ error: 'Failed' });
+  }
+};
+
+// Helper to update settings
+const updateAvailabilitySettings = async (req, res, memberId, userId) => {
+  try {
+    const memberIdInt = parseInt(memberId);
+    const { buffer_time, lead_time_hours, booking_horizon_days, daily_booking_cap, working_hours, blocked_times } = req.body;
+
+    await pool.query(
+      `UPDATE team_members SET buffer_time=$1, lead_time_hours=$2, booking_horizon_days=$3, daily_booking_cap=$4, working_hours=$5 WHERE id=$6`,
+      [buffer_time, lead_time_hours, booking_horizon_days, daily_booking_cap, JSON.stringify(working_hours), memberIdInt]
+    );
+
+    await pool.query('DELETE FROM blocked_times WHERE team_member_id = $1', [memberIdInt]);
+
+    if (blocked_times && blocked_times.length > 0) {
+      for (const block of blocked_times) {
+        if (block.start_time && block.end_time) {
+          await pool.query(
+            `INSERT INTO blocked_times (team_member_id, start_time, end_time, reason) VALUES ($1, $2, $3, $4)`,
+            [memberIdInt, block.start_time, block.end_time, block.reason || null]
+          );
+        }
+      }
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update availability error:', error);
+    res.status(500).json({ error: 'Failed update' });
+  }
+};
+
+// 1. GET /api/availability/me (Dashboard Link Fix)
+app.get('/api/availability/me', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const memberResult = await pool.query(
+      `SELECT tm.id FROM team_members tm JOIN teams t ON tm.team_id = t.id WHERE tm.user_id = $1 AND t.owner_id = $1 LIMIT 1`,
+      [userId]
+    );
+    if (memberResult.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    return getAvailabilitySettings(req, res, memberResult.rows[0].id, userId);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// 2. PUT /api/availability/me (Save Button Fix)
+app.put('/api/availability/me', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const memberResult = await pool.query(
+          `SELECT tm.id FROM team_members tm JOIN teams t ON tm.team_id = t.id WHERE tm.user_id = $1 AND t.owner_id = $1 LIMIT 1`,
+          [userId]
+        );
+        if (memberResult.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+        return updateAvailabilitySettings(req, res, memberResult.rows[0].id, userId);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// 3. Specific Routes for Teams
+app.get('/api/teams/:teamId/members/:memberId/availability', authenticateToken, async (req, res) => {
+  await getAvailabilitySettings(req, res, parseInt(req.params.memberId), req.user.id);
+});
+app.put('/api/teams/:teamId/members/:memberId/availability', authenticateToken, async (req, res) => {
+  await updateAvailabilitySettings(req, res, parseInt(req.params.memberId), req.user.id);
+});
 
 // ============ ERROR HANDLING ============
 

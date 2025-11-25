@@ -71,7 +71,11 @@ export default function Dashboard() {
     try {
       const response = await api.get('/dashboard/stats');
       setStats(
-        response.data.stats || { totalBookings: 0, upcomingBookings: 0, activeTeams: 0 }
+        response.data.stats || {
+          totalBookings: 0,
+          upcomingBookings: 0,
+          activeTeams: 0,
+        }
       );
       setRecentBookings(response.data.recentBookings || []);
     } catch (error) {
@@ -197,19 +201,23 @@ export default function Dashboard() {
   const getSingleUseLinkStatus = (link) => {
     const now = new Date();
     const expiresAt = new Date(link.expires_at);
-    
+
     if (link.used) {
-      return { label: 'Used', color: 'bg-gray-100 text-gray-600', icon: CheckCircle2 };
+      return {
+        label: 'Used',
+        color: 'bg-gray-100 text-gray-600',
+        icon: CheckCircle2,
+      };
     }
     if (expiresAt < now) {
       return { label: 'Expired', color: 'bg-red-100 text-red-600', icon: XCircle };
     }
-    
+
     const hoursRemaining = Math.floor((expiresAt - now) / (1000 * 60 * 60));
-    return { 
-      label: `Active (${hoursRemaining}h left)`, 
-      color: 'bg-green-100 text-green-600', 
-      icon: Sparkles 
+    return {
+      label: `Active (${hoursRemaining}h left)`,
+      color: 'bg-green-100 text-green-600',
+      icon: Sparkles,
     };
   };
 
@@ -273,14 +281,7 @@ export default function Dashboard() {
                 className="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-semibold flex items-center gap-2"
               >
                 <Calendar className="h-4 w-4" />
-                Calendar
-              </button>
-              <button
-                onClick={() => navigate('/my-booking-link')}
-                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-semibold flex items-center gap-2"
-              >
-                <Sparkles className="h-4 w-4" />
-                New
+                Bookings
               </button>
             </div>
           </div>
@@ -351,7 +352,7 @@ export default function Dashboard() {
                 <button
                   onClick={handleCreateLink}
                   disabled={generatingLink}
-                  className="w-full sm:w-auto px-6 py-3 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full sm:w-auto px-6 py-3 bg-orange-600 text.white rounded-xl font-bold hover:bg-orange-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {generatingLink ? (
                     <Loader2 className="animate-spin h-5 w-5" />
@@ -363,7 +364,7 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* 🆕 SINGLE-USE LINKS CARD */}
+            {/* SINGLE-USE LINKS CARD */}
             <div className="bg-purple-50/50 rounded-2xl border border-purple-200 p-5 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -395,7 +396,6 @@ export default function Dashboard() {
                 )}
               </button>
 
-              {/* Recent Single-Use Links */}
               {singleUseLinksData.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-2">
@@ -404,7 +404,8 @@ export default function Dashboard() {
                   {singleUseLinksData.slice(0, 5).map((link) => {
                     const status = getSingleUseLinkStatus(link);
                     const StatusIcon = status.icon;
-                    const isActive = !link.used && new Date(link.expires_at) > new Date();
+                    const isActive =
+                      !link.used && new Date(link.expires_at) > new Date();
 
                     return (
                       <div
@@ -412,7 +413,9 @@ export default function Dashboard() {
                         className="flex items-center justify-between p-3 bg-white rounded-lg border border-purple-200"
                       >
                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className={`px-2 py-1 rounded-md ${status.color} text-xs font-semibold flex items-center gap-1`}>
+                          <div
+                            className={`px-2 py-1 rounded-md ${status.color} text-xs font-semibold flex items-center gap-1`}
+                          >
                             <StatusIcon className="h-3 w-3" />
                             {status.label}
                           </div>
@@ -467,7 +470,9 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <p className="text-gray-600 text-sm font-medium">{stat.label}</p>
-                      <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
+                      <p className={`text-3xl font-bold ${stat.color}`}>
+                        {stat.value}
+                      </p>
                     </div>
                     <div
                       className={`${stat.bg} h-14 w-14 rounded-xl flex items-center justify-center shadow-md`}
@@ -509,7 +514,9 @@ export default function Dashboard() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <p className="text-gray-900 font-bold">{booking.attendee_name}</p>
+                              <p className="text-gray-900 font-bold">
+                                {booking.attendee_name}
+                              </p>
                               <span
                                 className={`text-xs font-semibold px-2 py-1 rounded-full border flex items-center gap-1 ${getStatusColor(
                                   booking.status
@@ -536,7 +543,7 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* 🆕 SINGLE-USE LINK MODAL */}
+      {/* SINGLE-USE LINK MODAL */}
       {showSingleUseModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 relative">
@@ -568,7 +575,7 @@ export default function Dashboard() {
                   type="text"
                   value={`${window.location.origin}/book/${newSingleUseToken}`}
                   readOnly
-                  className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg font-mono text-sm"
+                  className="flex-1 px-3 py-2 bg.white border border-gray-300 rounded-lg font-mono text-sm"
                 />
                 <button
                   onClick={() => handleCopySingleUse(newSingleUseToken)}
