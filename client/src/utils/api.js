@@ -1,14 +1,16 @@
 ﻿import axios from 'axios';
 
-// 1. Get the base URL from env or default
+// ============================================
+// BASE URL HANDLING
+// ============================================
 let rawBaseUrl =
   import.meta.env.VITE_API_URL ||
   'https://schedulesync-web-production.up.railway.app';
 
-// Remove trailing slash if present
+// Remove trailing slash
 rawBaseUrl = rawBaseUrl.replace(/\/$/, '');
 
-// Ensure we end up with .../api
+// Ensure .../api suffix
 const API_BASE = rawBaseUrl.endsWith('/api')
   ? rawBaseUrl
   : `${rawBaseUrl}/api`;
@@ -20,17 +22,17 @@ export const api = axios.create({
   baseURL: API_BASE,
 });
 
-// Attach JWT token to every request if present
+// Attach JWT token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Global response interceptor
+// Global error interceptor
 api.interceptors.response.use(
-  (response) => response,
-  (error) => Promise.reject(error)
+  (res) => res,
+  (err) => Promise.reject(err)
 );
 
 // ============================================
@@ -40,8 +42,7 @@ export const auth = {
   login: (email, password) => api.post('/auth/login', { email, password }),
   register: (data) => api.post('/auth/register', data),
   me: () => api.get('/auth/me'),
-  verifyEmail: (token) =>
-    api.get('/auth/verify-email', { params: { token } }),
+  verifyEmail: (token) => api.get('/auth/verify-email', { params: { token } }),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (token, newPassword) =>
     api.post('/auth/reset-password', { token, newPassword }),
@@ -52,14 +53,14 @@ export const auth = {
 };
 
 // ============================================
-// TEAMS & MEMBERS
+// TEAMS
 // ============================================
 export const teams = {
   getAll: () => api.get('/teams'),
   create: (data) => api.post('/teams', data),
-  get: (teamId) => api.get(`/teams/${teamId}`),
-  update: (teamId, data) => api.put(`/teams/${teamId}`, data),
-  delete: (teamId) => api.delete(`/teams/${teamId}`),
+  get: (id) => api.get(`/teams/${id}`),
+  update: (id, data) => api.put(`/teams/${id}`, data),
+  delete: (id) => api.delete(`/teams/${id}`),
 
   getMembers: (teamId) => api.get(`/teams/${teamId}/members`),
   addMember: (teamId, data) => api.post(`/teams/${teamId}/members`, data),
@@ -76,8 +77,7 @@ export const teams = {
 
   updateMemberExternalLink: (teamId, memberId, data) =>
     api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
-  
-  // Alias for compatibility
+
   list: () => api.get('/teams'),
 };
 
@@ -98,15 +98,19 @@ export const availability = {
 export const bookings = {
   list: (params) => api.get('/bookings', { params }),
   getAll: (params) => api.get('/bookings', { params }),
+
   getByToken: (token) => api.get(`/book/${token}`),
   getSlots: (token, data) =>
     api.post(`/book/${token}/slots-with-status`, data),
+
   create: (payload) => api.post('/bookings', payload),
 
   getManagementDetails: (token) =>
     api.get(`/bookings/manage/${token}`),
+
   rescheduleByToken: (token, data) =>
     api.post(`/bookings/manage/${token}/reschedule`, data),
+
   cancelByToken: (token, reason) =>
     api.post(`/bookings/manage/${token}/cancel`, { reason }),
 };
@@ -122,14 +126,16 @@ export const reminders = {
 };
 
 // ============================================
-// CALENDAR / OAUTH
+// OAUTH / CALENDAR
 // ============================================
 export const calendar = {
   connectGoogle: () => api.get('/auth/google/url'),
   disconnectGoogle: () => api.post('/calendar/google/disconnect'),
   getStatus: () => api.get('/calendar/status'),
-  listEvents: (startDate, endDate) => 
-    api.get(`/calendar/events?start=${startDate}&end=${endDate}`),
+
+  listEvents: (start, end) =>
+    api.get(`/calendar/events?start=${start}&end=${end}`),
+
   syncEvents: () => api.post('/calendar/sync'),
 };
 
@@ -148,8 +154,7 @@ export const payments = {
   getPricing: (token) => api.get(`/book/${token}/pricing`),
   createIntent: (data) => api.post('/payments/create-intent', data),
   confirmBooking: (data) => api.post('/payments/confirm-booking', data),
-  getPaymentStatus: (paymentIntentId) => 
-    api.get(`/payments/status/${paymentIntentId}`),
+  getPaymentStatus: (id) => api.get(`/payments/status/${id}`),
 };
 
 // ============================================
@@ -166,7 +171,7 @@ export const ai = {
 };
 
 // ============================================
-// SINGLE-USE LINKS ⭐ NEW
+// SINGLE-USE LINKS
 // ============================================
 export const singleUseLinks = {
   generate: () => api.post('/single-use-links'),
@@ -179,7 +184,7 @@ export const singleUseLinks = {
 // EVENT TYPES
 // ============================================
 export const eventTypes = {
-  getAll: () => api.get('/event-types'),  // ⭐ FIXED: Added this method
+  getAll: () => api.get('/event-types'),
   list: (memberId) => api.get(`/event-types?member_id=${memberId}`),
   create: (data) => api.post('/event-types', data),
   get: (id) => api.get(`/event-types/${id}`),
@@ -193,38 +198,41 @@ export const eventTypes = {
 // ============================================
 export const analytics = {
   getDashboard: () => api.get('/analytics/dashboard'),
-  getBookingStats: (startDate, endDate) => 
-    api.get(`/analytics/bookings?start=${startDate}&end=${endDate}`),
+  getBookingStats: (start, end) =>
+    api.get(`/analytics/bookings?start=${start}&end=${end}`),
   getTeamStats: (teamId) => api.get(`/analytics/teams/${teamId}`),
   getMemberStats: (memberId) => api.get(`/analytics/members/${memberId}`),
-  exportData: (format = 'csv') => api.get(`/analytics/export?format=${format}`),
+  exportData: (format = 'csv') =>
+    api.get(`/analytics/export?format=${format}`),
 };
 
 // ============================================
-// NOTIFICATIONS
+// NOTIFICATIONS (UPDATED ⭐⭐⭐)
 // ============================================
 export const notifications = {
   list: () => api.get('/notifications'),
+  getUnread: () => api.get('/notifications?unread_only=true'),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
   markAsRead: (id) => api.put(`/notifications/${id}/read`),
   markAllAsRead: () => api.put('/notifications/read-all'),
   delete: (id) => api.delete(`/notifications/${id}`),
-  getUnreadCount: () => api.get('/notifications/unread-count'),
+  deleteRead: () => api.delete('/notifications/read'),
 };
 
 // ============================================
 // TIMEZONE
 // ============================================
 export const timezone = {
-  get: () => api.get('/user/timezone'),           // ⭐ FIXED: Added this method
-  update: (tz) => api.put('/user/timezone', { timezone: tz }), // ⭐ FIXED: Added this method
+  get: () => api.get('/user/timezone'),
+  update: (tz) => api.put('/user/timezone', { timezone: tz }),
   list: () => api.get('/timezones'),
   detect: () => api.get('/timezones/detect'),
-  convert: (fromTimezone, toTimezone, datetime) => 
-    api.post('/timezones/convert', { fromTimezone, toTimezone, datetime }),
+  convert: (from, to, datetime) =>
+    api.post('/timezones/convert', { fromTimezone: from, toTimezone: to, datetime }),
 };
 
 // ============================================
-// USER
+// USER PROFILE
 // ============================================
 export const user = {
   getProfile: () => api.get('/profile'),
@@ -234,59 +242,40 @@ export const user = {
 };
 
 // ============================================
-// UTILITY FUNCTIONS
+// HELPERS
 // ============================================
+export const isAuthenticated = () => !!localStorage.getItem('token');
 
-// Check if user is authenticated
-export const isAuthenticated = () => {
-  return !!localStorage.getItem('token');
-};
-
-// Get current user from token
 export const getCurrentUser = () => {
   const token = localStorage.getItem('token');
   if (!token) return null;
-  
+
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload;
-  } catch (error) {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch {
     return null;
   }
 };
 
-// Format error message
 export const getErrorMessage = (error) => {
-  if (error.response?.data?.error) {
-    return error.response.data.error;
-  }
-  if (error.response?.data?.message) {
-    return error.response.data.message;
-  }
-  if (error.message) {
-    return error.message;
-  }
-  return 'An unexpected error occurred';
+  return (
+    error.response?.data?.error ||
+    error.response?.data?.message ||
+    error.message ||
+    'An unexpected error occurred'
+  );
 };
 
-// File upload helper
 export const uploadFile = async (file, endpoint) => {
   const formData = new FormData();
   formData.append('file', file);
-  
   return api.post(endpoint, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    headers: { 'Content-Type': 'multipart/form-data' },
   });
 };
 
-// Download file helper
 export const downloadFile = async (endpoint, filename) => {
-  const response = await api.get(endpoint, {
-    responseType: 'blob',
-  });
-  
+  const response = await api.get(endpoint, { responseType: 'blob' });
   const url = window.URL.createObjectURL(new Blob([response.data]));
   const link = document.createElement('a');
   link.href = url;
@@ -296,12 +285,7 @@ export const downloadFile = async (endpoint, filename) => {
   link.remove();
 };
 
-// Batch request helper
-export const batchRequest = async (requests) => {
-  return Promise.all(requests.map(req => api(req)));
-};
+export const batchRequest = async (requests) =>
+  Promise.all(requests.map((req) => api(req)));
 
-// ============================================
-// DEFAULT EXPORT
-// ============================================
 export default api;

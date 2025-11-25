@@ -28,6 +28,11 @@ import api, {
 import AISchedulerChat from '../components/AISchedulerChat';
 import TimezoneSelector from '../components/TimezoneSelector';
 
+import { useNotification } from '../contexts/NotificationContext';
+
+const notify = useNotification();
+notify.success('Test notification! 🎉');
+
 export default function Dashboard() {
   const navigate = useNavigate();
 

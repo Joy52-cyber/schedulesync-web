@@ -7,6 +7,7 @@ import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import MyBookingLink from './components/MyBookingLink';
 
+
 // Auth / Marketing pages
 import Landing from './pages/Landing';
 import Register from './pages/Register';
@@ -41,7 +42,7 @@ import PaymentStatus from './pages/PaymentStatus';
 import Book from './pages/Book';
 
 import BookingConfirmation from './components/BookingConfirmation';
-
+import { NotificationProvider } from './contexts/NotificationContext';
 // ---------- Login Wrapper ----------
 function LoginWrapper({ Component }) {
   const { login } = useAuth();

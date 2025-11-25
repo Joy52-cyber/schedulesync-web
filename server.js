@@ -373,6 +373,28 @@ await pool.query(`
   )
 `);
 
+// ✅ ADD THIS
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        type VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        link TEXT,
+        read BOOLEAN DEFAULT false,
+        booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL,
+        metadata JSONB,
+        created_at TIMESTAMP DEFAULT NOW(),
+        read_at TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+      CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+    `);
+
  await pool.query(`
       ALTER TABLE bookings 
       ADD COLUMN IF NOT EXISTS title VARCHAR(255) DEFAULT 'Meeting'
@@ -390,6 +412,68 @@ initDB();
 
 const processedOAuthCodes = new Map(); // Track processed codes with timestamp
 
+// ============ NOTIFICATION HELPERS ============
+
+async function createNotification({ userId, type, title, message, link, bookingId, metadata }) {
+  try {
+    const result = await pool.query(
+      `INSERT INTO notifications (user_id, type, title, message, link, booking_id, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [userId, type, title, message, link || null, bookingId || null, metadata ? JSON.stringify(metadata) : null]
+    );
+ console.log(`✅ Notification: ${title}`);  // ✅ CORRECT - parenthesis before backtick
+    return result.rows[0];
+  } catch (error) {
+    console.error('❌ Notification error:', error);
+    return null;
+  }
+}
+
+async function notifyBookingCreated(booking, organizerId) {
+  return createNotification({
+    userId: organizerId,
+    type: 'booking_created',
+    title: '📅 New Booking Received',
+    message: `${booking.attendee_name} scheduled a meeting for ${new Date(booking.start_time).toLocaleDateString()}`,
+    link: `/bookings/${booking.id}`,
+    bookingId: booking.id,
+  });
+}
+
+async function notifyBookingCancelled(booking, userId) {
+  return createNotification({
+    userId: userId,
+    type: 'booking_cancelled',
+    title: '❌ Booking Cancelled',
+    message: `Meeting with ${booking.attendee_name} has been cancelled`,
+    link: `/bookings`,
+    bookingId: booking.id,
+  });
+}
+
+async function notifyBookingRescheduled(booking, userId, oldStartTime) {
+  const newTime = new Date(booking.start_time);
+  return createNotification({
+    userId: userId,
+    type: 'booking_rescheduled',
+    title: '🔄 Booking Rescheduled',
+    message: `Meeting rescheduled to ${newTime.toLocaleDateString()}`,
+    link: `/bookings/${booking.id}`,
+    bookingId: booking.id,
+  });
+}
+
+async function notifyPaymentReceived(booking, userId, amount, currency) {
+  return createNotification({
+    userId: userId,
+    type: 'payment_received',
+    title: '💰 Payment Received',
+    message: `${currency.toUpperCase()} ${amount} from ${booking.attendee_name}`,
+    link: `/bookings/${booking.id}`,
+    bookingId: booking.id,
+  });
+}
+
 // Clean up old codes every 5 minutes
 setInterval(() => {
   const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
@@ -399,6 +483,7 @@ setInterval(() => {
     }
   }
 }, 5 * 60 * 1000);
+
 
 // ============ AUTHENTICATION MIDDLEWARE ============
 
@@ -2557,6 +2642,11 @@ app.post('/api/bookings/:id/reschedule', authenticateToken, async (req, res) => 
 
     console.log('✅ Booking rescheduled successfully');
 
+    // Notify organizer
+    if (booking.member_user_id) {
+      await notifyBookingRescheduled(updatedBooking, booking.member_user_id, oldStartTime);
+    }
+
     // TODO: Send reschedule email
        try {
       const icsFile = generateICS({
@@ -3063,6 +3153,11 @@ app.post('/api/bookings', async (req, res) => {
 
     console.log(`✅ Created ${createdBookings.length} booking(s)`);
      
+    // Notify organizer
+    if (member.user_id) {
+      await notifyBookingCreated(createdBookings[0], member.user_id);
+    }
+
     // Mark single-use link as used
     if (token.length === 64) {
       await pool.query(
@@ -3442,6 +3537,11 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
     );
 
     console.log('✅ Booking cancelled successfully');
+
+    // Notify organizer
+    if (booking.member_user_id) {
+      await notifyBookingCancelled(booking, booking.member_user_id);
+    }
 
     // Send cancellation emails
     try {
@@ -3825,6 +3925,11 @@ app.post('/api/payments/confirm-booking', async (req, res) => {
 
     console.log('✅ Booking created with payment:', booking.id);
 
+    // Notify organizer
+    if (member.user_id) {
+      await notifyPaymentReceived(booking, member.user_id, paymentIntent.amount / 100, paymentIntent.currency);
+    }
+
     // Send confirmation emails (async)
     (async () => {
       try {
@@ -4086,6 +4191,76 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Dashboard stats error:', error);
     res.status(500).json({ error: 'Failed to load dashboard stats' });
+  }
+});
+
+// ============ NOTIFICATION ENDPOINTS ============
+
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+  try {
+    const { limit = 50, unread_only = false } = req.query;
+    let query = `SELECT * FROM notifications WHERE user_id = $1`;
+    if (unread_only === 'true') query += ` AND read = false`;
+    query += ` ORDER BY created_at DESC LIMIT $2`;
+    
+    const result = await pool.query(query, [req.user.id, limit]);
+    res.json({ notifications: result.rows });
+  } catch (error) {
+    console.error('Get notifications error:', error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+app.get('/api/notifications/unread-count', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT COUNT(*) as count FROM notifications WHERE user_id = $1 AND read = false`,
+      [req.user.id]
+    );
+    res.json({ count: parseInt(result.rows[0].count) });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get count' });
+  }
+});
+
+app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE notifications SET read = true, read_at = NOW() 
+       WHERE id = $1 AND user_id = $2 RETURNING *`,
+      [req.params.id, req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+    res.json({ notification: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to mark as read' });
+  }
+});
+
+app.put('/api/notifications/read-all', authenticateToken, async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE notifications SET read = true, read_at = NOW() 
+       WHERE user_id = $1 AND read = false`,
+      [req.user.id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to mark all as read' });
+  }
+});
+
+app.delete('/api/notifications/:id', authenticateToken, async (req, res) => {
+  try {
+    await pool.query(
+      `DELETE FROM notifications WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete' });
   }
 });
 

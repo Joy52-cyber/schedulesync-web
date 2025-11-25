@@ -8,9 +8,10 @@ import {
   Settings,
   Menu,
   X,
-  Clock, // ⭐ needed for Availability
+  Clock, // ⭐ Availability
 } from 'lucide-react';
 import { useState } from 'react';
+import { NotificationBell } from '../contexts/NotificationContext';
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -29,7 +30,7 @@ export default function Navbar() {
 
   const navLinks = [
     { path: '/dashboard', label: 'Dashboard', icon: Calendar },
-    { path: '/availability', label: 'Availability', icon: Clock }, // ⭐ Availability
+    { path: '/availability', label: 'Availability', icon: Clock },
     { path: '/teams', label: 'Teams', icon: Users },
     { path: '/bookings', label: 'Bookings', icon: Calendar },
     { path: '/my-booking-link', label: 'My Link', icon: Link2 },
@@ -68,8 +69,10 @@ export default function Navbar() {
             })}
           </div>
 
-          {/* User Menu */}
-          <div className="hidden md:flex items-center gap-3">
+          {/* User / Notifications (Desktop) */}
+          <div className="hidden md:flex items-center gap-4">
+            <NotificationBell />
+
             <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
               <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
                 <span className="text-white font-bold text-sm">
@@ -114,7 +117,7 @@ export default function Navbar() {
             {/* User Info Mobile */}
             <div className="flex items-center gap-3 px-3 py-3 bg-gray-50 rounded-lg mb-2 mt-2">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text.white font-bold">
+                <span className="text-white font-bold">
                   {user.name?.[0]?.toUpperCase() || 'U'}
                 </span>
               </div>
