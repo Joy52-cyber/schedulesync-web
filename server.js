@@ -2756,7 +2756,6 @@ app.get('/api/bookings', authenticateToken, async (req, res) => {
 });
 
 // Get booking by token (Public Booking Page)
-// Get booking by token (Public Booking Page)
 app.get('/api/book/:token', async (req, res) => {
   try {
     const { token } = req.params;
@@ -2836,8 +2835,7 @@ app.get('/api/book/:token', async (req, res) => {
 
     const member = result.rows[0];
 
-    // 2. ✅ NEW: Fetch Event Types for this user
-    // This allows the frontend to switch between "15 min", "30 min", etc.
+    // Get event types
     let eventTypes = [];
     if (member.user_id) {
       const eventsRes = await pool.query(
@@ -2860,7 +2858,7 @@ app.get('/api/book/:token', async (req, res) => {
           external_booking_link: member.external_booking_link, 
           external_booking_platform: member.external_booking_platform 
         },
-        eventTypes: eventTypes // <--- Returning this list
+        eventTypes: eventTypes
       }
     });
   } catch (error) {
@@ -2869,7 +2867,7 @@ app.get('/api/book/:token', async (req, res) => {
   }
 });
 
-// REPLACE your entire app.post('/api/bookings', ...) endpoint with this:
+// Create booking
 app.post('/api/bookings', async (req, res) => {
   try {
     const { token, slot, attendee_name, attendee_email, notes } = req.body;
@@ -2880,18 +2878,40 @@ app.post('/api/bookings', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const memberResult = await pool.query(
-      `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
-              u.google_access_token, u.google_refresh_token, 
-              u.email as member_email, u.name as member_name
-       FROM team_members tm 
-       JOIN teams t ON tm.team_id = t.id 
-       LEFT JOIN users u ON tm.user_id = u.id 
-       WHERE tm.booking_token = $1`,
-      [token]
-    );
+    // ========== SUPPORT SINGLE-USE LINKS ==========
+    let memberResult;
+    
+    if (token.length === 64) {
+      console.log('🔑 Looking up single-use link for booking...');
+      memberResult = await pool.query(
+        `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
+                u.google_access_token, u.google_refresh_token, 
+                u.email as member_email, u.name as member_name
+         FROM single_use_links sul
+         JOIN team_members tm ON sul.member_id = tm.id
+         JOIN teams t ON tm.team_id = t.id 
+         LEFT JOIN users u ON tm.user_id = u.id 
+         WHERE sul.token = $1
+           AND sul.used = false
+           AND sul.expires_at > NOW()`,
+        [token]
+      );
+    } else {
+      console.log('🔑 Looking up regular token for booking...');
+      memberResult = await pool.query(
+        `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
+                u.google_access_token, u.google_refresh_token, 
+                u.email as member_email, u.name as member_name
+         FROM team_members tm 
+         JOIN teams t ON tm.team_id = t.id 
+         LEFT JOIN users u ON tm.user_id = u.id 
+         WHERE tm.booking_token = $1`,
+        [token]
+      );
+    }
 
     if (memberResult.rows.length === 0) {
+      console.log('❌ Invalid or expired booking token');
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
@@ -2899,6 +2919,7 @@ app.post('/api/bookings', async (req, res) => {
     const bookingMode = member.booking_mode || 'individual';
 
     console.log('🎯 Booking mode:', bookingMode);
+    console.log('👤 Member:', member.member_name);
 
     let assignedMembers = [];
 
@@ -2973,182 +2994,63 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     // Create booking(s) FIRST (without meet link yet)
-const createdBookings = [];
+    const createdBookings = [];
 
-for (const assignedMember of assignedMembers) {
-  const bookingResult = await pool.query(
-    `INSERT INTO bookings (
-      team_id, member_id, user_id, 
-      attendee_name, attendee_email, 
-      start_time, end_time, 
-      title,
-      notes, 
-      booking_token, status
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
-    RETURNING *`,
-    [
-      member.team_id,
-      assignedMember.id,
-      assignedMember.user_id,
-      attendee_name,
-      attendee_email,
-      slot.start,
-      slot.end,
-      `Meeting with ${attendee_name}`,
-      notes || '',
-      token,
-      'confirmed'
-    ]
-  );
+    for (const assignedMember of assignedMembers) {
+      const bookingResult = await pool.query(
+        `INSERT INTO bookings (
+          team_id, member_id, user_id, 
+          attendee_name, attendee_email, 
+          start_time, end_time, 
+          title,
+          notes, 
+          booking_token, status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+        RETURNING *`,
+        [
+          member.team_id,
+          assignedMember.id,
+          assignedMember.user_id,
+          attendee_name,
+          attendee_email,
+          slot.start,
+          slot.end,
+          `Meeting with ${attendee_name}`,
+          notes || '',
+          token,
+          'confirmed'
+        ]
+      );
 
-  createdBookings.push(bookingResult.rows[0]);
-  console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
-}
+      createdBookings.push(bookingResult.rows[0]);
+      console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
+    }
 
-console.log(`✅ Created ${createdBookings.length} booking(s)`);
- 
-// Mark single-use link as used
-if (token.length === 64) {
-  await pool.query(
-    'UPDATE single_use_links SET used = true WHERE token = $1',
-    [token]
-  );
-  console.log('✅ Single-use link marked as used');
-}
-
-// ========== 🆕 ADD THIS: Mark single-use link as used ==========
-    const singleUseCheck = await pool.query(
-      'SELECT id FROM single_use_links WHERE token = $1 AND used = false',
-      [token]
-    );
-    
-    if (singleUseCheck.rows.length > 0) {
+    console.log(`✅ Created ${createdBookings.length} booking(s)`);
+     
+    // Mark single-use link as used
+    if (token.length === 64) {
       await pool.query(
         'UPDATE single_use_links SET used = true WHERE token = $1',
         [token]
       );
-      console.log('✅ Single-use link marked as used:', token);
-    }
-   app.get('/api/book/:token', async (req, res) => {
-  try {
-    const { token } = req.params;
-    
-    console.log('🔍 Looking up token:', token);
-    
-    // 1. First, check if it's a single-use link
-    const singleUseCheck = await pool.query(
-      `SELECT sul.*, tm.*, t.name as team_name, t.description as team_description,
-              u.name as member_name, u.email as member_email, u.id as user_id
-       FROM single_use_links sul
-       JOIN team_members tm ON sul.member_id = tm.id
-       JOIN teams t ON tm.team_id = t.id
-       LEFT JOIN users u ON tm.user_id = u.id
-       WHERE sul.token = $1 
-         AND sul.used = false 
-         AND sul.expires_at > NOW()`,
-      [token]
-    );
-    
-    if (singleUseCheck.rows.length > 0) {
-      console.log('✅ Valid single-use link found');
-      const member = singleUseCheck.rows[0];
-      
-      // Get event types
-      let eventTypes = [];
-      if (member.user_id) {
-        const eventsRes = await pool.query(
-          'SELECT * FROM event_types WHERE user_id = $1 AND is_active = true ORDER BY duration ASC',
-          [member.user_id]
-        );
-        eventTypes = eventsRes.rows;
-      }
-      
-      return res.json({
-        data: {
-          team: { 
-            id: member.team_id, 
-            name: member.team_name, 
-            description: member.team_description 
-          },
-          member: { 
-            name: member.name || member.member_name || member.email, 
-            email: member.email || member.member_email, 
-            external_booking_link: member.external_booking_link, 
-            external_booking_platform: member.external_booking_platform 
-          },
-          eventTypes: eventTypes,
-          isSingleUse: true, // Flag for frontend
-          singleUseToken: token
-        }
-      });
-    }
-    
-    // 2. Otherwise, check regular team member booking tokens
-    const result = await pool.query(
-      `SELECT tm.*, t.name as team_name, t.description as team_description, 
-       u.name as member_name, u.email as member_email, u.id as user_id
-       FROM team_members tm 
-       JOIN teams t ON tm.team_id = t.id 
-       LEFT JOIN users u ON tm.user_id = u.id
-       WHERE tm.booking_token = $1`,
-      [token]
-    );
-
-    if (result.rows.length === 0) {
-      console.log('❌ Token not found in either table');
-      return res.status(404).json({ error: 'Booking link not found or expired' });
+      console.log('✅ Single-use link marked as used');
     }
 
-    const member = result.rows[0];
-
-    // Get event types
-    let eventTypes = [];
-    if (member.user_id) {
-      const eventsRes = await pool.query(
-        'SELECT * FROM event_types WHERE user_id = $1 AND is_active = true ORDER BY duration ASC',
-        [member.user_id]
-      );
-      eventTypes = eventsRes.rows;
-    }
-
-    res.json({
-      data: {
-        team: { 
-          id: member.team_id, 
-          name: member.team_name, 
-          description: member.team_description 
-        },
-        member: { 
-          name: member.name || member.member_name || member.email, 
-          email: member.email || member.member_email, 
-          external_booking_link: member.external_booking_link, 
-          external_booking_platform: member.external_booking_platform 
-        },
-        eventTypes: eventTypes,
-        isSingleUse: false
-      }
-    });
-  } catch (error) {
-    console.error('Get booking by token error:', error);
-    res.status(500).json({ error: 'Failed to fetch booking details' });
-  }
-});
     // ========== RESPOND IMMEDIATELY ==========
-
     res.json({ 
       success: true,
       booking: createdBookings[0],
       bookings: createdBookings,
       mode: bookingMode,
-      meet_link: null, // Will be updated in background
+      meet_link: null,
       message: bookingMode === 'collective' 
         ? `Booking confirmed with all ${createdBookings.length} team members!`
         : 'Booking confirmed! Calendar invite with Google Meet link will arrive shortly.'
     });
 
     // ========== ASYNC: CREATE CALENDAR EVENT & SEND EMAILS ==========
-    // Don't await this - let it run in background
     (async () => {
       try {
         let meetLink = null;
@@ -3242,7 +3144,6 @@ if (token.length === 64) {
             notes: notes,
           });
 
-          // Update booking object with meet_link for email
           const bookingWithMeetLink = {
             ...createdBookings[0],
             attendee_name,
@@ -3287,6 +3188,7 @@ if (token.length === 64) {
 });
 
 // ============ BOOKING MANAGEMENT BY TOKEN (NO AUTH REQUIRED) ============
+   
 
 // Get booking by token (for guest management page)
 app.get('/api/bookings/manage/:token', async (req, res) => {
