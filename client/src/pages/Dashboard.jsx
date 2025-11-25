@@ -166,7 +166,8 @@ export default function Dashboard() {
   const handleTimezoneChange = async (newTimezone) => {
     try {
       setTimezone(newTimezone);
-      await timezoneApi.update({ timezone: newTimezone });
+      // api.js: update(tz) => { timezone: tz }
+      await timezoneApi.update(newTimezone);
     } catch (error) {
       console.error('Failed to update timezone:', error);
     }
@@ -312,6 +313,28 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* Availability quick access card */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-50 rounded-lg">
+                  <Clock className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">Availability & Working Hours</h3>
+                  <p className="text-xs text-gray-500">
+                    Control when people can book time with you.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/availability')}
+                className="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 hover:bg-green-700 transition-colors"
+              >
+                <Clock className="h-4 w-4" />
+                Manage Availability
+              </button>
+            </div>
+
             {/* Booking link card */}
             {bookingLink ? (
               <div className="bg-blue-50/50 rounded-2xl border border-blue-200 p-5 shadow-sm">
@@ -352,7 +375,7 @@ export default function Dashboard() {
                 <button
                   onClick={handleCreateLink}
                   disabled={generatingLink}
-                  className="w-full sm:w-auto px-6 py-3 bg-orange-600 text.white rounded-xl font-bold hover:bg-orange-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full sm:w-auto px-6 py-3 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {generatingLink ? (
                     <Loader2 className="animate-spin h-5 w-5" />
@@ -575,7 +598,7 @@ export default function Dashboard() {
                   type="text"
                   value={`${window.location.origin}/book/${newSingleUseToken}`}
                   readOnly
-                  className="flex-1 px-3 py-2 bg.white border border-gray-300 rounded-lg font-mono text-sm"
+                  className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg font-mono text-sm"
                 />
                 <button
                   onClick={() => handleCopySingleUse(newSingleUseToken)}
