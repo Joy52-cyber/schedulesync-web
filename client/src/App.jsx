@@ -21,6 +21,8 @@ import AdminPanel from './pages/AdminPanel';
 import Dashboard from './pages/Dashboard';
 import Bookings from './pages/Bookings';
 import EventTypes from './pages/EventTypes';
+import Availability from './pages/Availability';
+
 
 // Team
 import Teams from './pages/Teams';
@@ -105,7 +107,8 @@ function App() {
           >
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/bookings" element={<Bookings />} />
-            <Route path="/my-booking-link" element={<MyBookingLink />} />
+     <Route path="/availability" element={<Availability />} />
+
             <Route path="/events" element={<EventTypes />} />
 
             {/* Teams */}

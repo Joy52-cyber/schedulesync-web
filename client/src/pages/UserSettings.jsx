@@ -1,4 +1,5 @@
-﻿import { useState, useEffect } from 'react';
+﻿// client/src/pages/UserSettings.jsx
+import { useState, useEffect } from 'react';
 import { 
   User, 
   Mail, 
@@ -8,20 +9,8 @@ import {
   Check, 
   Loader2,
   AlertCircle,
-  Trash2,
-  MoreHorizontal
 } from 'lucide-react';
 import api, { auth, timezone as timezoneApi, reminders as remindersApi } from '../utils/api';
-
-const WEEKDAYS = [
-  { key: 'monday', label: 'Monday' },
-  { key: 'tuesday', label: 'Tuesday' },
-  { key: 'wednesday', label: 'Wednesday' },
-  { key: 'thursday', label: 'Thursday' },
-  { key: 'friday', label: 'Friday' },
-  { key: 'saturday', label: 'Saturday' },
-  { key: 'sunday', label: 'Sunday' },
-];
 
 export default function UserSettings() {
   const [loading, setLoading] = useState(true);
@@ -32,24 +21,10 @@ export default function UserSettings() {
   const [profile, setProfile] = useState({
     name: '',
     email: '',
-    timezone: 'America/New_York'
+    timezone: 'America/New_York',
   });
 
-  const [memberId, setMemberId] = useState(null);
   const [personalTeamId, setPersonalTeamId] = useState(null);
-
-  const [availability, setAvailability] = useState({
-    workingHours: { 
-      monday: { enabled: true, start: '09:00', end: '17:00' },
-      tuesday: { enabled: true, start: '09:00', end: '17:00' },
-      wednesday: { enabled: true, start: '09:00', end: '17:00' },
-      thursday: { enabled: true, start: '09:00', end: '17:00' },
-      friday: { enabled: true, start: '09:00', end: '17:00' },
-      saturday: { enabled: false, start: '09:00', end: '17:00' },
-      sunday: { enabled: false, start: '09:00', end: '17:00' }
-    },
-    bufferTime: 0
-  });
 
   // 🔔 Reminder settings (per personal team / user)
   const [reminderSettings, setReminderSettings] = useState({
@@ -72,29 +47,17 @@ export default function UserSettings() {
       setProfile({
         name: userData.name,
         email: userData.email,
-        timezone: userData.timezone || 'America/New_York'
+        timezone: userData.timezone || 'America/New_York',
       });
 
+      // Find personal team (for reminders)
       const teamsRes = await api.get('/teams');
-      const personalTeam = teamsRes.data.teams.find(t => t.name.includes("Personal Bookings"));
+      const personalTeam = teamsRes.data.teams.find((t) =>
+        t.name.includes('Personal Bookings')
+      );
       
       if (personalTeam) {
         setPersonalTeamId(personalTeam.id);
-
-        // Load member + availability
-        const membersRes = await api.get(`/teams/${personalTeam.id}/members`);
-        const me = membersRes.data.members.find(m => m.user_id === userData.id);
-        
-        if (me) {
-          setMemberId(me.id);
-          const availRes = await api.get(`/team-members/${me.id}/availability`);
-          if (availRes.data.member?.working_hours) {
-            setAvailability({
-              workingHours: availRes.data.member.working_hours,
-              bufferTime: availRes.data.member.buffer_time || 0
-            });
-          }
-        }
 
         // Load reminder settings for this personal team
         try {
@@ -126,17 +89,9 @@ export default function UserSettings() {
     setSaving(true);
     try {
       // 1) Save timezone
-      await timezoneApi.update({ timezone: profile.timezone });
-      
-      // 2) Save availability (working hours + buffer) if we have a member
-      if (memberId) {
-        await api.put(`/team-members/${memberId}/availability`, {
-          working_hours: availability.workingHours,
-          buffer_time: availability.bufferTime
-        });
-      }
+      await timezoneApi.update(profile.timezone);
 
-      // 3) Save reminder settings for personal team
+      // 2) Save reminder settings for personal team
       if (personalTeamId) {
         await remindersApi.updateSettings(personalTeamId, {
           enabled: reminderSettings.enabled,
@@ -156,30 +111,6 @@ export default function UserSettings() {
     }
   };
 
-  const updateDay = (day, field, value) => {
-    setAvailability(prev => ({
-      ...prev,
-      workingHours: {
-        ...prev.workingHours,
-        [day]: {
-          ...prev.workingHours[day],
-          [field]: value
-        }
-      }
-    }));
-  };
-
-  const copyToAll = (sourceDay) => {
-    const source = availability.workingHours[sourceDay];
-    const newHours = { ...availability.workingHours };
-    Object.keys(newHours).forEach(day => {
-      if (day !== 'saturday' && day !== 'sunday') {
-        newHours[day] = { ...source };
-      }
-    });
-    setAvailability({ ...availability, workingHours: newHours });
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -193,7 +124,7 @@ export default function UserSettings() {
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-500 mt-1">Manage your profile and schedule</p>
+          <p className="text-gray-500 mt-1">Manage your profile and notifications</p>
         </div>
         <button
           onClick={handleSave}
@@ -226,16 +157,6 @@ export default function UserSettings() {
               <User size={18} /> Profile
             </button>
             <button
-              onClick={() => setActiveTab('availability')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === 'availability'
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <Calendar size={18} /> Availability
-            </button>
-            <button
               onClick={() => setActiveTab('notifications')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                 activeTab === 'notifications'
@@ -249,7 +170,7 @@ export default function UserSettings() {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm min-h-[600px]">
+        <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm min-h-[400px]">
           {/* PROFILE TAB */}
           {activeTab === 'profile' && (
             <div className="p-8 max-w-xl">
@@ -304,111 +225,6 @@ export default function UserSettings() {
             </div>
           )}
 
-          {/* AVAILABILITY TAB */}
-          {activeTab === 'availability' && (
-            <div className="p-6 sm:p-8">
-              <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-6">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">Working hours</h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Set when you are typically available for meetings
-                  </p>
-                </div>
-                <MoreHorizontal className="text-gray-400 cursor-pointer hover:text-gray-600" />
-              </div>
-
-              <div className="space-y-1">
-                {WEEKDAYS.map((day) => {
-                  const settings = availability.workingHours[day.key];
-                  return (
-                    <div
-                      key={day.key}
-                      className="flex flex-col sm:flex-row sm:items-center py-3 border-b border-transparent hover:border-gray-100 hover:bg-gray-50 -mx-4 px-4 transition-colors"
-                    >
-                      {/* Day Checkbox */}
-                      <div className="w-40 flex items-center gap-3 mb-2 sm:mb-0">
-                        <input
-                          type="checkbox"
-                          checked={settings.enabled}
-                          onChange={(e) =>
-                            updateDay(day.key, 'enabled', e.target.checked)
-                          }
-                          className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                        />
-                        <span className="text-sm font-semibold text-gray-700">
-                          {day.label}
-                        </span>
-                      </div>
-
-                      {/* Time Inputs */}
-                      <div className="flex-1">
-                        {settings.enabled ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="time"
-                              value={settings.start}
-                              onChange={(e) =>
-                                updateDay(day.key, 'start', e.target.value)
-                              }
-                              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none w-32"
-                            />
-                            <span className="text-gray-400">-</span>
-                            <input
-                              type="time"
-                              value={settings.end}
-                              onChange={(e) =>
-                                updateDay(day.key, 'end', e.target.value)
-                              }
-                              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none w-32"
-                            />
-                            <button
-                              onClick={() => updateDay(day.key, 'enabled', false)}
-                              className="ml-2 text-gray-400 hover:text-red-500 p-1"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400 font-medium px-1">
-                            Unavailable
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Buffer Settings */}
-              <div className="mt-10 pt-6 border-t border-gray-200">
-                <h3 className="text-sm font-bold text-gray-900 mb-4">
-                  Additional Options
-                </h3>
-                <div className="flex items-center gap-4">
-                  <label className="text-sm text-gray-700">
-                    Buffer before/after meetings:
-                  </label>
-                  <div className="relative w-24">
-                    <input
-                      type="number"
-                      value={availability.bufferTime}
-                      onChange={(e) =>
-                        setAvailability({
-                          ...availability,
-                          bufferTime: parseInt(e.target.value || '0', 10),
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                    <span className="absolute right-3 top-2 text-gray-500 text-xs">
-                      min
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* NOTIFICATIONS TAB */}
           {activeTab === 'notifications' && (
             <div className="p-8 max-w-xl space-y-8">
@@ -417,7 +233,7 @@ export default function UserSettings() {
                   <h2 className="text-xl font-bold text-gray-900">
                     Email reminders
                   </h2>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text.sm text-gray-500 mt-1">
                     Control reminder emails sent before each meeting.
                   </p>
                 </div>

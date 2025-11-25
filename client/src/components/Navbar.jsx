@@ -28,12 +28,14 @@ export default function Navbar() {
   const isActive = (path) => location.pathname === path;
 
   const navLinks = [
-    { path: '/', label: 'Dashboard', icon: Calendar },
-    { path: '/teams', label: 'Teams', icon: Users },
-    { path: '/bookings', label: 'Bookings', icon: Calendar },
-    { path: '/my-booking-link', label: 'My Link', icon: Link2 },
-    { path: '/settings', label: 'Settings', icon: Settings },
-  ];
+  { path: '/', label: 'Dashboard', icon: Calendar },
+  { path: '/availability', label: 'Availability', icon: Clock }, // ⭐ NEW
+  { path: '/teams', label: 'Teams', icon: Users },
+  { path: '/bookings', label: 'Bookings', icon: Calendar },
+  { path: '/my-booking-link', label: 'My Link', icon: Link2 },
+  { path: '/settings', label: 'Settings', icon: Settings },
+];
+
 
   return (
     <nav className="bg-white border-b-2 border-gray-200 sticky top-0 z-50 shadow-sm">
