@@ -2589,6 +2589,39 @@ app.delete('/api/event-types/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// ============ SINGLE USE LINK ENDPOINTS ============
+
+// Generate a Single-Use Link
+app.post('/api/single-use-links', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Find the user's personal member ID
+    const memberResult = await pool.query(
+      `SELECT tm.id FROM team_members tm JOIN teams t ON tm.team_id = t.id 
+       WHERE tm.user_id = $1 AND t.owner_id = $1 LIMIT 1`,
+      [userId]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Personal schedule not found.' });
+    }
+    
+    const memberId = memberResult.rows[0].id;
+    const token = crypto.randomBytes(32).toString('hex');
+
+    await pool.query(
+      `INSERT INTO single_use_links (token, member_id) VALUES ($1, $2)`,
+      [token, memberId]
+    );
+
+    res.json({ success: true, token: token });
+  } catch (error) {
+    console.error('Generate single-use link error:', error);
+    res.status(500).json({ error: 'Failed to generate link' });
+  }
+});
+
 // ============ BOOKING ROUTES ============
 
 app.get('/api/bookings', authenticateToken, async (req, res) => {
@@ -4674,6 +4707,24 @@ cron.schedule(REMINDER_CRON, () => {
 });
 
 
+
+// ============ SCHEDULE REMINDER CHECKER ============
+
+// Run every hour at :00 minutes
+cron.schedule('0 * * * *', () => {
+  console.log('⏰ Running scheduled reminder check...');
+  checkAndSendReminders();
+});
+
+// Also run on server startup (after 1 minute to let everything initialize)
+setTimeout(() => {
+  console.log('🚀 Running initial reminder check...');
+  checkAndSendReminders();
+}, 60000);
+
+console.log('✅ Booking reminder scheduler initialized');
+
+
 // ============ REMINDER EMAIL TEMPLATES ============
 
 const reminderEmailTemplate = (booking, hoursUntil) => {
@@ -4956,22 +5007,6 @@ async function checkAndSendReminders() {
   }
 }
 
-// ============ SCHEDULE REMINDER CHECKER ============
-
-// Run every hour at :00 minutes
-cron.schedule('0 * * * *', () => {
-  console.log('⏰ Running scheduled reminder check...');
-  checkAndSendReminders();
-});
-
-// Also run on server startup (after 1 minute to let everything initialize)
-setTimeout(() => {
-  console.log('🚀 Running initial reminder check...');
-  checkAndSendReminders();
-}, 60000);
-
-console.log('✅ Booking reminder scheduler initialized');
-
 // ============ TIMEZONE ENDPOINTS ============
 
 // Get user's timezone
@@ -5198,6 +5233,102 @@ app.put('/api/users/profile', authenticateToken, async (req, res) => {
   }
 });
 
+// ============ AVAILABILITY SETTINGS ROUTES ============
+
+// Helper to get settings
+const getAvailabilitySettings = async (req, res, memberId, userId) => {
+  try {
+    const memberResult = await pool.query(`SELECT tm.*, t.owner_id FROM team_members tm JOIN teams t ON tm.team_id = t.id WHERE tm.id = $1`, [memberId]);
+    if (memberResult.rows.length === 0) return res.status(404).json({ error: 'Team member not found' });
+    
+    const member = memberResult.rows[0];
+    if (member.owner_id !== userId && member.user_id !== userId) return res.status(403).json({ error: 'Not authorized' });
+
+    const blockedResult = await pool.query(`SELECT start_time, end_time, reason FROM blocked_times WHERE team_member_id = $1`, [memberId]);
+    
+    // Parse JSON if needed
+    let workingHours = member.working_hours;
+    if (typeof workingHours === 'string') {
+        try { workingHours = JSON.parse(workingHours); } catch(e) {}
+    }
+
+    res.json({
+      member: { ...member, working_hours: workingHours },
+      blocked_times: blockedResult.rows,
+    });
+  } catch (error) {
+    console.error('Get availability error:', error);
+    res.status(500).json({ error: 'Failed' });
+  }
+};
+
+// Helper to update settings
+const updateAvailabilitySettings = async (req, res, memberId, userId) => {
+  try {
+    const memberIdInt = parseInt(memberId);
+    const { buffer_time, lead_time_hours, booking_horizon_days, daily_booking_cap, working_hours, blocked_times } = req.body;
+
+    await pool.query(
+      `UPDATE team_members SET buffer_time=$1, lead_time_hours=$2, booking_horizon_days=$3, daily_booking_cap=$4, working_hours=$5 WHERE id=$6`,
+      [buffer_time, lead_time_hours, booking_horizon_days, daily_booking_cap, JSON.stringify(working_hours), memberIdInt]
+    );
+
+    await pool.query('DELETE FROM blocked_times WHERE team_member_id = $1', [memberIdInt]);
+
+    if (blocked_times && blocked_times.length > 0) {
+      for (const block of blocked_times) {
+        if (block.start_time && block.end_time) {
+          await pool.query(
+            `INSERT INTO blocked_times (team_member_id, start_time, end_time, reason) VALUES ($1, $2, $3, $4)`,
+            [memberIdInt, block.start_time, block.end_time, block.reason || null]
+          );
+        }
+      }
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update availability error:', error);
+    res.status(500).json({ error: 'Failed update' });
+  }
+};
+
+// 1. GET /api/availability/me (Dashboard Link Fix)
+app.get('/api/availability/me', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const memberResult = await pool.query(
+      `SELECT tm.id FROM team_members tm JOIN teams t ON tm.team_id = t.id WHERE tm.user_id = $1 AND t.owner_id = $1 LIMIT 1`,
+      [userId]
+    );
+    if (memberResult.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    return getAvailabilitySettings(req, res, memberResult.rows[0].id, userId);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// 2. PUT /api/availability/me (Save Button Fix)
+app.put('/api/availability/me', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const memberResult = await pool.query(
+          `SELECT tm.id FROM team_members tm JOIN teams t ON tm.team_id = t.id WHERE tm.user_id = $1 AND t.owner_id = $1 LIMIT 1`,
+          [userId]
+        );
+        if (memberResult.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+        return updateAvailabilitySettings(req, res, memberResult.rows[0].id, userId);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// 3. Specific Routes for Teams
+app.get('/api/teams/:teamId/members/:memberId/availability', authenticateToken, async (req, res) => {
+  await getAvailabilitySettings(req, res, parseInt(req.params.memberId), req.user.id);
+});
+app.put('/api/teams/:teamId/members/:memberId/availability', authenticateToken, async (req, res) => {
+  await updateAvailabilitySettings(req, res, parseInt(req.params.memberId), req.user.id);
+});
 
 // ============ ERROR HANDLING ============
 
