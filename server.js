@@ -174,7 +174,7 @@ app.use(express.json());
 app.get('/health', (req, res) => res.send('OK'));
 
 // finally
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
