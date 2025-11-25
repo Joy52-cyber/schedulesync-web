@@ -1883,12 +1883,11 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
 
     console.log('📅 Generating slots for token:', token, 'Length:', token.length);
 
-    // ========== 1. GET MEMBER & SETTINGS (WITH SINGLE-USE SUPPORT) ==========
+    // ========== 1. GET MEMBER & SETTINGS ==========
     let memberResult;
     
-    // Check if it's a single-use link (64 chars)
     if (token.length === 64) {
-      console.log('🔑 Looking up single-use link in slots endpoint...');
+      console.log('🔑 Looking up single-use link...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 tm.buffer_time,
@@ -1910,8 +1909,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         [token]
       );
     } else {
-      // Regular 32-char token
-      console.log('🔑 Looking up regular booking token...');
+      console.log('🔑 Looking up regular token...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 tm.buffer_time,
@@ -1930,16 +1928,6 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         [token]
       );
     }
-
-    if (memberResult.rows.length === 0) {
-      console.log('❌ Token not found or expired');
-      return res.status(404).json({ error: 'Invalid booking token' });
-    }
-
-    const member = memberResult.rows[0];
-    console.log('✅ Member found:', member.organizer_name);
-    
-    // ... rest of your existing code continues unchanged ...
     if (memberResult.rows.length === 0) {
       return res.status(404).json({ error: 'Invalid booking token' });
     }
