@@ -4665,11 +4665,156 @@ if (process.env.NODE_ENV === 'production') {
 
 const cron = require('node-cron');
 
+
 // ========== REMINDER ENGINE ==========
 
 // Run every 5 minutes
 const REMINDER_CRON = '*/5 * * * *';
 let lastReminderRun = null;
+
+// ============ REMINDER EMAIL TEMPLATE ============
+
+function reminderEmailTemplate(booking, hoursBefore) {
+  const startTime = new Date(booking.start_time);
+  const endTime = new Date(booking.end_time);
+  
+  // Format date and time
+  const dateStr = startTime.toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+  
+  const timeStr = startTime.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit', 
+    hour12: true 
+  });
+  
+  const endTimeStr = endTime.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit', 
+    hour12: true 
+  });
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Meeting Reminder</title>
+    </head>
+    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+        <tr>
+          <td style="padding: 40px 20px;">
+            <table role="presentation" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);" width="100%" cellspacing="0" cellpadding="0" border="0">
+              
+              <!-- Header -->
+              <tr>
+                <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
+                  <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 600;">⏰ Meeting Reminder</h1>
+                  <p style="margin: 10px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 16px;">
+                    Your meeting starts in ${hoursBefore} hour${hoursBefore !== 1 ? 's' : ''}
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Content -->
+              <tr>
+                <td style="padding: 40px 30px;">
+                  
+                  <!-- Greeting -->
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #333; line-height: 1.6;">
+                    Hi ${booking.guest_name || booking.host_name || 'there'} 👋
+                  </p>
+                  
+                  <p style="margin: 0 0 30px 0; font-size: 16px; color: #555; line-height: 1.6;">
+                    This is a friendly reminder about your upcoming meeting:
+                  </p>
+
+                  <!-- Meeting Details Card -->
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                    <tr>
+                      <td style="padding: 20px;">
+                        
+                        <!-- Meeting Title -->
+                        <h2 style="margin: 0 0 15px 0; font-size: 20px; color: #333; font-weight: 600;">
+                          ${booking.title || 'Meeting'}
+                        </h2>
+                        
+                        <!-- Date -->
+                        <p style="margin: 0 0 10px 0; font-size: 15px; color: #555;">
+                          <strong style="color: #667eea;">📅 Date:</strong> ${dateStr}
+                        </p>
+                        
+                        <!-- Time -->
+                        <p style="margin: 0 0 10px 0; font-size: 15px; color: #555;">
+                          <strong style="color: #667eea;">🕐 Time:</strong> ${timeStr} - ${endTimeStr}${booking.timezone ? ` (${booking.timezone})` : ''}
+                        </p>
+                        
+                        <!-- Attendees -->
+                        ${booking.host_name && booking.guest_name ? `
+                          <p style="margin: 0; font-size: 15px; color: #555;">
+                            <strong style="color: #667eea;">👥 With:</strong> ${booking.guest_name === (booking.guest_name || booking.host_name) ? booking.host_name : booking.guest_name}
+                          </p>
+                        ` : ''}
+                        
+                      </td>
+                    </tr>
+                  </table>
+
+                  <!-- Meeting Link Button -->
+                  ${booking.meeting_url ? `
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top: 30px;">
+                      <tr>
+                        <td align="center">
+                          <a href="${booking.meeting_url}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);">
+                            🔗 Join Meeting
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  ` : ''}
+
+                  <!-- Preparation Tip -->
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top: 30px; background: #e8f5e9; border-radius: 8px;">
+                    <tr>
+                      <td style="padding: 15px;">
+                        <p style="margin: 0; font-size: 14px; color: #2e7d32; line-height: 1.5;">
+                          💡 <strong>Tip:</strong> Join a few minutes early to test your audio and video!
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+
+                </td>
+              </tr>
+
+              <!-- Footer -->
+              <tr>
+                <td style="padding: 30px; background: #f8f9fa; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e0e0e0;">
+                  <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">
+                    Scheduled via <strong style="color: #667eea;">ScheduleSync</strong>
+                  </p>
+                  <p style="margin: 0; font-size: 12px; color: #999;">
+                    Need to reschedule? <a href="${process.env.FRONTEND_URL}/manage/${booking.id}" style="color: #667eea; text-decoration: none;">Manage your booking</a>
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+}
+
+// ============ REMINDER CHECKER ============
 
 async function checkAndSendReminders() {
   const now = new Date();
@@ -4684,12 +4829,12 @@ async function checkAndSendReminders() {
         b.end_time,
         b.title,
         b.status,
-        b.guest_email,
-        b.guest_name,
-        b.host_email,
-        b.host_name,
-        b.meeting_url,
-        b.timezone,
+        b.attendee_email as guest_email,
+        b.attendee_name as guest_name,
+        b.meet_link as meeting_url,
+        tm.email as host_email,
+        tm.name as host_name,
+        tm.timezone,
         b.reminder_sent,
         tm.id AS team_member_id,
         t.id AS team_id,
@@ -4698,7 +4843,7 @@ async function checkAndSendReminders() {
         trs.send_to_host,
         trs.send_to_guest
       FROM bookings b
-      JOIN team_members tm ON b.team_member_id = tm.id
+      JOIN team_members tm ON b.member_id = tm.id
       JOIN teams t ON tm.team_id = t.id
       LEFT JOIN team_reminder_settings trs ON trs.team_id = t.id
       WHERE b.status = 'confirmed'
@@ -4731,7 +4876,7 @@ async function checkAndSendReminders() {
           id: row.id,
           start_time: row.start_time,
           end_time: row.end_time,
-          title: row.title,
+          title: row.title || 'Meeting',
           guest_email: row.guest_email,
           guest_name: row.guest_name,
           host_email: row.host_email,
@@ -4759,7 +4904,7 @@ async function checkAndSendReminders() {
 
         await sendBookingEmail({
           to: recipients,
-          subject: `Reminder: ${row.title || 'Upcoming meeting'}`,
+          subject: `Reminder: ${bookingForTemplate.title}`,
           html,
           icsAttachment: null,
         });
@@ -4790,306 +4935,13 @@ cron.schedule(REMINDER_CRON, () => {
   );
 });
 
-
-
-// ============ SCHEDULE REMINDER CHECKER ============
-
-// Run every hour at :00 minutes
-cron.schedule('0 * * * *', () => {
-  console.log('⏰ Running scheduled reminder check...');
-  checkAndSendReminders();
-});
-
-// Also run on server startup (after 1 minute to let everything initialize)
+// Check once on startup after 60 seconds
 setTimeout(() => {
-  console.log('🚀 Running initial reminder check...');
-  checkAndSendReminders();
+  console.log('🔔 Running initial reminder check on startup...');
+  checkAndSendReminders().catch((err) =>
+    console.error('❌ Startup reminder check error:', err)
+  );
 }, 60000);
-
-console.log('✅ Booking reminder scheduler initialized');
-
-
-// ============ REMINDER EMAIL TEMPLATES ============
-
-const reminderEmailTemplate = (booking, hoursUntil) => {
-  const meetingDate = new Date(booking.start_time).toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-  
-  const meetingTime = new Date(booking.start_time).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
-
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
-        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-        .meeting-details { background: white; border: 2px solid #e5e7eb; border-radius: 10px; padding: 20px; margin: 20px 0; }
-        .detail-row { display: flex; align-items: center; margin: 15px 0; }
-        .alert { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 5px; }
-        .meet-box { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 12px; text-align: center; margin: 25px 0; }
-        .meet-button { display: inline-block; background: white; color: #667eea; padding: 15px 40px; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px; margin: 10px 0; }
-        .action-buttons { margin: 25px 0; padding: 20px; background: #f3f4f6; border-radius: 10px; text-align: center; }
-        .btn { display: inline-block; padding: 12px 24px; margin: 5px; text-decoration: none; border-radius: 8px; font-weight: 600; }
-        .btn-reschedule { background: #3b82f6; color: white; }
-        .btn-cancel { background: #ef4444; color: white; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1 style="margin: 0; font-size: 28px;">⏰ Meeting Reminder</h1>
-          <p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 16px;">Your meeting is coming up soon!</p>
-        </div>
-        <div class="content">
-          <div class="alert">
-            <strong style="font-size: 16px;">⏰ Reminder:</strong> Your meeting is in <strong>${hoursUntil} hours</strong>
-          </div>
-          
-          ${booking.meet_link ? `
-          <div class="meet-box">
-            <p style="color: white; font-size: 20px; font-weight: bold; margin: 0 0 15px 0;">🎥 Ready to Join?</p>
-            <a href="${booking.meet_link}" class="meet-button">
-              Join Google Meet
-            </a>
-            <p style="color: rgba(255,255,255,0.9); font-size: 13px; margin: 15px 0 5px 0;">
-              Meeting Link:
-            </p>
-            <p style="color: rgba(255,255,255,0.7); font-size: 11px; margin: 0; word-break: break-all;">
-              ${booking.meet_link}
-            </p>
-            <p style="color: rgba(255,255,255,0.8); font-size: 13px; margin: 15px 0 0 0;">
-              💡 Join a few minutes early to test your setup
-            </p>
-          </div>
-          ` : ''}
-          
-          <div class="meeting-details">
-            <h2 style="margin-top: 0; color: #667eea; font-size: 20px;">Meeting Details</h2>
-            
-            <div class="detail-row">
-              <span style="font-size: 24px; margin-right: 10px;">📅</span>
-              <div>
-                <strong>Date:</strong><br>
-                ${meetingDate}
-              </div>
-            </div>
-            
-            <div class="detail-row">
-              <span style="font-size: 24px; margin-right: 10px;">🕐</span>
-              <div>
-                <strong>Time:</strong><br>
-                ${meetingTime}
-              </div>
-            </div>
-            
-            <div class="detail-row">
-              <span style="font-size: 24px; margin-right: 10px;">👤</span>
-              <div>
-                <strong>${booking.is_organizer ? 'With' : 'Organizer'}:</strong><br>
-                ${booking.is_organizer ? booking.attendee_name : booking.organizer_name}
-              </div>
-            </div>
-            
-            ${booking.notes ? `
-            <div class="detail-row">
-              <span style="font-size: 24px; margin-right: 10px;">📝</span>
-              <div>
-                <strong>Notes:</strong><br>
-                ${booking.notes}
-              </div>
-            </div>
-            ` : ''}
-          </div>
-
-          ${booking.booking_token ? `
-          <div class="action-buttons">
-            <p style="font-weight: bold; color: #374151; margin: 0 0 15px 0; font-size: 15px;">Need to make changes?</p>
-            <a href="${process.env.FRONTEND_URL}/manage/${booking.booking_token}?action=reschedule" class="btn btn-reschedule">
-              🔄 Reschedule
-            </a>
-            <a href="${process.env.FRONTEND_URL}/manage/${booking.booking_token}?action=cancel" class="btn btn-cancel">
-              ❌ Cancel Meeting
-            </a>
-          </div>
-          ` : ''}
-          
-          <p style="margin: 20px 0; color: #4b5563; font-size: 14px;">
-            📌 <strong>Quick Checklist:</strong><br>
-            • Test your camera and microphone<br>
-            • Have any materials ready<br>
-            • Find a quiet space<br>
-            • Join a few minutes early
-          </p>
-          
-          <p style="color: #6b7280; font-size: 13px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-            This is an automated reminder from ScheduleSync. Meeting scheduled on ${new Date(booking.created_at).toLocaleDateString()}.
-          </p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-};
-
-// ============ REMINDER SENDING FUNCTION ============
-
-async function sendBookingReminder(booking, recipientEmail, recipientName, isOrganizer) {
-  try {
-    // Calculate hours until meeting
-    const now = new Date();
-    const meetingTime = new Date(booking.start_time);
-    const hoursUntil = Math.round((meetingTime - now) / (1000 * 60 * 60));
-    
-    // Prepare email data
-    const bookingWithRecipient = {
-      ...booking,
-      is_organizer: isOrganizer,
-      attendee_name: isOrganizer ? booking.attendee_name : recipientName,
-      organizer_name: isOrganizer ? recipientName : booking.organizer_name,
-    };
-    
-    // Generate ICS attachment
-    const icsFile = generateICS({
-      id: booking.id,
-      start_time: booking.start_time,
-      end_time: booking.end_time,
-      attendee_name: booking.attendee_name,
-      attendee_email: booking.attendee_email,
-      organizer_name: booking.organizer_name || 'ScheduleSync',
-      organizer_email: booking.organizer_email || 'noreply@schedulesync.com',
-      team_name: booking.team_name || 'Meeting',
-      notes: booking.notes,
-    });
-    
-    // Send email
-    await sendBookingEmail({
-      to: recipientEmail,
-      subject: `⏰ Reminder: Meeting in ${hoursUntil} hours`,
-      html: reminderEmailTemplate(bookingWithRecipient, hoursUntil),
-      icsAttachment: icsFile,
-    });
-    
-    console.log(`✅ Reminder sent to ${recipientEmail} for booking ${booking.id}`);
-    return true;
-  } catch (error) {
-    console.error(`❌ Failed to send reminder to ${recipientEmail}:`, error);
-    return false;
-  }
-}
-
-// ============ REMINDER CHECKER (RUNS EVERY HOUR) ============
-
-async function checkAndSendReminders() {
-  try {
-    console.log('🔔 Checking for bookings that need reminders...');
-    
-    // Get bookings that:
-    // 1. Are confirmed
-    // 2. Start in 24-26 hours (to catch all bookings in hourly check)
-    // 3. Haven't had reminder sent yet
-    const now = new Date();
-    const reminderWindowStart = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // 24 hours from now
-    const reminderWindowEnd = new Date(now.getTime() + (26 * 60 * 60 * 1000)); // 26 hours from now
-    
-    const bookingsResult = await pool.query(
-      `SELECT b.*, 
-       b.meet_link,   
-        b.calendar_event_id,   
-        b.booking_token,
-              tm.name as organizer_name,
-              tm.email as organizer_email,
-              t.name as team_name
-       FROM bookings b
-       LEFT JOIN team_members tm ON b.member_id = tm.id
-       LEFT JOIN teams t ON b.team_id = t.id
-       WHERE b.status = 'confirmed'
-         AND b.reminder_sent = false
-         AND b.start_time >= $1
-         AND b.start_time <= $2
-       ORDER BY b.start_time ASC`,
-      [reminderWindowStart, reminderWindowEnd]
-    );
-    
-    const bookings = bookingsResult.rows;
-    console.log(`📋 Found ${bookings.length} booking(s) needing reminders`);
-    
-    for (const booking of bookings) {
-      try {
-        // Send reminder to attendee
-        const attendeeSuccess = await sendBookingReminder(
-          booking,
-          booking.attendee_email,
-          booking.attendee_name,
-          false // attendee
-        );
-        
-        // Send reminder to organizer (if email exists)
-        let organizerSuccess = true;
-        if (booking.organizer_email) {
-          organizerSuccess = await sendBookingReminder(
-            booking,
-            booking.organizer_email,
-            booking.organizer_name,
-            true // organizer
-          );
-        }
-        
-        // Update booking if at least one reminder was sent
-        if (attendeeSuccess || organizerSuccess) {
-          await pool.query(
-            `UPDATE bookings 
-             SET reminder_sent = true, reminder_sent_at = CURRENT_TIMESTAMP 
-             WHERE id = $1`,
-            [booking.id]
-          );
-          
-          // Log to reminder tracking table
-          if (attendeeSuccess) {
-            await pool.query(
-              `INSERT INTO booking_reminders (booking_id, reminder_type, recipient_email, status)
-               VALUES ($1, $2, $3, $4)`,
-              [booking.id, '24h', booking.attendee_email, 'sent']
-            );
-          }
-          
-          if (organizerSuccess && booking.organizer_email) {
-            await pool.query(
-              `INSERT INTO booking_reminders (booking_id, reminder_type, recipient_email, status)
-               VALUES ($1, $2, $3, $4)`,
-              [booking.id, '24h', booking.organizer_email, 'sent']
-            );
-          }
-          
-          console.log(`✅ Reminders processed for booking ${booking.id}`);
-        }
-      } catch (bookingError) {
-        console.error(`❌ Error processing booking ${booking.id}:`, bookingError);
-        
-        // Log failed reminder
-        await pool.query(
-          `INSERT INTO booking_reminders (booking_id, reminder_type, recipient_email, status, error_message)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [booking.id, '24h', booking.attendee_email, 'failed', bookingError.message]
-        );
-      }
-    }
-    
-    console.log('✅ Reminder check completed');
-  } catch (error) {
-    console.error('❌ Error in reminder checker:', error);
-  }
-}
 
 // ============ TIMEZONE ENDPOINTS ============
 
