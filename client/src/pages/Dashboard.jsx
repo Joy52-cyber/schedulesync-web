@@ -20,7 +20,11 @@ import {
   ExternalLink,
 } from 'lucide-react';
 
-import api, { auth, timezone as timezoneApi, singleUseLinks } from '../utils/api';
+import api, {
+  auth,
+  timezone as timezoneApi,
+  singleUseLinks,
+} from '../utils/api';
 import AISchedulerChat from '../components/AISchedulerChat';
 import TimezoneSelector from '../components/TimezoneSelector';
 
@@ -166,8 +170,7 @@ export default function Dashboard() {
   const handleTimezoneChange = async (newTimezone) => {
     try {
       setTimezone(newTimezone);
-      // api.js: update(tz) => { timezone: tz }
-      await timezoneApi.update(newTimezone);
+      await timezoneApi.update(newTimezone); // api.js: update(tz) => { timezone: tz }
     } catch (error) {
       console.error('Failed to update timezone:', error);
     }
@@ -211,7 +214,11 @@ export default function Dashboard() {
       };
     }
     if (expiresAt < now) {
-      return { label: 'Expired', color: 'bg-red-100 text-red-600', icon: XCircle };
+      return {
+        label: 'Expired',
+        color: 'bg-red-100 text-red-600',
+        icon: XCircle,
+      };
     }
 
     const hoursRemaining = Math.floor((expiresAt - now) / (1000 * 60 * 60));
@@ -227,7 +234,9 @@ export default function Dashboard() {
       <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600 font-medium">Loading your dashboard...</p>
+          <p className="text-gray-600 font-medium">
+            Loading your dashboard...
+          </p>
         </div>
       </div>
     );
@@ -276,13 +285,14 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* TOP-RIGHT: MANAGE AVAILABILITY BUTTON */}
             <div className="flex items-center gap-3">
               <button
-                onClick={() => navigate('/bookings')}
-                className="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-semibold flex items-center gap-2"
+                onClick={() => navigate('/availability')}
+                className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all font-semibold flex items-center gap-2 shadow-sm"
               >
-                <Calendar className="h-4 w-4" />
-                Bookings
+                <Clock className="h-4 w-4" />
+                Manage Availability
               </button>
             </div>
           </div>
@@ -293,18 +303,22 @@ export default function Dashboard() {
       <main className="w-full relative">
         <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8">
           <div className="space-y-6">
-            {/* Timezone card */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-lg">
-                  <Globe className="h-5 w-5 text-blue-600" />
+            {/* Timezone card - more compact */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-blue-50 rounded-lg">
+                  <Globe className="h-4 w-4 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">Your Timezone</h3>
-                  <p className="text-xs text-gray-500">Used for all your calendar events</p>
+                  <h3 className="font-semibold text-gray-900 text-sm">
+                    Your Timezone
+                  </h3>
+                  <p className="text-[11px] text-gray-500">
+                    Used for all your calendar events
+                  </p>
                 </div>
               </div>
-              <div className="w-full sm:w-72">
+              <div className="w-full sm:w-60">
                 <TimezoneSelector
                   value={timezone}
                   onChange={handleTimezoneChange}
@@ -320,7 +334,9 @@ export default function Dashboard() {
                   <Clock className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">Availability & Working Hours</h3>
+                  <h3 className="font-semibold text-gray-900">
+                    Availability &amp; Working Hours
+                  </h3>
                   <p className="text-xs text-gray-500">
                     Control when people can book time with you.
                   </p>
@@ -353,7 +369,11 @@ export default function Dashboard() {
                       onClick={handleCopyLink}
                       className="whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm w-full md:w-auto"
                     >
-                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      {copied ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
                       {copied ? 'Copied' : 'Copy'}
                     </button>
                   </div>
@@ -366,7 +386,9 @@ export default function Dashboard() {
                     <LinkIcon className="h-6 w-6 text-orange-600" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-orange-900">Setup Required</h3>
+                    <h3 className="text-lg font-bold text-orange-900">
+                      Setup Required
+                    </h3>
                     <p className="text-sm text-orange-800">
                       You don&apos;t have a personal booking link yet.
                     </p>
@@ -396,7 +418,8 @@ export default function Dashboard() {
                     Single-Use Links
                   </h3>
                   <p className="text-sm text-purple-700 mt-1">
-                    One-time use only. Expires in 24 hours. Perfect for specific clients.
+                    One-time use only. Expires in 24 hours. Perfect for specific
+                    clients.
                   </p>
                 </div>
               </div>
@@ -492,7 +515,9 @@ export default function Dashboard() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                      <p className="text-gray-600 text-sm font-medium">{stat.label}</p>
+                      <p className="text-gray-600 text-sm font-medium">
+                        {stat.label}
+                      </p>
                       <p className={`text-3xl font-bold ${stat.color}`}>
                         {stat.value}
                       </p>
@@ -511,7 +536,9 @@ export default function Dashboard() {
             <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-gray-900">Recent Bookings</h3>
+                  <h3 className="text-xl font-bold text-gray-900">
+                    Recent Bookings
+                  </h3>
                   <button
                     onClick={() => navigate('/bookings')}
                     className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all font-semibold text-sm flex items-center gap-1"
@@ -522,7 +549,9 @@ export default function Dashboard() {
 
                 {recentBookings.length === 0 ? (
                   <div className="text-center py-10">
-                    <p className="text-gray-500 font-medium">No bookings yet</p>
+                    <p className="text-gray-500 font-medium">
+                      No bookings yet
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -545,13 +574,16 @@ export default function Dashboard() {
                                   booking.status
                                 )}`}
                               >
-                                {getStatusIcon(booking.status)} {booking.status}
+                                {getStatusIcon(booking.status)}{' '}
+                                {booking.status}
                               </span>
                             </div>
                             <div className="flex items-center gap-2 text-gray-600 text-sm">
                               <span className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
-                                {new Date(booking.start_time).toLocaleDateString()}
+                                {new Date(
+                                  booking.start_time
+                                ).toLocaleDateString()}
                               </span>
                             </div>
                           </div>
@@ -621,16 +653,28 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-3 gap-3 mb-6">
               <div className="bg-purple-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-purple-600 font-semibold mb-1">⏰ Expires</p>
-                <p className="text-sm font-bold text-purple-900">24 hours</p>
+                <p className="text-xs text-purple-600 font-semibold mb-1">
+                  ⏰ Expires
+                </p>
+                <p className="text-sm font-bold text-purple-900">
+                  24 hours
+                </p>
               </div>
               <div className="bg-pink-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-pink-600 font-semibold mb-1">🎯 Usage</p>
-                <p className="text-sm font-bold text-pink-900">One time</p>
+                <p className="text-xs text-pink-600 font-semibold mb-1">
+                  🎯 Usage
+                </p>
+                <p className="text-sm font-bold text-pink-900">
+                  One time
+                </p>
               </div>
               <div className="bg-blue-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-blue-600 font-semibold mb-1">🔒 Secure</p>
-                <p className="text-sm font-bold text-blue-900">Private</p>
+                <p className="text-xs text-blue-600 font-semibold mb-1">
+                  🔒 Secure
+                </p>
+                <p className="text-sm font-bold text-blue-900">
+                  Private
+                </p>
               </div>
             </div>
 
