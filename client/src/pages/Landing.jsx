@@ -171,7 +171,8 @@ export default function Landing({ defaultLoginOpen = false }) {
                   type="text"
                   value={bookingLink}
                   onChange={(e) => handleBookingLinkChange(e.target.value)}
-                  placeholder="Paste your Calendly link..."
+                  placeholder="Paste your booking link..."
+
                   className="w-full bg-white text-slate-900 placeholder:text-slate-400 text-sm font-medium rounded-full pl-4 pr-10 py-2.5 focus:outline-none shadow-xl transition-all"
                 />
                 <button 
