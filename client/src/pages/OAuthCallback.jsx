@@ -1,5 +1,6 @@
-﻿import { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+﻿// client/src/pages/OAuthCallback.jsx
+import { useEffect } from 'react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { oauth } from '../utils/api';
 
@@ -10,17 +11,33 @@ let isProcessing = false;
 export default function OAuthCallback({ onLogin }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
 
   useEffect(() => {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     const error = searchParams.get('error');
 
-    console.log('🔵 OAuthCallback mounted:', { hasCode: !!code, state, error });
+    // Detect provider from path
+    const path = location.pathname || '';
+    let provider = 'google';
+    if (path.includes('microsoft')) {
+      provider = 'microsoft';
+    } else if (path.includes('calendly')) {
+      provider = 'calendly';
+    }
 
-    // Handle OAuth error from Google
+    console.log('🔵 OAuthCallback mounted:', {
+      hasCode: !!code,
+      state,
+      error,
+      provider,
+      path,
+    });
+
+    // Handle OAuth error sent back from provider
     if (error) {
-      console.error('❌ OAuth error from Google:', error);
+      console.error('❌ OAuth error from provider:', error);
       navigate('/login?error=oauth_failed', { replace: true });
       return;
     }
@@ -48,32 +65,50 @@ export default function OAuthCallback({ onLogin }) {
     // Mark as processing IMMEDIATELY
     isProcessing = true;
     processedCodes.add(code);
-    console.log('🔒 Code marked as processing');
+    console.log('🔒 Code marked as processing for provider:', provider);
 
-    // Clear URL immediately
-    window.history.replaceState({}, '', '/oauth/callback');
+    // Clear query string but keep the provider-specific path
+    window.history.replaceState({}, '', location.pathname);
 
-    // Booking flow
+    // 1️⃣ Booking flow (guest OAuth for booking pages)
     if (state?.startsWith('booking:')) {
       console.log('📋 Booking OAuth flow');
+
       const bookingToken = state.split(':')[1];
+
+      // For now we keep the existing behavior:
+      // let the booking page decide what to do with provider/code/state.
       isProcessing = false; // Release lock
-      navigate(`/book/${bookingToken}?code=${code}&state=${state}`, { replace: true });
+      navigate(`/book/${bookingToken}?code=${code}&state=${state}`, {
+        replace: true,
+      });
       return;
     }
 
-    // Dashboard login flow
-    console.log('🏠 Dashboard OAuth flow - processing login');
+    // 2️⃣ Dashboard login / account connect flow
+    console.log('🏠 Dashboard OAuth flow - processing login for:', provider);
 
     (async () => {
       try {
-        console.log('📡 Calling backend /auth/google/callback ...');
-        const res = await oauth.handleCallback(code);
-        const response = res.data;
+        let res;
 
+        if (provider === 'google') {
+          console.log('📡 Calling backend /auth/google/callback ...');
+          res = await oauth.handleGoogleCallback(code);
+        } else if (provider === 'microsoft') {
+          console.log('📡 Calling backend /auth/microsoft/callback ...');
+          res = await oauth.handleMicrosoftCallback(code);
+        } else if (provider === 'calendly') {
+          console.log('📡 Calling backend /auth/calendly/callback ...');
+          res = await oauth.handleCalendlyCallback(code);
+        } else {
+          throw new Error(`Unsupported provider: ${provider}`);
+        }
+
+        const response = res.data;
         console.log('✅ Raw OAuth backend response:', response);
 
-        // Normalize different possible backend shapes
+        // Normalize token & user shapes from different backends
         let token =
           response?.token ??
           response?.accessToken ??
@@ -87,8 +122,12 @@ export default function OAuthCallback({ onLogin }) {
           response?.currentUser ??
           null;
 
+        // Some providers (e.g., Calendly connect) might not return a "user" for app login
         if (!user) {
-          console.error('❌ Backend did not return a user object:', response);
+          console.warn(
+            `⚠️ No user object returned for provider ${provider}. Response:`,
+            response
+          );
 
           isProcessing = false;
           processedCodes.delete(code);
@@ -97,14 +136,18 @@ export default function OAuthCallback({ onLogin }) {
             response?.message ||
             response?.error ||
             'Authentication failed. Please sign in again.';
-          navigate(`/login?error=${encodeURIComponent(msg)}`, { replace: true });
+          navigate(`/login?error=${encodeURIComponent(msg)}`, {
+            replace: true,
+          });
           return;
         }
 
         // If token is missing but backend uses httpOnly cookies,
         // we can still proceed; /auth/me should work later.
         if (!token) {
-          console.warn('⚠️ No token in OAuth response, proceeding with user only');
+          console.warn(
+            `⚠️ No token in OAuth response for ${provider}, proceeding with user only`
+          );
         }
 
         console.log('🔐 Updating app state via onLogin...');
@@ -114,7 +157,7 @@ export default function OAuthCallback({ onLogin }) {
           console.warn('⚠️ onLogin prop is not a function');
         }
 
-        // Release lock and redirect
+        // Release lock; navigation is likely handled upstream
         isProcessing = false;
       } catch (err) {
         console.error('❌ OAuth failed:', {
@@ -129,14 +172,16 @@ export default function OAuthCallback({ onLogin }) {
           err.response?.data?.hint ||
           err.response?.data?.error ||
           'Authentication failed. Please try again.';
-        navigate(`/login?error=${encodeURIComponent(errorMsg)}`, { replace: true });
+        navigate(`/login?error=${encodeURIComponent(errorMsg)}`, {
+          replace: true,
+        });
       }
     })();
 
     return () => {
       console.log('🧹 OAuthCallback unmounting');
     };
-  }, [navigate, searchParams, onLogin]);
+  }, [navigate, searchParams, location, onLogin]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
