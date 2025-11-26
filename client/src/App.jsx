@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 
-// Layout / Shell
+// Layouts
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -17,7 +17,7 @@ import OAuthCallback from './pages/OAuthCallback';
 import OnboardingWizard from './pages/OnboardingWizard';
 import AdminPanel from './pages/AdminPanel';
 
-// Dashboard pages
+// Dashboard Pages
 import Dashboard from './pages/Dashboard';
 import Bookings from './pages/Bookings';
 import EventTypes from './pages/EventTypes';
@@ -33,50 +33,46 @@ import MemberAvailability from './pages/MemberAvailability';
 import UserSettings from './pages/UserSettings';
 import CalendarSettings from './pages/CalendarSettings';
 
-// Guest / Public
+// Guest
 import BookingPage from './pages/BookingPage';
 import ManageBooking from './pages/ManageBooking';
 import PaymentStatus from './pages/PaymentStatus';
 import Book from './pages/Book';
 import BookingConfirmation from './components/BookingConfirmation';
 
-// -------------------------
-// Login wrapper for pages that receive onLogin
-// -------------------------
+// Wrap any page that needs to call onLogin (Login/OAuth)
 function LoginWrapper({ Component }) {
   const { login } = useAuth();
 
   const handleLogin = (token, user) => {
-    // Let AuthContext know
+    if (token) {
+      localStorage.setItem('token', token);
+    }
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    }
     login(token, user);
-    // Then send them into the app shell
     window.location.href = '/dashboard';
   };
 
   return <Component onLogin={handleLogin} />;
 }
 
-// -------------------------
-// Main App
-// -------------------------
 function App() {
   return (
     <Router>
       <AuthProvider>
         <NotificationProvider>
           <Routes>
-            {/* Marketing / Auth */}
+            {/* Marketing / Auth entry points */}
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Landing defaultLoginOpen />} />
-            <Route
-              path="/register"
-              element={<LoginWrapper Component={Register} />}
-            />
+            <Route path="/register" element={<LoginWrapper Component={Register} />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
 
-            {/* OAuth Callbacks (Google, Microsoft, Calendly) */}
+            {/* OAuth callbacks (Google / Microsoft / Calendly) */}
             <Route
               path="/oauth/callback"
               element={<LoginWrapper Component={OAuthCallback} />}
@@ -110,14 +106,14 @@ function App() {
               }
             />
 
-            {/* Public Guest Routes */}
+            {/* Public guest routes */}
             <Route path="/book/:token" element={<BookingPage />} />
             <Route path="/book" element={<Book />} />
             <Route path="/manage/:token" element={<ManageBooking />} />
             <Route path="/payment/status" element={<PaymentStatus />} />
             <Route path="/booking-success" element={<BookingConfirmation />} />
 
-            {/* Protected app shell (shows Navbar/Layout) */}
+            {/* Protected app layout (Navbar / sidebar inside Layout) */}
             <Route
               element={
                 <ProtectedRoute>
@@ -129,16 +125,16 @@ function App() {
               <Route path="/bookings" element={<Bookings />} />
               <Route path="/availability" element={<Availability />} />
 
-              {/* Event Types – support both /events and /event-types */}
+              {/* Event types */}
               <Route path="/events" element={<EventTypes />} />
-              <Route path="/event-types" element={<EventTypes />} />
+              {/* These routes currently re-use EventTypes so your "Create / Edit" navigations don't 404 */}
+              <Route path="/events/new" element={<EventTypes />} />
+              <Route path="/events/:eventId" element={<EventTypes />} />
+              <Route path="/events/:eventId/edit" element={<EventTypes />} />
 
               {/* Teams */}
               <Route path="/teams" element={<Teams />} />
-              <Route
-                path="/teams/:teamId/settings"
-                element={<TeamSettings />}
-              />
+              <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
               <Route path="/teams/:teamId/members" element={<TeamMembers />} />
               <Route
                 path="/teams/:teamId/members/:memberId/availability"
@@ -147,10 +143,7 @@ function App() {
 
               {/* Settings */}
               <Route path="/settings" element={<UserSettings />} />
-              <Route
-                path="/settings/calendar"
-                element={<CalendarSettings />}
-              />
+              <Route path="/settings/calendar" element={<CalendarSettings />} />
             </Route>
 
             {/* Fallback */}
