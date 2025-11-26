@@ -49,50 +49,48 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
   };
 
   // ✅ Updated: real Calendly OAuth starter
-  const handleCalendlyConnect = async () => {
-    try {
-      setError('');
-      console.log('🟣 Calendly connect clicked');
+ const handleCalendlyConnect = async () => {
+  try {
+    setError('');
+    console.log('🟣 Calendly connect clicked');
 
-      const response = await fetch('/api/auth/calendly/url');
-      const data = await response.json();
+    const response = await api.oauth.getCalendlyUrl();
 
-      if (data.error) {
-        setError(data.message || data.error);
-        return;
-      }
-
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } catch (err) {
-      console.error('Calendly auth error:', err);
-      setError('Failed to start Calendly login');
+    if (response.data.error) {
+      setError(response.data.message || response.data.error);
+      return;
     }
-  };
+
+    if (response.data.url) {
+      window.location.href = response.data.url;
+    }
+  } catch (err) {
+    console.error('Calendly auth error:', err);
+    setError(err.response?.data?.error || 'Failed to start Calendly login');
+  }
+};
 
   // ✅ Updated: real Microsoft OAuth starter
-  const handleMicrosoftLogin = async () => {
-    try {
-      setError('');
-      console.log('🟦 Microsoft login clicked');
+ const handleMicrosoftLogin = async () => {
+  try {
+    setError('');
+    console.log('🟦 Microsoft login clicked');
 
-      const response = await fetch('/api/auth/microsoft/url');
-      const data = await response.json();
+    const response = await api.oauth.getMicrosoftUrl();
 
-      if (data.error) {
-        setError(data.message || data.error);
-        return;
-      }
-
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } catch (err) {
-      console.error('Microsoft auth error:', err);
-      setError('Failed to start Microsoft login');
+    if (response.data.error) {
+      setError(response.data.message || response.data.error);
+      return;
     }
-  };
+
+    if (response.data.url) {
+      window.location.href = response.data.url;
+    }
+  } catch (err) {
+    console.error('Microsoft auth error:', err);
+    setError(err.response?.data?.error || 'Failed to start Microsoft login');
+  }
+};
 
   return (
     <div className="space-y-6">
