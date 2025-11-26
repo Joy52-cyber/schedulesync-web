@@ -5442,6 +5442,20 @@ app.post('/api/reminders/settings', authenticateToken, async (req, res) => {
   }
 });
 
+// ============ ADD DEBUG ENDPOINT HERE ============
+app.get('/api/debug/oauth-config', (req, res) => {
+  res.json({
+    google: {
+      configured: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET
+    },
+    microsoft: {
+      configured: !!process.env.MICROSOFT_CLIENT_ID && !!process.env.MICROSOFT_CLIENT_SECRET
+    },
+    calendly: {
+      configured: !!process.env.CALENDLY_CLIENT_ID && !!process.env.CALENDLY_CLIENT_SECRET
+    }
+  });
+});
 
 // ============ SERVE STATIC FILES ============
 
@@ -5567,21 +5581,6 @@ app.get('/api/auth/calendly/url', (req, res) => {
     console.error('❌ Error generating Calendly OAuth URL:', error);
     res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
-});
-
-// Debug OAuth Config
-app.get('/api/debug/oauth-config', (req, res) => {
-  res.json({
-    google: {
-      configured: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET
-    },
-    microsoft: {
-      configured: !!process.env.MICROSOFT_CLIENT_ID && !!process.env.MICROSOFT_CLIENT_SECRET
-    },
-    calendly: {
-      configured: !!process.env.CALENDLY_CLIENT_ID && !!process.env.CALENDLY_CLIENT_SECRET
-    }
-  });
 });
 
 const cron = require('node-cron');
