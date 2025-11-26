@@ -40,57 +40,120 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
   const handleGoogleLogin = async () => {
     try {
       setError('');
+      console.log('🟢 Google login clicked');
       const response = await api.oauth.getGoogleUrl();
-      window.location.href = response.data.url;
+      console.log('🟢 Google OAuth URL response:', response.data);
+      
+      if (response.data.url) {
+        console.log('🟢 Redirecting to:', response.data.url);
+        window.location.href = response.data.url;
+      } else {
+        throw new Error('No URL in response');
+      }
     } catch (err) {
-      console.error('Google auth error:', err);
-      setError('Failed to start Google login');
+      console.error('❌ Google auth error:', err);
+      console.error('❌ Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      });
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to start Google login');
     }
   };
 
-  // ✅ Updated: real Calendly OAuth starter
- const handleCalendlyConnect = async () => {
-  try {
-    setError('');
-    console.log('🟣 Calendly connect clicked');
+  // ✅ Updated with detailed logging and better error handling
+  const handleCalendlyConnect = async () => {
+    try {
+      setError('');
+      setLoading(true);
+      console.log('🟣 Calendly connect clicked');
+      console.log('🟣 API Base URL:', api.defaults.baseURL);
 
-    const response = await api.oauth.getCalendlyUrl();
+      const response = await api.oauth.getCalendlyUrl();
+      console.log('🟣 Calendly OAuth URL response:', response.data);
 
-    if (response.data.error) {
-      setError(response.data.message || response.data.error);
-      return;
+      if (response.data.error) {
+        setError(response.data.message || response.data.error);
+        console.error('🟣 Calendly returned error:', response.data);
+        setLoading(false);
+        return;
+      }
+
+      if (response.data.url) {
+        console.log('🟣 Redirecting to:', response.data.url);
+        window.location.href = response.data.url;
+      } else {
+        throw new Error('No URL in response');
+      }
+    } catch (err) {
+      console.error('❌ Calendly auth error:', err);
+      console.error('❌ Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        statusText: err.response?.statusText
+      });
+      
+      // Handle 503 Service Unavailable (not configured)
+      if (err.response?.status === 503) {
+        setError('⚠️ Calendly integration is not yet configured. Please contact support or use another sign-in method.');
+      } else {
+        setError(
+          err.response?.data?.message || 
+          err.response?.data?.error || 
+          'Failed to start Calendly login. Please try again or use another method.'
+        );
+      }
+      setLoading(false);
     }
+  };
 
-    if (response.data.url) {
-      window.location.href = response.data.url;
+  // ✅ Updated with detailed logging and better error handling
+  const handleMicrosoftLogin = async () => {
+    try {
+      setError('');
+      setLoading(true);
+      console.log('🟦 Microsoft login clicked');
+      console.log('🟦 API Base URL:', api.defaults.baseURL);
+
+      const response = await api.oauth.getMicrosoftUrl();
+      console.log('🟦 Microsoft OAuth URL response:', response.data);
+
+      if (response.data.error) {
+        setError(response.data.message || response.data.error);
+        console.error('🟦 Microsoft returned error:', response.data);
+        setLoading(false);
+        return;
+      }
+
+      if (response.data.url) {
+        console.log('🟦 Redirecting to:', response.data.url);
+        window.location.href = response.data.url;
+      } else {
+        throw new Error('No URL in response');
+      }
+    } catch (err) {
+      console.error('❌ Microsoft auth error:', err);
+      console.error('❌ Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        statusText: err.response?.statusText
+      });
+      
+      // Handle 503 Service Unavailable (not configured)
+      if (err.response?.status === 503) {
+        setError('⚠️ Microsoft integration is not yet configured. Please contact support or use another sign-in method.');
+      } else {
+        setError(
+          err.response?.data?.message || 
+          err.response?.data?.error || 
+          'Failed to start Microsoft login. Please try again or use another method.'
+        );
+      }
+      setLoading(false);
     }
-  } catch (err) {
-    console.error('Calendly auth error:', err);
-    setError(err.response?.data?.error || 'Failed to start Calendly login');
-  }
-};
-
-  // ✅ Updated: real Microsoft OAuth starter
- const handleMicrosoftLogin = async () => {
-  try {
-    setError('');
-    console.log('🟦 Microsoft login clicked');
-
-    const response = await api.oauth.getMicrosoftUrl();
-
-    if (response.data.error) {
-      setError(response.data.message || response.data.error);
-      return;
-    }
-
-    if (response.data.url) {
-      window.location.href = response.data.url;
-    }
-  } catch (err) {
-    console.error('Microsoft auth error:', err);
-    setError(err.response?.data?.error || 'Failed to start Microsoft login');
-  }
-};
+  };
 
   return (
     <div className="space-y-6">
@@ -113,6 +176,13 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
       {error && (
         <div className="p-3 bg-red-50 border-2 border-red-200 text-red-700 rounded-xl text-sm">
           {error}
+        </div>
+      )}
+
+      {/* Loading Indicator */}
+      {loading && (
+        <div className="p-3 bg-blue-50 border-2 border-blue-200 text-blue-700 rounded-xl text-sm">
+          Connecting to OAuth provider...
         </div>
       )}
 
@@ -206,7 +276,8 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
           <button
             type="button"
             onClick={handleGoogleLogin}
-            className="w-full bg-white border-2 border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2.5"
+            disabled={loading}
+            className="w-full bg-white border-2 border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24">
               <path
@@ -233,7 +304,8 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
           <button
             type="button"
             onClick={handleCalendlyConnect}
-            className="w-full bg-white border-2 border-sky-200 text-sky-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-sky-50 hover:border-sky-300 transition-all flex items-center justify-center gap-2.5"
+            disabled={loading}
+            className="w-full bg-white border-2 border-sky-200 text-sky-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-sky-50 hover:border-sky-300 transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="h-2 w-2 rounded-full bg-sky-500" />
             Connect Calendly
@@ -243,7 +315,8 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
           <button
             type="button"
             onClick={handleMicrosoftLogin}
-            className="w-full bg-white border-2 border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-50 hover:border-indigo-300 transition-all flex items-center justify-center gap-2.5"
+            disabled={loading}
+            className="w-full bg-white border-2 border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-50 hover:border-indigo-300 transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="flex h-3.5 w-3.5 flex-wrap gap-[1px]">
               <span className="h-1.5 w-1.5 bg-red-500" />
