@@ -161,6 +161,8 @@ async function callAnthropicWithRetry(requestBody, retries = 2) {
       if (i === retries) throw error;
       await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
     }
+  }
+}
   
 
 // ============ MICROSOFT OAUTH CONFIG ============
@@ -930,6 +932,10 @@ app.post('/api/auth/google/callback', async (req, res) => {
       processedOAuthCodes.delete(req.body.code);
       console.log('🔓 Code unlocked for retry');
     }
+
+    res.status(500).json({ error: 'Authentication failed' });
+  } // Close catch
+});
 
 // ============ MICROSOFT OAUTH (ORGANIZER LOGIN) ============
 
