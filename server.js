@@ -941,15 +941,24 @@ app.post('/api/auth/google/callback', async (req, res) => {
 
 app.get('/api/auth/microsoft/url', (req, res) => {
   try {
+    // Validate credentials exist
+    if (!process.env.MICROSOFT_CLIENT_ID) {
+      console.error('❌ MICROSOFT_CLIENT_ID not configured');
+      return res.status(503).json({ 
+        error: 'Microsoft login not configured',
+        message: 'Please contact support to enable Microsoft login'
+      });
+    }
+    const redirectUri = process.env.MICROSOFT_REDIRECT_URI || 
+      `${process.env.FRONTEND_URL}/oauth/callback/microsoft`;
     const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
-      `client_id=${MICROSOFT_CONFIG.clientId}` +
+      `client_id=${process.env.MICROSOFT_CLIENT_ID}` +
       `&response_type=code` +
-      `&redirect_uri=${encodeURIComponent(MICROSOFT_CONFIG.redirectUri)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&response_mode=query` +
       `&scope=${encodeURIComponent(MICROSOFT_CONFIG.scopes.join(' '))}` +
       `&prompt=select_account`;
-
-    console.log('🔗 Generated Microsoft OAuth URL:', authUrl);
+    console.log('🔗 Generated Microsoft OAuth URL');
     res.json({ url: authUrl });
   } catch (error) {
     console.error('❌ Error generating Microsoft OAuth URL:', error);
@@ -1065,14 +1074,20 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
 });
 
 // ============ CALENDLY OAUTH ============
-
 app.get('/api/auth/calendly/url', (req, res) => {
   try {
+    // Validate credentials exist
+    if (!process.env.CALENDLY_CLIENT_ID) {
+      console.error('❌ CALENDLY_CLIENT_ID not configured');
+      return res.status(503).json({ 
+        error: 'Calendly login not configured',
+        message: 'Please contact support to enable Calendly integration'
+      });
+    }
     const authUrl = `https://auth.calendly.com/oauth/authorize?` +
       `client_id=${process.env.CALENDLY_CLIENT_ID}` +
       `&response_type=code` +
       `&redirect_uri=${encodeURIComponent(process.env.CALENDLY_REDIRECT_URI)}`;
-
     console.log('🔗 Generated Calendly OAuth URL');
     res.json({ url: authUrl });
   } catch (error) {
@@ -5503,10 +5518,73 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
+// ============ MICROSOFT OAUTH (ORGANIZER LOGIN) ============
+app.get('/api/auth/microsoft/url', (req, res) => {
+  try {
+    // Validate credentials exist
+    if (!process.env.MICROSOFT_CLIENT_ID) {
+      console.error('❌ MICROSOFT_CLIENT_ID not configured');
+      return res.status(503).json({ 
+        error: 'Microsoft login not configured',
+        message: 'Please contact support to enable Microsoft login'
+      });
+    }
+    const redirectUri = process.env.MICROSOFT_REDIRECT_URI || 
+      `${process.env.FRONTEND_URL}/oauth/callback/microsoft`;
+    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
+      `client_id=${process.env.MICROSOFT_CLIENT_ID}` +
+      `&response_type=code` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&response_mode=query` +
+      `&scope=${encodeURIComponent(MICROSOFT_CONFIG.scopes.join(' '))}` +
+      `&prompt=select_account`;
+    console.log('🔗 Generated Microsoft OAuth URL');
+    res.json({ url: authUrl });
+  } catch (error) {
+    console.error('❌ Error generating Microsoft OAuth URL:', error);
+    res.status(500).json({ error: 'Failed to generate OAuth URL' });
+  }
+});
+
+// ============ CALENDLY OAUTH ============
+app.get('/api/auth/calendly/url', (req, res) => {
+  try {
+    // Validate credentials exist
+    if (!process.env.CALENDLY_CLIENT_ID) {
+      console.error('❌ CALENDLY_CLIENT_ID not configured');
+      return res.status(503).json({ 
+        error: 'Calendly login not configured',
+        message: 'Please contact support to enable Calendly integration'
+      });
+    }
+    const authUrl = `https://auth.calendly.com/oauth/authorize?` +
+      `client_id=${process.env.CALENDLY_CLIENT_ID}` +
+      `&response_type=code` +
+      `&redirect_uri=${encodeURIComponent(process.env.CALENDLY_REDIRECT_URI)}`;
+    console.log('🔗 Generated Calendly OAuth URL');
+    res.json({ url: authUrl });
+  } catch (error) {
+    console.error('❌ Error generating Calendly OAuth URL:', error);
+    res.status(500).json({ error: 'Failed to generate OAuth URL' });
+  }
+});
+
+// Debug OAuth Config
+app.get('/api/debug/oauth-config', (req, res) => {
+  res.json({
+    google: {
+      configured: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET
+    },
+    microsoft: {
+      configured: !!process.env.MICROSOFT_CLIENT_ID && !!process.env.MICROSOFT_CLIENT_SECRET
+    },
+    calendly: {
+      configured: !!process.env.CALENDLY_CLIENT_ID && !!process.env.CALENDLY_CLIENT_SECRET
+    }
+  });
+});
 
 const cron = require('node-cron');
-
-
 // ========== REMINDER ENGINE ==========
 
 // Run every 5 minutes
