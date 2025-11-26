@@ -622,7 +622,35 @@ await pool.query(`
   }
 }
 
-initDB();
+// Add this right after initDB() function
+async function migrateDatabase() {
+  try {
+    console.log('🔄 Running database migrations...');
+    
+    // Add Microsoft columns
+    await pool.query(`
+      ALTER TABLE users 
+      ADD COLUMN IF NOT EXISTS microsoft_id VARCHAR(255) UNIQUE,
+      ADD COLUMN IF NOT EXISTS microsoft_access_token TEXT,
+      ADD COLUMN IF NOT EXISTS microsoft_refresh_token TEXT,
+      ADD COLUMN IF NOT EXISTS provider VARCHAR(50) DEFAULT 'google'
+    `);
+    
+    // Add Calendly columns
+    await pool.query(`
+      ALTER TABLE team_members
+      ADD COLUMN IF NOT EXISTS calendly_api_key TEXT,
+      ADD COLUMN IF NOT EXISTS calendly_user_uri TEXT
+    `);
+    
+    console.log('✅ Database migrations completed');
+  } catch (error) {
+    console.error('❌ Migration error:', error);
+  }
+}
+
+// Call it after initDB()
+initDB().then(() => migrateDatabase());
 
 // ============ OAUTH CODE TRACKING (PREVENT DOUBLE USE) ============
 
