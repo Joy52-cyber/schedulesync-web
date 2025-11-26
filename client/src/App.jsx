@@ -1,141 +1,152 @@
 ﻿// client/src/App.jsx
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+
+// Layouts
+import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 
-// Auth / OAuth pages
-import Login from './pages/Login';
+// Auth / Marketing pages
+import Landing from './pages/Landing';
+import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import Register from './pages/Register';
 import VerifyEmail from './pages/VerifyEmail';
 import OAuthCallback from './pages/OAuthCallback';
+import OnboardingWizard from './pages/OnboardingWizard';
+import AdminPanel from './pages/AdminPanel';
 
-// Dashboard pages
+// Dashboard Pages
 import Dashboard from './pages/Dashboard';
-import Teams from './pages/Teams';
 import Bookings from './pages/Bookings';
-import UserSettings from './pages/UserSettings';
-import CalendarSettings from './pages/CalendarSettings';
+import EventTypes from './pages/EventTypes';
+import Availability from './pages/Availability';
+
+// Team
+import Teams from './pages/Teams';
 import TeamSettings from './pages/TeamSettings';
 import TeamMembers from './pages/TeamMembers';
+import MemberAvailability from './pages/MemberAvailability';
 
-// Booking pages
+// Settings
+import UserSettings from './pages/UserSettings';
+import CalendarSettings from './pages/CalendarSettings';
+
+// Guest
 import BookingPage from './pages/BookingPage';
 import ManageBooking from './pages/ManageBooking';
+import PaymentStatus from './pages/PaymentStatus';
+import Book from './pages/Book';
+import BookingConfirmation from './components/BookingConfirmation';
 
-function App() {
-  // Runs after Google / Microsoft / Calendly OAuth logins
-  const handleOAuthLogin = (token, user) => {
-    if (token) {
-      localStorage.setItem('token', token);
-    }
-    if (user) {
-      localStorage.setItem('user', JSON.stringify(user));
-    }
+// ======================
+// Login Wrapper
+// ======================
+function LoginWrapper({ Component }) {
+  const { login } = useAuth();
+
+  const handleLogin = (token, user) => {
+    login(token, user);
+    // Hard redirect so everything (contexts, etc.) sees the new auth state
     window.location.href = '/dashboard';
   };
 
-  return (
-    <AuthProvider>
-      <NotificationProvider>
-        <Router>
-          <Routes>
-            {/* Root → Login */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
+  return <Component onLogin={handleLogin} />;
+}
 
-            {/* Auth */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+// ======================
+// Main App Component
+// ======================
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <NotificationProvider>
+          <Routes>
+            {/* Marketing / Auth */}
+            <Route path="/" element={<Landing />} />
+            <Route path="/login" element={<Landing defaultLoginOpen />} />
+            <Route path="/register" element={<LoginWrapper Component={Register} />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            {/* Keep :token if your ResetPassword page expects it */}
             <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
 
-            {/* OAuth Providers */}
+            {/* OAuth Callbacks (Google / Microsoft / Calendly) */}
             <Route
               path="/oauth/callback"
-              element={<OAuthCallback onLogin={handleOAuthLogin} />}
+              element={<LoginWrapper Component={OAuthCallback} />}
             />
             <Route
               path="/oauth/callback/microsoft"
-              element={<OAuthCallback onLogin={handleOAuthLogin} />}
+              element={<LoginWrapper Component={OAuthCallback} />}
             />
             <Route
               path="/oauth/callback/calendly"
-              element={<OAuthCallback onLogin={handleOAuthLogin} />}
+              element={<LoginWrapper Component={OAuthCallback} />}
             />
 
-            {/* Dashboard (Protected) */}
+            {/* Onboarding */}
             <Route
-              path="/dashboard"
+              path="/onboarding"
               element={
                 <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/teams"
-              element={
-                <ProtectedRoute>
-                  <Teams />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/bookings"
-              element={
-                <ProtectedRoute>
-                  <Bookings />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings/profile"
-              element={
-                <ProtectedRoute>
-                  <UserSettings />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings/calendar"
-              element={
-                <ProtectedRoute>
-                  <CalendarSettings />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings/team"
-              element={
-                <ProtectedRoute>
-                  <TeamSettings />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/teams/:teamId/members"
-              element={
-                <ProtectedRoute>
-                  <TeamMembers />
+                  <OnboardingWizard />
                 </ProtectedRoute>
               }
             />
 
-            {/* Public booking links */}
-            <Route path="/book/:bookingToken" element={<BookingPage />} />
-            <Route path="/manage/:bookingId" element={<ManageBooking />} />
+            {/* Admin */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <AdminPanel />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Public Guest Routes */}
+            <Route path="/book/:token" element={<BookingPage />} />
+            <Route path="/book" element={<Book />} />
+            <Route path="/manage/:token" element={<ManageBooking />} />
+            <Route path="/payment/status" element={<PaymentStatus />} />
+            <Route path="/booking-success" element={<BookingConfirmation />} />
+
+            {/* Protected App Layout (keeps Navbar / sidebar from Layout.jsx) */}
+            <Route
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/bookings" element={<Bookings />} />
+              <Route path="/availability" element={<Availability />} />
+              <Route path="/events" element={<EventTypes />} />
+
+              {/* Teams */}
+              <Route path="/teams" element={<Teams />} />
+              <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
+              <Route path="/teams/:teamId/members" element={<TeamMembers />} />
+              <Route
+                path="/teams/:teamId/members/:memberId/availability"
+                element={<MemberAvailability />}
+              />
+
+              {/* Settings */}
+              <Route path="/settings" element={<UserSettings />} />
+              <Route path="/settings/calendar" element={<CalendarSettings />} />
+            </Route>
 
             {/* Fallback */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </Router>
-      </NotificationProvider>
-    </AuthProvider>
+        </NotificationProvider>
+      </AuthProvider>
+    </Router>
   );
 }
 

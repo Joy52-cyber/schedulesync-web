@@ -49,8 +49,8 @@ export const auth = {
     api.post('/auth/resend-verification', { email }),
 
   updateProfile: (data) => api.put('/users/profile', data),
-  
-  // Google OAuth helper
+
+  // ✅ Google OAuth (kept for backwards compatibility)
   getGoogleUrl: () => api.get('/auth/google/url'),
 };
 
@@ -79,7 +79,7 @@ export const teams = {
 
   updateMemberExternalLink: (teamId, memberId, data) =>
     api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
-  
+
   // Alias for compatibility
   list: () => api.get('/teams'),
 };
@@ -131,13 +131,13 @@ export const calendar = {
   connectGoogle: () => api.get('/auth/google/url'),
   disconnectGoogle: () => api.post('/calendar/google/disconnect'),
   getStatus: () => api.get('/calendar/status'),
-  listEvents: (startDate, endDate) => 
+  listEvents: (startDate, endDate) =>
     api.get(`/calendar/events?start=${startDate}&end=${endDate}`),
   syncEvents: () => api.post('/calendar/sync'),
 };
 
 // ============================================
-// OAUTH (UPDATED)
+// OAUTH (Google + Microsoft + Calendly)
 // ============================================
 export const oauth = {
   // Google
@@ -149,11 +149,13 @@ export const oauth = {
 
   // Microsoft
   getMicrosoftUrl: () => api.get('/auth/microsoft/url'),
-  handleMicrosoftCallback: (code) => api.post('/auth/microsoft/callback', { code }),
+  handleMicrosoftCallback: (code) =>
+    api.post('/auth/microsoft/callback', { code }),
 
   // Calendly
   getCalendlyUrl: () => api.get('/auth/calendly/url'),
-  handleCalendlyCallback: (code) => api.post('/auth/calendly/callback', { code }),
+  handleCalendlyCallback: (code) =>
+    api.post('/auth/calendly/callback', { code }),
 };
 
 // ============================================
@@ -164,7 +166,7 @@ export const payments = {
   getPricing: (token) => api.get(`/book/${token}/pricing`),
   createIntent: (data) => api.post('/payments/create-intent', data),
   confirmBooking: (data) => api.post('/payments/confirm-booking', data),
-  getPaymentStatus: (paymentIntentId) => 
+  getPaymentStatus: (paymentIntentId) =>
     api.get(`/payments/status/${paymentIntentId}`),
 };
 
@@ -204,6 +206,7 @@ export const eventTypes = {
   toggle: (id, active) => api.patch(`/event-types/${id}/toggle`, { active }),
 };
 
+// Alias for compatibility
 export const events = eventTypes;
 
 // ============================================
@@ -211,11 +214,12 @@ export const events = eventTypes;
 // ============================================
 export const analytics = {
   getDashboard: () => api.get('/analytics/dashboard'),
-  getBookingStats: (startDate, endDate) => 
+  getBookingStats: (startDate, endDate) =>
     api.get(`/analytics/bookings?start=${startDate}&end=${endDate}`),
   getTeamStats: (teamId) => api.get(`/analytics/teams/${teamId}`),
   getMemberStats: (memberId) => api.get(`/analytics/members/${memberId}`),
-  exportData: (format = 'csv') => api.get(`/analytics/export?format=${format}`),
+  exportData: (format = 'csv') =>
+    api.get(`/analytics/export?format=${format}`),
 };
 
 // ============================================
@@ -237,7 +241,7 @@ export const timezone = {
   update: (tz) => api.put('/user/timezone', { timezone: tz }),
   list: () => api.get('/timezones'),
   detect: () => api.get('/timezones/detect'),
-  convert: (fromTimezone, toTimezone, datetime) => 
+  convert: (fromTimezone, toTimezone, datetime) =>
     api.post('/timezones/convert', { fromTimezone, toTimezone, datetime }),
 };
 
@@ -251,8 +255,17 @@ export const user = {
   deleteAccount: () => api.delete('/profile'),
 };
 
+// ============================================
+// BACKWARDS COMPATIBILITY - DIRECT EXPORTS
+// ============================================
+
+// These support: import { getGoogleUrl, handleGoogleCallback } from '../utils/api'
 export const getGoogleUrl = oauth.getGoogleUrl;
 export const handleGoogleCallback = oauth.handleCallback;
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
 
 export const isAuthenticated = () => {
   return !!localStorage.getItem('token');
@@ -302,13 +315,13 @@ export const downloadFile = async (endpoint, filename) => {
 };
 
 export const batchRequest = async (requests) => {
-  return Promise.all(requests.map(req => api(req)));
+  return Promise.all(requests.map((req) => api(req)));
 };
 
 // ============================================
 // ✅ VITAL FIX: ATTACH MODULES TO DEFAULT EXPORT
 // ============================================
-// This ensures that `api.auth.getGoogleUrl()` works!
+// This ensures things like `api.auth.login()` and `api.oauth.getGoogleUrl()` work.
 api.auth = auth;
 api.oauth = oauth;
 api.teams = teams;
