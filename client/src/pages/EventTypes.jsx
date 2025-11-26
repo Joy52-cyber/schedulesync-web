@@ -11,7 +11,7 @@ import {
   Loader2,
   Settings
 } from 'lucide-react';
-import { eventTypes, auth } from '../utils/api'; 
+import { eventTypes, auth } from '../utils/api';
 
 export default function EventTypes() {
   const navigate = useNavigate();
@@ -27,7 +27,7 @@ export default function EventTypes() {
   const loadUser = async () => {
     try {
       const response = await auth.me();
-      setUser(response.data.user);
+      setUser(response.data.user || response.data);
     } catch (error) {
       console.error('Failed to load user:', error);
     }
@@ -36,10 +36,22 @@ export default function EventTypes() {
   const loadEventTypes = async () => {
     setLoading(true);
     try {
-      const response = await events.list();  // ✅ Changed from eventTypes.list()
-      setEventTypesList(response.data.events || []);
+      // ✔ FIXED: use eventTypes.list()
+      const response = await eventTypes.list();
+
+      console.log("📦 Event Types Raw:", response.data);
+
+      const list =
+        response.data?.event_types ||
+        response.data?.eventTypes ||
+        response.data?.events ||
+        response.data ||
+        [];
+
+      setEventTypesList(Array.isArray(list) ? list : []);
     } catch (error) {
       console.error('Failed to load event types:', error);
+      setEventTypesList([]);
     } finally {
       setLoading(false);
     }
@@ -49,7 +61,8 @@ export default function EventTypes() {
     if (!confirm('Are you sure you want to delete this event type?')) return;
 
     try {
-      await events.delete(id);  // ✅ Changed from eventTypes.delete()
+      // ✔ FIXED: use eventTypes.delete()
+      await eventTypes.delete(id);
       setEventTypesList(eventTypesList.filter((e) => e.id !== id));
     } catch (error) {
       console.error('Failed to delete event type:', error);
@@ -71,9 +84,7 @@ export default function EventTypes() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Event Types</h1>
-          <p className="text-gray-600 mt-2">
-            Manage your booking event types and availability
-          </p>
+          <p className="text-gray-600 mt-2">Manage your booking event types and availability</p>
         </div>
         <button
           onClick={() => navigate('/events/new')}
@@ -84,16 +95,12 @@ export default function EventTypes() {
         </button>
       </div>
 
-      {/* Event Types List */}
+      {/* List */}
       {eventTypesList.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl shadow-sm border border-gray-200">
           <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">
-            No event types yet
-          </h3>
-          <p className="text-gray-600 mb-6">
-            Create your first event type to start accepting bookings
-          </p>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">No event types yet</h3>
+          <p className="text-gray-600 mb-6">Create your first event type to start accepting bookings</p>
           <button
             onClick={() => navigate('/events/new')}
             className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
@@ -109,18 +116,15 @@ export default function EventTypes() {
               key={event.id}
               className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
             >
-              {/* Event Header */}
+              {/* Title */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
-                  <h3 className="text-lg font-bold text-gray-900 mb-1">
-                    {event.name}
-                  </h3>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1">{event.name}</h3>
                   {event.description && (
-                    <p className="text-sm text-gray-600 line-clamp-2">
-                      {event.description}
-                    </p>
+                    <p className="text-sm text-gray-600 line-clamp-2">{event.description}</p>
                   )}
                 </div>
+
                 <div className="flex gap-2 ml-4">
                   <button
                     onClick={() => navigate(`/events/${event.id}/edit`)}
@@ -139,14 +143,14 @@ export default function EventTypes() {
                 </div>
               </div>
 
-              {/* Event Details */}
+              {/* Details */}
               <div className="space-y-3">
                 <div className="flex items-center gap-3 text-sm text-gray-600">
                   <Clock className="h-4 w-4 text-gray-400" />
                   <span>{event.duration} minutes</span>
                 </div>
 
-                {event.price && event.price > 0 && (
+                {event.price > 0 && (
                   <div className="flex items-center gap-3 text-sm text-gray-600">
                     <DollarSign className="h-4 w-4 text-gray-400" />
                     <span>${event.price}</span>
@@ -168,14 +172,12 @@ export default function EventTypes() {
                 )}
               </div>
 
-              {/* Event Status */}
+              {/* Status + View */}
               <div className="mt-4 pt-4 border-t border-gray-100">
                 <div className="flex items-center justify-between">
                   <span
                     className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      event.is_active
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-600'
+                      event.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
                     }`}
                   >
                     {event.is_active ? 'Active' : 'Inactive'}
