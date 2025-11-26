@@ -11,7 +11,7 @@ import {
   Loader2,
   Settings
 } from 'lucide-react';
-import { eventTypes, auth } from '../utils/api'; 
+import { events, auth } from '../utils/api';  // ✅ FIXED: Changed eventTypes to events
 
 export default function EventTypes() {
   const navigate = useNavigate();
@@ -36,8 +36,8 @@ export default function EventTypes() {
   const loadEventTypes = async () => {
     setLoading(true);
     try {
-      const response = await events.list();  // ✅ Changed from eventTypes.list()
-      setEventTypesList(response.data.events || []);
+      const response = await events.getAll();  // ✅ Use getAll() for all event types
+      setEventTypesList(response.data.event_types || response.data.eventTypes || response.data || []);
     } catch (error) {
       console.error('Failed to load event types:', error);
     } finally {
@@ -49,7 +49,7 @@ export default function EventTypes() {
     if (!confirm('Are you sure you want to delete this event type?')) return;
 
     try {
-      await events.delete(id);  // ✅ Changed from eventTypes.delete()
+      await events.delete(id);
       setEventTypesList(eventTypesList.filter((e) => e.id !== id));
     } catch (error) {
       console.error('Failed to delete event type:', error);
