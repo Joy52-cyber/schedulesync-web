@@ -50,7 +50,7 @@ export const auth = {
 
   updateProfile: (data) => api.put('/users/profile', data),
   
-  // ✅ Google OAuth
+  // Google OAuth helper
   getGoogleUrl: () => api.get('/auth/google/url'),
 };
 
@@ -125,7 +125,7 @@ export const reminders = {
 };
 
 // ============================================
-// CALENDAR / OAUTH
+// CALENDAR
 // ============================================
 export const calendar = {
   connectGoogle: () => api.get('/auth/google/url'),
@@ -136,11 +136,24 @@ export const calendar = {
   syncEvents: () => api.post('/calendar/sync'),
 };
 
+// ============================================
+// OAUTH (UPDATED)
+// ============================================
 export const oauth = {
+  // Google
   getGoogleUrl: () => api.get('/auth/google/url'),
   handleCallback: (code) => api.post('/auth/google/callback', { code }),
+  handleGoogleCallback: (code) => api.post('/auth/google/callback', { code }),
   guestGoogleAuth: (code, bookingToken) =>
     api.post('/book/auth/google', { code, bookingToken }),
+
+  // Microsoft
+  getMicrosoftUrl: () => api.get('/auth/microsoft/url'),
+  handleMicrosoftCallback: (code) => api.post('/auth/microsoft/callback', { code }),
+
+  // Calendly
+  getCalendlyUrl: () => api.get('/auth/calendly/url'),
+  handleCalendlyCallback: (code) => api.post('/auth/calendly/callback', { code }),
 };
 
 // ============================================

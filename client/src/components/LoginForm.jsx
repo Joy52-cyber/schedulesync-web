@@ -48,24 +48,50 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
     }
   };
 
-  // Placeholder handlers for Calendly & Microsoft
-  // Later you can wire these to real backend endpoints (e.g. api.oauth.getCalendlyUrl / getMicrosoftUrl)
-  const handleCalendlyConnect = () => {
-    setError('');
-    console.log('🟣 Calendly connect clicked');
-    // TODO: redirect to Calendly connect / OAuth flow once backend is ready
-    // Example (future):
-    // const response = await api.oauth.getCalendlyUrl();
-    // window.location.href = response.data.url;
+  // ✅ Updated: real Calendly OAuth starter
+  const handleCalendlyConnect = async () => {
+    try {
+      setError('');
+      console.log('🟣 Calendly connect clicked');
+
+      const response = await fetch('/api/auth/calendly/url');
+      const data = await response.json();
+
+      if (data.error) {
+        setError(data.message || data.error);
+        return;
+      }
+
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      console.error('Calendly auth error:', err);
+      setError('Failed to start Calendly login');
+    }
   };
 
-  const handleMicrosoftLogin = () => {
-    setError('');
-    console.log('🟦 Microsoft login clicked');
-    // TODO: redirect to Microsoft / Outlook OAuth when backend is ready
-    // Example (future):
-    // const response = await api.oauth.getMicrosoftUrl();
-    // window.location.href = response.data.url;
+  // ✅ Updated: real Microsoft OAuth starter
+  const handleMicrosoftLogin = async () => {
+    try {
+      setError('');
+      console.log('🟦 Microsoft login clicked');
+
+      const response = await fetch('/api/auth/microsoft/url');
+      const data = await response.json();
+
+      if (data.error) {
+        setError(data.message || data.error);
+        return;
+      }
+
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      console.error('Microsoft auth error:', err);
+      setError('Failed to start Microsoft login');
+    }
   };
 
   return (
@@ -211,7 +237,6 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
             onClick={handleCalendlyConnect}
             className="w-full bg-white border-2 border-sky-200 text-sky-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-sky-50 hover:border-sky-300 transition-all flex items-center justify-center gap-2.5"
           >
-            {/* Simple dot icon as placeholder for Calendly logo */}
             <span className="h-2 w-2 rounded-full bg-sky-500" />
             Connect Calendly
           </button>
@@ -222,7 +247,6 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
             onClick={handleMicrosoftLogin}
             className="w-full bg-white border-2 border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-50 hover:border-indigo-300 transition-all flex items-center justify-center gap-2.5"
           >
-            {/* Simple square grid as placeholder for Microsoft logo */}
             <span className="flex h-3.5 w-3.5 flex-wrap gap-[1px]">
               <span className="h-1.5 w-1.5 bg-red-500" />
               <span className="h-1.5 w-1.5 bg-green-500" />
