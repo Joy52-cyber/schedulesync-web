@@ -51,7 +51,6 @@ function LoginWrapper({ Component }) {
       localStorage.setItem('user', JSON.stringify(user));
     }
     login(token, user);
-    // Use a hard redirect to ensure clean state after login
     window.location.href = '/dashboard';
   };
 
@@ -61,8 +60,9 @@ function LoginWrapper({ Component }) {
 function App() {
   return (
     <Router>
-      {/* ✅ FIX: NotificationProvider must wrap AuthProvider so auth can use notifications */}
+      {/* ✅ FIX: NotificationProvider MUST be the outer wrapper */}
       <NotificationProvider>
+        {/* AuthProvider is now a CHILD of NotificationProvider, so it can use notifications */}
         <AuthProvider>
           <Routes>
             {/* Marketing / Auth entry points */}
@@ -128,7 +128,6 @@ function App() {
 
               {/* Event types */}
               <Route path="/events" element={<EventTypes />} />
-              {/* These routes currently re-use EventTypes so your "Create / Edit" navigations don't 404 */}
               <Route path="/events/new" element={<EventTypes />} />
               <Route path="/events/:eventId" element={<EventTypes />} />
               <Route path="/events/:eventId/edit" element={<EventTypes />} />
