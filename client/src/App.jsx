@@ -1,5 +1,4 @@
-﻿// client/src/App.jsx
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 
@@ -52,6 +51,7 @@ function LoginWrapper({ Component }) {
       localStorage.setItem('user', JSON.stringify(user));
     }
     login(token, user);
+    // Use a hard redirect to ensure clean state after login
     window.location.href = '/dashboard';
   };
 
@@ -61,8 +61,9 @@ function LoginWrapper({ Component }) {
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <NotificationProvider>
+      {/* ✅ FIX: NotificationProvider must wrap AuthProvider so auth can use notifications */}
+      <NotificationProvider>
+        <AuthProvider>
           <Routes>
             {/* Marketing / Auth entry points */}
             <Route path="/" element={<Landing />} />
@@ -149,8 +150,8 @@ function App() {
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </NotificationProvider>
-      </AuthProvider>
+        </AuthProvider>
+      </NotificationProvider>
     </Router>
   );
 }
