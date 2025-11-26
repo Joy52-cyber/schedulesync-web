@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 
-// Layouts
+// Layout / Shell
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -17,7 +17,7 @@ import OAuthCallback from './pages/OAuthCallback';
 import OnboardingWizard from './pages/OnboardingWizard';
 import AdminPanel from './pages/AdminPanel';
 
-// Dashboard Pages
+// Dashboard pages
 import Dashboard from './pages/Dashboard';
 import Bookings from './pages/Bookings';
 import EventTypes from './pages/EventTypes';
@@ -33,31 +33,32 @@ import MemberAvailability from './pages/MemberAvailability';
 import UserSettings from './pages/UserSettings';
 import CalendarSettings from './pages/CalendarSettings';
 
-// Guest
+// Guest / Public
 import BookingPage from './pages/BookingPage';
 import ManageBooking from './pages/ManageBooking';
 import PaymentStatus from './pages/PaymentStatus';
 import Book from './pages/Book';
 import BookingConfirmation from './components/BookingConfirmation';
 
-// ======================
-// Login Wrapper
-// ======================
+// -------------------------
+// Login wrapper for pages that receive onLogin
+// -------------------------
 function LoginWrapper({ Component }) {
   const { login } = useAuth();
 
   const handleLogin = (token, user) => {
+    // Let AuthContext know
     login(token, user);
-    // Hard redirect so everything (contexts, etc.) sees the new auth state
+    // Then send them into the app shell
     window.location.href = '/dashboard';
   };
 
   return <Component onLogin={handleLogin} />;
 }
 
-// ======================
-// Main App Component
-// ======================
+// -------------------------
+// Main App
+// -------------------------
 function App() {
   return (
     <Router>
@@ -67,13 +68,15 @@ function App() {
             {/* Marketing / Auth */}
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Landing defaultLoginOpen />} />
-            <Route path="/register" element={<LoginWrapper Component={Register} />} />
+            <Route
+              path="/register"
+              element={<LoginWrapper Component={Register} />}
+            />
             <Route path="/forgot-password" element={<ForgotPassword />} />
-            {/* Keep :token if your ResetPassword page expects it */}
             <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
 
-            {/* OAuth Callbacks (Google / Microsoft / Calendly) */}
+            {/* OAuth Callbacks (Google, Microsoft, Calendly) */}
             <Route
               path="/oauth/callback"
               element={<LoginWrapper Component={OAuthCallback} />}
@@ -114,7 +117,7 @@ function App() {
             <Route path="/payment/status" element={<PaymentStatus />} />
             <Route path="/booking-success" element={<BookingConfirmation />} />
 
-            {/* Protected App Layout (keeps Navbar / sidebar from Layout.jsx) */}
+            {/* Protected app shell (shows Navbar/Layout) */}
             <Route
               element={
                 <ProtectedRoute>
@@ -125,11 +128,17 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/bookings" element={<Bookings />} />
               <Route path="/availability" element={<Availability />} />
+
+              {/* Event Types – support both /events and /event-types */}
               <Route path="/events" element={<EventTypes />} />
+              <Route path="/event-types" element={<EventTypes />} />
 
               {/* Teams */}
               <Route path="/teams" element={<Teams />} />
-              <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
+              <Route
+                path="/teams/:teamId/settings"
+                element={<TeamSettings />}
+              />
               <Route path="/teams/:teamId/members" element={<TeamMembers />} />
               <Route
                 path="/teams/:teamId/members/:memberId/availability"
@@ -138,7 +147,10 @@ function App() {
 
               {/* Settings */}
               <Route path="/settings" element={<UserSettings />} />
-              <Route path="/settings/calendar" element={<CalendarSettings />} />
+              <Route
+                path="/settings/calendar"
+                element={<CalendarSettings />}
+              />
             </Route>
 
             {/* Fallback */}
