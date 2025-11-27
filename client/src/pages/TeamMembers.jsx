@@ -13,13 +13,11 @@ import {
   XCircle,
   Calendar,
   Settings,
-  Link2,
   Copy,
-  // Removed DollarSign
+  ExternalLink,
 } from 'lucide-react';
 import api, { teams } from '../utils/api';
-import MemberExternalLinkModal from '../components/MemberExternalLinkModal';
-// Removed MemberPricingSettings import
+import TeamMemberEditModal from '../components/TeamMemberEditModal';
 
 export default function TeamMembers() {
   const { teamId } = useParams();
@@ -29,8 +27,7 @@ export default function TeamMembers() {
   const [team, setTeam] = useState(null);
   const [members, setMembers] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showExternalLinkModal, setShowExternalLinkModal] = useState(false);
-  // Removed showPricingModal
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [newMember, setNewMember] = useState({
     email: '',
@@ -137,24 +134,17 @@ export default function TeamMembers() {
     alert('Booking link copied to clipboard!');
   };
 
-  const handleSaveExternalLink = async (data) => {
-    try {
-      if (!selectedMember) return;
-      await teams.updateMemberExternalLink(teamId, selectedMember.id, data);
-      loadTeamMembers();
-      setShowExternalLinkModal(false);
-    } catch (error) {
-      console.error('Error saving external link:', error);
-      throw error;
-    }
-  };
-
-  const openExternalLinkModal = (member) => {
+  const openEditModal = (member) => {
     setSelectedMember(member);
-    setShowExternalLinkModal(true);
+    setShowEditModal(true);
   };
 
-  // Removed openPricingModal function
+  const handleSaveMember = (updatedMember) => {
+    // Update the member in the local state
+    setMembers(members.map(m => 
+      m.id === updatedMember.id ? { ...m, ...updatedMember } : m
+    ));
+  };
 
   if (loading) {
     return (
@@ -237,16 +227,16 @@ export default function TeamMembers() {
                         member.name?.charAt(0) ||
                         'U'}
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-bold text-gray-900">
+                        <h3 className="font-bold text-gray-900 truncate">
                           {member.user_name || member.name || 'Unknown'}
                         </h3>
                         {member.role === 'admin' && (
-                          <Crown className="h-4 w-4 text-yellow-500" />
+                          <Crown className="h-4 w-4 text-yellow-500 flex-shrink-0" />
                         )}
                       </div>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-600 truncate">
                         {member.user_email || member.email}
                       </p>
                     </div>
@@ -269,6 +259,13 @@ export default function TeamMembers() {
                       <Shield className="h-3 w-3" />
                       {member.role || 'member'}
                     </span>
+                    {/* External booking indicator */}
+                    {member.external_booking_link && (
+                      <span className="flex items-center gap-1 bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-semibold">
+                        <ExternalLink className="h-3 w-3" />
+                        {member.external_booking_platform || 'External'}
+                      </span>
+                    )}
                   </div>
 
                   {/* Stats */}
@@ -288,7 +285,7 @@ export default function TeamMembers() {
                   </div>
 
                   {/* Booking link */}
-                  {member.booking_token && (
+                  {member.booking_token && !member.external_booking_link && (
                     <div className="mb-4 p-3 bg-blue-50 rounded-xl border-2 border-blue-200">
                       <div className="flex items-center justify-between mb-2 gap-2">
                         <p className="text-xs font-semibold text-blue-900">
@@ -311,46 +308,73 @@ export default function TeamMembers() {
                     </div>
                   )}
 
+                  {/* External booking link info */}
+                  {member.external_booking_link && (
+                    <div className="mb-4 p-3 bg-purple-50 rounded-xl border-2 border-purple-200">
+                      <div className="flex items-center justify-between mb-2 gap-2">
+                        <p className="text-xs font-semibold text-purple-900">
+                          Redirects to {member.external_booking_platform || 'External'}:
+                        </p>
+                      </div>
+                      <a 
+                        href={member.external_booking_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-purple-700 break-all font-mono hover:text-purple-900 flex items-center gap-1"
+                      >
+                        <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                        {member.external_booking_link.length > 40 
+                          ? member.external_booking_link.substring(0, 40) + '...'
+                          : member.external_booking_link
+                        }
+                      </a>
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div className="space-y-2">
+                    {/* Settings button - Opens the new modal */}
+                    <button
+                      onClick={() => openEditModal(member)}
+                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2.5 rounded-xl hover:shadow-lg transition-all text-sm font-semibold flex items-center justify-center gap-2"
+                    >
+                      <Settings className="h-4 w-4" />
+                      Member Settings
+                    </button>
+
                     <button
                       onClick={() =>
                         navigate(
                           `/teams/${teamId}/members/${member.id}/availability`
                         )
                       }
-                      className="w-full bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors text-sm font-semibold flex items-center justify-center gap-2"
+                      className="w-full bg-blue-100 text-blue-700 px-4 py-2 rounded-xl hover:bg-blue-200 transition-colors text-sm font-semibold flex items-center justify-center gap-2"
                     >
                       <Calendar className="h-4 w-4" />
                       Availability
                     </button>
 
-                    {/* Pricing button removed */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() =>
+                          handleToggleActive(member.id, member.is_active)
+                        }
+                        className={`flex-1 px-4 py-2 rounded-xl transition-colors text-sm font-semibold ${
+                          member.is_active
+                            ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            : 'bg-green-100 text-green-700 hover:bg-green-200'
+                        }`}
+                      >
+                        {member.is_active ? 'Deactivate' : 'Activate'}
+                      </button>
 
-                    <button
-                      onClick={() => openExternalLinkModal(member)}
-                      className="w-full bg-purple-600 text-white px-4 py-2 rounded-xl hover:bg-purple-700 transition-colors text-sm font-semibold flex items-center justify-center gap-2"
-                    >
-                      <Link2 className="h-4 w-4" />
-                      External Link
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        handleToggleActive(member.id, member.is_active)
-                      }
-                      className="w-full bg-gray-600 text-white px-4 py-2 rounded-xl hover:bg-gray-700 transition-colors text-sm font-semibold"
-                    >
-                      {member.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-
-                    <button
-                      onClick={() => handleRemoveMember(member.id)}
-                      className="w-full bg-red-50 text-red-600 px-4 py-2 rounded-xl hover:bg-red-100 transition-colors text-sm font-semibold flex items-center justify-center gap-2"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Remove
-                    </button>
+                      <button
+                        onClick={() => handleRemoveMember(member.id)}
+                        className="px-4 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors text-sm font-semibold flex items-center justify-center gap-1"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -426,17 +450,17 @@ export default function TeamMembers() {
         </div>
       )}
 
-      {/* External Link Modal */}
-      {showExternalLinkModal && selectedMember && (
-        <MemberExternalLinkModal
-          member={selectedMember}
-          onSave={handleSaveExternalLink}
-          onClose={() => setShowExternalLinkModal(false)}
-        />
-      )}
-      
-      {/* Removed MemberPricingSettings modal rendering */}
-
+      {/* Member Settings Modal */}
+      <TeamMemberEditModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedMember(null);
+        }}
+        member={selectedMember}
+        teamId={parseInt(teamId, 10)}
+        onSave={handleSaveMember}
+      />
     </div>
   );
 }

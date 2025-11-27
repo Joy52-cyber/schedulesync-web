@@ -2086,6 +2086,67 @@ app.patch('/api/teams/:teamId/members/:memberId/status', authenticateToken, asyn
   }
 });
 
+// ============ ADD THIS NEW ROUTE HERE ============
+// PUT /api/teams/:teamId/members/:memberId - Update all member settings
+app.put('/api/teams/:teamId/members/:memberId', authenticateToken, async (req, res) => {
+  try {
+    const { teamId, memberId } = req.params;
+    const userId = req.user.id;
+    const {
+      external_booking_platform,
+      external_booking_link,
+      buffer_time,
+      booking_horizon_days,
+      timezone,
+    } = req.body;
+
+    console.log('⚙️ Updating member settings:', { memberId, teamId });
+
+    // Verify ownership
+    const teamCheck = await pool.query(
+      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2',
+      [teamId, userId]
+    );
+
+    if (teamCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized to update this team' });
+    }
+
+    // Update the member
+    const result = await pool.query(
+      `UPDATE team_members 
+       SET 
+         external_booking_platform = COALESCE($1, external_booking_platform),
+         external_booking_link = $2,
+         buffer_time = COALESCE($3, buffer_time),
+         booking_horizon_days = COALESCE($4, booking_horizon_days),
+         timezone = COALESCE($5, timezone)
+       WHERE id = $6 AND team_id = $7
+       RETURNING *`,
+      [
+        external_booking_platform,
+        external_booking_link,  // Allow null to clear external link
+        buffer_time,
+        booking_horizon_days,
+        timezone,
+        memberId,
+        teamId
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Team member not found' });
+    }
+
+    console.log('✅ Member settings updated:', memberId);
+    res.json({ member: result.rows[0] });
+
+  } catch (error) {
+    console.error('❌ Update member settings error:', error);
+    res.status(500).json({ error: 'Failed to update team member settings' });
+  }
+});
+
 // ============ TEAM MEMBER ROUTES ============
 app.get('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
   const { teamId } = req.params;

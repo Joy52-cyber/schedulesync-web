@@ -66,10 +66,12 @@ export const teams = {
 
   getMembers: (teamId) => api.get(`/teams/${teamId}/members`),
   addMember: (teamId, data) => api.post(`/teams/${teamId}/members`, data),
-  updateMember: (teamId, memberId, data) =>
-    api.patch(`/teams/${teamId}/members/${memberId}`, data),
   removeMember: (teamId, memberId) =>
     api.delete(`/teams/${teamId}/members/${memberId}`),
+
+  // ✅ FIXED: Single updateMember function for all member updates
+  updateMember: (teamId, memberId, data) =>
+    api.put(`/teams/${teamId}/members/${memberId}`, data),
 
   updateMemberStatus: (teamId, memberId, is_active) =>
     api.patch(`/teams/${teamId}/members/${memberId}/status`, { is_active }),
