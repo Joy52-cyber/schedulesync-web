@@ -9,7 +9,6 @@ import {
   ArrowLeft,
   Check,
   Loader2,
-  DollarSign,
   Zap
 } from 'lucide-react';
 import { teams } from '../utils/api';
@@ -28,8 +27,6 @@ export default function TeamSettings() {
     mode: 'round-robin',
     bufferTime: 0,
     leadTime: 60,
-    price: 0,
-    currency: 'USD'
   });
 
   useEffect(() => {
@@ -39,8 +36,8 @@ export default function TeamSettings() {
   const loadTeam = async () => {
     try {
       const response = await teams.getAll();
-      const teamData = response.data.teams.find(t => t.id === parseInt(teamId));
-      setTeam(teamData || team);
+      const foundTeam = response.data.teams.find(t => t.id === parseInt(teamId));
+      setTeam(foundTeam || team);
     } catch (error) {
       console.error('Error loading team:', error);
     } finally {
@@ -112,6 +109,7 @@ export default function TeamSettings() {
 
           <div className="p-8 space-y-8">
             
+            {/* Basic Info */}
             <div className="space-y-6">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Users className="h-5 w-5 text-blue-600" />
@@ -141,6 +139,7 @@ export default function TeamSettings() {
               </div>
             </div>
 
+            {/* Scheduling Settings */}
             <div className="space-y-6 pt-6 border-t-2 border-gray-100">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Clock className="h-5 w-5 text-purple-600" />
@@ -193,41 +192,7 @@ export default function TeamSettings() {
               </div>
             </div>
 
-            <div className="space-y-6 pt-6 border-t-2 border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-green-600" />
-                Pricing (Optional)
-              </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Price</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={team.price}
-                    onChange={(e) => setTeam({ ...team, price: parseFloat(e.target.value) })}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
-                    placeholder="0.00"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Currency</label>
-                  <select
-                    value={team.currency}
-                    onChange={(e) => setTeam({ ...team, currency: e.target.value })}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
-                  >
-                    <option value="USD">USD - US Dollar</option>
-                    <option value="EUR">EUR - Euro</option>
-                    <option value="GBP">GBP - British Pound</option>
-                    <option value="JPY">JPY - Japanese Yen</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
+            {/* Scheduling Mode Info */}
             <div className="bg-blue-50 border-2 border-blue-100 rounded-xl p-6">
               <h4 className="font-bold text-blue-900 mb-3 flex items-center gap-2">
                 <Zap className="h-4 w-4" />
@@ -236,21 +201,22 @@ export default function TeamSettings() {
               <ul className="space-y-2 text-sm text-blue-800">
                 <li className="flex items-start gap-2">
                   <span className="font-bold">Round Robin:</span>
-                  <span>Distributes bookings evenly among team members</span>
+                  <span>Distributes bookings evenly among team members.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="font-bold">Collective:</span>
-                  <span>All team members must be available for the meeting</span>
+                  <span>All team members must be available for the meeting.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="font-bold">First Available:</span>
-                  <span>Books with the first available team member</span>
+                  <span>Books with the first available team member.</span>
                 </li>
               </ul>
             </div>
           </div>
         </div>
 
+        {/* Buttons */}
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <button
             onClick={handleSave}
