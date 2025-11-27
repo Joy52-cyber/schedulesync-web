@@ -3,7 +3,7 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Calendar, User, Clock,
   Sparkles, ArrowRight, ExternalLink, Loader2,
-  Ban, ShieldAlert, ChevronRight
+  Ban, ShieldAlert, ChevronRight, RefreshCw
 } from 'lucide-react';
 import { bookings, oauth, eventTypes as eventTypesAPI } from '../utils/api';
 import SmartSlotPicker from '../components/SmartSlotPicker';
@@ -18,7 +18,9 @@ export default function BookingPage() {
   const [redirecting, setRedirecting] = useState(false);
   
   const [isLinkUsed, setIsLinkUsed] = useState(false); 
-  const [isDirectMemberLink, setIsDirectMemberLink] = useState(false); // NEW: Track if this is a direct member link
+  const [isDirectMemberLink, setIsDirectMemberLink] = useState(false);
+  const [isReschedule, setIsReschedule] = useState(false);
+  const [rescheduleToken, setRescheduleToken] = useState(null);
 
   const [teamInfo, setTeamInfo] = useState(null);
   const [memberInfo, setMemberInfo] = useState(null);
@@ -39,6 +41,14 @@ export default function BookingPage() {
   const [selectedSlot, setSelectedSlot] = useState(null);
 
   useEffect(() => {
+    // Check for reschedule parameter
+    const rescheduleParam = searchParams.get('reschedule');
+    if (rescheduleParam) {
+      setIsReschedule(true);
+      setRescheduleToken(rescheduleParam);
+      console.log('🔄 Reschedule mode - old booking token:', rescheduleParam);
+    }
+    
     loadBookingInfo();
   }, [token]);
 
@@ -86,7 +96,14 @@ export default function BookingPage() {
         }));
 
         const typeParam = searchParams.get('type');
-        navigate(`/book/${token}${typeParam ? `?type=${typeParam}` : ''}`, { replace: true });
+        const rescheduleParam = searchParams.get('reschedule');
+        let newUrl = `/book/${token}`;
+        const params = new URLSearchParams();
+        if (typeParam) params.set('type', typeParam);
+        if (rescheduleParam) params.set('reschedule', rescheduleParam);
+        if (params.toString()) newUrl += `?${params.toString()}`;
+        
+        navigate(newUrl, { replace: true });
         setStep('form');
       } catch (err) {
         console.error('❌ Guest OAuth failed:', err);
@@ -107,8 +124,8 @@ export default function BookingPage() {
         throw new Error('Missing team or member information');
       }
 
-      // Handle External Links
-      if (payload.member.external_booking_link) {
+      // Handle External Links (but not for reschedule)
+      if (payload.member.external_booking_link && !isReschedule) {
         console.log('🔀 External link detected. Redirecting to:', payload.member.external_booking_link);
         setRedirecting(true);
         setMemberInfo(payload.member);
@@ -122,53 +139,42 @@ export default function BookingPage() {
       setTeamInfo(payload.team);
       setMemberInfo(payload.member);
       
-      // ✅ FIX: Check if this is a direct member booking link
-      // A direct member link should NOT show event type selection
-      // Backend should return isDirectLink: true OR eventTypes should be explicitly empty/null
+      // Check if this is a direct member booking link
       const directMemberLink = payload.isDirectLink === true || 
                                payload.skipEventTypes === true ||
-                               payload.linkType === 'member';
+                               payload.linkType === 'member' ||
+                               isReschedule; // Reschedule always skips event type selection
       
       setIsDirectMemberLink(directMemberLink);
       
       if (directMemberLink) {
-        // ✅ Direct member link - skip event type selection entirely
-        console.log('👤 Direct member booking link detected - skipping event type selection');
+        console.log('👤 Direct member/reschedule booking - skipping event type selection');
         setEventTypes([]);
         setSelectedEventType(null);
         setStep('calendar-choice');
         return;
       }
       
-      // ✅ Event type booking link - load and show event types
-      console.log('📅 Event type booking link - loading event types');
-      
+      // Event type booking - load event types
       let allEventTypes = payload.eventTypes || [];
       
-      // Only fetch event types if backend didn't return them AND it's not a direct link
       if (allEventTypes.length === 0 && !directMemberLink) {
         try {
-          console.log('📡 Fetching event types from API...');
           const eventTypesRes = await eventTypesAPI.getAll();
           allEventTypes = eventTypesRes.data.eventTypes || eventTypesRes.data || [];
-          console.log('📦 All event types:', allEventTypes);
         } catch (err) {
           console.error('Failed to fetch event types:', err);
         }
       }
       
-      // Filter only active event types
       const activeEventTypes = allEventTypes.filter(et => et.is_active !== false);
       setEventTypes(activeEventTypes);
       
-      // Check if event type is specified in URL
       const eventTypeSlug = searchParams.get('type');
-      console.log('🔍 Event type slug from URL:', eventTypeSlug);
 
       if (eventTypeSlug) {
         const selectedEvent = activeEventTypes.find(e => e.slug === eventTypeSlug);
         if (selectedEvent) {
-          console.log('🎯 Found event type:', selectedEvent);
           setSelectedEventType(selectedEvent);
           setStep('calendar-choice');
         } else {
@@ -204,7 +210,9 @@ export default function BookingPage() {
 
   const handleSelectEventType = (eventType) => {
     setSelectedEventType(eventType);
-    setSearchParams({ type: eventType.slug });
+    const params = new URLSearchParams(searchParams);
+    params.set('type', eventType.slug);
+    setSearchParams(params);
     setStep('calendar-choice');
   };
 
@@ -246,7 +254,9 @@ export default function BookingPage() {
 
   const handleBackToEventSelect = () => {
     setSelectedEventType(null);
-    setSearchParams({});
+    const params = new URLSearchParams(searchParams);
+    params.delete('type');
+    setSearchParams(params);
     setStep('event-select');
   };
 
@@ -262,6 +272,7 @@ export default function BookingPage() {
         ...formData,
         event_type_id: selectedEventType?.id,
         event_type_slug: selectedEventType?.slug,
+        reschedule_token: rescheduleToken, // Pass reschedule token to cancel old booking
       });
       navigateBookingSuccess(response.data.booking);
     } catch (err) {
@@ -289,12 +300,12 @@ export default function BookingPage() {
       notes: formData.notes,
       meet_link: booking?.meet_link || null,
       booking_token: booking?.booking_token || token,
+      is_reschedule: isReschedule,
     };
     const dataParam = encodeURIComponent(JSON.stringify(bookingData));
     navigate(`/booking-confirmation?data=${dataParam}`);
   };
 
-  // Get duration from selected event type or member default or 30
   const duration = selectedEventType?.duration || memberInfo?.default_duration || 30;
 
   // --- VIEW 1: LOADING / REDIRECTING ---
@@ -310,7 +321,6 @@ export default function BookingPage() {
           <p className="text-gray-900 font-bold text-lg">
             {redirecting ? `Redirecting to ${memberInfo?.name}'s calendar...` : 'Loading...'}
           </p>
-          {redirecting && <p className="text-gray-500 text-sm mt-2">Please wait while we take you to the booking page.</p>}
         </div>
       </div>
     );
@@ -324,16 +334,11 @@ export default function BookingPage() {
           <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6">
             <Ban className="h-10 w-10 text-amber-500" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-3">Invitation No Longer Valid</h1>
-          <p className="text-gray-600 mb-8 leading-relaxed">
-            This single-use link has already been used to book a meeting or has expired. Please contact the host to request a new invitation.
+          <h1 className="text-2xl font-bold text-gray-900 mb-3">Link No Longer Valid</h1>
+          <p className="text-gray-600 mb-8">
+            This booking link has already been used or has expired. Please contact the host for a new link.
           </p>
-          <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 mb-6">
-            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-              <ShieldAlert className="h-4 w-4" />
-              <span>One-time secure link</span>
-            </div>
-          </div>
+          <p className="text-sm text-gray-400">You can safely close this page.</p>
         </div>
       </div>
     );
@@ -349,6 +354,7 @@ export default function BookingPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Invalid Booking Link</h1>
           <p className="text-gray-600 mb-6">{error}</p>
+          <p className="text-sm text-gray-400">You can safely close this page.</p>
         </div>
       </div>
     );
@@ -358,6 +364,17 @@ export default function BookingPage() {
   const Header = () => (
     <div className="relative bg-white rounded-3xl shadow-xl overflow-hidden mb-6">
       <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-purple-600/5 to-pink-600/5"></div>
+      
+      {/* Reschedule Banner */}
+      {isReschedule && (
+        <div className="bg-amber-50 border-b border-amber-200 px-6 py-3">
+          <div className="flex items-center justify-center gap-2 text-amber-800">
+            <RefreshCw className="h-4 w-4" />
+            <span className="font-medium text-sm">Rescheduling your meeting - select a new time below</span>
+          </div>
+        </div>
+      )}
+      
       <div className="relative p-6 md:p-8">
         <div className="flex items-start gap-4 md:gap-6">
           <div className="relative flex-shrink-0">
@@ -370,7 +387,6 @@ export default function BookingPage() {
           </div>
 
           <div className="flex-1 min-w-0">
-            {/* Show Event Type if selected (only for event type bookings) */}
             {selectedEventType && !isDirectMemberLink ? (
               <>
                 <div className="flex items-center gap-2 mb-2">
@@ -400,22 +416,18 @@ export default function BookingPage() {
                   </div>
                 </div>
                 {selectedEventType.description && (
-                  <p className="text-gray-600 text-sm md:text-base leading-relaxed">{selectedEventType.description}</p>
+                  <p className="text-gray-600 text-sm md:text-base">{selectedEventType.description}</p>
                 )}
                 {eventTypes.length > 1 && step !== 'event-select' && (
-                  <button
-                    onClick={handleBackToEventSelect}
-                    className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium"
-                  >
+                  <button onClick={handleBackToEventSelect} className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium">
                     ← Change event type
                   </button>
                 )}
               </>
             ) : (
               <>
-                {/* Direct member booking OR no event type selected */}
                 <h1 className="text-xl md:text-3xl font-bold text-gray-900 mb-2">
-                  Book with {memberInfo?.name || memberInfo?.user_name}
+                  {isReschedule ? 'Reschedule Meeting' : 'Book with'} {memberInfo?.name || memberInfo?.user_name}
                 </h1>
                 <p className="text-gray-600 text-sm md:text-base mb-2">{teamInfo?.name}</p>
                 <div className="flex items-center gap-2 mt-2">
@@ -432,7 +444,7 @@ export default function BookingPage() {
     </div>
   );
 
-  // --- VIEW 4: EVENT TYPE SELECTION (Only for event type bookings) ---
+  // --- VIEW 4: EVENT TYPE SELECTION ---
   if (step === 'event-select' && !isDirectMemberLink) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
@@ -510,15 +522,14 @@ export default function BookingPage() {
 
         {/* Calendar Choice Step */}
         {step === 'calendar-choice' && (
-          <div className="space-y-6 animate-fadeIn">
+          <div className="space-y-6">
             <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8">
               <h3 className="text-xl font-bold text-gray-900 mb-2">Connect Your Calendar</h3>
               <p className="text-gray-600 mb-6">
-                Sync your calendar to automatically check for conflicts (optional)
+                Sync your calendar to see your busy times (optional)
               </p>
               
               <div className="space-y-3 md:space-y-4">
-                {/* Google Calendar */}
                 <button onClick={() => handleCalendarConnect('google')} className="w-full group relative">
                   <div className="absolute -inset-1 bg-gradient-to-r from-red-500 to-yellow-500 rounded-2xl opacity-0 group-hover:opacity-20 blur transition-opacity"></div>
                   <div className="relative bg-white border-2 border-gray-200 rounded-2xl p-4 md:p-5 group-hover:border-red-300 transition-all flex items-center gap-3 md:gap-4">
@@ -533,7 +544,6 @@ export default function BookingPage() {
                   </div>
                 </button>
 
-                {/* Microsoft Calendar */}
                 <button onClick={() => handleCalendarConnect('microsoft')} className="w-full group relative">
                   <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl opacity-0 group-hover:opacity-20 blur transition-opacity"></div>
                   <div className="relative bg-white border-2 border-gray-200 rounded-2xl p-4 md:p-5 group-hover:border-blue-400 transition-all flex items-center gap-3 md:gap-4">
@@ -553,7 +563,6 @@ export default function BookingPage() {
                   </div>
                 </button>
 
-                {/* Skip option */}
                 <button onClick={handleSkipCalendar} className="w-full group">
                   <div className="flex items-center justify-center gap-3 p-4 md:p-5 border-2 border-dashed border-gray-300 rounded-2xl hover:border-blue-400 hover:bg-blue-50/50 transition-all">
                     <span className="font-semibold text-gray-600 group-hover:text-gray-900 text-sm md:text-base">
@@ -563,7 +572,6 @@ export default function BookingPage() {
                 </button>
               </div>
 
-              {/* Connected Calendar Indicator */}
               {guestCalendar?.signedIn && (
                 <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-xl">
                   <div className="flex items-center gap-3">
@@ -583,10 +591,11 @@ export default function BookingPage() {
 
         {/* Booking Form Step */}
         {step === 'form' && (
-          <form onSubmit={handleSubmit} className="space-y-6 animate-fadeIn">
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <Calendar className="h-6 w-6 text-blue-600" /> Select a Time
+                <Calendar className="h-6 w-6 text-blue-600" /> 
+                {isReschedule ? 'Select a New Time' : 'Select a Time'}
               </h2>
               <SmartSlotPicker 
                 bookingToken={token} 
@@ -597,7 +606,7 @@ export default function BookingPage() {
             </div>
 
             {selectedSlot && (
-              <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 animate-slideUp">
+              <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8">
                 <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                   <User className="h-6 w-6 text-purple-600" /> Your Information
                 </h2>
@@ -630,14 +639,23 @@ export default function BookingPage() {
             )}
 
             {selectedSlot && (
-              <div className="relative animate-slideUp">
+              <div className="relative">
                 <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-3xl opacity-30 blur-xl"></div>
                 <button 
                   type="submit" 
                   disabled={submitting} 
                   className="relative w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white px-6 md:px-8 py-4 md:py-5 rounded-2xl text-base md:text-lg font-bold hover:scale-[1.02] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:hover:scale-100"
                 >
-                  {submitting ? <Loader2 className="h-5 w-5 md:h-6 md:w-6 animate-spin" /> : 'Confirm Booking'}
+                  {submitting ? (
+                    <Loader2 className="h-5 w-5 md:h-6 md:w-6 animate-spin" />
+                  ) : isReschedule ? (
+                    <>
+                      <RefreshCw className="h-5 w-5" />
+                      Confirm Reschedule
+                    </>
+                  ) : (
+                    'Confirm Booking'
+                  )}
                 </button>
               </div>
             )}
