@@ -1,17 +1,20 @@
-﻿// client/src/pages/EventTypes.jsx - WITH SLUG PREVIEW
+﻿// client/src/pages/EventTypes.jsx - WITH COPYABLE FULL URL
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Clock, Check, X, ChevronDown, Link } from 'lucide-react';
+import { Plus, Edit2, Trash2, Clock, Check, X, ChevronDown, Link, Copy, CheckCircle } from 'lucide-react';
 import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function EventTypes() {
   const navigate = useNavigate();
+  const { user } = useAuth(); // Get logged-in user
   const [eventTypes, setEventTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -39,6 +42,25 @@ export default function EventTypes() {
   // Get the slug that will be used (custom or auto-generated)
   const getEffectiveSlug = () => {
     return formData.slug || generateSlug(formData.title);
+  };
+
+  // Get full booking URL
+  const getFullBookingURL = () => {
+    const slug = getEffectiveSlug();
+    const username = user?.username || user?.email?.split('@')[0] || 'yourname';
+    const baseURL = window.location.origin; // e.g., https://schedulesync.com
+    return `${baseURL}/book/${username}/${slug}`;
+  };
+
+  // Copy URL to clipboard
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(getFullBookingURL());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
   };
 
   useEffect(() => {
@@ -125,6 +147,7 @@ export default function EventTypes() {
   const openCreateModal = () => {
     setEditingEvent(null);
     setShowAdvanced(false);
+    setCopied(false);
     resetForm();
     setShowModal(true);
   };
@@ -195,12 +218,15 @@ export default function EventTypes() {
         ) : (
           eventTypes.map((eventType) => {
             const colorConfig = colors.find((c) => c.value === eventType.color) || colors[0];
+            const username = user?.username || user?.email?.split('@')[0] || 'yourname';
+            const bookingURL = `${window.location.origin}/book/${username}/${eventType.slug}`;
+            
             return (
               <div
                 key={eventType.id}
                 className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-4 flex-1">
                     {/* Color Badge */}
                     <div className={`px-3 py-1.5 rounded-lg ${colorConfig.lightClass} border font-medium text-sm`}>
@@ -258,13 +284,31 @@ export default function EventTypes() {
                     </button>
                   </div>
                 </div>
+
+                {/* Booking URL - Copyable */}
+                <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
+                  <Link className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                  <code className="text-sm text-gray-700 flex-1 truncate">
+                    {bookingURL}
+                  </code>
+                  <button
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(bookingURL);
+                      // Could add a toast notification here
+                    }}
+                    className="p-1.5 text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                    title="Copy URL"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             );
           })
         )}
       </div>
 
-      {/* Create/Edit Modal - WITH SLUG PREVIEW */}
+      {/* Create/Edit Modal - WITH COPYABLE FULL URL */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
@@ -315,23 +359,32 @@ export default function EventTypes() {
                 </div>
               </div>
 
-              {/* URL Preview - ALWAYS VISIBLE */}
+              {/* URL Preview - FULL URL WITH COPY BUTTON */}
               {formData.title && (
                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-start gap-2 mb-2">
                     <Link className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-purple-900 mb-1">
-                        Booking URL Preview
+                        Booking URL {!formData.slug && <span className="text-purple-600">✨ Auto-generated</span>}
                       </p>
-                      <p className="text-sm text-purple-700 break-all font-mono">
-                        /book/<span className="text-purple-900 font-semibold">you</span>/{getEffectiveSlug()}
-                      </p>
-                      {!formData.slug && (
-                        <p className="text-xs text-purple-600 mt-1">
-                          ✨ Auto-generated from title
-                        </p>
-                      )}
+                      <div className="flex items-center gap-2 bg-white rounded px-2 py-1.5 border border-purple-200">
+                        <code className="text-xs text-purple-900 break-all flex-1">
+                          {getFullBookingURL()}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={copyToClipboard}
+                          className="p-1 text-purple-600 hover:bg-purple-100 rounded transition-colors flex-shrink-0"
+                          title="Copy URL"
+                        >
+                          {copied ? (
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -420,6 +473,7 @@ export default function EventTypes() {
                     setShowModal(false);
                     setEditingEvent(null);
                     setShowAdvanced(false);
+                    setCopied(false);
                     resetForm();
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium"
