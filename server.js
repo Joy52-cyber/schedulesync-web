@@ -1004,6 +1004,10 @@ app.get('/api/auth/microsoft/url', (req, res) => {
 app.post('/api/auth/microsoft/callback', async (req, res) => {
   try {
     const { code } = req.body;
+
+    // ✅ ADD THIS LINE - Define redirectUri
+    const redirectUri = process.env.MICROSOFT_REDIRECT_URI || 
+      `${process.env.FRONTEND_URL}/oauth/callback/microsoft`;
     
     // Exchange code for tokens...
     const tokenResponse = await axios.post(
