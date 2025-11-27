@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -16,18 +16,29 @@ import {
   Users,
   CheckCircle
 } from 'lucide-react';
-import { events } from '../utils/api';
+import { events, auth } from '../utils/api';
 
 export default function EventTypeDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [event, setEvent] = useState(null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     loadEventType();
+    loadUser();
   }, [id]);
+
+  const loadUser = async () => {
+    try {
+      const response = await auth.me();
+      setUser(response.data.user || response.data);
+    } catch (error) {
+      console.error('Failed to load user:', error);
+    }
+  };
 
   const loadEventType = async () => {
     setLoading(true);
@@ -68,8 +79,16 @@ export default function EventTypeDetail() {
     }
   };
 
+  // ✅ FIXED: Correct URL format /book/:username/:eventSlug
+  const getBookingLink = () => {
+    if (!event) return '';
+    const username = user?.username || user?.name?.toLowerCase().replace(/\s+/g, '') || 'user';
+    const eventSlug = event.slug || event.name?.toLowerCase().replace(/\s+/g, '-') || event.id;
+    return `${window.location.origin}/book/${username}/${eventSlug}`;
+  };
+
   const copyBookingLink = () => {
-    const link = `${window.location.origin}/book/${event.slug || event.id}`;
+    const link = getBookingLink();
     navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -91,7 +110,7 @@ export default function EventTypeDetail() {
     );
   }
 
-  const bookingLink = `${window.location.origin}/book/${event.slug || event.id}`;
+  const bookingLink = getBookingLink();
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">

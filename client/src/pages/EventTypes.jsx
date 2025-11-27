@@ -1,564 +1,245 @@
-﻿// client/src/pages/EventTypes.jsx - RESPONSIVE VERSION
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Clock, Check, X, ChevronDown, Link, Copy, CheckCircle, MoreVertical } from 'lucide-react';
-import api from '../utils/api';
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Clock,
+  Calendar,
+  DollarSign,
+  Users,
+  Loader2,
+  MapPin,
+  Copy,
+  ExternalLink,
+  ToggleLeft,
+  ToggleRight
+} from 'lucide-react';
+import { events, auth } from '../utils/api';
 
 export default function EventTypes() {
   const navigate = useNavigate();
-  const [eventTypes, setEventTypes] = useState([]);
+  const [eventTypesList, setEventTypesList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingEvent, setEditingEvent] = useState(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [openMenuId, setOpenMenuId] = useState(null);
-
-  // Get user from localStorage
-  const getUserInfo = () => {
-    try {
-      const userStr = localStorage.getItem('user');
-      return userStr ? JSON.parse(userStr) : null;
-    } catch {
-      return null;
-    }
-  };
-
-  // Form state
-  const [formData, setFormData] = useState({
-    title: '',
-    duration: 30,
-    description: '',
-    color: 'blue',
-    slug: '',
-  });
-
-  const colors = [
-    { value: 'blue', label: 'Blue', class: 'bg-blue-500', lightClass: 'bg-blue-100 text-blue-700 border-blue-200' },
-    { value: 'green', label: 'Green', class: 'bg-green-500', lightClass: 'bg-green-100 text-green-700 border-green-200' },
-    { value: 'purple', label: 'Purple', class: 'bg-purple-500', lightClass: 'bg-purple-100 text-purple-700 border-purple-200' },
-    { value: 'red', label: 'Red', class: 'bg-red-500', lightClass: 'bg-red-100 text-red-700 border-red-200' },
-    { value: 'yellow', label: 'Yellow', class: 'bg-yellow-500', lightClass: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-    { value: 'pink', label: 'Pink', class: 'bg-pink-500', lightClass: 'bg-pink-100 text-pink-700 border-pink-200' },
-  ];
-
-  // Generate slug from title
-  const generateSlug = (title) => {
-    return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  };
-
-  // Get the slug that will be used (custom or auto-generated)
-  const getEffectiveSlug = () => {
-    return formData.slug || generateSlug(formData.title);
-  };
-
-  // Get full booking URL
-  const getFullBookingURL = () => {
-    const slug = getEffectiveSlug();
-    const user = getUserInfo();
-    const username = user?.username || user?.email?.split('@')[0] || 'yourname';
-    const baseURL = window.location.origin;
-    return `${baseURL}/book/${username}/${slug}`;
-  };
-
-  // Copy URL to clipboard
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(getFullBookingURL());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  };
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
     loadEventTypes();
+    loadUser();
   }, []);
 
-  const loadEventTypes = async () => {
+  const loadUser = async () => {
     try {
-      setLoading(true);
-      const response = await api.eventTypes.getAll();
-      console.log('📋 Event types loaded:', response.data);
-      setEventTypes(response.data.eventTypes || []);
-    } catch (err) {
-      console.error('❌ Failed to load event types:', err);
-      setError('Failed to load event types');
+      const response = await auth.me();
+      setUser(response.data.user || response.data);
+    } catch (error) {
+      console.error('Failed to load user:', error);
+    }
+  };
+
+  const loadEventTypes = async () => {
+    setLoading(true);
+    try {
+      const response = await events.getAll();
+      console.log('📦 Event Types Response:', response.data);
+      const data = response.data;
+      const list = data.event_types || data.eventTypes || data.data || data || [];
+      setEventTypesList(Array.isArray(list) ? list : []);
+    } catch (error) {
+      console.error('Failed to load event types:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleToggleActive = async (event) => {
     try {
-      // Auto-generate slug from title if not provided
-      const slug = formData.slug || generateSlug(formData.title);
-      
-      if (editingEvent) {
-        await api.eventTypes.update(editingEvent.id, { ...formData, slug });
-        console.log('✅ Event type updated');
-      } else {
-        await api.eventTypes.create({ ...formData, slug });
-        console.log('✅ Event type created');
-      }
-
-      setShowModal(false);
-      setEditingEvent(null);
-      setShowAdvanced(false);
-      resetForm();
-      loadEventTypes();
-    } catch (err) {
-      console.error('❌ Failed to save event type:', err);
-      setError(err.response?.data?.error || 'Failed to save event type');
+      await events.toggle(event.id, !event.is_active);
+      setEventTypesList(eventTypesList.map(e => 
+        e.id === event.id ? { ...e, is_active: !e.is_active } : e
+      ));
+    } catch (error) {
+      console.error('Failed to toggle event type:', error);
+      alert('Failed to update event status');
     }
+  };
+
+  // ✅ FIXED: Correct URL format /book/:username/:eventSlug
+  const getBookingLink = (event) => {
+    const username = user?.username || user?.name?.toLowerCase().replace(/\s+/g, '') || 'user';
+    const eventSlug = event.slug || event.name?.toLowerCase().replace(/\s+/g, '-') || event.id;
+    return `${window.location.origin}/book/${username}/${eventSlug}`;
+  };
+
+  const copyBookingLink = (event) => {
+    const link = getBookingLink(event);
+    navigator.clipboard.writeText(link);
+    alert('Booking link copied!');
   };
 
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to delete this event type?')) return;
 
     try {
-      await api.eventTypes.delete(id);
-      console.log('✅ Event type deleted');
-      setOpenMenuId(null);
-      loadEventTypes();
-    } catch (err) {
-      console.error('❌ Failed to delete event type:', err);
-      setError('Failed to delete event type');
+      await events.delete(id);
+      setEventTypesList(eventTypesList.filter((e) => e.id !== id));
+    } catch (error) {
+      console.error('Failed to delete event type:', error);
+      alert('Failed to delete event type');
     }
-  };
-
-  const handleToggleActive = async (eventType) => {
-    try {
-      await api.eventTypes.update(eventType.id, {
-        is_active: !eventType.is_active,
-      });
-      console.log('✅ Event type toggled');
-      setOpenMenuId(null);
-      loadEventTypes();
-    } catch (err) {
-      console.error('❌ Failed to toggle event type:', err);
-      setError('Failed to update event type');
-    }
-  };
-
-  const openEditModal = (eventType) => {
-    setEditingEvent(eventType);
-    setFormData({
-      title: eventType.title,
-      duration: eventType.duration,
-      description: eventType.description || '',
-      color: eventType.color,
-      slug: eventType.slug,
-    });
-    setOpenMenuId(null);
-    setShowModal(true);
-  };
-
-  const openCreateModal = () => {
-    setEditingEvent(null);
-    setShowAdvanced(false);
-    setCopied(false);
-    resetForm();
-    setShowModal(true);
-  };
-
-  const resetForm = () => {
-    setFormData({
-      title: '',
-      duration: 30,
-      description: '',
-      color: 'blue',
-      slug: '',
-    });
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
+    <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Event Types</h1>
-          <p className="text-gray-600 mt-1 text-sm sm:text-base">
-            Create meeting types with different durations
+          <h1 className="text-3xl font-bold text-gray-900">Event Types</h1>
+          <p className="text-gray-600 mt-2">
+            Manage your booking event types and availability
           </p>
         </div>
         <button
-          onClick={openCreateModal}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+          onClick={() => navigate('/events/new')}
+          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm"
         >
           <Plus className="h-5 w-5" />
-          <span>New Event Type</span>
+          Create Event Type
         </button>
       </div>
 
-      {/* Error Message */}
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-          {error}
-        </div>
-      )}
-
       {/* Event Types List */}
-      <div className="grid gap-4">
-        {eventTypes.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
-            <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              No event types yet
-            </h3>
-            <p className="text-gray-600 mb-4 text-sm px-4">
-              Create your first event type to get started
-            </p>
-            <button
-              onClick={openCreateModal}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+      {eventTypesList.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-2xl shadow-sm border border-gray-200">
+          <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            No event types yet
+          </h3>
+          <p className="text-gray-600 mb-6">
+            Create your first event type to start accepting bookings
+          </p>
+          <button
+            onClick={() => navigate('/events/new')}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="h-5 w-5" />
+            Create Event Type
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {eventTypesList.map((event) => (
+            <div
+              key={event.id}
+              className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
             >
-              <Plus className="h-5 w-5" />
-              Create Event Type
-            </button>
-          </div>
-        ) : (
-          eventTypes.map((eventType) => {
-            const colorConfig = colors.find((c) => c.value === eventType.color) || colors[0];
-            const user = getUserInfo();
-            const username = user?.username || user?.email?.split('@')[0] || 'yourname';
-            const bookingURL = `${window.location.origin}/book/${username}/${eventType.slug}`;
-            
-            return (
-              <div
-                key={eventType.id}
-                className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 hover:shadow-md transition-shadow"
-              >
-                {/* Header Row */}
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    {/* Color Badge */}
-                    <div className={`px-3 py-1.5 rounded-lg ${colorConfig.lightClass} border font-medium text-sm flex-shrink-0`}>
-                      {eventType.duration}m
-                    </div>
-
-                    {/* Details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-base sm:text-lg font-semibold text-gray-900 break-words">
-                          {eventType.title}
-                        </h3>
-                        {!eventType.is_active && (
-                          <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded whitespace-nowrap">
-                            Inactive
-                          </span>
-                        )}
-                      </div>
-                      {eventType.description && (
-                        <p className="text-sm text-gray-600 mt-1 break-words">
-                          {eventType.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Actions - Responsive */}
-                  <div className="relative flex-shrink-0">
-                    {/* Mobile: Dropdown Menu */}
-                    <div className="sm:hidden">
-                      <button
-                        onClick={() => setOpenMenuId(openMenuId === eventType.id ? null : eventType.id)}
-                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                      >
-                        <MoreVertical className="h-5 w-5" />
-                      </button>
-                      
-                      {openMenuId === eventType.id && (
-                        <>
-                          <div 
-                            className="fixed inset-0 z-10" 
-                            onClick={() => setOpenMenuId(null)}
-                          />
-                          <div className="absolute right-0 top-10 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[160px]">
-                            <button
-                              onClick={() => handleToggleActive(eventType)}
-                              className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-                            >
-                              {eventType.is_active ? (
-                                <>
-                                  <X className="h-4 w-4" />
-                                  Set Inactive
-                                </>
-                              ) : (
-                                <>
-                                  <Check className="h-4 w-4" />
-                                  Set Active
-                                </>
-                              )}
-                            </button>
-                            <button
-                              onClick={() => openEditModal(eventType)}
-                              className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-blue-600"
-                            >
-                              <Edit2 className="h-4 w-4" />
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(eventType.id)}
-                              className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Desktop: Icon Buttons */}
-                    <div className="hidden sm:flex items-center gap-2">
-                      <button
-                        onClick={() => handleToggleActive(eventType)}
-                        className={`p-2 rounded-lg transition-colors ${
-                          eventType.is_active
-                            ? 'text-green-600 hover:bg-green-50'
-                            : 'text-gray-400 hover:bg-gray-50'
-                        }`}
-                        title={eventType.is_active ? 'Active' : 'Inactive'}
-                      >
-                        {eventType.is_active ? (
-                          <Check className="h-5 w-5" />
-                        ) : (
-                          <X className="h-5 w-5" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => openEditModal(eventType)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Edit"
-                      >
-                        <Edit2 className="h-5 w-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(eventType.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-5 w-5" />
-                      </button>
-                    </div>
-                  </div>
+              {/* Event Header */}
+              <div className="mb-4">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-lg font-bold text-gray-900 flex-1 min-w-0">
+                    {event.name}
+                  </h3>
                 </div>
-
-                {/* Booking URL - Copyable */}
-                <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
-                  <Link className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                  <code className="text-xs sm:text-sm text-gray-700 flex-1 truncate">
-                    {bookingURL}
-                  </code>
+                {event.description && (
+                  <p className="text-sm text-gray-600 line-clamp-2 mt-1">
+                    {event.description}
+                  </p>
+                )}
+                
+                {/* ✅ FIXED: Buttons always visible, wrapped on mobile */}
+                <div className="flex flex-wrap gap-1 mt-3">
                   <button
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(bookingURL);
-                    }}
-                    className="p-1.5 text-gray-600 hover:bg-gray-200 rounded transition-colors flex-shrink-0"
-                    title="Copy URL"
+                    onClick={() => copyBookingLink(event)}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    title="Copy booking link"
                   >
-                    <Copy className="h-4 w-4" />
+                    <Copy className="h-3 w-3" />
+                    <span className="hidden sm:inline">Copy</span>
+                  </button>
+                  <button
+                    onClick={() => navigate(`/events/${event.id}/edit`)}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                    title="Edit"
+                  >
+                    <Edit className="h-3 w-3" />
+                    <span className="hidden sm:inline">Edit</span>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(event.id)}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    <span className="hidden sm:inline">Delete</span>
                   </button>
                 </div>
               </div>
-            );
-          })
-        )}
-      </div>
 
-      {/* Create/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold text-gray-900">
-              {editingEvent ? 'Edit Event Type' : 'New Event Type'}
-            </h2>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Title & Duration */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Title *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) =>
-                      setFormData({ ...formData, title: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                    placeholder="30 Min Meeting"
-                    required
-                  />
+              {/* Event Details */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 text-sm text-gray-600">
+                  <Clock className="h-4 w-4 text-gray-400" />
+                  <span>{event.duration} minutes</span>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Duration *
-                  </label>
-                  <select
-                    value={formData.duration}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        duration: parseInt(e.target.value),
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                  >
-                    <option value="15">15 min</option>
-                    <option value="30">30 min</option>
-                    <option value="45">45 min</option>
-                    <option value="60">1 hour</option>
-                    <option value="90">1.5 hours</option>
-                    <option value="120">2 hours</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* URL Preview */}
-              {formData.title && (
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                  <div className="flex items-start gap-2 mb-2">
-                    <Link className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-purple-900 mb-1">
-                        Booking URL {!formData.slug && <span className="text-purple-600">✨ Auto-generated</span>}
-                      </p>
-                      <div className="flex items-center gap-2 bg-white rounded px-2 py-1.5 border border-purple-200">
-                        <code className="text-xs text-purple-900 break-all flex-1">
-                          {getFullBookingURL()}
-                        </code>
-                        <button
-                          type="button"
-                          onClick={copyToClipboard}
-                          className="p-1 text-purple-600 hover:bg-purple-100 rounded transition-colors flex-shrink-0"
-                          title="Copy URL"
-                        >
-                          {copied ? (
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                          ) : (
-                            <Copy className="h-4 w-4" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
+                {event.price > 0 && (
+                  <div className="flex items-center gap-3 text-sm text-gray-600">
+                    <DollarSign className="h-4 w-4 text-gray-400" />
+                    <span>${event.price}</span>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Color */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Color
-                </label>
-                <div className="flex gap-2">
-                  {colors.map((color) => (
-                    <button
-                      key={color.value}
-                      type="button"
-                      onClick={() =>
-                        setFormData({ ...formData, color: color.value })
-                      }
-                      className={`w-8 h-8 rounded-lg ${color.class} ${
-                        formData.color === color.value
-                          ? 'ring-2 ring-offset-2 ring-gray-900'
-                          : ''
-                      }`}
-                      title={color.label}
-                    />
-                  ))}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Visual identifier on booking page
-                </p>
-              </div>
+                {event.team_id && (
+                  <div className="flex items-center gap-3 text-sm text-gray-600">
+                    <Users className="h-4 w-4 text-gray-400" />
+                    <span>Team Event</span>
+                  </div>
+                )}
 
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Description <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                  rows="2"
-                  placeholder="A quick 30 minute call"
-                />
-              </div>
-
-              {/* Advanced Options */}
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
-                >
-                  <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
-                  Customize URL slug
-                </button>
-                
-                {showAdvanced && (
-                  <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                      Custom URL Slug
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.slug}
-                      onChange={(e) =>
-                        setFormData({ ...formData, slug: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm font-mono"
-                      placeholder={generateSlug(formData.title) || "custom-slug"}
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Override the auto-generated slug above
-                    </p>
+                {event.location && (
+                  <div className="flex items-center gap-3 text-sm text-gray-600">
+                    <MapPin className="h-4 w-4 text-gray-400" />
+                    <span className="truncate">{event.location}</span>
                   </div>
                 )}
               </div>
 
-              {/* Actions */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowModal(false);
-                    setEditingEvent(null);
-                    setShowAdvanced(false);
-                    setCopied(false);
-                    resetForm();
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium"
-                >
-                  {editingEvent ? 'Update' : 'Create'}
-                </button>
+              {/* Event Status & Actions */}
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => handleToggleActive(event)}
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                      event.is_active
+                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {event.is_active ? (
+                      <ToggleRight className="h-4 w-4" />
+                    ) : (
+                      <ToggleLeft className="h-4 w-4" />
+                    )}
+                    {event.is_active ? 'Active' : 'Inactive'}
+                  </button>
+                  <button
+                    onClick={() => navigate(`/events/${event.id}`)}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    View Details →
+                  </button>
+                </div>
               </div>
-            </form>
-          </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
