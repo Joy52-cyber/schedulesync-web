@@ -10,19 +10,16 @@ import {
   Users,
   Loader2,
   MapPin,
-  Copy,
-  ExternalLink,
   ToggleLeft,
   ToggleRight
 } from 'lucide-react';
-import { events, auth, teams } from '../utils/api';
+import { events, auth } from '../utils/api';
 
 export default function EventTypes() {
   const navigate = useNavigate();
   const [eventTypesList, setEventTypesList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
-  const [bookingToken, setBookingToken] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -31,39 +28,19 @@ export default function EventTypes() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Load user, event types, and booking token in parallel
-      const [userRes, eventsRes, teamsRes] = await Promise.all([
+      const [userRes, eventsRes] = await Promise.all([
         auth.me(),
-        events.getAll(),
-        teams.getAll()
+        events.getAll()
       ]);
 
       const userData = userRes.data.user || userRes.data;
       setUser(userData);
 
-      // Get event types
+      // Get event types - API returns "eventTypes" with "title"
       const eventsData = eventsRes.data;
-      const list = eventsData.event_types || eventsData.eventTypes || eventsData.data || eventsData || [];
+      const list = eventsData.eventTypes || eventsData.event_types || eventsData.data || eventsData || [];
       setEventTypesList(Array.isArray(list) ? list : []);
 
-      // Find user's booking token from their personal team
-      const teamsData = teamsRes.data.teams || teamsRes.data || [];
-      if (teamsData.length > 0) {
-        // Get first team (personal team)
-        const personalTeam = teamsData[0];
-        try {
-          const membersRes = await teams.getMembers(personalTeam.id);
-          const members = membersRes.data.members || membersRes.data || [];
-          // Find current user's member record
-          const myMember = members.find(m => m.user_id === userData.id);
-          if (myMember?.booking_token) {
-            setBookingToken(myMember.booking_token);
-            console.log('✅ Found booking token:', myMember.booking_token);
-          }
-        } catch (err) {
-          console.error('Failed to load team members:', err);
-        }
-      }
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -81,25 +58,6 @@ export default function EventTypes() {
       console.error('Failed to toggle event type:', error);
       alert('Failed to update event status');
     }
-  };
-
-  // ✅ FIXED: Correct URL format /book/{booking_token}?type={event_slug}
-  const getBookingLink = (event) => {
-    if (!bookingToken) {
-      return null; // Can't generate link without booking token
-    }
-    // Use event.slug directly (API returns slug)
-    return `${window.location.origin}/book/${bookingToken}?type=${event.slug}`;
-  };
-
-  const copyBookingLink = (event) => {
-    const link = getBookingLink(event);
-    if (!link) {
-      alert('⚠️ Could not generate booking link. Please try refreshing the page.');
-      return;
-    }
-    navigator.clipboard.writeText(link);
-    alert('✅ Booking link copied!\n\nShare this link with clients to let them book.');
   };
 
   const handleDelete = async (id) => {
@@ -199,16 +157,8 @@ export default function EventTypes() {
                   </p>
                 )}
                 
-                {/* ✅ FIXED: Buttons always visible, wrapped on mobile */}
+                {/* Action Buttons */}
                 <div className="flex flex-wrap gap-1 mt-3">
-                  <button
-                    onClick={() => copyBookingLink(event)}
-                    className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                    title="Copy booking page URL to share with clients"
-                  >
-                    <Copy className="h-3 w-3" />
-                    <span>Copy Link</span>
-                  </button>
                   <button
                     onClick={() => navigate(`/events/${event.id}/edit`, { state: { event } })}
                     className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"

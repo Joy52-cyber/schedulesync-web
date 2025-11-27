@@ -3,30 +3,29 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Calendar, User, Clock,
   Sparkles, ArrowRight, ExternalLink, Loader2,
-  Ban, ShieldAlert // Added icons for the expired state
+  Ban, ShieldAlert, ChevronRight
 } from 'lucide-react';
-// Import the centralized API helper
-import { bookings, oauth } from '../utils/api';
+import { bookings, oauth, eventTypes as eventTypesAPI } from '../utils/api';
 import SmartSlotPicker from '../components/SmartSlotPicker';
 
 export default function BookingPage() {
   const { token } = useParams();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   
-  // --- NEW STATE: Single Use Link Handling ---
   const [isLinkUsed, setIsLinkUsed] = useState(false); 
-  // -------------------------------------------
 
   const [teamInfo, setTeamInfo] = useState(null);
   const [memberInfo, setMemberInfo] = useState(null);
+  const [eventTypes, setEventTypes] = useState([]); // All available event types
+  const [selectedEventType, setSelectedEventType] = useState(null);
   const [error, setError] = useState('');
    
-  const [step, setStep] = useState('calendar-choice');
+  const [step, setStep] = useState('loading'); // loading → event-select → calendar-choice → form
   const [guestCalendar, setGuestCalendar] = useState(null);
   const [hasProcessedOAuth, setHasProcessedOAuth] = useState(false);
    
@@ -37,7 +36,6 @@ export default function BookingPage() {
   });
    
   const [selectedSlot, setSelectedSlot] = useState(null);
-  const [customDuration, setCustomDuration] = useState(30);
 
   useEffect(() => {
     loadBookingInfo();
@@ -58,14 +56,22 @@ export default function BookingPage() {
     (async () => {
       try {
         setError('');
-        console.log('🔐 Processing guest Google OAuth callback...');
-        const response = await oauth.guestGoogleAuth(code, token);
+        const provider = state.split(':')[2] || 'google';
+        console.log(`🔐 Processing guest ${provider} OAuth callback...`);
+        
+        let response;
+        if (provider === 'microsoft') {
+          response = await oauth.handleMicrosoftCallback(code);
+        } else {
+          response = await oauth.guestGoogleAuth(code, token);
+        }
+        
         const data = response.data;
         
         setGuestCalendar({
           signedIn: true,
           hasCalendarAccess: data.hasCalendarAccess || false,
-          provider: 'google',
+          provider: provider,
           email: data.email || '',
           name: data.name || '',
           accessToken: data.accessToken,
@@ -78,7 +84,9 @@ export default function BookingPage() {
           attendee_email: data.email || prev.attendee_email,
         }));
 
-        navigate(`/book/${token}`, { replace: true });
+        // Keep the type parameter if it exists
+        const typeParam = searchParams.get('type');
+        navigate(`/book/${token}${typeParam ? `?type=${typeParam}` : ''}`, { replace: true });
         setStep('form');
       } catch (err) {
         console.error('❌ Guest OAuth failed:', err);
@@ -90,7 +98,6 @@ export default function BookingPage() {
   const loadBookingInfo = async () => {
     try {
       setLoading(true);
-      // We pass the token. If it's a magic link, the backend resolves it.
       const response = await bookings.getByToken(token);
       console.log('📥 Booking info loaded:', response.data);
 
@@ -115,39 +122,62 @@ export default function BookingPage() {
       setTeamInfo(payload.team);
       setMemberInfo(payload.member);
       
-      // Handle Event Types from URL (?type=30min)
+      // Load event types
+      let allEventTypes = payload.eventTypes || [];
+      
+      // If backend didn't return event types, fetch them
+      if (allEventTypes.length === 0) {
+        try {
+          console.log('📡 Fetching event types from API...');
+          const eventTypesRes = await eventTypesAPI.getAll();
+          allEventTypes = eventTypesRes.data.eventTypes || eventTypesRes.data || [];
+          console.log('📦 All event types:', allEventTypes);
+        } catch (err) {
+          console.error('Failed to fetch event types:', err);
+        }
+      }
+      
+      // Filter only active event types
+      const activeEventTypes = allEventTypes.filter(et => et.is_active !== false);
+      setEventTypes(activeEventTypes);
+      
+      // Check if event type is specified in URL
       const eventTypeSlug = searchParams.get('type');
+      console.log('🔍 Event type slug from URL:', eventTypeSlug);
 
-      if (eventTypeSlug && payload.eventTypes) {
-        const selectedEvent = payload.eventTypes.find(e => e.slug === eventTypeSlug);
-        
+      if (eventTypeSlug) {
+        const selectedEvent = activeEventTypes.find(e => e.slug === eventTypeSlug);
         if (selectedEvent) {
-          console.log('🎯 Selected Event Type:', selectedEvent);
-          setMemberInfo(prev => ({
-            ...prev,
-            name: `${prev.name} - ${selectedEvent.title}`,
-          }));
-          
-          setTeamInfo(prev => ({
-             ...prev,
-             description: selectedEvent.description || prev.description
-          }));
-
-          setCustomDuration(selectedEvent.duration);
+          console.log('🎯 Found event type:', selectedEvent);
+          setSelectedEventType(selectedEvent);
+          setStep('calendar-choice');
+        } else {
+          // Event type not found, show selection
+          setStep(activeEventTypes.length > 0 ? 'event-select' : 'calendar-choice');
+        }
+      } else {
+        // No event type specified
+        // If there are multiple event types, show selection
+        // If only one, auto-select it
+        // If none, go directly to calendar choice
+        if (activeEventTypes.length > 1) {
+          setStep('event-select');
+        } else if (activeEventTypes.length === 1) {
+          setSelectedEventType(activeEventTypes[0]);
+          setStep('calendar-choice');
+        } else {
+          setStep('calendar-choice');
         }
       }
 
     } catch (err) {
       console.error('❌ Error loading booking info:', err);
       
-      // --- SINGLE USE LINK ERROR HANDLING ---
-      // Check if backend returns specific status/code for used links
       if (err.response?.status === 410 || err.response?.data?.code === 'LINK_USED') {
         setIsLinkUsed(true);
         setLoading(false);
         return;
       }
-      // --------------------------------------
 
       setError(err.response?.data?.error || 'Invalid booking link');
       setTeamInfo(null);
@@ -157,10 +187,19 @@ export default function BookingPage() {
     }
   };
 
+  // Handle event type selection
+  const handleSelectEventType = (eventType) => {
+    setSelectedEventType(eventType);
+    // Update URL with type parameter
+    setSearchParams({ type: eventType.slug });
+    setStep('calendar-choice');
+  };
+
   const handleCalendarConnect = (provider) => {
+    const redirectUri = `${window.location.origin}/oauth/callback`;
+    
     if (provider === 'google') {
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-      const redirectUri = `${window.location.origin}/oauth/callback`;
       const scope = 'openid email profile https://www.googleapis.com/auth/calendar.readonly';
 
       const params = new URLSearchParams({
@@ -173,11 +212,31 @@ export default function BookingPage() {
         state: `guest-booking:${token}:google`,
       });
       window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    } else if (provider === 'microsoft') {
+      const clientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
+      const scope = 'openid email profile Calendars.Read';
+
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: scope,
+        response_mode: 'query',
+        state: `guest-booking:${token}:microsoft`,
+      });
+      window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
     }
   };
 
   const handleSkipCalendar = () => setStep('form');
   const handleSlotSelected = (slot) => setSelectedSlot(slot);
+
+  // Go back to event selection
+  const handleBackToEventSelect = () => {
+    setSelectedEventType(null);
+    setSearchParams({});
+    setStep('event-select');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -186,15 +245,18 @@ export default function BookingPage() {
     try {
       setSubmitting(true);
       const response = await bookings.create({
-        token, slot: selectedSlot, ...formData
+        token, 
+        slot: selectedSlot, 
+        ...formData,
+        event_type_id: selectedEventType?.id,
+        event_type_slug: selectedEventType?.slug,
       });
       navigateBookingSuccess(response.data.booking);
     } catch (err) {
-        // Handle race condition: Link used while user was filling form
-        if (err.response?.status === 410 || err.response?.data?.code === 'LINK_USED') {
-            setIsLinkUsed(true);
-            return;
-        }
+      if (err.response?.status === 410 || err.response?.data?.code === 'LINK_USED') {
+        setIsLinkUsed(true);
+        return;
+      }
       alert(err.response?.data?.error || 'Failed to create booking.');
     } finally {
       setSubmitting(false);
@@ -202,21 +264,26 @@ export default function BookingPage() {
   };
 
   const navigateBookingSuccess = (booking) => {
-     const bookingData = {
-       id: booking?.id,
-       start_time: selectedSlot.start,
-       end_time: selectedSlot.end,
-       attendee_name: formData.attendee_name,
-       attendee_email: formData.attendee_email,
-       organizer_name: memberInfo?.name,
-       team_name: teamInfo?.name,
-       notes: formData.notes,
-       meet_link: booking?.meet_link || null,
-       booking_token: booking?.booking_token || token,
-     };
-     const dataParam = encodeURIComponent(JSON.stringify(bookingData));
-     navigate(`/booking-confirmation?data=${dataParam}`);
+    const bookingData = {
+      id: booking?.id,
+      start_time: selectedSlot.start,
+      end_time: selectedSlot.end,
+      attendee_name: formData.attendee_name,
+      attendee_email: formData.attendee_email,
+      organizer_name: memberInfo?.name || memberInfo?.user_name,
+      team_name: teamInfo?.name,
+      event_type: selectedEventType?.title || selectedEventType?.name,
+      duration: selectedEventType?.duration,
+      notes: formData.notes,
+      meet_link: booking?.meet_link || null,
+      booking_token: booking?.booking_token || token,
+    };
+    const dataParam = encodeURIComponent(JSON.stringify(bookingData));
+    navigate(`/booking-confirmation?data=${dataParam}`);
   };
+
+  // Get duration from selected event type or default
+  const duration = selectedEventType?.duration || 30;
 
   // --- VIEW 1: LOADING / REDIRECTING ---
   if (loading || redirecting) {
@@ -275,74 +342,235 @@ export default function BookingPage() {
     );
   }
 
-  // --- VIEW 4: MAIN BOOKING INTERFACE ---
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        
-        {/* Header */}
-        <div className="relative bg-white rounded-3xl shadow-xl overflow-hidden mb-6">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-purple-600/5 to-pink-600/5"></div>
-          <div className="relative p-8">
-            <div className="flex items-start gap-6 mb-4">
-              <div className="relative">
-                <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full blur opacity-30"></div>
-                <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
-                  <span className="text-white font-bold text-3xl">
-                    {memberInfo?.name?.[0]?.toUpperCase() || teamInfo?.name?.[0]?.toUpperCase() || 'U'}
-                  </span>
-                </div>
-              </div>
+  // --- HEADER COMPONENT (reused across steps) ---
+  const Header = () => (
+    <div className="relative bg-white rounded-3xl shadow-xl overflow-hidden mb-6">
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-purple-600/5 to-pink-600/5"></div>
+      <div className="relative p-6 md:p-8">
+        <div className="flex items-start gap-4 md:gap-6">
+          <div className="relative flex-shrink-0">
+            <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full blur opacity-30"></div>
+            <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+              <span className="text-white font-bold text-2xl md:text-3xl">
+                {memberInfo?.name?.[0]?.toUpperCase() || memberInfo?.user_name?.[0]?.toUpperCase() || 'U'}
+              </span>
+            </div>
+          </div>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-3xl font-bold text-gray-900 truncate">
-                    {memberInfo?.name || teamInfo?.name || 'Schedule a Meeting'}
-                  </h1>
-                  <div className="bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1.5 flex-shrink-0">
-                    <Clock className="h-4 w-4" />
-                    {customDuration} min
+          <div className="flex-1 min-w-0">
+            {/* Show Event Type if selected */}
+            {selectedEventType ? (
+              <>
+                <div className="flex items-center gap-2 mb-2">
+                  <span 
+                    className="w-3 h-3 rounded-full"
+                    style={{ 
+                      backgroundColor: selectedEventType.color === 'blue' ? '#3B82F6' : 
+                                       selectedEventType.color === 'purple' ? '#8B5CF6' : 
+                                       selectedEventType.color === 'green' ? '#10B981' :
+                                       selectedEventType.color === 'red' ? '#EF4444' :
+                                       selectedEventType.color || '#3B82F6'
+                    }}
+                  />
+                  <span className="text-sm text-gray-500">Event Type</span>
+                </div>
+                <h1 className="text-xl md:text-3xl font-bold text-gray-900 mb-2">
+                  {selectedEventType.title || selectedEventType.name}
+                </h1>
+                <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-3">
+                  <div className="flex items-center gap-1.5 text-gray-600 text-sm">
+                    <User className="h-4 w-4" />
+                    <span>{memberInfo?.name || memberInfo?.user_name}</span>
+                  </div>
+                  <div className="bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-semibold flex items-center gap-1">
+                    <Clock className="h-3 w-3 md:h-4 md:w-4" />
+                    {duration} min
                   </div>
                 </div>
-                <p className="text-gray-600 mb-3">{teamInfo?.name}</p>
-                {teamInfo?.description && <p className="text-gray-700 leading-relaxed">{teamInfo.description}</p>}
-              </div>
+                {selectedEventType.description && (
+                  <p className="text-gray-600 text-sm md:text-base leading-relaxed">{selectedEventType.description}</p>
+                )}
+                {/* Back button to change event type */}
+                {eventTypes.length > 1 && step !== 'event-select' && (
+                  <button
+                    onClick={handleBackToEventSelect}
+                    className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    ← Change event type
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <h1 className="text-xl md:text-3xl font-bold text-gray-900 mb-2">
+                  {memberInfo?.name || memberInfo?.user_name || 'Schedule a Meeting'}
+                </h1>
+                <p className="text-gray-600 text-sm md:text-base mb-2">{teamInfo?.name}</p>
+                {teamInfo?.description && (
+                  <p className="text-gray-600 text-sm md:text-base leading-relaxed">{teamInfo.description}</p>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // --- VIEW 4: EVENT TYPE SELECTION ---
+  if (step === 'event-select') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+        <div className="max-w-3xl mx-auto px-4 py-8">
+          <Header />
+          
+          <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Select a Meeting Type</h2>
+            <p className="text-gray-600 mb-6">Choose the type of meeting you'd like to schedule</p>
+            
+            <div className="space-y-3 md:space-y-4">
+              {eventTypes.map((eventType) => (
+                <button
+                  key={eventType.id}
+                  onClick={() => handleSelectEventType(eventType)}
+                  className="w-full group relative"
+                >
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl opacity-0 group-hover:opacity-20 blur transition-opacity"></div>
+                  <div className="relative bg-white border-2 border-gray-200 rounded-2xl p-4 md:p-5 group-hover:border-blue-400 transition-all flex items-center gap-3 md:gap-4">
+                    {/* Color indicator */}
+                    <div 
+                      className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+                      style={{ 
+                        backgroundColor: eventType.color === 'blue' ? '#EFF6FF' : 
+                                         eventType.color === 'purple' ? '#F5F3FF' : 
+                                         eventType.color === 'green' ? '#F0FDF4' :
+                                         eventType.color === 'red' ? '#FEF2F2' :
+                                         '#F3F4F6'
+                      }}
+                    >
+                      <Clock 
+                        className="h-5 w-5 md:h-6 md:w-6"
+                        style={{ 
+                          color: eventType.color === 'blue' ? '#3B82F6' : 
+                                 eventType.color === 'purple' ? '#8B5CF6' : 
+                                 eventType.color === 'green' ? '#10B981' :
+                                 eventType.color === 'red' ? '#EF4444' :
+                                 '#6B7280'
+                        }}
+                      />
+                    </div>
+                    
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="font-bold text-gray-900 text-base md:text-lg">
+                        {eventType.title || eventType.name}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <span className="text-xs md:text-sm text-gray-500 flex items-center gap-1">
+                          <Clock className="h-3 w-3 md:h-4 md:w-4" />
+                          {eventType.duration} min
+                        </span>
+                        {eventType.description && (
+                          <span className="text-xs md:text-sm text-gray-400 truncate max-w-[150px] md:max-w-[250px]">
+                            • {eventType.description}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <ChevronRight className="h-5 w-5 md:h-6 md:w-6 text-gray-400 group-hover:text-blue-600 transition-colors flex-shrink-0" />
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         </div>
+      </div>
+    );
+  }
 
-        {/* Steps */}
+  // --- VIEW 5: MAIN BOOKING INTERFACE ---
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <Header />
+
+        {/* Calendar Choice Step */}
         {step === 'calendar-choice' && (
           <div className="space-y-6 animate-fadeIn">
-            <div className="bg-white rounded-3xl shadow-xl p-8">
-              <h3 className="text-xl font-bold text-gray-900 mb-6">Choose Connection Method</h3>
-              <div className="space-y-4">
+            <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8">
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Connect Your Calendar</h3>
+              <p className="text-gray-600 mb-6">
+                Sync your calendar to automatically check for conflicts (optional)
+              </p>
+              
+              <div className="space-y-3 md:space-y-4">
+                {/* Google Calendar */}
                 <button onClick={() => handleCalendarConnect('google')} className="w-full group relative">
-                   <div className="absolute -inset-1 bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl opacity-20 group-hover:opacity-30 blur transition-opacity"></div>
-                   <div className="relative bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 rounded-2xl p-5 group-hover:border-green-500 transition-all flex items-center gap-4">
-                      <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow-md">
-                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="h-8 w-8" />
-                      </div>
-                      <div className="flex-1 text-left">
-                        <p className="font-bold text-gray-900 text-lg">Connect Google Calendar</p>
-                        <p className="text-sm text-gray-700">Check conflicts automatically</p>
-                      </div>
-                      <ArrowRight className="h-6 w-6 text-green-600" />
-                   </div>
+                  <div className="absolute -inset-1 bg-gradient-to-r from-red-500 to-yellow-500 rounded-2xl opacity-0 group-hover:opacity-20 blur transition-opacity"></div>
+                  <div className="relative bg-white border-2 border-gray-200 rounded-2xl p-4 md:p-5 group-hover:border-red-300 transition-all flex items-center gap-3 md:gap-4">
+                    <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-xl flex items-center justify-center shadow-md border border-gray-100 flex-shrink-0">
+                      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="h-6 w-6 md:h-8 md:w-8" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-bold text-gray-900 text-base md:text-lg">Google Calendar</p>
+                      <p className="text-xs md:text-sm text-gray-600">Connect to check for conflicts</p>
+                    </div>
+                    <ArrowRight className="h-5 w-5 md:h-6 md:w-6 text-gray-400 group-hover:text-red-500 transition-colors flex-shrink-0" />
+                  </div>
                 </button>
+
+                {/* Microsoft Calendar */}
+                <button onClick={() => handleCalendarConnect('microsoft')} className="w-full group relative">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl opacity-0 group-hover:opacity-20 blur transition-opacity"></div>
+                  <div className="relative bg-white border-2 border-gray-200 rounded-2xl p-4 md:p-5 group-hover:border-blue-400 transition-all flex items-center gap-3 md:gap-4">
+                    <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-xl flex items-center justify-center shadow-md border border-gray-100 flex-shrink-0">
+                      <svg className="h-6 w-6 md:h-8 md:w-8" viewBox="0 0 23 23">
+                        <path fill="#f35325" d="M1 1h10v10H1z"/>
+                        <path fill="#81bc06" d="M12 1h10v10H12z"/>
+                        <path fill="#05a6f0" d="M1 12h10v10H1z"/>
+                        <path fill="#ffba08" d="M12 12h10v10H12z"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-bold text-gray-900 text-base md:text-lg">Microsoft Outlook</p>
+                      <p className="text-xs md:text-sm text-gray-600">Connect to check for conflicts</p>
+                    </div>
+                    <ArrowRight className="h-5 w-5 md:h-6 md:w-6 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0" />
+                  </div>
+                </button>
+
+                {/* Skip option */}
                 <button onClick={handleSkipCalendar} className="w-full group">
-                  <div className="flex items-center justify-center gap-3 p-5 border-2 border-dashed border-gray-300 rounded-2xl hover:border-blue-400 hover:bg-blue-50/50 transition-all">
-                    <span className="font-semibold text-gray-700">Continue without calendar sync</span>
+                  <div className="flex items-center justify-center gap-3 p-4 md:p-5 border-2 border-dashed border-gray-300 rounded-2xl hover:border-blue-400 hover:bg-blue-50/50 transition-all">
+                    <span className="font-semibold text-gray-600 group-hover:text-gray-900 text-sm md:text-base">
+                      Continue without calendar sync
+                    </span>
                   </div>
                 </button>
               </div>
+
+              {/* Connected Calendar Indicator */}
+              {guestCalendar?.signedIn && (
+                <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Calendar className="h-5 w-5 text-green-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-green-900">Calendar Connected</p>
+                      <p className="text-sm text-green-700 truncate">{guestCalendar.email}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
 
+        {/* Booking Form Step */}
         {step === 'form' && (
           <form onSubmit={handleSubmit} className="space-y-6 animate-fadeIn">
-            <div className="bg-white rounded-3xl shadow-xl p-8">
+            <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <Calendar className="h-6 w-6 text-blue-600" /> Select a Time
               </h2>
@@ -350,19 +578,39 @@ export default function BookingPage() {
                 bookingToken={token} 
                 guestCalendar={guestCalendar} 
                 onSlotSelected={handleSlotSelected}
-                duration={customDuration}
+                duration={duration}
               />
             </div>
 
             {selectedSlot && (
-              <div className="bg-white rounded-3xl shadow-xl p-8 animate-slideUp">
+              <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 animate-slideUp">
                 <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                   <User className="h-6 w-6 text-purple-600" /> Your Information
                 </h2>
-                <div className="space-y-5">
-                   <input type="text" required value={formData.attendee_name} onChange={(e) => setFormData({ ...formData, attendee_name: e.target.value })} placeholder="Full Name" className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none" />
-                   <input type="email" required value={formData.attendee_email} onChange={(e) => setFormData({ ...formData, attendee_email: e.target.value })} placeholder="Email Address" className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none" />
-                   <textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows="4" placeholder="Notes (Optional)" className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none" />
+                <div className="space-y-4 md:space-y-5">
+                  <input 
+                    type="text" 
+                    required 
+                    value={formData.attendee_name} 
+                    onChange={(e) => setFormData({ ...formData, attendee_name: e.target.value })} 
+                    placeholder="Full Name" 
+                    className="w-full p-3 md:p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-base" 
+                  />
+                  <input 
+                    type="email" 
+                    required 
+                    value={formData.attendee_email} 
+                    onChange={(e) => setFormData({ ...formData, attendee_email: e.target.value })} 
+                    placeholder="Email Address" 
+                    className="w-full p-3 md:p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-base" 
+                  />
+                  <textarea 
+                    value={formData.notes} 
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })} 
+                    rows="4" 
+                    placeholder="Notes (Optional)" 
+                    className="w-full p-3 md:p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-base" 
+                  />
                 </div>
               </div>
             )}
@@ -370,8 +618,12 @@ export default function BookingPage() {
             {selectedSlot && (
               <div className="relative animate-slideUp">
                 <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-3xl opacity-30 blur-xl"></div>
-                <button type="submit" disabled={submitting} className="relative w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white px-8 py-5 rounded-2xl text-lg font-bold hover:scale-[1.02] transition-all flex items-center justify-center gap-3">
-                   {submitting ? <Loader2 className="h-6 w-6 animate-spin" /> : 'Confirm Booking'}
+                <button 
+                  type="submit" 
+                  disabled={submitting} 
+                  className="relative w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white px-6 md:px-8 py-4 md:py-5 rounded-2xl text-base md:text-lg font-bold hover:scale-[1.02] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:hover:scale-100"
+                >
+                  {submitting ? <Loader2 className="h-5 w-5 md:h-6 md:w-6 animate-spin" /> : 'Confirm Booking'}
                 </button>
               </div>
             )}
