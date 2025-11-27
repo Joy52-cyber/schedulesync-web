@@ -69,6 +69,8 @@ const path = require('path');
 const { google } = require('googleapis');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const axios = require('axios');
+console.log('✅ AXIOS LOADED:', !!axios, 'Version:', axios.VERSION); // ADD THIS
 
 const app = express();
 
