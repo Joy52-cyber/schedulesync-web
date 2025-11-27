@@ -731,6 +731,76 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 
+
+// ============================================
+// PUBLIC EVENT TYPE BOOKING ENDPOINT
+// Add this to server.js BEFORE authentication middleware
+// Place it around line 500-600 with other PUBLIC routes
+// ============================================
+
+app.get('/api/public/booking/:username/:eventSlug', async (req, res) => {
+  try {
+    const { username, eventSlug } = req.params;
+    console.log(`📅 Public Event Type request: ${username}/${eventSlug}`);
+
+    // Find user by username or email prefix
+    const userResult = await pool.query(
+      `SELECT id, name, email, username 
+       FROM users 
+       WHERE LOWER(username) = LOWER($1) 
+          OR LOWER(email) LIKE LOWER($2)
+       LIMIT 1`,
+      [username, `${username}%`]
+    );
+
+    if (userResult.rows.length === 0) {
+      console.log(`❌ User not found: ${username}`);
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const host = userResult.rows[0];
+
+    // Find active event type by slug
+    const eventResult = await pool.query(
+      `SELECT id, title, duration, description, color, slug, is_active
+       FROM event_types 
+       WHERE user_id = $1 
+         AND LOWER(slug) = LOWER($2) 
+         AND is_active = true`,
+      [host.id, eventSlug]
+    );
+
+    if (eventResult.rows.length === 0) {
+      console.log(`❌ Event type not found or inactive: ${eventSlug}`);
+      return res.status(404).json({ error: 'Event type not found or inactive' });
+    }
+
+    const eventType = eventResult.rows[0];
+
+    console.log(`✅ Event Type found: ${eventType.title} (${eventType.duration}min)`);
+
+    res.json({
+      success: true,
+      host: {
+        name: host.name,
+        email: host.email,
+        username: host.username || host.email.split('@')[0],
+      },
+      eventType: {
+        id: eventType.id,
+        title: eventType.title,
+        duration: eventType.duration,
+        description: eventType.description,
+        color: eventType.color,
+        slug: eventType.slug,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Error fetching Event Type booking info:', error);
+    res.status(500).json({ error: 'Failed to load event information' });
+  }
+});
+
 // ============ AUTHENTICATION MIDDLEWARE ============
 
 const authenticateToken = (req, res, next) => {

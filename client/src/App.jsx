@@ -1,4 +1,5 @@
-﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+﻿// client/src/App.jsx
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 
@@ -20,6 +21,8 @@ import AdminPanel from './pages/AdminPanel';
 import Dashboard from './pages/Dashboard';
 import Bookings from './pages/Bookings';
 import EventTypes from './pages/EventTypes';
+import EventTypeForm from './pages/EventTypeForm';      // ✅ NEW
+import EventTypeDetail from './pages/EventTypeDetail';  // ✅ NEW
 import Availability from './pages/Availability';
 
 // Team
@@ -39,54 +42,40 @@ import PaymentStatus from './pages/PaymentStatus';
 import Book from './pages/Book';
 import BookingConfirmation from './components/BookingConfirmation';
 
-// Wrap any page that needs to call onLogin (Login/OAuth)
+// ======================
+// Login Wrapper
+// ======================
 function LoginWrapper({ Component }) {
   const { login } = useAuth();
-  
+
   const handleLogin = (token, user) => {
-    // Save to localStorage
-    if (token) {
-      localStorage.setItem('token', token);
-    }
-    if (user) {
-      localStorage.setItem('user', JSON.stringify(user));
-    }
-    
-    // Update auth context
     login(token, user);
-    
-    // ✅ ROUTING LOGIC: Check if onboarding is needed
-    if (user.onboarding_completed) {
-      // Existing user → Dashboard
-      console.log('✅ Existing user - Redirecting to dashboard');
-      window.location.href = '/dashboard';
-    } else {
-      // New user → Onboarding first
-      console.log('🆕 New user - Redirecting to onboarding');
-      window.location.href = '/onboarding';
-    }
+    // Hard redirect so everything (contexts, etc.) sees the new auth state
+    window.location.href = '/dashboard';
   };
-  
+
   return <Component onLogin={handleLogin} />;
 }
 
+// ======================
+// Main App Component
+// ======================
 function App() {
   return (
     <Router>
-      {/* ✅ FIX: NotificationProvider MUST be the outer wrapper */}
-      <NotificationProvider>
-        {/* AuthProvider is now a CHILD of NotificationProvider, so it can use notifications */}
-        <AuthProvider>
+      <AuthProvider>
+        <NotificationProvider>
           <Routes>
-            {/* Marketing / Auth entry points */}
+            {/* Marketing / Auth */}
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Landing defaultLoginOpen />} />
             <Route path="/register" element={<LoginWrapper Component={Register} />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            {/* Keep :token if your ResetPassword page expects it */}
             <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
 
-            {/* OAuth callbacks (Google / Microsoft / Calendly) */}
+            {/* OAuth Callbacks (Google / Microsoft / Calendly) */}
             <Route
               path="/oauth/callback"
               element={<LoginWrapper Component={OAuthCallback} />}
@@ -120,14 +109,14 @@ function App() {
               }
             />
 
-            {/* Public guest routes */}
+            {/* Public Guest Routes */}
             <Route path="/book/:token" element={<BookingPage />} />
             <Route path="/book" element={<Book />} />
             <Route path="/manage/:token" element={<ManageBooking />} />
             <Route path="/payment/status" element={<PaymentStatus />} />
             <Route path="/booking-success" element={<BookingConfirmation />} />
 
-            {/* Protected app layout (Navbar / sidebar inside Layout) */}
+            {/* Protected App Layout (keeps Navbar / sidebar from Layout.jsx) */}
             <Route
               element={
                 <ProtectedRoute>
@@ -138,12 +127,12 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/bookings" element={<Bookings />} />
               <Route path="/availability" element={<Availability />} />
-
-              {/* Event types */}
+              
+              {/* ✅ Event Types - UPDATED WITH NEW ROUTES */}
               <Route path="/events" element={<EventTypes />} />
-              <Route path="/events/new" element={<EventTypes />} />
-              <Route path="/events/:eventId" element={<EventTypes />} />
-              <Route path="/events/:eventId/edit" element={<EventTypes />} />
+              <Route path="/events/new" element={<EventTypeForm />} />
+              <Route path="/events/:id" element={<EventTypeDetail />} />
+              <Route path="/events/:id/edit" element={<EventTypeForm />} />
 
               {/* Teams */}
               <Route path="/teams" element={<Teams />} />
@@ -162,8 +151,8 @@ function App() {
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </AuthProvider>
-      </NotificationProvider>
+        </NotificationProvider>
+      </AuthProvider>
     </Router>
   );
 }

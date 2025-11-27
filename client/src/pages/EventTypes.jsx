@@ -1,7 +1,7 @@
-﻿// client/src/pages/EventTypes.jsx - FIXED VERSION (no AuthContext)
+﻿// client/src/pages/EventTypes.jsx - RESPONSIVE VERSION
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Clock, Check, X, ChevronDown, Link, Copy, CheckCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Clock, Check, X, ChevronDown, Link, Copy, CheckCircle, MoreVertical } from 'lucide-react';
 import api from '../utils/api';
 
 export default function EventTypes() {
@@ -13,6 +13,7 @@ export default function EventTypes() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState(null);
 
   // Get user from localStorage
   const getUserInfo = () => {
@@ -121,6 +122,7 @@ export default function EventTypes() {
     try {
       await api.eventTypes.delete(id);
       console.log('✅ Event type deleted');
+      setOpenMenuId(null);
       loadEventTypes();
     } catch (err) {
       console.error('❌ Failed to delete event type:', err);
@@ -134,6 +136,7 @@ export default function EventTypes() {
         is_active: !eventType.is_active,
       });
       console.log('✅ Event type toggled');
+      setOpenMenuId(null);
       loadEventTypes();
     } catch (err) {
       console.error('❌ Failed to toggle event type:', err);
@@ -150,6 +153,7 @@ export default function EventTypes() {
       color: eventType.color,
       slug: eventType.slug,
     });
+    setOpenMenuId(null);
     setShowModal(true);
   };
 
@@ -180,27 +184,27 @@ export default function EventTypes() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
+    <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Event Types</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Event Types</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">
             Create meeting types with different durations
           </p>
         </div>
         <button
           onClick={openCreateModal}
-          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
         >
           <Plus className="h-5 w-5" />
-          New Event Type
+          <span>New Event Type</span>
         </button>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
           {error}
         </div>
       )}
@@ -213,7 +217,7 @@ export default function EventTypes() {
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               No event types yet
             </h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-gray-600 mb-4 text-sm px-4">
               Create your first event type to get started
             </p>
             <button
@@ -234,78 +238,135 @@ export default function EventTypes() {
             return (
               <div
                 key={eventType.id}
-                className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow"
+                className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 hover:shadow-md transition-shadow"
               >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-4 flex-1">
+                {/* Header Row */}
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
                     {/* Color Badge */}
-                    <div className={`px-3 py-1.5 rounded-lg ${colorConfig.lightClass} border font-medium text-sm`}>
+                    <div className={`px-3 py-1.5 rounded-lg ${colorConfig.lightClass} border font-medium text-sm flex-shrink-0`}>
                       {eventType.duration}m
                     </div>
 
                     {/* Details */}
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <h3 className="text-lg font-semibold text-gray-900">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-900 break-words">
                           {eventType.title}
                         </h3>
                         {!eventType.is_active && (
-                          <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+                          <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded whitespace-nowrap">
                             Inactive
                           </span>
                         )}
                       </div>
                       {eventType.description && (
-                        <p className="text-sm text-gray-600 mt-1">
+                        <p className="text-sm text-gray-600 mt-1 break-words">
                           {eventType.description}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleToggleActive(eventType)}
-                      className={`p-2 rounded-lg transition-colors ${
-                        eventType.is_active
-                          ? 'text-green-600 hover:bg-green-50'
-                          : 'text-gray-400 hover:bg-gray-50'
-                      }`}
-                      title={eventType.is_active ? 'Active' : 'Inactive'}
-                    >
-                      {eventType.is_active ? (
-                        <Check className="h-5 w-5" />
-                      ) : (
-                        <X className="h-5 w-5" />
+                  {/* Actions - Responsive */}
+                  <div className="relative flex-shrink-0">
+                    {/* Mobile: Dropdown Menu */}
+                    <div className="sm:hidden">
+                      <button
+                        onClick={() => setOpenMenuId(openMenuId === eventType.id ? null : eventType.id)}
+                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                      >
+                        <MoreVertical className="h-5 w-5" />
+                      </button>
+                      
+                      {openMenuId === eventType.id && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-10" 
+                            onClick={() => setOpenMenuId(null)}
+                          />
+                          <div className="absolute right-0 top-10 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[160px]">
+                            <button
+                              onClick={() => handleToggleActive(eventType)}
+                              className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                            >
+                              {eventType.is_active ? (
+                                <>
+                                  <X className="h-4 w-4" />
+                                  Set Inactive
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="h-4 w-4" />
+                                  Set Active
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => openEditModal(eventType)}
+                              className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-blue-600"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(eventType.id)}
+                              className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </button>
+                          </div>
+                        </>
                       )}
-                    </button>
-                    <button
-                      onClick={() => openEditModal(eventType)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                    >
-                      <Edit2 className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(eventType.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
+                    </div>
+
+                    {/* Desktop: Icon Buttons */}
+                    <div className="hidden sm:flex items-center gap-2">
+                      <button
+                        onClick={() => handleToggleActive(eventType)}
+                        className={`p-2 rounded-lg transition-colors ${
+                          eventType.is_active
+                            ? 'text-green-600 hover:bg-green-50'
+                            : 'text-gray-400 hover:bg-gray-50'
+                        }`}
+                        title={eventType.is_active ? 'Active' : 'Inactive'}
+                      >
+                        {eventType.is_active ? (
+                          <Check className="h-5 w-5" />
+                        ) : (
+                          <X className="h-5 w-5" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => openEditModal(eventType)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Edit"
+                      >
+                        <Edit2 className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(eventType.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* Booking URL - Copyable */}
                 <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
                   <Link className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                  <code className="text-sm text-gray-700 flex-1 truncate">
+                  <code className="text-xs sm:text-sm text-gray-700 flex-1 truncate">
                     {bookingURL}
                   </code>
                   <button
                     onClick={async () => {
                       await navigator.clipboard.writeText(bookingURL);
                     }}
-                    className="p-1.5 text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                    className="p-1.5 text-gray-600 hover:bg-gray-200 rounded transition-colors flex-shrink-0"
                     title="Copy URL"
                   >
                     <Copy className="h-4 w-4" />
@@ -326,7 +387,7 @@ export default function EventTypes() {
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Title & Duration - Side by side */}
+              {/* Title & Duration */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
@@ -368,7 +429,7 @@ export default function EventTypes() {
                 </div>
               </div>
 
-              {/* URL Preview - FULL URL WITH COPY BUTTON */}
+              {/* URL Preview */}
               {formData.title && (
                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
                   <div className="flex items-start gap-2 mb-2">
@@ -399,7 +460,7 @@ export default function EventTypes() {
                 </div>
               )}
 
-              {/* Color - Compact */}
+              {/* Color */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                   Color
@@ -426,7 +487,7 @@ export default function EventTypes() {
                 </p>
               </div>
 
-              {/* Description - Optional */}
+              {/* Description */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                   Description <span className="text-gray-400 font-normal">(optional)</span>
@@ -442,7 +503,7 @@ export default function EventTypes() {
                 />
               </div>
 
-              {/* Advanced Options - Collapsible */}
+              {/* Advanced Options */}
               <div>
                 <button
                   type="button"
