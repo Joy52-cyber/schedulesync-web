@@ -15,38 +15,57 @@ import {
   ToggleLeft,
   ToggleRight
 } from 'lucide-react';
-import { events, auth } from '../utils/api';
+import { events, auth, teams } from '../utils/api';
 
 export default function EventTypes() {
   const navigate = useNavigate();
   const [eventTypesList, setEventTypesList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [bookingToken, setBookingToken] = useState(null);
 
   useEffect(() => {
-    loadEventTypes();
-    loadUser();
+    loadData();
   }, []);
 
-  const loadUser = async () => {
-    try {
-      const response = await auth.me();
-      setUser(response.data.user || response.data);
-    } catch (error) {
-      console.error('Failed to load user:', error);
-    }
-  };
-
-  const loadEventTypes = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const response = await events.getAll();
-      console.log('📦 Event Types Response:', response.data);
-      const data = response.data;
-      const list = data.event_types || data.eventTypes || data.data || data || [];
+      // Load user, event types, and booking token in parallel
+      const [userRes, eventsRes, teamsRes] = await Promise.all([
+        auth.me(),
+        events.getAll(),
+        teams.getAll()
+      ]);
+
+      const userData = userRes.data.user || userRes.data;
+      setUser(userData);
+
+      // Get event types
+      const eventsData = eventsRes.data;
+      const list = eventsData.event_types || eventsData.eventTypes || eventsData.data || eventsData || [];
       setEventTypesList(Array.isArray(list) ? list : []);
+
+      // Find user's booking token from their personal team
+      const teamsData = teamsRes.data.teams || teamsRes.data || [];
+      if (teamsData.length > 0) {
+        // Get first team (personal team)
+        const personalTeam = teamsData[0];
+        try {
+          const membersRes = await teams.getMembers(personalTeam.id);
+          const members = membersRes.data.members || membersRes.data || [];
+          // Find current user's member record
+          const myMember = members.find(m => m.user_id === userData.id);
+          if (myMember?.booking_token) {
+            setBookingToken(myMember.booking_token);
+            console.log('✅ Found booking token:', myMember.booking_token);
+          }
+        } catch (err) {
+          console.error('Failed to load team members:', err);
+        }
+      }
     } catch (error) {
-      console.error('Failed to load event types:', error);
+      console.error('Failed to load data:', error);
     } finally {
       setLoading(false);
     }
@@ -64,15 +83,21 @@ export default function EventTypes() {
     }
   };
 
-  // ✅ FIXED: Correct URL format /book/:username/:eventSlug
+  // ✅ FIXED: Correct URL format /book/{booking_token}?type={event_slug}
   const getBookingLink = (event) => {
-    const username = user?.username || user?.name?.toLowerCase().replace(/\s+/g, '') || 'user';
-    const eventSlug = event.slug || event.name?.toLowerCase().replace(/\s+/g, '-') || event.id;
-    return `${window.location.origin}/book/${username}/${eventSlug}`;
+    if (!bookingToken) {
+      return null; // Can't generate link without booking token
+    }
+    // Use event.slug directly (API returns slug)
+    return `${window.location.origin}/book/${bookingToken}?type=${event.slug}`;
   };
 
   const copyBookingLink = (event) => {
     const link = getBookingLink(event);
+    if (!link) {
+      alert('⚠️ Could not generate booking link. Please try refreshing the page.');
+      return;
+    }
     navigator.clipboard.writeText(link);
     alert('✅ Booking link copied!\n\nShare this link with clients to let them book.');
   };
@@ -145,12 +170,32 @@ export default function EventTypes() {
               <div className="mb-4">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="text-lg font-bold text-gray-900 flex-1 min-w-0">
-                    {event.name}
+                    {event.title || event.name}
                   </h3>
+                  {/* Color indicator */}
+                  {event.color && (
+                    <span 
+                      className="w-3 h-3 rounded-full flex-shrink-0 mt-2"
+                      style={{ 
+                        backgroundColor: event.color === 'blue' ? '#3B82F6' : 
+                                         event.color === 'purple' ? '#8B5CF6' : 
+                                         event.color === 'green' ? '#10B981' :
+                                         event.color === 'red' ? '#EF4444' :
+                                         event.color 
+                      }}
+                    />
+                  )}
                 </div>
                 {event.description && (
                   <p className="text-sm text-gray-600 line-clamp-2 mt-1">
                     {event.description}
+                  </p>
+                )}
+                
+                {/* Slug indicator */}
+                {event.slug && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    /{event.slug}
                   </p>
                 )}
                 
