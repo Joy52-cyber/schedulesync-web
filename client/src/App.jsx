@@ -110,6 +110,7 @@ function App() {
             />
 
             {/* Public Guest Routes */}
+            <Route path="/book/:username/:eventSlug" element={<BookingPage />} />
             <Route path="/book/:token" element={<BookingPage />} />
             <Route path="/book" element={<Book />} />
             <Route path="/manage/:token" element={<ManageBooking />} />

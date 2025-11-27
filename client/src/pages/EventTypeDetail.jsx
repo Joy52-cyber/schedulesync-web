@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   Clock,
@@ -20,15 +20,21 @@ import { events, auth } from '../utils/api';
 
 export default function EventTypeDetail() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
-  const [event, setEvent] = useState(null);
+  
+  // ✅ FIXED: Get event from navigation state (no API call needed)
+  const [event, setEvent] = useState(location.state?.event || null);
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!location.state?.event);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    loadEventType();
     loadUser();
+    // Only fetch if we don't have event data from navigation state
+    if (!location.state?.event) {
+      loadEventTypeFromList();
+    }
   }, [id]);
 
   const loadUser = async () => {
@@ -40,12 +46,19 @@ export default function EventTypeDetail() {
     }
   };
 
-  const loadEventType = async () => {
+  // ✅ FIXED: Load from list instead of non-existent single endpoint
+  const loadEventTypeFromList = async () => {
     setLoading(true);
     try {
-      const response = await events.get(id);
-      const eventData = response.data.event_type || response.data.eventType || response.data;
-      setEvent(eventData);
+      const response = await events.getAll();
+      const list = response.data.event_types || response.data.eventTypes || response.data || [];
+      const found = list.find(e => String(e.id) === String(id));
+      if (found) {
+        setEvent(found);
+      } else {
+        alert('Event type not found');
+        navigate('/events');
+      }
     } catch (error) {
       console.error('Failed to load event type:', error);
       alert('Failed to load event type');

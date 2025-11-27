@@ -74,7 +74,7 @@ export default function EventTypes() {
   const copyBookingLink = (event) => {
     const link = getBookingLink(event);
     navigator.clipboard.writeText(link);
-    alert('Booking link copied!');
+    alert('✅ Booking link copied!\n\nShare this link with clients to let them book.');
   };
 
   const handleDelete = async (id) => {
@@ -159,26 +159,26 @@ export default function EventTypes() {
                   <button
                     onClick={() => copyBookingLink(event)}
                     className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                    title="Copy booking link"
+                    title="Copy booking page URL to share with clients"
                   >
                     <Copy className="h-3 w-3" />
-                    <span className="hidden sm:inline">Copy</span>
+                    <span>Copy Link</span>
                   </button>
                   <button
-                    onClick={() => navigate(`/events/${event.id}/edit`)}
+                    onClick={() => navigate(`/events/${event.id}/edit`, { state: { event } })}
                     className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                    title="Edit"
+                    title="Edit event type"
                   >
                     <Edit className="h-3 w-3" />
-                    <span className="hidden sm:inline">Edit</span>
+                    <span>Edit</span>
                   </button>
                   <button
                     onClick={() => handleDelete(event.id)}
                     className="flex items-center gap-1 px-2 py-1 text-xs text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                    title="Delete"
+                    title="Delete event type"
                   >
                     <Trash2 className="h-3 w-3" />
-                    <span className="hidden sm:inline">Delete</span>
+                    <span>Delete</span>
                   </button>
                 </div>
               </div>
@@ -231,7 +231,7 @@ export default function EventTypes() {
                     {event.is_active ? 'Active' : 'Inactive'}
                   </button>
                   <button
-                    onClick={() => navigate(`/events/${event.id}`)}
+                    onClick={() => navigate(`/events/${event.id}`, { state: { event } })}
                     className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                   >
                     View Details →

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+﻿import { useState, useEffect } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   Clock,
@@ -15,6 +15,7 @@ import { events } from '../utils/api';
 
 export default function EventTypeForm() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
   const isEditing = Boolean(id);
 
@@ -31,23 +32,44 @@ export default function EventTypeForm() {
 
   useEffect(() => {
     if (isEditing) {
-      loadEventType();
+      // Try to get from navigation state first
+      if (location.state?.event) {
+        const event = location.state.event;
+        setFormData({
+          name: event.name || '',
+          description: event.description || '',
+          duration: event.duration || 30,
+          price: event.price || 0,
+          location: event.location || '',
+          is_active: event.is_active !== false
+        });
+      } else {
+        loadEventTypeFromList();
+      }
     }
   }, [id]);
 
-  const loadEventType = async () => {
+  // ✅ FIXED: Load from list instead of non-existent single endpoint
+  const loadEventTypeFromList = async () => {
     setLoading(true);
     try {
-      const response = await events.get(id);
-      const event = response.data.event_type || response.data.eventType || response.data;
-      setFormData({
-        name: event.name || '',
-        description: event.description || '',
-        duration: event.duration || 30,
-        price: event.price || 0,
-        location: event.location || '',
-        is_active: event.is_active !== false
-      });
+      const response = await events.getAll();
+      const list = response.data.event_types || response.data.eventTypes || response.data || [];
+      const event = list.find(e => String(e.id) === String(id));
+      
+      if (event) {
+        setFormData({
+          name: event.name || '',
+          description: event.description || '',
+          duration: event.duration || 30,
+          price: event.price || 0,
+          location: event.location || '',
+          is_active: event.is_active !== false
+        });
+      } else {
+        alert('Event type not found');
+        navigate('/events');
+      }
     } catch (error) {
       console.error('Failed to load event type:', error);
       alert('Failed to load event type');
