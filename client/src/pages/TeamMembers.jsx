@@ -17,6 +17,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import api, { teams } from '../utils/api';
+import TeamMemberEditModal from '../components/TeamMemberEditModal';
 export default function TeamMembers() {
   const { teamId } = useParams();
   const navigate = useNavigate();
