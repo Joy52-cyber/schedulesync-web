@@ -116,6 +116,8 @@ function App() {
             <Route path="/manage/:token" element={<ManageBooking />} />
             <Route path="/payment/status" element={<PaymentStatus />} />
             <Route path="/booking-success" element={<BookingConfirmation />} />
+            <Route path="/booking-confirmation" element={<BookingConfirmation />} />
+
 
             {/* Protected App Layout (keeps Navbar / sidebar from Layout.jsx) */}
             <Route
