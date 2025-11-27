@@ -996,20 +996,42 @@ app.get('/api/auth/microsoft/url', (req, res) => {
   }
 });
 
-// ============================================
-// STEP 3: UPDATE MICROSOFT CALLBACK
-// ============================================
-
-   // In server.js, ensure Microsoft callback returns onboarding_completed:
+// ============ MICROSOFT OAUTH CALLBACK ============
 app.post('/api/auth/microsoft/callback', async (req, res) => {
   try {
     const { code } = req.body;
+    
+    console.log('🔵 Microsoft OAuth callback received');
+    
+    if (!code) {
+      console.error('❌ No authorization code provided');
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
 
-    // ✅ ADD THIS LINE - Define redirectUri
+    console.log('🔵 Code received:', code.substring(0, 20) + '...');
+
+    // CRITICAL: Check if code was already processed
+    if (processedOAuthCodes.has(code)) {
+      console.log('⚠️ Code already processed, rejecting duplicate request');
+      return res.status(400).json({ 
+        error: 'Code already used',
+        hint: 'This authorization code has already been exchanged. Please try logging in again.'
+      });
+    }
+
+    // Mark code as being processed IMMEDIATELY
+    processedOAuthCodes.set(code, Date.now());
+    console.log('🔒 Code locked for processing');
+
+    // Define redirectUri
     const redirectUri = process.env.MICROSOFT_REDIRECT_URI || 
       `${process.env.FRONTEND_URL}/oauth/callback/microsoft`;
     
-    // Exchange code for tokens...
+    console.log('🔵 Redirect URI:', redirectUri);
+    console.log('🔵 Client ID:', process.env.MICROSOFT_CLIENT_ID);
+    
+    // Exchange code for tokens
+    console.log('📡 Exchanging code for tokens...');
     const tokenResponse = await axios.post(
       'https://login.microsoftonline.com/common/oauth2/v2.0/token',
       new URLSearchParams({
@@ -1018,48 +1040,85 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
         code: code,
         redirect_uri: redirectUri,
         grant_type: 'authorization_code',
-      })
+      }),
+      {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      }
     );
 
+    console.log('✅ Tokens received');
     const { access_token, refresh_token } = tokenResponse.data;
 
-    // Get user info...
+    // Get user info
+    console.log('📡 Getting Microsoft user info...');
     const userResponse = await axios.get('https://graph.microsoft.com/v1.0/me', {
       headers: { Authorization: `Bearer ${access_token}` }
     });
 
     const microsoftUser = userResponse.data;
     const email = microsoftUser.mail || microsoftUser.userPrincipalName;
+    const microsoftId = microsoftUser.id;
+
+    console.log('✅ User info retrieved:', email);
 
     // Check if user exists
     let user = await pool.query(
       'SELECT * FROM users WHERE microsoft_id = $1 OR email = $2',
-      [microsoftUser.id, email]
+      [microsoftId, email]
     );
 
     if (user.rows.length === 0) {
       // NEW USER - First login
+      console.log('➕ Creating new Microsoft user');
       user = await pool.query(
         `INSERT INTO users (
           email, name, microsoft_id, microsoft_access_token, 
-          microsoft_refresh_token, provider, onboarding_completed
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [email, microsoftUser.displayName, microsoftUser.id, 
-         access_token, refresh_token, 'microsoft', false]  // ✅ false = needs onboarding
+          microsoft_refresh_token, provider, onboarding_completed, calendar_sync_enabled
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [
+          email, 
+          microsoftUser.displayName, 
+          microsoftId, 
+          access_token, 
+          refresh_token, 
+          'microsoft',
+          false,  // ✅ false = needs onboarding
+          true    // Microsoft users get calendar sync enabled
+        ]
       );
+      console.log('✅ New user created:', user.rows[0].id);
     } else {
       // EXISTING USER - Second+ login
+      console.log('🔄 Updating existing Microsoft user');
       user = await pool.query(
         `UPDATE users SET 
-          microsoft_access_token = $1, 
-          microsoft_refresh_token = $2 
-        WHERE id = $3 RETURNING *`,
-        [access_token, refresh_token, user.rows[0].id]
+          microsoft_id = $1,
+          microsoft_access_token = $2, 
+          microsoft_refresh_token = $3,
+          provider = $4,
+          calendar_sync_enabled = true
+        WHERE id = $5 RETURNING *`,
+        [microsoftId, access_token, refresh_token, 'microsoft', user.rows[0].id]
       );
+      console.log('✅ User updated:', user.rows[0].id);
     }
 
+    // Link any pending team memberships
+    await pool.query(
+      'UPDATE team_members SET user_id = $1 WHERE email = $2 AND user_id IS NULL',
+      [user.rows[0].id, email]
+    );
+
     const finalUser = user.rows[0];
-    const jwtToken = jwt.sign({ id: finalUser.id }, JWT_SECRET, { expiresIn: '7d' });
+    
+    // Generate JWT token
+    const jwtToken = jwt.sign(
+      { id: finalUser.id, email: finalUser.email, name: finalUser.name },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    console.log('✅ Microsoft OAuth successful for:', email);
 
     // ✅ RETURN onboarding_completed
     res.json({
@@ -1073,9 +1132,28 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
       },
       token: jwtToken,
     });
+
   } catch (error) {
-    console.error('Microsoft OAuth error:', error);
-    res.status(500).json({ error: 'Microsoft OAuth failed' });
+    console.error('❌ Microsoft OAuth error:', error.message);
+    console.error('❌ Error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      code: error.code
+    });
+    
+    // Remove code from processed map on error so user can retry
+    if (req.body.code) {
+      processedOAuthCodes.delete(req.body.code);
+      console.log('🔓 Code unlocked for retry');
+    }
+
+    // Send detailed error for debugging
+    res.status(500).json({ 
+      error: 'Microsoft OAuth failed',
+      message: error.response?.data?.error_description || error.message,
+      details: error.response?.data
+    });
   }
 });
 
