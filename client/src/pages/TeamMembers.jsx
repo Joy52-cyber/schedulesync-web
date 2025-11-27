@@ -15,9 +15,11 @@ import {
   Settings,
   Copy,
   ExternalLink,
+  Link2,
 } from 'lucide-react';
 import api, { teams } from '../utils/api';
 import TeamMemberEditModal from '../components/TeamMemberEditModal';
+
 export default function TeamMembers() {
   const { teamId } = useParams();
   const navigate = useNavigate();
@@ -32,13 +34,10 @@ export default function TeamMembers() {
     email: '',
     name: '',
     role: 'member',
-    external_booking_link: '',
-    external_booking_platform: 'calendly',
   });
 
   useEffect(() => {
     loadTeamMembers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
   const loadTeamMembers = async () => {
@@ -69,35 +68,19 @@ export default function TeamMembers() {
     }
 
     try {
-      const payload = {
+      const response = await api.post(`/teams/${teamId}/members`, {
         email: newMember.email,
         name: newMember.name || null,
         role: newMember.role,
-        external_booking_link: newMember.external_booking_link || null,
-        external_booking_platform:
-          newMember.external_booking_platform || 'calendly',
-      };
-
-      const response = await api.post(`/teams/${teamId}/members`, payload);
+      });
 
       setMembers((prev) => [...prev, response.data.member]);
       setShowAddModal(false);
-
-      // Reset form
-      setNewMember({
-        email: '',
-        name: '',
-        role: 'member',
-        external_booking_link: '',
-        external_booking_platform: 'calendly',
-      });
-
+      setNewMember({ email: '', name: '', role: 'member' });
       alert('Member added successfully!');
     } catch (error) {
       console.error('Error adding member:', error);
-      const errorMessage =
-        error.response?.data?.error || 'Failed to add member';
-
+      const errorMessage = error.response?.data?.error || 'Failed to add member';
       if (errorMessage.includes('already exists')) {
         alert('⚠️ This member already exists in the team!');
       } else {
@@ -139,7 +122,6 @@ export default function TeamMembers() {
   };
 
   const handleSaveMember = (updatedMember) => {
-    // Update the member in the local state
     setMembers(members.map(m => 
       m.id === updatedMember.id ? { ...m, ...updatedMember } : m
     ));
@@ -171,20 +153,20 @@ export default function TeamMembers() {
                 Team Members
               </h1>
               <p className="text-gray-600">
-                {team?.name || 'Team'} - Manage your team members
+                {team?.name || 'Team'} • Manage your team members
               </p>
             </div>
             <div className="flex gap-3">
               <button
                 onClick={() => navigate(`/teams/${teamId}/settings`)}
-                className="bg-white border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-xl hover:bg-gray-50 transition-all flex items-center gap-2 font-semibold"
+                className="bg-white border-2 border-gray-300 text-gray-700 px-5 py-2.5 rounded-xl hover:bg-gray-50 transition-all flex items-center gap-2 font-semibold"
               >
                 <Settings className="h-5 w-5" />
-                Team Settings
+                <span className="hidden sm:inline">Team Settings</span>
               </button>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 font-semibold"
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-5 py-2.5 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 font-semibold"
               >
                 <Plus className="h-5 w-5" />
                 Add Member
@@ -216,15 +198,13 @@ export default function TeamMembers() {
             {members.map((member) => (
               <div
                 key={member.id}
-                className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all border-2 border-gray-100 overflow-hidden"
+                className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow border-2 border-gray-100 h-[420px] flex flex-col"
               >
-                <div className="p-6">
-                  {/* Basic info */}
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-xl">
-                      {member.user_name?.charAt(0) ||
-                        member.name?.charAt(0) ||
-                        'U'}
+                {/* Card Header */}
+                <div className="p-5 border-b border-gray-100">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+                      {member.user_name?.charAt(0) || member.name?.charAt(0) || 'U'}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
@@ -235,104 +215,94 @@ export default function TeamMembers() {
                           <Crown className="h-4 w-4 text-yellow-500 flex-shrink-0" />
                         )}
                       </div>
-                      <p className="text-sm text-gray-600 truncate">
+                      <p className="text-sm text-gray-500 truncate">
                         {member.user_email || member.email}
                       </p>
                     </div>
                   </div>
+                </div>
 
+                {/* Card Body */}
+                <div className="p-5 flex-1 flex flex-col">
                   {/* Status badges */}
-                  <div className="flex items-center gap-2 mb-4 flex-wrap">
+                  <div className="flex items-center gap-2 mb-4 flex-wrap h-8">
                     {member.is_active ? (
-                      <span className="flex items-center gap-1 bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-semibold">
+                      <span className="flex items-center gap-1 bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-xs font-semibold">
                         <CheckCircle className="h-3 w-3" />
                         Active
                       </span>
                     ) : (
-                      <span className="flex items-center gap-1 bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-xs font-semibold">
+                      <span className="flex items-center gap-1 bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full text-xs font-semibold">
                         <XCircle className="h-3 w-3" />
                         Inactive
                       </span>
                     )}
-                    <span className="flex items-center gap-1 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
+                    <span className="flex items-center gap-1 bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full text-xs font-semibold capitalize">
                       <Shield className="h-3 w-3" />
                       {member.role || 'member'}
                     </span>
-                    {/* External booking indicator */}
                     {member.external_booking_link && (
-                      <span className="flex items-center gap-1 bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-semibold">
+                      <span className="flex items-center gap-1 bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full text-xs font-semibold capitalize">
                         <ExternalLink className="h-3 w-3" />
                         {member.external_booking_platform || 'External'}
                       </span>
                     )}
                   </div>
 
-                  {/* Stats */}
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div className="text-center p-3 bg-gray-50 rounded-lg">
-                      <p className="text-2xl font-bold text-gray-900">
+                  {/* Stats Row */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="text-center p-3 bg-gray-50 rounded-xl">
+                      <p className="text-xl font-bold text-gray-900">
                         {member.booking_count || 0}
                       </p>
-                      <p className="text-xs text-gray-600">Bookings</p>
+                      <p className="text-xs text-gray-500">Bookings</p>
                     </div>
-                    <div className="text-center p-3 bg-gray-50 rounded-lg">
-                      <p className="text-2xl font-bold text-gray-900">
+                    <div className="text-center p-3 bg-gray-50 rounded-xl">
+                      <p className="text-xl font-bold text-gray-900">
                         {member.priority || 1}
                       </p>
-                      <p className="text-xs text-gray-600">Priority</p>
+                      <p className="text-xs text-gray-500">Priority</p>
                     </div>
                   </div>
 
-                  {/* Booking link */}
-                  {member.booking_token && !member.external_booking_link && (
-                    <div className="mb-4 p-3 bg-blue-50 rounded-xl border-2 border-blue-200">
-                      <div className="flex items-center justify-between mb-2 gap-2">
-                        <p className="text-xs font-semibold text-blue-900">
-                          Booking Link:
-                        </p>
-                        <button
-                          onClick={() =>
-                            handleCopyBookingLink(member.booking_token)
-                          }
-                          className="flex items-center gap-1 text-xs bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
-                        >
-                          <Copy className="h-3 w-3" />
-                          Copy
-                        </button>
+                  {/* Link Info - Fixed Height */}
+                  <div className="h-14 mb-4">
+                    {member.external_booking_link ? (
+                      <div className="h-full p-3 bg-purple-50 rounded-xl border border-purple-200 flex items-center">
+                        <div className="flex items-center gap-2 text-purple-700 w-full">
+                          <Link2 className="h-4 w-4 flex-shrink-0" />
+                          <span className="text-xs font-medium truncate">
+                            Redirects to {member.external_booking_platform || 'external'}
+                          </span>
+                        </div>
                       </div>
-                      <p className="text-xs text-blue-700 break-all font-mono">
-                        {window.location.origin}/book/
-                        {member.booking_token.substring(0, 8)}...
-                      </p>
-                    </div>
-                  )}
+                    ) : member.booking_token ? (
+                      <div className="h-full p-3 bg-blue-50 rounded-xl border border-blue-200 flex items-center">
+                        <div className="flex items-center justify-between gap-2 w-full">
+                          <span className="text-xs text-blue-700 font-mono truncate">
+                            /book/{member.booking_token.substring(0, 12)}...
+                          </span>
+                          <button
+                            onClick={() => handleCopyBookingLink(member.booking_token)}
+                            className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg hover:bg-blue-700 transition-colors font-medium flex-shrink-0"
+                          >
+                            <Copy className="h-3 w-3" />
+                            Copy
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-full p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center">
+                        <span className="text-xs text-gray-400">No booking link yet</span>
+                      </div>
+                    )}
+                  </div>
 
-                  {/* External booking link info */}
-                  {member.external_booking_link && (
-                    <div className="mb-4 p-3 bg-purple-50 rounded-xl border-2 border-purple-200">
-                      <div className="flex items-center justify-between mb-2 gap-2">
-                        <p className="text-xs font-semibold text-purple-900">
-                          Redirects to {member.external_booking_platform || 'External'}:
-                        </p>
-                      </div>
-                      <a 
-                        href={member.external_booking_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-purple-700 break-all font-mono hover:text-purple-900 flex items-center gap-1"
-                      >
-                        <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                        {member.external_booking_link.length > 40 
-                          ? member.external_booking_link.substring(0, 40) + '...'
-                          : member.external_booking_link
-                        }
-                      </a>
-                    </div>
-                  )}
+                  {/* Spacer */}
+                  <div className="flex-1" />
 
                   {/* Actions */}
-                  <div className="space-y-2">
-                    {/* Settings button - Opens the new modal */}
+                  <div className="space-y-2 mt-auto">
                     <button
                       onClick={() => openEditModal(member)}
                       className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2.5 rounded-xl hover:shadow-lg transition-all text-sm font-semibold flex items-center justify-center gap-2"
@@ -342,12 +312,8 @@ export default function TeamMembers() {
                     </button>
 
                     <button
-                      onClick={() =>
-                        navigate(
-                          `/teams/${teamId}/members/${member.id}/availability`
-                        )
-                      }
-                      className="w-full bg-blue-100 text-blue-700 px-4 py-2 rounded-xl hover:bg-blue-200 transition-colors text-sm font-semibold flex items-center justify-center gap-2"
+                      onClick={() => navigate(`/teams/${teamId}/members/${member.id}/availability`)}
+                      className="w-full bg-blue-50 text-blue-700 px-4 py-2 rounded-xl hover:bg-blue-100 transition-colors text-sm font-semibold flex items-center justify-center gap-2"
                     >
                       <Calendar className="h-4 w-4" />
                       Availability
@@ -355,9 +321,7 @@ export default function TeamMembers() {
 
                     <div className="flex gap-2">
                       <button
-                        onClick={() =>
-                          handleToggleActive(member.id, member.is_active)
-                        }
+                        onClick={() => handleToggleActive(member.id, member.is_active)}
                         className={`flex-1 px-4 py-2 rounded-xl transition-colors text-sm font-semibold ${
                           member.is_active
                             ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -369,7 +333,8 @@ export default function TeamMembers() {
 
                       <button
                         onClick={() => handleRemoveMember(member.id)}
-                        className="px-4 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors text-sm font-semibold flex items-center justify-center gap-1"
+                        className="px-3 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"
+                        title="Remove member"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -385,14 +350,14 @@ export default function TeamMembers() {
       {/* Add Member Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">
               Add Team Member
             </h2>
 
             <form onSubmit={handleAddMember} className="space-y-4">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   <span className="flex items-center gap-2">
                     <Mail className="h-4 w-4" />
                     Email Address
@@ -402,16 +367,14 @@ export default function TeamMembers() {
                   type="email"
                   required
                   value={newMember.email}
-                  onChange={(e) =>
-                    setNewMember({ ...newMember, email: e.target.value })
-                  }
+                  onChange={(e) => setNewMember({ ...newMember, email: e.target.value })}
                   placeholder="member@example.com"
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   <span className="flex items-center gap-2">
                     <Shield className="h-4 w-4" />
                     Role
@@ -419,9 +382,7 @@ export default function TeamMembers() {
                 </label>
                 <select
                   value={newMember.role}
-                  onChange={(e) =>
-                    setNewMember({ ...newMember, role: e.target.value })
-                  }
+                  onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                 >
                   <option value="member">Member</option>
@@ -433,13 +394,13 @@ export default function TeamMembers() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+                  className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg font-semibold transition-all"
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg font-semibold transition-all"
                 >
                   Add Member
                 </button>

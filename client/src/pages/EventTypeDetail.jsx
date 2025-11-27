@@ -3,50 +3,30 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   Clock,
-  DollarSign,
   MapPin,
-  Calendar,
   Edit,
   Trash2,
-  Copy,
-  ExternalLink,
   Loader2,
   ToggleLeft,
   ToggleRight,
-  Users,
-  CheckCircle
+  Users
 } from 'lucide-react';
-import { events, auth } from '../utils/api';
+import { events } from '../utils/api';
 
 export default function EventTypeDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams();
   
-  // ✅ FIXED: Get event from navigation state (no API call needed)
   const [event, setEvent] = useState(location.state?.event || null);
-  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(!location.state?.event);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    loadUser();
-    // Only fetch if we don't have event data from navigation state
     if (!location.state?.event) {
       loadEventTypeFromList();
     }
   }, [id]);
 
-  const loadUser = async () => {
-    try {
-      const response = await auth.me();
-      setUser(response.data.user || response.data);
-    } catch (error) {
-      console.error('Failed to load user:', error);
-    }
-  };
-
-  // ✅ FIXED: Load from list instead of non-existent single endpoint
   const loadEventTypeFromList = async () => {
     setLoading(true);
     try {
@@ -92,21 +72,6 @@ export default function EventTypeDetail() {
     }
   };
 
-  // ✅ FIXED: Correct URL format /book/:username/:eventSlug
-  const getBookingLink = () => {
-    if (!event) return '';
-    const username = user?.username || user?.name?.toLowerCase().replace(/\s+/g, '') || 'user';
-    const eventSlug = event.slug || event.name?.toLowerCase().replace(/\s+/g, '-') || event.id;
-    return `${window.location.origin}/book/${username}/${eventSlug}`;
-  };
-
-  const copyBookingLink = () => {
-    const link = getBookingLink();
-    navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -122,8 +87,6 @@ export default function EventTypeDetail() {
       </div>
     );
   }
-
-  const bookingLink = getBookingLink();
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -180,18 +143,6 @@ export default function EventTypeDetail() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
-                <div className="p-3 bg-green-100 rounded-xl">
-                  <DollarSign className="h-6 w-6 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Price</p>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {event.price > 0 ? `$${event.price}` : 'Free'}
-                  </p>
-                </div>
-              </div>
-
               {event.location && (
                 <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
                   <div className="p-3 bg-purple-100 rounded-xl">
@@ -215,49 +166,6 @@ export default function EventTypeDetail() {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Booking Link Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Booking Link</h2>
-
-            <div className="flex items-center gap-3">
-              <input
-                type="text"
-                value={bookingLink}
-                readOnly
-                className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-600 font-mono text-sm"
-              />
-              <button
-                onClick={copyBookingLink}
-                className={`flex items-center gap-2 px-4 py-3 rounded-xl font-medium transition-colors ${
-                  copied
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                {copied ? (
-                  <>
-                    <CheckCircle className="h-5 w-5" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-5 w-5" />
-                    Copy
-                  </>
-                )}
-              </button>
-              <a
-                href={bookingLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium"
-              >
-                <ExternalLink className="h-5 w-5" />
-                Preview
-              </a>
             </div>
           </div>
         </div>
@@ -329,13 +237,6 @@ export default function EventTypeDetail() {
               >
                 <Edit className="h-5 w-5 text-gray-400" />
                 Edit Event Type
-              </button>
-              <button
-                onClick={copyBookingLink}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
-              >
-                <Copy className="h-5 w-5 text-gray-400" />
-                Copy Booking Link
               </button>
               <button
                 onClick={handleDelete}
