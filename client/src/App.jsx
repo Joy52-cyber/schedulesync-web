@@ -42,18 +42,31 @@ import BookingConfirmation from './components/BookingConfirmation';
 // Wrap any page that needs to call onLogin (Login/OAuth)
 function LoginWrapper({ Component }) {
   const { login } = useAuth();
-
+  
   const handleLogin = (token, user) => {
+    // Save to localStorage
     if (token) {
       localStorage.setItem('token', token);
     }
     if (user) {
       localStorage.setItem('user', JSON.stringify(user));
     }
+    
+    // Update auth context
     login(token, user);
-    window.location.href = '/dashboard';
+    
+    // ✅ ROUTING LOGIC: Check if onboarding is needed
+    if (user.onboarding_completed) {
+      // Existing user → Dashboard
+      console.log('✅ Existing user - Redirecting to dashboard');
+      window.location.href = '/dashboard';
+    } else {
+      // New user → Onboarding first
+      console.log('🆕 New user - Redirecting to onboarding');
+      window.location.href = '/onboarding';
+    }
   };
-
+  
   return <Component onLogin={handleLogin} />;
 }
 

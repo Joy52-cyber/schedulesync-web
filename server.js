@@ -994,110 +994,82 @@ app.get('/api/auth/microsoft/url', (req, res) => {
   }
 });
 
+// ============================================
+// STEP 3: UPDATE MICROSOFT CALLBACK
+// ============================================
+
+   // In server.js, ensure Microsoft callback returns onboarding_completed:
 app.post('/api/auth/microsoft/callback', async (req, res) => {
   try {
     const { code } = req.body;
-
-    console.log('🔵 Microsoft OAuth callback received');
-
-    if (!code) {
-      return res.status(400).json({ error: 'Authorization code required' });
-    }
-
-    if (processedOAuthCodes.has(code)) {
-      console.log('⚠️ Code already processed');
-      return res.status(400).json({ error: 'Code already used' });
-    }
-
-    processedOAuthCodes.set(code, Date.now());
-    console.log('🔒 Code locked for processing');
-
-    const tokenResponse = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: MICROSOFT_CONFIG.clientId,
-        client_secret: MICROSOFT_CONFIG.clientSecret,
+    
+    // Exchange code for tokens...
+    const tokenResponse = await axios.post(
+      'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+      new URLSearchParams({
+        client_id: process.env.MICROSOFT_CLIENT_ID,
+        client_secret: process.env.MICROSOFT_CLIENT_SECRET,
         code: code,
-        redirect_uri: MICROSOFT_CONFIG.redirectUri,
+        redirect_uri: redirectUri,
         grant_type: 'authorization_code',
-      }),
-    });
-
-    if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.text();
-      console.error('❌ Token exchange failed:', errorData);
-      throw new Error('Failed to exchange code for tokens');
-    }
-
-    const tokens = await tokenResponse.json();
-    console.log('✅ Microsoft tokens received');
-
-    const userInfoResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
-      headers: {
-        'Authorization': `Bearer ${tokens.access_token}`,
-      },
-    });
-
-    const userInfo = await userInfoResponse.json();
-    console.log('✅ User info retrieved:', userInfo.mail || userInfo.userPrincipalName);
-
-    const email = userInfo.mail || userInfo.userPrincipalName;
-    let userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-
-    let user;
-    if (userResult.rows.length === 0) {
-      console.log('➕ Creating new Microsoft user');
-      const insertResult = await pool.query(
-        `INSERT INTO users (microsoft_id, email, name, microsoft_access_token, microsoft_refresh_token, calendar_sync_enabled, provider)
-         VALUES ($1, $2, $3, $4, $5, true, 'microsoft') RETURNING *`,
-        [userInfo.id, email, userInfo.displayName, tokens.access_token, tokens.refresh_token]
-      );
-      user = insertResult.rows[0];
-    } else {
-      console.log('🔄 Updating existing user with Microsoft');
-      const updateResult = await pool.query(
-        `UPDATE users SET microsoft_id = $1, name = $2, microsoft_access_token = $3, microsoft_refresh_token = $4, calendar_sync_enabled = true, provider = 'microsoft'
-         WHERE email = $5 RETURNING *`,
-        [userInfo.id, userInfo.displayName, tokens.access_token, tokens.refresh_token, email]
-      );
-      user = updateResult.rows[0];
-    }
-
-    await pool.query('UPDATE team_members SET user_id = $1 WHERE email = $2 AND user_id IS NULL', [user.id, user.email]);
-
-    const jwtToken = jwt.sign(
-      { id: user.id, email: user.email, name: user.name },
-      process.env.JWT_SECRET,
-      { expiresIn: '30d' }
+      })
     );
 
-    console.log('✅ Microsoft OAuth successful for:', user.email);
+    const { access_token, refresh_token } = tokenResponse.data;
 
+    // Get user info...
+    const userResponse = await axios.get('https://graph.microsoft.com/v1.0/me', {
+      headers: { Authorization: `Bearer ${access_token}` }
+    });
+
+    const microsoftUser = userResponse.data;
+    const email = microsoftUser.mail || microsoftUser.userPrincipalName;
+
+    // Check if user exists
+    let user = await pool.query(
+      'SELECT * FROM users WHERE microsoft_id = $1 OR email = $2',
+      [microsoftUser.id, email]
+    );
+
+    if (user.rows.length === 0) {
+      // NEW USER - First login
+      user = await pool.query(
+        `INSERT INTO users (
+          email, name, microsoft_id, microsoft_access_token, 
+          microsoft_refresh_token, provider, onboarding_completed
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [email, microsoftUser.displayName, microsoftUser.id, 
+         access_token, refresh_token, 'microsoft', false]  // ✅ false = needs onboarding
+      );
+    } else {
+      // EXISTING USER - Second+ login
+      user = await pool.query(
+        `UPDATE users SET 
+          microsoft_access_token = $1, 
+          microsoft_refresh_token = $2 
+        WHERE id = $3 RETURNING *`,
+        [access_token, refresh_token, user.rows[0].id]
+      );
+    }
+
+    const finalUser = user.rows[0];
+    const jwtToken = jwt.sign({ id: finalUser.id }, JWT_SECRET, { expiresIn: '7d' });
+
+    // ✅ RETURN onboarding_completed
     res.json({
       success: true,
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        calendar_sync_enabled: user.calendar_sync_enabled
+        id: finalUser.id,
+        email: finalUser.email,
+        name: finalUser.name,
+        calendar_sync_enabled: finalUser.calendar_sync_enabled,
+        onboarding_completed: finalUser.onboarding_completed || false  // ✅ KEY FIELD
       },
       token: jwtToken,
     });
   } catch (error) {
-    console.error('❌ Microsoft OAuth error:', error.message);
-    
-    if (req.body.code) {
-      processedOAuthCodes.delete(req.body.code);
-      console.log('🔓 Code unlocked for retry');
-    }
-    
-    res.status(500).json({
-      error: 'Authentication failed',
-      details: error.message
-    });
+    console.error('Microsoft OAuth error:', error);
+    res.status(500).json({ error: 'Microsoft OAuth failed' });
   }
 });
 
@@ -1112,11 +1084,13 @@ app.get('/api/auth/calendly/url', (req, res) => {
         message: 'Please contact support to enable Calendly integration'
       });
     }
+
     const authUrl = `https://auth.calendly.com/oauth/authorize?` +
       `client_id=${process.env.CALENDLY_CLIENT_ID}` +
       `&response_type=code` +
       `&redirect_uri=${encodeURIComponent(process.env.CALENDLY_REDIRECT_URI)}`;
-    console.log('🔗 Generated Calendly OAuth URL');
+     `&scope=${encodeURIComponent(scopes.join(' '))}`;  // ✅ ADD THIS LINE
+      console.log('🔗 Generated Calendly OAuth URL');
     res.json({ url: authUrl });
   } catch (error) {
     console.error('❌ Error generating Calendly OAuth URL:', error);
@@ -5573,13 +5547,15 @@ app.get('/api/auth/microsoft/url', (req, res) => {
     }
     const redirectUri = process.env.MICROSOFT_REDIRECT_URI || 
       `${process.env.FRONTEND_URL}/oauth/callback/microsoft`;
-    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
+    
+       const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
       `client_id=${process.env.MICROSOFT_CLIENT_ID}` +
       `&response_type=code` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&response_mode=query` +
       `&scope=${encodeURIComponent(MICROSOFT_CONFIG.scopes.join(' '))}` +
-      `&prompt=select_account`;
+      `&prompt=select_account`;  // ✅ ADD THIS - only shows account picker, not consent
+    
     console.log('🔗 Generated Microsoft OAuth URL');
     res.json({ url: authUrl });
   } catch (error) {
@@ -5587,7 +5563,6 @@ app.get('/api/auth/microsoft/url', (req, res) => {
     res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
 });
-
 // ============ CALENDLY OAUTH ============
 app.get('/api/auth/calendly/url', (req, res) => {
   try {
