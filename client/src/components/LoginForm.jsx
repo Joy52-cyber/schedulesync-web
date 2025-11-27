@@ -1,5 +1,4 @@
-﻿// client/src/components/LoginForm.jsx
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Lock, ArrowRight } from 'lucide-react';
 import api from '../utils/api';
@@ -61,54 +60,6 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
     }
   };
 
-  // ✅ Updated with detailed logging and better error handling
-  const handleCalendlyConnect = async () => {
-    try {
-      setError('');
-      setLoading(true);
-      console.log('🟣 Calendly connect clicked');
-      console.log('🟣 API Base URL:', api.defaults.baseURL);
-
-      const response = await api.oauth.getCalendlyUrl();
-      console.log('🟣 Calendly OAuth URL response:', response.data);
-
-      if (response.data.error) {
-        setError(response.data.message || response.data.error);
-        console.error('🟣 Calendly returned error:', response.data);
-        setLoading(false);
-        return;
-      }
-
-      if (response.data.url) {
-        console.log('🟣 Redirecting to:', response.data.url);
-        window.location.href = response.data.url;
-      } else {
-        throw new Error('No URL in response');
-      }
-    } catch (err) {
-      console.error('❌ Calendly auth error:', err);
-      console.error('❌ Error details:', {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status,
-        statusText: err.response?.statusText
-      });
-      
-      // Handle 503 Service Unavailable (not configured)
-      if (err.response?.status === 503) {
-        setError('⚠️ Calendly integration is not yet configured. Please contact support or use another sign-in method.');
-      } else {
-        setError(
-          err.response?.data?.message || 
-          err.response?.data?.error || 
-          'Failed to start Calendly login. Please try again or use another method.'
-        );
-      }
-      setLoading(false);
-    }
-  };
-
-  // ✅ Updated with detailed logging and better error handling
   const handleMicrosoftLogin = async () => {
     try {
       setError('');
@@ -270,7 +221,7 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
           </div>
         </div>
 
-        {/* Google + Calendly + Microsoft */}
+        {/* Google + Microsoft */}
         <div className="space-y-2">
           {/* Google */}
           <button
@@ -298,17 +249,6 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
               />
             </svg>
             Sign in with Google
-          </button>
-
-          {/* Calendly */}
-          <button
-            type="button"
-            onClick={handleCalendlyConnect}
-            disabled={loading}
-            className="w-full bg-white border-2 border-sky-200 text-sky-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-sky-50 hover:border-sky-300 transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span className="h-2 w-2 rounded-full bg-sky-500" />
-            Connect Calendly
           </button>
 
           {/* Microsoft */}
