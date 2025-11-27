@@ -4071,16 +4071,16 @@ app.get('/api/bookings/manage/:token', async (req, res) => {
     
     const result = await pool.query(
       `SELECT b.*, 
-      b.meet_link,
-      b.calendar_event_id,
-              t.name as team_name,
-              tm.name as organizer_name,
-              tm.email as organizer_email,
-              tm.booking_token as member_booking_token
+       b.meet_link,
+       b.calendar_event_id,
+       t.name as team_name,
+       tm.name as organizer_name,
+       tm.email as organizer_email,
+       tm.booking_token as member_booking_token
        FROM bookings b
        JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE b.booking_token = $1`,
+       WHERE b.manage_token = $1`,   // ✅ CORRECT - uses booking-specific token
       [token]
     );
     
@@ -4139,7 +4139,7 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
        FROM bookings b
        JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE b.booking_token = $1 AND b.status = 'confirmed'`,
+       WHERE b.manage_token = $1 AND b.status = 'confirmed',
       [token]
     );
 
@@ -4259,7 +4259,7 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
        FROM bookings b
        JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE b.booking_token = $1 AND b.status = 'confirmed'`,
+       WHERE b.manage_token = $1 AND b.status = 'confirmed',
       [token]
     );
 
@@ -4275,7 +4275,7 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
        SET status = 'cancelled',
            notes = COALESCE(notes, '') || E'\n\nCancellation reason: ' || COALESCE($1, 'No reason provided'),
            updated_at = NOW()
-       WHERE booking_token = $2`,
+       WHERE manage_token = $3,
       [reason, token]
     );
 
@@ -5315,28 +5315,35 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
     const endTime = new Date(startTime.getTime() + bookingData.duration_minutes * 60000);
 
     // Create booking
-    const bookingResult = await pool.query(
-      `INSERT INTO bookings (
-        team_id, member_id, user_id, 
-        attendee_name, attendee_email, 
-        start_time, end_time, notes, 
-        booking_token, status
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
-      RETURNING *`,
-      [
-        member.team_id,
-        member.id,
-        userId,
-        attendeeName,
-        email.toLowerCase(),
-        startTime.toISOString(),
-        endTime.toISOString(),
-        bookingData.notes || bookingData.title || '',
-        member.booking_token,
-        'confirmed'
-      ]
-    );
+    const manageToken = crypto.randomBytes(16).toString('hex');  // Add this line before the query
+
+const bookingResult = await pool.query(
+  `INSERT INTO bookings (
+    team_id, member_id, user_id, 
+    attendee_name, attendee_email, 
+    start_time, end_time, 
+    title,
+    notes, 
+    booking_token, status,
+    manage_token
+  )
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+  RETURNING *`,
+  [
+    member.team_id,
+    assignedMember.id,
+    assignedMember.user_id,
+    attendee_name,
+    attendee_email,
+    slot.start,
+    slot.end,
+    `Meeting with ${attendee_name}`,
+    notes || '',
+    token,
+    'confirmed',
+    manageToken  // Add this parameter
+  ]
+);
 
     const booking = bookingResult.rows[0];
     console.log('✅ AI booking created:', booking.id);

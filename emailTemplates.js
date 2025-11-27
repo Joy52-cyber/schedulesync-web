@@ -437,7 +437,7 @@ const emailTemplates = {
 
   // Cancellation email
   bookingCancellation: (booking, reason) => {
-    const rebookUrl = booking.booking_token ? `${process.env.FRONTEND_URL}/book/${booking.booking_token}` : null;
+    const rebookUrl = booking.booking_token ? `${process.env.FRONTEND_URL}/bookings/manage/${booking.manage_token}` : null;
     
     return `
       <!DOCTYPE html>
