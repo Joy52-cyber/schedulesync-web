@@ -18,14 +18,15 @@ export default function BookingPage() {
   const [redirecting, setRedirecting] = useState(false);
   
   const [isLinkUsed, setIsLinkUsed] = useState(false); 
+  const [isDirectMemberLink, setIsDirectMemberLink] = useState(false); // NEW: Track if this is a direct member link
 
   const [teamInfo, setTeamInfo] = useState(null);
   const [memberInfo, setMemberInfo] = useState(null);
-  const [eventTypes, setEventTypes] = useState([]); // All available event types
+  const [eventTypes, setEventTypes] = useState([]);
   const [selectedEventType, setSelectedEventType] = useState(null);
   const [error, setError] = useState('');
    
-  const [step, setStep] = useState('loading'); // loading → event-select → calendar-choice → form
+  const [step, setStep] = useState('loading');
   const [guestCalendar, setGuestCalendar] = useState(null);
   const [hasProcessedOAuth, setHasProcessedOAuth] = useState(false);
    
@@ -84,7 +85,6 @@ export default function BookingPage() {
           attendee_email: data.email || prev.attendee_email,
         }));
 
-        // Keep the type parameter if it exists
         const typeParam = searchParams.get('type');
         navigate(`/book/${token}${typeParam ? `?type=${typeParam}` : ''}`, { replace: true });
         setStep('form');
@@ -122,11 +122,31 @@ export default function BookingPage() {
       setTeamInfo(payload.team);
       setMemberInfo(payload.member);
       
-      // Load event types
+      // ✅ FIX: Check if this is a direct member booking link
+      // A direct member link should NOT show event type selection
+      // Backend should return isDirectLink: true OR eventTypes should be explicitly empty/null
+      const directMemberLink = payload.isDirectLink === true || 
+                               payload.skipEventTypes === true ||
+                               payload.linkType === 'member';
+      
+      setIsDirectMemberLink(directMemberLink);
+      
+      if (directMemberLink) {
+        // ✅ Direct member link - skip event type selection entirely
+        console.log('👤 Direct member booking link detected - skipping event type selection');
+        setEventTypes([]);
+        setSelectedEventType(null);
+        setStep('calendar-choice');
+        return;
+      }
+      
+      // ✅ Event type booking link - load and show event types
+      console.log('📅 Event type booking link - loading event types');
+      
       let allEventTypes = payload.eventTypes || [];
       
-      // If backend didn't return event types, fetch them
-      if (allEventTypes.length === 0) {
+      // Only fetch event types if backend didn't return them AND it's not a direct link
+      if (allEventTypes.length === 0 && !directMemberLink) {
         try {
           console.log('📡 Fetching event types from API...');
           const eventTypesRes = await eventTypesAPI.getAll();
@@ -152,14 +172,9 @@ export default function BookingPage() {
           setSelectedEventType(selectedEvent);
           setStep('calendar-choice');
         } else {
-          // Event type not found, show selection
           setStep(activeEventTypes.length > 0 ? 'event-select' : 'calendar-choice');
         }
       } else {
-        // No event type specified
-        // If there are multiple event types, show selection
-        // If only one, auto-select it
-        // If none, go directly to calendar choice
         if (activeEventTypes.length > 1) {
           setStep('event-select');
         } else if (activeEventTypes.length === 1) {
@@ -187,10 +202,8 @@ export default function BookingPage() {
     }
   };
 
-  // Handle event type selection
   const handleSelectEventType = (eventType) => {
     setSelectedEventType(eventType);
-    // Update URL with type parameter
     setSearchParams({ type: eventType.slug });
     setStep('calendar-choice');
   };
@@ -231,7 +244,6 @@ export default function BookingPage() {
   const handleSkipCalendar = () => setStep('form');
   const handleSlotSelected = (slot) => setSelectedSlot(slot);
 
-  // Go back to event selection
   const handleBackToEventSelect = () => {
     setSelectedEventType(null);
     setSearchParams({});
@@ -273,7 +285,7 @@ export default function BookingPage() {
       organizer_name: memberInfo?.name || memberInfo?.user_name,
       team_name: teamInfo?.name,
       event_type: selectedEventType?.title || selectedEventType?.name,
-      duration: selectedEventType?.duration,
+      duration: selectedEventType?.duration || 30,
       notes: formData.notes,
       meet_link: booking?.meet_link || null,
       booking_token: booking?.booking_token || token,
@@ -282,8 +294,8 @@ export default function BookingPage() {
     navigate(`/booking-confirmation?data=${dataParam}`);
   };
 
-  // Get duration from selected event type or default
-  const duration = selectedEventType?.duration || 30;
+  // Get duration from selected event type or member default or 30
+  const duration = selectedEventType?.duration || memberInfo?.default_duration || 30;
 
   // --- VIEW 1: LOADING / REDIRECTING ---
   if (loading || redirecting) {
@@ -342,7 +354,7 @@ export default function BookingPage() {
     );
   }
 
-  // --- HEADER COMPONENT (reused across steps) ---
+  // --- HEADER COMPONENT ---
   const Header = () => (
     <div className="relative bg-white rounded-3xl shadow-xl overflow-hidden mb-6">
       <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-purple-600/5 to-pink-600/5"></div>
@@ -358,8 +370,8 @@ export default function BookingPage() {
           </div>
 
           <div className="flex-1 min-w-0">
-            {/* Show Event Type if selected */}
-            {selectedEventType ? (
+            {/* Show Event Type if selected (only for event type bookings) */}
+            {selectedEventType && !isDirectMemberLink ? (
               <>
                 <div className="flex items-center gap-2 mb-2">
                   <span 
@@ -390,7 +402,6 @@ export default function BookingPage() {
                 {selectedEventType.description && (
                   <p className="text-gray-600 text-sm md:text-base leading-relaxed">{selectedEventType.description}</p>
                 )}
-                {/* Back button to change event type */}
                 {eventTypes.length > 1 && step !== 'event-select' && (
                   <button
                     onClick={handleBackToEventSelect}
@@ -402,13 +413,17 @@ export default function BookingPage() {
               </>
             ) : (
               <>
+                {/* Direct member booking OR no event type selected */}
                 <h1 className="text-xl md:text-3xl font-bold text-gray-900 mb-2">
-                  {memberInfo?.name || memberInfo?.user_name || 'Schedule a Meeting'}
+                  Book with {memberInfo?.name || memberInfo?.user_name}
                 </h1>
                 <p className="text-gray-600 text-sm md:text-base mb-2">{teamInfo?.name}</p>
-                {teamInfo?.description && (
-                  <p className="text-gray-600 text-sm md:text-base leading-relaxed">{teamInfo.description}</p>
-                )}
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
+                    <Clock className="h-4 w-4" />
+                    {duration} min meeting
+                  </div>
+                </div>
               </>
             )}
           </div>
@@ -417,8 +432,8 @@ export default function BookingPage() {
     </div>
   );
 
-  // --- VIEW 4: EVENT TYPE SELECTION ---
-  if (step === 'event-select') {
+  // --- VIEW 4: EVENT TYPE SELECTION (Only for event type bookings) ---
+  if (step === 'event-select' && !isDirectMemberLink) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
         <div className="max-w-3xl mx-auto px-4 py-8">
@@ -437,7 +452,6 @@ export default function BookingPage() {
                 >
                   <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl opacity-0 group-hover:opacity-20 blur transition-opacity"></div>
                   <div className="relative bg-white border-2 border-gray-200 rounded-2xl p-4 md:p-5 group-hover:border-blue-400 transition-all flex items-center gap-3 md:gap-4">
-                    {/* Color indicator */}
                     <div 
                       className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
                       style={{ 
