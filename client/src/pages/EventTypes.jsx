@@ -1,13 +1,11 @@
-﻿// client/src/pages/EventTypes.jsx - WITH COPYABLE FULL URL
+﻿// client/src/pages/EventTypes.jsx - FIXED VERSION (no AuthContext)
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Edit2, Trash2, Clock, Check, X, ChevronDown, Link, Copy, CheckCircle } from 'lucide-react';
 import api from '../utils/api';
-import { useAuth } from '../context/AuthContext';
 
 export default function EventTypes() {
   const navigate = useNavigate();
-  const { user } = useAuth(); // Get logged-in user
   const [eventTypes, setEventTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -15,6 +13,16 @@ export default function EventTypes() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Get user from localStorage
+  const getUserInfo = () => {
+    try {
+      const userStr = localStorage.getItem('user');
+      return userStr ? JSON.parse(userStr) : null;
+    } catch {
+      return null;
+    }
+  };
 
   // Form state
   const [formData, setFormData] = useState({
@@ -47,8 +55,9 @@ export default function EventTypes() {
   // Get full booking URL
   const getFullBookingURL = () => {
     const slug = getEffectiveSlug();
+    const user = getUserInfo();
     const username = user?.username || user?.email?.split('@')[0] || 'yourname';
-    const baseURL = window.location.origin; // e.g., https://schedulesync.com
+    const baseURL = window.location.origin;
     return `${baseURL}/book/${username}/${slug}`;
   };
 
@@ -218,6 +227,7 @@ export default function EventTypes() {
         ) : (
           eventTypes.map((eventType) => {
             const colorConfig = colors.find((c) => c.value === eventType.color) || colors[0];
+            const user = getUserInfo();
             const username = user?.username || user?.email?.split('@')[0] || 'yourname';
             const bookingURL = `${window.location.origin}/book/${username}/${eventType.slug}`;
             
@@ -294,7 +304,6 @@ export default function EventTypes() {
                   <button
                     onClick={async () => {
                       await navigator.clipboard.writeText(bookingURL);
-                      // Could add a toast notification here
                     }}
                     className="p-1.5 text-gray-600 hover:bg-gray-200 rounded transition-colors"
                     title="Copy URL"
@@ -308,7 +317,7 @@ export default function EventTypes() {
         )}
       </div>
 
-      {/* Create/Edit Modal - WITH COPYABLE FULL URL */}
+      {/* Create/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
