@@ -11,7 +11,7 @@ import {
   ToggleRight,
   Users
 } from 'lucide-react';
-import { events } from '../utils/api';
+import { events, auth } from '../utils/api';
 
 export default function EventTypeDetail() {
   const navigate = useNavigate();
@@ -19,13 +19,24 @@ export default function EventTypeDetail() {
   const { id } = useParams();
   
   const [event, setEvent] = useState(location.state?.event || null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(!location.state?.event);
 
   useEffect(() => {
+    loadUser();
     if (!location.state?.event) {
       loadEventTypeFromList();
     }
   }, [id]);
+
+  const loadUser = async () => {
+    try {
+      const response = await auth.me();
+      setUser(response.data.user || response.data);
+    } catch (error) {
+      console.error('Failed to load user:', error);
+    }
+  };
 
   const loadEventTypeFromList = async () => {
     setLoading(true);
@@ -102,13 +113,13 @@ export default function EventTypeDetail() {
 
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{event.name}</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{event.title || event.name}</h1>
             <p className="text-gray-600 mt-2">{event.description || 'No description'}</p>
           </div>
 
           <div className="flex gap-2">
             <button
-              onClick={() => navigate(`/events/${id}/edit`)}
+              onClick={() => navigate(`/events/${id}/edit`, { state: { event } })}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium"
             >
               <Edit className="h-4 w-4" />
@@ -232,7 +243,7 @@ export default function EventTypeDetail() {
 
             <div className="space-y-3">
               <button
-                onClick={() => navigate(`/events/${id}/edit`)}
+                onClick={() => navigate(`/events/${id}/edit`, { state: { event } })}
                 className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
               >
                 <Edit className="h-5 w-5 text-gray-400" />

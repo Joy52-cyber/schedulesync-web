@@ -6,7 +6,6 @@ import {
   Trash2,
   Clock,
   Calendar,
-  DollarSign,
   Users,
   Loader2,
   MapPin,
@@ -36,7 +35,6 @@ export default function EventTypes() {
       const userData = userRes.data.user || userRes.data;
       setUser(userData);
 
-      // Get event types - API returns "eventTypes" with "title"
       const eventsData = eventsRes.data;
       const list = eventsData.eventTypes || eventsData.event_types || eventsData.data || eventsData || [];
       setEventTypesList(Array.isArray(list) ? list : []);
@@ -130,7 +128,6 @@ export default function EventTypes() {
                   <h3 className="text-lg font-bold text-gray-900 flex-1 min-w-0">
                     {event.title || event.name}
                   </h3>
-                  {/* Color indicator */}
                   {event.color && (
                     <span 
                       className="w-3 h-3 rounded-full flex-shrink-0 mt-2"
@@ -150,7 +147,6 @@ export default function EventTypes() {
                   </p>
                 )}
                 
-                {/* Slug indicator */}
                 {event.slug && (
                   <p className="text-xs text-gray-400 mt-1">
                     /{event.slug}
@@ -184,13 +180,6 @@ export default function EventTypes() {
                   <Clock className="h-4 w-4 text-gray-400" />
                   <span>{event.duration} minutes</span>
                 </div>
-
-                {event.price > 0 && (
-                  <div className="flex items-center gap-3 text-sm text-gray-600">
-                    <DollarSign className="h-4 w-4 text-gray-400" />
-                    <span>${event.price}</span>
-                  </div>
-                )}
 
                 {event.team_id && (
                   <div className="flex items-center gap-3 text-sm text-gray-600">

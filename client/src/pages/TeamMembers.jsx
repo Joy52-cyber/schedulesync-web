@@ -198,7 +198,7 @@ export default function TeamMembers() {
             {members.map((member) => (
               <div
                 key={member.id}
-                className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow border-2 border-gray-100 h-[420px] flex flex-col"
+                className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow border-2 border-gray-100 overflow-hidden"
               >
                 {/* Card Header */}
                 <div className="p-5 border-b border-gray-100">
@@ -223,9 +223,9 @@ export default function TeamMembers() {
                 </div>
 
                 {/* Card Body */}
-                <div className="p-5 flex-1 flex flex-col">
+                <div className="p-5">
                   {/* Status badges */}
-                  <div className="flex items-center gap-2 mb-4 flex-wrap h-8">
+                  <div className="flex items-center gap-2 mb-4 flex-wrap">
                     {member.is_active ? (
                       <span className="flex items-center gap-1 bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-xs font-semibold">
                         <CheckCircle className="h-3 w-3" />
@@ -265,11 +265,11 @@ export default function TeamMembers() {
                     </div>
                   </div>
 
-                  {/* Link Info - Fixed Height */}
-                  <div className="h-14 mb-4">
+                  {/* Link Info */}
+                  <div className="mb-4">
                     {member.external_booking_link ? (
-                      <div className="h-full p-3 bg-purple-50 rounded-xl border border-purple-200 flex items-center">
-                        <div className="flex items-center gap-2 text-purple-700 w-full">
+                      <div className="p-3 bg-purple-50 rounded-xl border border-purple-200">
+                        <div className="flex items-center gap-2 text-purple-700">
                           <Link2 className="h-4 w-4 flex-shrink-0" />
                           <span className="text-xs font-medium truncate">
                             Redirects to {member.external_booking_platform || 'external'}
@@ -277,8 +277,8 @@ export default function TeamMembers() {
                         </div>
                       </div>
                     ) : member.booking_token ? (
-                      <div className="h-full p-3 bg-blue-50 rounded-xl border border-blue-200 flex items-center">
-                        <div className="flex items-center justify-between gap-2 w-full">
+                      <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
+                        <div className="flex items-center justify-between gap-2">
                           <span className="text-xs text-blue-700 font-mono truncate">
                             /book/{member.booking_token.substring(0, 12)}...
                           </span>
@@ -292,17 +292,14 @@ export default function TeamMembers() {
                         </div>
                       </div>
                     ) : (
-                      <div className="h-full p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center">
+                      <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                         <span className="text-xs text-gray-400">No booking link yet</span>
                       </div>
                     )}
                   </div>
 
-                  {/* Spacer */}
-                  <div className="flex-1" />
-
                   {/* Actions */}
-                  <div className="space-y-2 mt-auto">
+                  <div className="space-y-2">
                     <button
                       onClick={() => openEditModal(member)}
                       className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2.5 rounded-xl hover:shadow-lg transition-all text-sm font-semibold flex items-center justify-center gap-2"

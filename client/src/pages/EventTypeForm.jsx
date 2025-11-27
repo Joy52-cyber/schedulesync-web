@@ -3,7 +3,6 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   Clock,
-  DollarSign,
   MapPin,
   FileText,
   Loader2,
@@ -22,10 +21,9 @@ export default function EventTypeForm() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
+    title: '',
     description: '',
     duration: 30,
-    price: 0,
     location: '',
     is_active: true
   });
@@ -36,10 +34,9 @@ export default function EventTypeForm() {
       if (location.state?.event) {
         const event = location.state.event;
         setFormData({
-          name: event.name || '',
+          title: event.title || event.name || '',
           description: event.description || '',
           duration: event.duration || 30,
-          price: event.price || 0,
           location: event.location || '',
           is_active: event.is_active !== false
         });
@@ -49,7 +46,6 @@ export default function EventTypeForm() {
     }
   }, [id]);
 
-  // ✅ FIXED: Load from list instead of non-existent single endpoint
   const loadEventTypeFromList = async () => {
     setLoading(true);
     try {
@@ -59,10 +55,9 @@ export default function EventTypeForm() {
       
       if (event) {
         setFormData({
-          name: event.name || '',
+          title: event.title || event.name || '',
           description: event.description || '',
           duration: event.duration || 30,
-          price: event.price || 0,
           location: event.location || '',
           is_active: event.is_active !== false
         });
@@ -81,13 +76,30 @@ export default function EventTypeForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!formData.title.trim()) {
+      alert('Event name is required');
+      return;
+    }
+    
     setSaving(true);
 
     try {
+      // Send data with the correct field name
+      const payload = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        duration: formData.duration,
+        location: formData.location.trim(),
+        is_active: formData.is_active
+      };
+
+      console.log('Saving event type:', payload);
+
       if (isEditing) {
-        await events.update(id, formData);
+        await events.update(id, payload);
       } else {
-        await events.create(formData);
+        await events.create(payload);
       }
       navigate('/events');
     } catch (error) {
@@ -137,8 +149,8 @@ export default function EventTypeForm() {
           </label>
           <input
             type="text"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
             className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="e.g., 30 Minute Consultation"
             required
@@ -160,42 +172,24 @@ export default function EventTypeForm() {
           />
         </div>
 
-        {/* Duration & Price */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-              <Clock className="h-4 w-4 text-gray-400" />
-              Duration *
-            </label>
-            <select
-              value={formData.duration}
-              onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value={15}>15 minutes</option>
-              <option value={30}>30 minutes</option>
-              <option value={45}>45 minutes</option>
-              <option value={60}>60 minutes</option>
-              <option value={90}>90 minutes</option>
-              <option value={120}>2 hours</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-              <DollarSign className="h-4 w-4 text-gray-400" />
-              Price ($)
-            </label>
-            <input
-              type="number"
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="0 for free"
-              min="0"
-              step="0.01"
-            />
-          </div>
+        {/* Duration */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+            <Clock className="h-4 w-4 text-gray-400" />
+            Duration *
+          </label>
+          <select
+            value={formData.duration}
+            onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value={15}>15 minutes</option>
+            <option value={30}>30 minutes</option>
+            <option value={45}>45 minutes</option>
+            <option value={60}>60 minutes</option>
+            <option value={90}>90 minutes</option>
+            <option value={120}>2 hours</option>
+          </select>
         </div>
 
         {/* Location */}
