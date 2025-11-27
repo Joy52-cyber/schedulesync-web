@@ -1,7 +1,7 @@
-﻿// client/src/pages/EventTypes.jsx - IMPROVED VERSION
+﻿// client/src/pages/EventTypes.jsx - WITH SLUG PREVIEW
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Clock, Check, X, ChevronDown } from 'lucide-react';
+import { Plus, Edit2, Trash2, Clock, Check, X, ChevronDown, Link } from 'lucide-react';
 import api from '../utils/api';
 
 export default function EventTypes() {
@@ -11,7 +11,7 @@ export default function EventTypes() {
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
-  const [showAdvanced, setShowAdvanced] = useState(false); // Toggle for advanced options
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -30,6 +30,16 @@ export default function EventTypes() {
     { value: 'yellow', label: 'Yellow', class: 'bg-yellow-500', lightClass: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
     { value: 'pink', label: 'Pink', class: 'bg-pink-500', lightClass: 'bg-pink-100 text-pink-700 border-pink-200' },
   ];
+
+  // Generate slug from title
+  const generateSlug = (title) => {
+    return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  };
+
+  // Get the slug that will be used (custom or auto-generated)
+  const getEffectiveSlug = () => {
+    return formData.slug || generateSlug(formData.title);
+  };
 
   useEffect(() => {
     loadEventTypes();
@@ -53,7 +63,7 @@ export default function EventTypes() {
     e.preventDefault();
     try {
       // Auto-generate slug from title if not provided
-      const slug = formData.slug || formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const slug = formData.slug || generateSlug(formData.title);
       
       if (editingEvent) {
         await api.eventTypes.update(editingEvent.id, { ...formData, slug });
@@ -254,7 +264,7 @@ export default function EventTypes() {
         )}
       </div>
 
-      {/* Create/Edit Modal - COMPACT VERSION */}
+      {/* Create/Edit Modal - WITH SLUG PREVIEW */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
@@ -304,6 +314,28 @@ export default function EventTypes() {
                   </select>
                 </div>
               </div>
+
+              {/* URL Preview - ALWAYS VISIBLE */}
+              {formData.title && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <Link className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-purple-900 mb-1">
+                        Booking URL Preview
+                      </p>
+                      <p className="text-sm text-purple-700 break-all font-mono">
+                        /book/<span className="text-purple-900 font-semibold">you</span>/{getEffectiveSlug()}
+                      </p>
+                      {!formData.slug && (
+                        <p className="text-xs text-purple-600 mt-1">
+                          ✨ Auto-generated from title
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Color - Compact */}
               <div>
@@ -356,7 +388,7 @@ export default function EventTypes() {
                   className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
                 >
                   <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
-                  Advanced options
+                  Customize URL slug
                 </button>
                 
                 {showAdvanced && (
@@ -370,11 +402,11 @@ export default function EventTypes() {
                       onChange={(e) =>
                         setFormData({ ...formData, slug: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                      placeholder="Leave blank to auto-generate"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm font-mono"
+                      placeholder={generateSlug(formData.title) || "custom-slug"}
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Example: <code className="bg-gray-200 px-1 rounded">/book/you/custom-slug</code>
+                      Override the auto-generated slug above
                     </p>
                   </div>
                 )}
