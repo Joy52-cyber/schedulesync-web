@@ -1838,9 +1838,11 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
          t.owner_id,
          t.created_at,
          t.updated_at,
+         t.team_booking_token,
          MAX(tm.booking_token) as booking_token,
          COUNT(DISTINCT tm.id) as member_count,
-         COUNT(DISTINCT b.id) as booking_count
+         COUNT(DISTINCT b.id) as booking_count,
+         CASE WHEN t.name LIKE '%Personal Bookings%' THEN true ELSE false END as is_personal
        FROM teams t
        LEFT JOIN team_members tm ON t.id = tm.team_id 
            AND (tm.user_id = t.owner_id OR tm.id = (
@@ -1848,18 +1850,19 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
            ))
        LEFT JOIN bookings b ON t.id = b.team_id
        WHERE t.owner_id = $1
-       GROUP BY t.id, t.name, t.description, t.booking_mode, t.owner_id, t.created_at, t.updated_at
+       GROUP BY t.id, t.name, t.description, t.booking_mode, t.owner_id, t.created_at, t.updated_at, t.team_booking_token
        ORDER BY 
          CASE WHEN t.name LIKE '%Personal Bookings%' THEN 0 ELSE 1 END,
          t.created_at DESC`,
       [req.user.id]
     );
     
-    console.log('📋 Teams loaded with tokens:', result.rows.map(t => ({ 
+    console.log('📋 Teams loaded:', result.rows.map(t => ({ 
       id: t.id, 
       name: t.name, 
-      token: t.booking_token,
-      token_length: t.booking_token?.length 
+      booking_token: t.booking_token,
+      team_booking_token: t.team_booking_token,
+      is_personal: t.is_personal
     })));
     
     res.json({ teams: result.rows });
@@ -1868,6 +1871,7 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch teams' });
   }
 });
+   
 
 // Get single team
 app.get('/api/teams/:id', authenticateToken, async (req, res) => {
@@ -3699,6 +3703,107 @@ app.get('/api/book/:token', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch booking details' });
   }
 });
+/ ============================================
+// TEAM BOOKING PAGE (separate from member links)
+// ============================================
+app.get('/api/book/team/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    console.log('🔍 Looking up team by team_booking_token:', token);
+    
+    // Find team by team_booking_token
+    const teamResult = await pool.query(
+      `SELECT t.*, 
+              u.name as owner_name,
+              u.email as owner_email
+       FROM teams t
+       LEFT JOIN users u ON t.owner_id = u.id
+       WHERE t.team_booking_token = $1`,
+      [token]
+    );
+
+    if (teamResult.rows.length === 0) {
+      console.log('❌ Team not found for token:', token);
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    const team = teamResult.rows[0];
+    console.log('✅ Found team:', team.name, 'ID:', team.id);
+
+    // Get all ACTIVE members (exclude those with external booking links for team scheduling)
+    const membersResult = await pool.query(
+      `SELECT 
+        tm.id, 
+        tm.name, 
+        tm.email, 
+        tm.booking_token, 
+        tm.user_id,
+        tm.is_active,
+        u.name as user_name
+       FROM team_members tm
+       LEFT JOIN users u ON tm.user_id = u.id
+       WHERE tm.team_id = $1 
+         AND (tm.is_active = true OR tm.is_active IS NULL)
+         AND (tm.external_booking_link IS NULL OR tm.external_booking_link = '')
+       ORDER BY tm.created_at ASC`,
+      [team.id]
+    );
+
+    console.log('👥 Available members for booking:', membersResult.rows.length);
+
+    if (membersResult.rows.length === 0) {
+      return res.status(404).json({ 
+        error: 'No team members available for booking',
+        message: 'All team members are either inactive or use external schedulers'
+      });
+    }
+
+    // Get event types from team owner
+    const eventTypesResult = await pool.query(
+      `SELECT id, title, name, duration, description, is_active, color
+       FROM event_types 
+       WHERE user_id = $1 AND is_active = true 
+       ORDER BY duration ASC`,
+      [team.owner_id]
+    );
+
+    console.log('📅 Event types found:', eventTypesResult.rows.length);
+
+    res.json({
+      data: {
+        team: {
+          id: team.id,
+          name: team.name,
+          description: team.description,
+          booking_mode: team.booking_mode || 'round_robin',
+          owner_name: team.owner_name,
+        },
+        members: membersResult.rows.map(m => ({
+          id: m.id,
+          name: m.name || m.user_name || 'Team Member',
+          email: m.email,
+          booking_token: m.booking_token,
+          user_id: m.user_id,
+        })),
+        eventTypes: eventTypesResult.rows.map(et => ({
+          id: et.id,
+          title: et.title || et.name,
+          name: et.name || et.title,
+          duration: et.duration,
+          description: et.description,
+          color: et.color,
+        })),
+        isTeamBooking: true,
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get team booking page error:', error);
+    res.status(500).json({ error: 'Failed to load team booking page' });
+  }
+});
+
 
 // Create booking
 app.post('/api/bookings', async (req, res) => {

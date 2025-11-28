@@ -21,8 +21,8 @@ import AdminPanel from './pages/AdminPanel';
 import Dashboard from './pages/Dashboard';
 import Bookings from './pages/Bookings';
 import EventTypes from './pages/EventTypes';
-import EventTypeForm from './pages/EventTypeForm';      // ✅ NEW
-import EventTypeDetail from './pages/EventTypeDetail';  // ✅ NEW
+import EventTypeForm from './pages/EventTypeForm';
+import EventTypeDetail from './pages/EventTypeDetail';
 import Availability from './pages/Availability';
 
 // Team
@@ -110,6 +110,13 @@ function App() {
             />
 
             {/* Public Guest Routes */}
+            {/* 
+              IMPORTANT: Route order matters! More specific routes must come first.
+              /book/team/:token - Team booking page (round-robin, no external redirects)
+              /book/:username/:eventSlug - Event type booking by username
+              /book/:token - Individual member booking (may redirect to Calendly)
+            */}
+            <Route path="/book/team/:token" element={<BookingPage isTeamBooking={true} />} />
             <Route path="/book/:username/:eventSlug" element={<BookingPage />} />
             <Route path="/book/:token" element={<BookingPage />} />
             <Route path="/book" element={<Book />} />
@@ -131,7 +138,7 @@ function App() {
               <Route path="/bookings" element={<Bookings />} />
               <Route path="/availability" element={<Availability />} />
               
-              {/* ✅ Event Types - UPDATED WITH NEW ROUTES */}
+              {/* Event Types */}
               <Route path="/events" element={<EventTypes />} />
               <Route path="/events/new" element={<EventTypeForm />} />
               <Route path="/events/:id" element={<EventTypeDetail />} />
