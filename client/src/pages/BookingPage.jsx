@@ -4,12 +4,25 @@ import {
   Calendar, User, Clock, MapPin,
   Sparkles, ArrowRight, ExternalLink, Loader2,
   Ban, ChevronRight, RefreshCw, CheckCircle,
-  AlertTriangle, ArrowLeft
+  AlertTriangle, ArrowLeft, Link as LinkIcon
 } from 'lucide-react';
 import { bookings, oauth, eventTypes as eventTypesAPI } from '../utils/api';
 import SmartSlotPicker from '../components/SmartSlotPicker';
 
-// Simple animation wrapper for smooth step transitions
+// Helper for safe color classes
+const getColorStyles = (color) => {
+  const map = {
+    blue: { bg: 'bg-blue-50', text: 'text-blue-600', hoverBorder: 'hover:border-blue-500', iconBg: 'bg-blue-50', iconText: 'text-blue-600' },
+    purple: { bg: 'bg-purple-50', text: 'text-purple-600', hoverBorder: 'hover:border-purple-500', iconBg: 'bg-purple-50', iconText: 'text-purple-600' },
+    green: { bg: 'bg-green-50', text: 'text-green-600', hoverBorder: 'hover:border-green-500', iconBg: 'bg-green-50', iconText: 'text-green-600' },
+    red: { bg: 'bg-red-50', text: 'text-red-600', hoverBorder: 'hover:border-red-500', iconBg: 'bg-red-50', iconText: 'text-red-600' },
+    orange: { bg: 'bg-orange-50', text: 'text-orange-600', hoverBorder: 'hover:border-orange-500', iconBg: 'bg-orange-50', iconText: 'text-orange-600' },
+    indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', hoverBorder: 'hover:border-indigo-500', iconBg: 'bg-indigo-50', iconText: 'text-indigo-600' },
+  };
+  return map[color] || map.blue;
+};
+
+// Simple animation wrapper
 const FadeIn = ({ children, className = "" }) => (
   <div className={`animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-forwards ${className}`}>
     {children}
@@ -37,7 +50,7 @@ export default function BookingPage() {
   const [selectedEventType, setSelectedEventType] = useState(null);
   const [error, setError] = useState('');
     
-  const [step, setStep] = useState('loading'); // loading, event-select, calendar-choice, form
+  const [step, setStep] = useState('loading'); 
   const [guestCalendar, setGuestCalendar] = useState(null);
   const [hasProcessedOAuth, setHasProcessedOAuth] = useState(false);
     
@@ -57,6 +70,7 @@ export default function BookingPage() {
       setRescheduleToken(rescheduleParam);
     }
     loadBookingInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   // --- OAuth Handling ---
@@ -108,7 +122,7 @@ export default function BookingPage() {
         if (params.toString()) newUrl += `?${params.toString()}`;
         
         navigate(newUrl, { replace: true });
-        setStep('form'); // Jump straight to slots/form after auth
+        setStep('form'); 
       } catch (err) {
         console.error('Guest OAuth failed:', err);
         setHasProcessedOAuth(false);
@@ -124,6 +138,15 @@ export default function BookingPage() {
       const payload = response.data?.data || response.data || {};
 
       if (!payload.team || !payload.member) throw new Error('Missing info');
+
+      // Pre-fill form if data is available (useful for reschedules)
+      if (payload.attendee_email || payload.attendee_name) {
+        setFormData(prev => ({
+          ...prev,
+          attendee_name: payload.attendee_name || prev.attendee_name,
+          attendee_email: payload.attendee_email || prev.attendee_email
+        }));
+      }
 
       // External Redirect
       if (payload.member.external_booking_link && !isReschedule) {
@@ -143,6 +166,27 @@ export default function BookingPage() {
       
       setIsDirectMemberLink(directMemberLink);
       
+      // --- NEW: Hybrid Logic for Rescheduling ---
+      if (isReschedule) {
+        // 1. Backend flag: payload.is_returning_guest (Does server know them?)
+        // 2. Local check: Do we have a token in storage?
+        const isKnownUser = payload.is_returning_guest || !!localStorage.getItem('guest_token');
+        
+        if (isKnownUser) {
+          console.log("Reschedule: Known user -> Skipping connect screen");
+          setStep('form'); // Go straight to Date Picker
+        } else {
+          console.log("Reschedule: Unknown user -> Showing connect screen");
+          setStep('calendar-choice'); // Show Connect Screen
+        }
+        
+        // Ensure event types list is cleared for direct flow
+        setEventTypes([]);
+        setSelectedEventType(null);
+        return;
+      }
+      // ------------------------------------------
+
       if (directMemberLink) {
         setEventTypes([]);
         setSelectedEventType(null);
@@ -280,7 +324,7 @@ export default function BookingPage() {
   const duration = selectedEventType?.duration || memberInfo?.default_duration || 30;
   const avatarLetter = memberInfo?.name?.[0]?.toUpperCase() || memberInfo?.user_name?.[0]?.toUpperCase() || 'U';
 
-  // --- Error / Loading States (Full Page) ---
+  // --- Error / Loading States ---
   if (loading || redirecting) return <LoadingScreen redirecting={redirecting} memberName={memberInfo?.name} />;
   if (isLinkUsed) return <ExpiredLinkScreen />;
   if (error && !teamInfo) return <ErrorScreen error={error} />;
@@ -289,16 +333,14 @@ export default function BookingPage() {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 md:p-6 font-sans">
       <div className="bg-white w-full max-w-6xl rounded-[2rem] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] border border-slate-100">
         
-        {/* --- LEFT PANEL: CONTEXT (The "Cockpit" Anchor) --- */}
+        {/* --- LEFT PANEL --- */}
         <div className="md:w-1/3 bg-slate-50 border-r border-slate-200 p-8 flex flex-col relative">
-          {/* Back Button (Mobile/Contextual) */}
           {(step !== 'event-select' && step !== 'loading') && (
             <button onClick={handleBack} className="absolute top-6 left-6 p-2 rounded-full hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
               <ArrowLeft className="h-5 w-5" />
             </button>
           )}
 
-          {/* Reschedule Banner */}
           {isReschedule && (
             <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-3 items-start">
               <RefreshCw className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
@@ -309,7 +351,6 @@ export default function BookingPage() {
             </div>
           )}
 
-          {/* Host Info */}
           <div className="flex-1 mt-8">
             <div className="mb-6">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-blue-200 mb-4">
@@ -320,7 +361,6 @@ export default function BookingPage() {
               <p className="text-slate-400 text-sm mt-1">{teamInfo?.name}</p>
             </div>
 
-            {/* Event Details (if selected) */}
             {selectedEventType ? (
               <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-500">
                 <div className="h-px bg-slate-200 w-full" />
@@ -339,25 +379,17 @@ export default function BookingPage() {
                     )}
                   </div>
                 </div>
-                {selectedEventType.description && (
-                  <p className="text-sm text-slate-500 leading-relaxed">{selectedEventType.description}</p>
-                )}
               </div>
             ) : (
-              // Instructions when no event selected
               <div className="mt-8 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-                <p className="text-sm text-blue-700">Please select a meeting type from the list to continue.</p>
+                <p className="text-sm text-blue-700">Please select a meeting type to continue.</p>
               </div>
             )}
           </div>
-          
-          {/* Footer / Powered By */}
-          <div className="mt-auto pt-6 text-xs text-slate-300 font-medium">
-            Powered by ScheduleSync
-          </div>
+          <div className="mt-auto pt-6 text-xs text-slate-300 font-medium">Powered by ScheduleSync</div>
         </div>
 
-        {/* --- RIGHT PANEL: ACTION (The Flow) --- */}
+        {/* --- RIGHT PANEL --- */}
         <div className="md:w-2/3 bg-white p-6 md:p-10 overflow-y-auto relative">
           
           {/* STEP 1: EVENT SELECTION */}
@@ -365,24 +397,17 @@ export default function BookingPage() {
             <FadeIn className="max-w-xl mx-auto">
               <h2 className="text-2xl font-bold text-slate-900 mb-2">Select a Meeting Type</h2>
               <p className="text-slate-500 mb-8">Choose the type of meeting you'd like to schedule.</p>
-              
               <div className="grid gap-4">
-                {eventTypes.map((et) => (
-                  <button
-                    key={et.id}
-                    onClick={() => handleSelectEventType(et)}
-                    className="group relative flex items-center gap-4 p-5 rounded-2xl border border-slate-200 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-50 transition-all text-left bg-white"
-                  >
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-${et.color || 'blue'}-50 text-${et.color || 'blue'}-600 group-hover:scale-110 transition-transform`}>
-                      <Clock className="h-6 w-6" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-slate-900 text-lg group-hover:text-blue-700 transition-colors">{et.title}</h3>
-                      <p className="text-slate-500 text-sm mt-1">{et.duration} minutes</p>
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
-                  </button>
-                ))}
+                {eventTypes.map((et) => {
+                  const style = getColorStyles(et.color || 'blue');
+                  return (
+                    <button key={et.id} onClick={() => handleSelectEventType(et)} className={`group relative flex items-center gap-4 p-5 rounded-2xl border border-slate-200 ${style.hoverBorder} hover:shadow-lg hover:shadow-blue-50 transition-all text-left bg-white`}>
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${style.iconBg} ${style.iconText} group-hover:scale-110 transition-transform`}><Clock className="h-6 w-6" /></div>
+                      <div className="flex-1"><h3 className="font-bold text-slate-900 text-lg group-hover:text-blue-700 transition-colors">{et.title}</h3><p className="text-slate-500 text-sm mt-1">{et.duration} minutes</p></div>
+                      <ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
+                    </button>
+                  );
+                })}
               </div>
             </FadeIn>
           )}
@@ -391,54 +416,22 @@ export default function BookingPage() {
           {step === 'calendar-choice' && (
             <FadeIn className="max-w-lg mx-auto py-8">
               <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="h-8 w-8 text-indigo-600" />
-                </div>
+                <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4"><Sparkles className="h-8 w-8 text-indigo-600" /></div>
                 <h2 className="text-2xl font-bold text-slate-900">Check for conflicts?</h2>
-                <p className="text-slate-500 mt-2">Sign in to overlay your calendar availability on top of {memberInfo?.name?.split(' ')[0]}'s schedule.</p>
+                <p className="text-slate-500 mt-2">Sign in to overlay your availability on {memberInfo?.name?.split(' ')[0]}'s schedule.</p>
               </div>
-
               <div className="space-y-4">
-                {/* Google Button */}
-                <button 
-                  onClick={() => handleCalendarConnect('google')}
-                  className="w-full flex items-center p-4 rounded-xl border border-slate-200 hover:border-red-200 hover:bg-red-50/30 transition-all group"
-                >
+                <button onClick={() => handleCalendarConnect('google')} className="w-full flex items-center p-4 rounded-xl border border-slate-200 hover:border-red-200 hover:bg-red-50/30 transition-all group">
                   <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" className="h-6 w-6 mr-4" />
-                  <div className="text-left flex-1">
-                    <span className="block font-semibold text-slate-900">Connect Google Calendar</span>
-                    <span className="block text-xs text-slate-500">We'll only read your busy times</span>
-                  </div>
+                  <div className="text-left flex-1"><span className="block font-semibold text-slate-900">Connect Google Calendar</span></div>
                   <ArrowRight className="h-5 w-5 text-slate-300 group-hover:text-red-500 transition-colors" />
                 </button>
-
-                {/* Microsoft Button */}
-                <button 
-                  onClick={() => handleCalendarConnect('microsoft')}
-                  className="w-full flex items-center p-4 rounded-xl border border-slate-200 hover:border-blue-200 hover:bg-blue-50/30 transition-all group"
-                >
-                  <div className="h-6 w-6 mr-4 grid grid-cols-2 gap-0.5">
-                    <div className="bg-[#f35325]"></div><div className="bg-[#81bc06]"></div>
-                    <div className="bg-[#05a6f0]"></div><div className="bg-[#ffba08]"></div>
-                  </div>
-                  <div className="text-left flex-1">
-                    <span className="block font-semibold text-slate-900">Connect Outlook / Office 365</span>
-                    <span className="block text-xs text-slate-500">We'll only read your busy times</span>
-                  </div>
+                <button onClick={() => handleCalendarConnect('microsoft')} className="w-full flex items-center p-4 rounded-xl border border-slate-200 hover:border-blue-200 hover:bg-blue-50/30 transition-all group">
+                  <div className="h-6 w-6 mr-4 grid grid-cols-2 gap-0.5"><div className="bg-[#f35325]"></div><div className="bg-[#81bc06]"></div><div className="bg-[#05a6f0]"></div><div className="bg-[#ffba08]"></div></div>
+                  <div className="text-left flex-1"><span className="block font-semibold text-slate-900">Connect Outlook</span></div>
                   <ArrowRight className="h-5 w-5 text-slate-300 group-hover:text-blue-500 transition-colors" />
                 </button>
-
-                <div className="relative py-4">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
-                  <div className="relative flex justify-center"><span className="bg-white px-2 text-xs text-slate-400 uppercase tracking-wide">Or</span></div>
-                </div>
-
-                <button 
-                  onClick={() => setStep('form')} 
-                  className="w-full py-4 text-slate-600 font-medium hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-colors"
-                >
-                  Skip and select time manually
-                </button>
+                <button onClick={() => setStep('form')} className="w-full py-4 text-slate-600 font-medium hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-colors">Skip and select time manually</button>
               </div>
             </FadeIn>
           )}
@@ -446,19 +439,34 @@ export default function BookingPage() {
           {/* STEP 3 & 4: SLOT PICKER & FORM */}
           {step === 'form' && (
             <FadeIn className="h-full flex flex-col">
-              {/* Guest Calendar Badge */}
-              {guestCalendar?.signedIn && (
+              
+              {/* STATUS BAR: Guest Calendar or Hybrid Connect Option */}
+              {guestCalendar?.signedIn ? (
                 <div className="mb-6 inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-sm font-medium self-start">
-                  <div className="w-2 h-2 bg-green-500 rounded-full" />
+                  <CheckCircle className="w-4 h-4 text-green-600" />
                   Using your calendar: {guestCalendar.email}
                 </div>
+              ) : (
+                // --- THE HYBRID ADDITION: Small connect option for skipping users ---
+                <div className="mb-6 flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                    <Sparkles className="h-4 w-4 text-slate-400" />
+                    <span>Not seeing your busy times?</span>
+                  </div>
+                  <button 
+                    onClick={() => setStep('calendar-choice')}
+                    className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
+                  >
+                    Sync Calendar <LinkIcon className="h-3 w-3" />
+                  </button>
+                </div>
+                // -------------------------------------------------------------------
               )}
 
               <h2 className="text-2xl font-bold text-slate-900 mb-6">
                 {selectedSlot ? 'Finalize Booking' : 'Select a Time'}
               </h2>
 
-              {/* Slots */}
               {!selectedSlot && (
                 <div className="flex-1">
                   <SmartSlotPicker 
@@ -470,10 +478,8 @@ export default function BookingPage() {
                 </div>
               )}
 
-              {/* Final Form */}
               {selectedSlot && (
                 <div className="max-w-lg mx-auto w-full animate-in slide-in-from-right-8 duration-300">
-                  {/* Selected Slot Recap */}
                   <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex justify-between items-center">
                     <div>
                       <p className="text-xs text-blue-600 font-bold uppercase tracking-wide">Selected Time</p>
@@ -527,30 +533,42 @@ export default function BookingPage() {
               )}
             </FadeIn>
           )}
-
         </div>
       </div>
     </div>
   );
 }
 
-// --- Sub-Components for Cleanliness ---
-
+// Sub-components
 function LoadingScreen({ redirecting, memberName }) {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
       <div className="text-center animate-pulse">
-        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          {redirecting ? <ExternalLink className="h-8 w-8 text-blue-600" /> : <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />}
-        </div>
+        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">{redirecting ? <ExternalLink className="h-8 w-8 text-blue-600" /> : <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />}</div>
         <h2 className="text-xl font-semibold text-slate-900">{redirecting ? `Redirecting to ${memberName}...` : 'Loading availability...'}</h2>
       </div>
     </div>
   );
 }
-
 function ExpiredLinkScreen() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center border border-slate-100">
-        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx
+        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6"><Ban className="h-10 w-10 text-red-500" /></div>
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Link Expired</h1>
+        <p className="text-slate-500 mb-6">This booking link has already been used or is no longer valid.</p>
+      </div>
+    </div>
+  );
+}
+function ErrorScreen({ error }) {
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center border border-slate-100">
+        <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6"><AlertTriangle className="h-10 w-10 text-amber-500" /></div>
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Unable to Load</h1>
+        <p className="text-slate-500 mb-6">{error}</p>
+      </div>
+    </div>
+  );
+}
