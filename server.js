@@ -4132,14 +4132,15 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
       return res.status(400).json({ error: 'New start and end times are required' });
     }
 
+   
     // Get booking by token
     const bookingCheck = await pool.query(
-      `SELECT b.*, b.meet_link, b.calendar_event_id,  t.owner_id, tm.user_id as member_user_id, tm.name as member_name,
+      `SELECT b.*, b.meet_link, b.calendar_event_id, t.owner_id, tm.user_id as member_user_id, tm.name as member_name,
               tm.email as member_email, t.name as team_name
        FROM bookings b
        JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE b.manage_token = $1 AND b.status = 'confirmed',
+       WHERE b.manage_token = $1 AND b.status = 'confirmed'`, // ✅ Added backtick
       [token]
     );
 
@@ -4269,13 +4270,13 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
 
     const booking = bookingCheck.rows[0];
 
-    // Update booking status
+   // Update booking status
     await pool.query(
       `UPDATE bookings 
        SET status = 'cancelled',
            notes = COALESCE(notes, '') || E'\n\nCancellation reason: ' || COALESCE($1, 'No reason provided'),
            updated_at = NOW()
-       WHERE manage_token = $3,
+       WHERE manage_token = $2`, // ✅ Added backtick AND changed $3 to $2
       [reason, token]
     );
 
