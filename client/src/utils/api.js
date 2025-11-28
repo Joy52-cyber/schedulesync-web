@@ -173,7 +173,7 @@ export const payments = {
 };
 
 // ============================================
-// AI
+// AI - ✅ FIXED ENDPOINT
 // ============================================
 export const ai = {
   schedule: (message, history) =>
@@ -181,7 +181,7 @@ export const ai = {
       message,
       conversationHistory: history,
     }),
-  confirm: (data) => api.post('/ai/confirm', data),
+  confirm: (data) => api.post('/ai/schedule/confirm', data), // ✅ FIXED: Was /ai/confirm
   suggest: (preferences) => api.post('/ai/suggest', { preferences }),
 };
 
