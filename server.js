@@ -3959,17 +3959,17 @@ const bookingResult = await pool.query(
     member.team_id,
     member.id,
     userId,
-          attendee_name,
-          attendee_email,
-          slot.start,
-          slot.end,
-          `Meeting with ${attendee_name}`,
-          notes || '',
-          token,
-          'confirmed',
-          manageToken
-        ]
-      );
+    attendeeName,
+    email,
+    startTime.toISOString(),
+    endTime.toISOString(),
+    bookingData.title || `Meeting with ${attendeeName}`,
+    bookingData.notes || '',
+    member.booking_token,
+    'confirmed',
+    manageToken
+  ]
+);
 
       createdBookings.push(bookingResult.rows[0]);
       console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
