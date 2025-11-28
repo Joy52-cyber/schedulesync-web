@@ -4260,7 +4260,7 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
        FROM bookings b
        JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE b.manage_token = $1 AND b.status = 'confirmed',
+      WHERE b.manage_token = $1 AND b.status = 'confirmed'`,
       [token]
     );
 
