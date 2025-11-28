@@ -13,6 +13,7 @@ import {
   Copy,
   Check,
   Video,
+  ArrowLeft
 } from 'lucide-react';
 
 export default function BookingConfirmation() {
