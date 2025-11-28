@@ -13,10 +13,6 @@ import {
   Copy,
   Check,
   Video,
-  Home,
-  Settings,
-  RefreshCw,
-  XCircle,
 } from 'lucide-react';
 
 export default function BookingConfirmation() {
@@ -137,12 +133,6 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Generate manage booking URL using manage_token
-  const getManageUrl = () => {
-    if (!bookingData?.manage_token) return null;
-    return `${window.location.origin}/manage/${bookingData.manage_token}`;
-  };
-
   if (!bookingData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
@@ -156,8 +146,6 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
       </div>
     );
   }
-
-  const manageUrl = getManageUrl();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 relative overflow-hidden">
@@ -205,7 +193,7 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
               <h2 className="text-2xl font-bold mb-2">Your Meeting Link</h2>
               <p className="text-blue-100 mb-6">Join via Google Meet at the scheduled time</p>
               
-              <a
+              
                 href={bookingData.meet_link}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -420,42 +408,6 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
             </div>
           </div>
         </div>
-
-        {/* Manage Booking Card */}
-        {manageUrl && (
-          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Settings className="h-5 w-5 text-gray-600" />
-              <h3 className="font-bold text-gray-900">Manage Your Booking</h3>
-            </div>
-            
-            <p className="text-gray-600 text-sm mb-4">
-              Need to make changes? You can reschedule or cancel your booking anytime.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row gap-3">
-              <a
-                href={manageUrl}
-                className="flex-1 flex items-center justify-center gap-2 p-4 border-2 border-amber-200 bg-amber-50 rounded-xl hover:border-amber-400 hover:bg-amber-100 transition-all group"
-              >
-                <RefreshCw className="h-5 w-5 text-amber-600" />
-                <span className="font-medium text-amber-800">Reschedule</span>
-              </a>
-              
-              <a
-                href={manageUrl}
-                className="flex-1 flex items-center justify-center gap-2 p-4 border-2 border-red-200 bg-red-50 rounded-xl hover:border-red-400 hover:bg-red-100 transition-all group"
-              >
-                <XCircle className="h-5 w-5 text-red-600" />
-                <span className="font-medium text-red-800">Cancel Booking</span>
-              </a>
-            </div>
-            
-            <p className="text-xs text-gray-400 mt-3 text-center">
-              This link is also available in your confirmation email
-            </p>
-          </div>
-        )}
 
         {/* What's Next */}
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border-2 border-green-200 p-6 mb-6">
