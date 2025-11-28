@@ -5962,6 +5962,17 @@ function reminderEmailTemplate(booking, hoursBefore) {
     hour12: true 
   });
 
+  // ✅ CRITICAL FIX: Create manage URL with manage_token, not booking.id
+  const manageUrl = booking.manage_token 
+    ? `${process.env.FRONTEND_URL}/manage/${booking.manage_token}`
+    : null;
+
+  console.log('📧 REMINDER - Booking data:', {
+    id: booking.id,
+    manage_token: booking.manage_token,
+    generated_url: manageUrl
+  });
+
   return `
     <!DOCTYPE html>
     <html>
@@ -6063,9 +6074,11 @@ function reminderEmailTemplate(booking, hoursBefore) {
                   <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">
                     Scheduled via <strong style="color: #667eea;">ScheduleSync</strong>
                   </p>
+                  ${manageUrl ? `
                   <p style="margin: 0; font-size: 12px; color: #999;">
-                    Need to reschedule? <a href="${process.env.FRONTEND_URL}/manage/${booking.id}" style="color: #667eea; text-decoration: none;">Manage your booking</a>
+                    Need to reschedule? <a href="${manageUrl}" style="color: #667eea; text-decoration: none;">Manage your booking</a>
                   </p>
+                  ` : ''}
                 </td>
               </tr>
 
@@ -6086,6 +6099,7 @@ async function checkAndSendReminders() {
   console.log('⏰ Running reminder check at', now.toISOString());
 
   try {
+    // ✅ CRITICAL: Include manage_token in the SELECT query
     const query = `
       SELECT
         b.id,
@@ -6096,6 +6110,7 @@ async function checkAndSendReminders() {
         b.attendee_email as guest_email,
         b.attendee_name as guest_name,
         b.meet_link as meeting_url,
+        b.manage_token,
         tm.email as host_email,
         tm.name as host_name,
         tm.timezone,
@@ -6136,6 +6151,7 @@ async function checkAndSendReminders() {
           )}h window=${hoursBefore}h`
         );
 
+        // ✅ CRITICAL: Pass manage_token to the template
         const bookingForTemplate = {
           id: row.id,
           start_time: row.start_time,
@@ -6147,6 +6163,7 @@ async function checkAndSendReminders() {
           host_name: row.host_name,
           meeting_url: row.meeting_url,
           timezone: row.timezone,
+          manage_token: row.manage_token, // ✅ ADDED THIS
         };
 
         const html = reminderEmailTemplate(bookingForTemplate, hoursBefore);
@@ -6206,6 +6223,11 @@ setTimeout(() => {
     console.error('❌ Startup reminder check error:', err)
   );
 }, 60000);
+
+module.exports = {
+  checkAndSendReminders,
+  lastReminderRun
+};
 
 // ============ TIMEZONE ENDPOINTS ============
 
