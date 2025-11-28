@@ -59,6 +59,7 @@ const PORT = process.env.PORT || 3000;
 
 const express = require('express');
 const { Resend } = require('resend');
+delete require.cache[require.resolve('./emailTemplates')];
 const emailTemplates = require('./emailTemplates');
 const { generateICS } = require('./icsGenerator');
 const resend = new Resend(process.env.RESEND_API_KEY);
