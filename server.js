@@ -3936,44 +3936,48 @@ app.post('/api/bookings', async (req, res) => {
         assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
     }
 
-    // Create booking(s) FIRST (without meet link yet)
-    const createdBookings = [];
+  // Create booking(s) FIRST (without meet link yet)
+const createdBookings = [];
 
-  for (const assignedMember of assignedMembers) {
-      // Generate unique manage token for this booking
-    const manageToken = crypto.randomBytes(16).toString('hex');
+for (const assignedMember of assignedMembers) {
+  // Generate unique manage token for this booking
+  const manageToken = crypto.randomBytes(16).toString('hex');
+  
+  // ✅ CREATE PROPER DATE OBJECTS
+  const startTime = new Date(slot.start);
+  const endTime = new Date(slot.end);
 
-const bookingResult = await pool.query(
-  `INSERT INTO bookings (
-    team_id, member_id, user_id, 
-    attendee_name, attendee_email, 
-    start_time, end_time, 
-    title,
-    notes, 
-    booking_token, status,
-    manage_token
-  )
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
-  RETURNING *`,
-  [
-    member.team_id,
-    member.id,
-    userId,
-    attendeeName,
-    email,
-    startTime.toISOString(),
-    endTime.toISOString(),
-    bookingData.title || `Meeting with ${attendeeName}`,
-    bookingData.notes || '',
-    member.booking_token,
-    'confirmed',
-    manageToken
-  ]
-);
+  const bookingResult = await pool.query(
+    `INSERT INTO bookings (
+      team_id, member_id, user_id, 
+      attendee_name, attendee_email, 
+      start_time, end_time, 
+      title,
+      notes, 
+      booking_token, status,
+      manage_token
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+    RETURNING *`,
+    [
+      member.team_id,
+      assignedMember.id,               // ✅ Use assignedMember
+      assignedMember.user_id,          // ✅ FIXED
+      attendee_name,                   // ✅ FIXED - from req.body
+      attendee_email,                  // ✅ FIXED - from req.body
+      startTime.toISOString(),         // ✅ FIXED
+      endTime.toISOString(),           // ✅ FIXED
+      `Meeting with ${attendee_name}`, // ✅ FIXED
+      notes || '',                     // ✅ FIXED - from req.body
+      token,                           // ✅ Use the booking token
+      'confirmed',
+      manageToken
+    ]
+  );
 
-      createdBookings.push(bookingResult.rows[0]);
-      console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
-    }
+  createdBookings.push(bookingResult.rows[0]);
+  console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
+}
 
     console.log(`✅ Created ${createdBookings.length} booking(s)`);
      
