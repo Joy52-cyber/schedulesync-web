@@ -3703,7 +3703,7 @@ app.get('/api/book/:token', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch booking details' });
   }
 });
-/ ============================================
+// ============================================
 // TEAM BOOKING PAGE (separate from member links)
 // ============================================
 app.get('/api/book/team/:token', async (req, res) => {
