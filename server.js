@@ -618,6 +618,11 @@ await pool.query(`
       ADD COLUMN IF NOT EXISTS title VARCHAR(255) DEFAULT 'Meeting'
     `);
 
+    await pool.query(`
+  ALTER TABLE bookings 
+  ADD COLUMN IF NOT EXISTS manage_token VARCHAR(255) UNIQUE
+`);
+
     console.log('✅ Database initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);
@@ -3934,32 +3939,37 @@ app.post('/api/bookings', async (req, res) => {
     // Create booking(s) FIRST (without meet link yet)
     const createdBookings = [];
 
-    for (const assignedMember of assignedMembers) {
-      const bookingResult = await pool.query(
-        `INSERT INTO bookings (
-          team_id, member_id, user_id, 
-          attendee_name, attendee_email, 
-          start_time, end_time, 
-          title,
-          notes, 
-          booking_token, status
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
-        RETURNING *`,
-        [
-          member.team_id,
-          assignedMember.id,
-          assignedMember.user_id,
-          attendee_name,
-          attendee_email,
-          slot.start,
-          slot.end,
-          `Meeting with ${attendee_name}`,
-          notes || '',
-          token,
-          'confirmed'
-        ]
-      );
+   for (const assignedMember of assignedMembers) {
+  // Generate unique manage token for each booking
+  const manageToken = crypto.randomBytes(16).toString('hex');
+  
+  const bookingResult = await pool.query(
+    `INSERT INTO bookings (
+      team_id, member_id, user_id, 
+      attendee_name, attendee_email, 
+      start_time, end_time, 
+      title,
+      notes, 
+      booking_token, status,
+      manage_token
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+    RETURNING *`,
+    [
+      member.team_id,
+      assignedMember.id,
+      assignedMember.user_id,
+      attendee_name,
+      attendee_email,
+      slot.start,
+      slot.end,
+      `Meeting with ${attendee_name}`,
+      notes || '',
+      token,
+      'confirmed',
+      manageToken
+    ]
+  );
 
       createdBookings.push(bookingResult.rows[0]);
       console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
