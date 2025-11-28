@@ -5,7 +5,7 @@ import { bookings } from '../utils/api';
 export default function SmartSlotPicker({ 
   bookingToken, 
   guestCalendar = null,
-  duration = 30, // ✅ Added duration prop with default
+  duration = 30,
   onSlotSelected 
 }) {
   const [slots, setSlots] = useState({});
@@ -16,9 +16,12 @@ export default function SmartSlotPicker({
   const [showUnavailable, setShowUnavailable] = useState(false);
   const [showAllDates, setShowAllDates] = useState(false);
 
+  // ✅ Check if guest has calendar connected
+  const hasGuestCalendar = guestCalendar?.signedIn === true;
+
   useEffect(() => {
     loadSlots();
-  }, [bookingToken, guestCalendar, duration]); // ✅ Added duration to dependencies
+  }, [bookingToken, guestCalendar, duration]);
 
   const loadSlots = async () => {
     try {
@@ -30,7 +33,7 @@ export default function SmartSlotPicker({
       const response = await bookings.getSlots(bookingToken, {
         guestAccessToken: guestCalendar?.accessToken,
         guestRefreshToken: guestCalendar?.refreshToken,
-        duration: duration, // ✅ Pass the dynamic duration here
+        duration: duration,
         timezone: userTimezone
       });
 
@@ -38,13 +41,13 @@ export default function SmartSlotPicker({
 
       console.log('📊 Loaded slots:', {
         totalDates: Object.keys(slotsData.slots).length,
-        availableSlots: slotsData.summary.availableSlots
+        availableSlots: slotsData.summary.availableSlots,
+        hasGuestCalendar: hasGuestCalendar
       });
       
       setSlots(slotsData.slots);
       setSummary(slotsData.summary);
 
-      // Auto-select first available date if none selected
       if (!selectedDate) {
         const firstAvailableDate = Object.keys(slotsData.slots).find(date => 
           slotsData.slots[date].some(slot => slot.status === 'available')
@@ -53,7 +56,6 @@ export default function SmartSlotPicker({
           setSelectedDate(firstAvailableDate);
         }
       } else if (!slotsData.slots[selectedDate]) {
-         // If currently selected date is no longer valid/available (e.g. duration changed), reset
          const firstAvailableDate = Object.keys(slotsData.slots).find(date => 
             slotsData.slots[date].some(slot => slot.status === 'available')
           );
@@ -67,7 +69,6 @@ export default function SmartSlotPicker({
     }
   };
 
-  // Helper function to get match score color classes
   const getMatchClasses = (matchColor, isSelected) => {
     if (isSelected) {
       return {
@@ -75,6 +76,16 @@ export default function SmartSlotPicker({
         text: 'text-white',
         badge: 'bg-white/20 text-white',
         icon: 'text-white'
+      };
+    }
+
+    // ✅ If no guest calendar, use simple gray styling
+    if (!hasGuestCalendar) {
+      return {
+        button: 'border-gray-300 bg-white hover:bg-gray-50 hover:border-gray-400 hover:shadow-md',
+        text: 'text-gray-900',
+        badge: 'bg-gray-500 text-white',
+        icon: 'text-gray-600'
       };
     }
 
@@ -114,7 +125,6 @@ export default function SmartSlotPicker({
     return colorMap[matchColor] || colorMap.gray;
   };
 
-  // Helper to get match icon
   const getMatchIcon = (matchScore) => {
     if (matchScore >= 90) return <Star className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-current" />;
     if (matchScore >= 80) return <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />;
@@ -127,7 +137,7 @@ export default function SmartSlotPicker({
       <div className="flex flex-col items-center justify-center py-8 sm:py-12">
         <Loader2 className="h-8 w-8 sm:h-10 sm:w-10 animate-spin text-blue-600 mb-3" />
         <span className="text-sm sm:text-base text-gray-600">
-          {guestCalendar?.signedIn ? 'Finding best times for both of you...' : 'Loading availability...'}
+          {hasGuestCalendar ? 'Finding best times for both of you...' : 'Loading availability...'}
         </span>
       </div>
     );
@@ -138,24 +148,32 @@ export default function SmartSlotPicker({
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Summary - Responsive */}
+      {/* ✅ UPDATED Summary - Different styling based on calendar connection */}
       {summary && summary.availableSlots > 0 && (
-        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
+        <div className={`border-2 rounded-lg sm:rounded-xl p-3 sm:p-4 ${
+          hasGuestCalendar 
+            ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+            : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200'
+        }`}>
           <div className="flex items-start gap-2 sm:gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-green-500 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              hasGuestCalendar ? 'bg-green-500' : 'bg-blue-500'
+            }`}>
+              <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
             </div>
             <div className="flex-1">
-              <p className="text-sm sm:text-base font-bold text-green-900">
-                {summary.availableSlots} smart slot{summary.availableSlots !== 1 ? 's' : ''} found
+              <p className={`text-sm sm:text-base font-bold ${
+                hasGuestCalendar ? 'text-green-900' : 'text-blue-900'
+              }`}>
+                {summary.availableSlots} available slot{summary.availableSlots !== 1 ? 's' : ''} found
               </p>
-              {summary.hasGuestCalendar ? (
+              {hasGuestCalendar ? (
                 <p className="text-xs sm:text-sm text-green-700 mt-0.5">
                   ✨ Showing mutual availability with AI-ranked suggestions
                 </p>
               ) : (
-                <p className="text-xs sm:text-sm text-green-700 mt-0.5">
-                  💡 Connect your calendar to see mutual availability & get better recommendations
+                <p className="text-xs sm:text-sm text-blue-700 mt-0.5">
+                  Showing all available times. Connect your calendar next time for personalized suggestions!
                 </p>
               )}
             </div>
@@ -179,7 +197,7 @@ export default function SmartSlotPicker({
         </div>
       )}
 
-      {/* Date Selector - 2 cols mobile, 3 tablet, 4 desktop */}
+      {/* Date Selector */}
       <div>
         <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3 flex items-center gap-2">
           <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -192,10 +210,10 @@ export default function SmartSlotPicker({
             const availableCount = daySlots.filter(s => s.status === 'available').length;
             const isSelected = selectedDate === date;
 
-            // Get best match score for this day
-            const bestMatch = daySlots
+            // ✅ Only show best match badge if guest has calendar
+            const bestMatch = hasGuestCalendar ? daySlots
               .filter(s => s.status === 'available')
-              .reduce((max, s) => Math.max(max, s.matchScore || 0), 0);
+              .reduce((max, s) => Math.max(max, s.matchScore || 0), 0) : 0;
 
             return (
               <button
@@ -230,7 +248,8 @@ export default function SmartSlotPicker({
                         {availableCount} slot{availableCount !== 1 ? 's' : ''}
                       </p>
                     </div>
-                    {bestMatch >= 80 && (
+                    {/* ✅ Only show "Great matches" if guest has calendar connected */}
+                    {hasGuestCalendar && bestMatch >= 80 && (
                       <div className="flex items-center gap-1 mt-1">
                         <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-purple-600" />
                         <p className="text-[10px] sm:text-xs font-medium text-purple-600">
@@ -251,7 +270,6 @@ export default function SmartSlotPicker({
           })}
         </div>
 
-        {/* Show More/Less Button */}
         {dates.length > 4 && (
           <div className="mt-3 sm:mt-4 text-center">
             <button
@@ -274,13 +292,13 @@ export default function SmartSlotPicker({
         )}
       </div>
 
-      {/* Time Slots - 2 cols mobile, 3 tablet, 4 desktop */}
+      {/* Time Slots */}
       {selectedDate && slots[selectedDate] && (
         <div>
           <div className="flex items-center justify-between mb-2 sm:mb-3">
             <h3 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
               <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
-              Available times ({duration} min) {/* Show duration for clarity */}
+              Available times ({duration} min)
             </h3>
             <button
               onClick={() => setShowUnavailable(!showUnavailable)}
@@ -300,7 +318,6 @@ export default function SmartSlotPicker({
             </button>
           </div>
 
-          {/* Slots Grid - Responsive */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[60vh] sm:max-h-96 overflow-y-auto">
             {slots[selectedDate]
               .filter(slot => {
@@ -327,8 +344,8 @@ export default function SmartSlotPicker({
                       }}
                       className={`relative p-3 sm:p-4 rounded-lg border-2 text-left transition-all min-h-[90px] sm:min-h-[100px] active:scale-95 ${matchClasses.button}`}
                     >
-                      {/* Match Score Badge */}
-                      {slot.matchScore && slot.matchScore >= 70 && !isSelected && (
+                      {/* ✅ Only show match score badge if guest has calendar AND score is good */}
+                      {hasGuestCalendar && slot.matchScore && slot.matchScore >= 70 && !isSelected && (
                         <div className="absolute top-2 right-2">
                           <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${matchClasses.badge} shadow-sm`}>
                             <MatchIcon />
@@ -347,14 +364,18 @@ export default function SmartSlotPicker({
                         )}
                       </div>
 
-                      {/* Match Label */}
+                      {/* ✅ Match Label - only show AI labels if guest has calendar */}
                       <div className="space-y-1">
                         <p className={`text-[10px] sm:text-xs font-bold ${isSelected ? 'text-white' : matchClasses.text}`}>
-                          {isSelected ? 'Selected' : slot.matchLabel || 'Available'}
+                          {isSelected 
+                            ? 'Selected' 
+                            : hasGuestCalendar && slot.matchLabel 
+                              ? slot.matchLabel 
+                              : 'Available'}
                         </p>
                         
-                        {/* Match details */}
-                        {!isSelected && slot.matchScore && (
+                        {/* ✅ Match details - only if guest has calendar */}
+                        {!isSelected && hasGuestCalendar && slot.matchScore && (
                           <div className={`flex items-center gap-1 ${matchClasses.icon}`}>
                             {slot.matchScore >= 90 && (
                               <span className="text-[9px] sm:text-[10px] font-medium">Excellent time!</span>
@@ -401,7 +422,6 @@ export default function SmartSlotPicker({
               })}
           </div>
 
-          {/* Available count */}
           {slots[selectedDate] && (
             <div className="mt-2 sm:mt-3 text-center">
               <p className="text-xs sm:text-sm text-gray-600">
