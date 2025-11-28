@@ -6267,10 +6267,10 @@ app.put('/api/users/profile', authenticateToken, async (req, res) => {
     } else {
       memberId = memberRes.rows[0].id;
       // Update existing member's booking link (username)
-      await client.query(
-        'UPDATE team_members SET booking_token = $1 WHERE id = $2',
-        [username, memberId]
-      );
+     // await client.query(
+      //  'UPDATE team_members SET booking_token = $1 WHERE id = $2',
+     //   [username, memberId]
+     // );
     }
 
     // 4. Update Availability (Convert simple frontend format to detailed backend JSON)
