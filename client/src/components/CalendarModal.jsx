@@ -1,8 +1,17 @@
-import { useState } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 
 export default function CalendarModal({ slots, onSelectDate, onClose, selectedDate }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // Debug: Log slots on mount
+  useEffect(() => {
+    console.log('📅 CalendarModal - Slots received:', slots);
+    console.log('📅 Available dates:', Object.keys(slots || {}).filter(date => {
+      const daySlots = slots[date] || [];
+      return daySlots.some(s => s.status === 'available');
+    }));
+  }, [slots]);
 
   const monthNames = ["January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
@@ -36,8 +45,13 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
 
   const getAvailableCount = (dateKey) => {
     const daySlots = slots[dateKey];
-    if (!daySlots) return 0;
-    return daySlots.filter(s => s.status === 'available').length;
+    if (!daySlots) {
+      console.log('⚪ No slots for', dateKey);
+      return 0;
+    }
+    const count = daySlots.filter(s => s.status === 'available').length;
+    console.log('✅ Date:', dateKey, 'Available:', count, 'Total:', daySlots.length);
+    return count;
   };
 
   const isToday = (day) => {
@@ -74,6 +88,7 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
         key={day}
         onClick={() => {
           if (!isPast && availableCount > 0) {
+            console.log('📅 Selected date:', dateKey);
             onSelectDate(dateKey);
             onClose();
           }
@@ -123,77 +138,77 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto animate-in slide-in-from-bottom-4 duration-300">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 rounded-t-2xl">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                <CalendarIcon className="h-5 w-5 text-blue-600" />
-              </div>
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Select a Date</h2>
+        <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+              <CalendarIcon className="h-5 w-5" />
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <X className="h-5 w-5 text-gray-500" />
-            </button>
+            <div>
+              <h2 className="text-xl font-bold">Select a Date</h2>
+              <p className="text-sm text-white/80">Choose from available dates</p>
+            </div>
           </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full hover:bg-white/20 flex items-center justify-center transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
 
+        {/* Calendar */}
+        <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
           {/* Month Navigation */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-6">
             <button
               onClick={previousMonth}
               className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
             >
-              <ChevronLeft className="h-5 w-5 text-gray-700" />
+              <ChevronLeft className="h-5 w-5 text-gray-600" />
             </button>
-            
             <h3 className="text-lg font-bold text-gray-900">
               {monthNames[month]} {year}
             </h3>
-            
             <button
               onClick={nextMonth}
               className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
             >
-              <ChevronRight className="h-5 w-5 text-gray-700" />
+              <ChevronRight className="h-5 w-5 text-gray-600" />
             </button>
           </div>
-        </div>
 
-        {/* Calendar Grid */}
-        <div className="p-4 sm:p-6">
-          {/* Day Headers */}
+          {/* Day Labels */}
           <div className="grid grid-cols-7 gap-2 mb-2">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} className="text-center text-xs font-semibold text-gray-500 uppercase">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+              <div key={day} className="text-center text-xs font-semibold text-gray-500 py-2">
                 {day}
               </div>
             ))}
           </div>
 
-          {/* Days Grid */}
+          {/* Calendar Grid */}
           <div className="grid grid-cols-7 gap-2">
             {days}
           </div>
 
           {/* Legend */}
-          <div className="mt-6 pt-4 border-t border-gray-200">
-            <div className="flex flex-wrap gap-4 text-xs">
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Legend</p>
+            <div className="grid grid-cols-3 gap-3">
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-blue-50 border-2 border-blue-300 rounded" />
-                <span className="text-gray-600">Available</span>
+                <div className="w-4 h-4 border-2 border-gray-200 rounded bg-white"></div>
+                <span className="text-xs text-gray-600">Available</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-blue-50 border-2 border-blue-500 rounded" />
-                <span className="text-gray-600">Selected</span>
+                <div className="w-4 h-4 border-2 border-blue-500 rounded bg-blue-50"></div>
+                <span className="text-xs text-gray-600">Selected</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gray-50 border-2 border-gray-100 rounded opacity-50" />
-                <span className="text-gray-600">Unavailable</span>
+                <div className="w-4 h-4 border-2 border-gray-100 rounded bg-gray-50 opacity-50"></div>
+                <span className="text-xs text-gray-600">Unavailable</span>
               </div>
             </div>
           </div>
