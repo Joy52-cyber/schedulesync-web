@@ -1,12 +1,13 @@
 ﻿import { useState, useEffect } from 'react';
-import { Calendar, Clock, Check, Loader2, Eye, EyeOff, AlertCircle, ChevronDown, ChevronUp, Sparkles, Star, Zap } from 'lucide-react';
+import { Calendar, Clock, Check, Loader2, Eye, EyeOff, AlertCircle, Sparkles, Star, Zap, ArrowRight } from 'lucide-react';
 import { bookings } from '../utils/api';
+import CalendarModal from './CalendarModal';
 
 export default function SmartSlotPicker({ 
   bookingToken, 
   guestCalendar = null,
   duration = 30,
-  onSlotSelected 
+  onSlotSelected
 }) {
   const [slots, setSlots] = useState({});
   const [selectedDate, setSelectedDate] = useState(null);
@@ -14,9 +15,8 @@ export default function SmartSlotPicker({
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState(null);
   const [showUnavailable, setShowUnavailable] = useState(false);
-  const [showAllDates, setShowAllDates] = useState(false);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
 
-  // ✅ Check if guest has calendar connected
   const hasGuestCalendar = guestCalendar?.signedIn === true;
 
   useEffect(() => {
@@ -48,6 +48,7 @@ export default function SmartSlotPicker({
       setSlots(slotsData.slots);
       setSummary(slotsData.summary);
 
+      // Auto-select first available date if none selected
       if (!selectedDate) {
         const firstAvailableDate = Object.keys(slotsData.slots).find(date => 
           slotsData.slots[date].some(slot => slot.status === 'available')
@@ -79,7 +80,6 @@ export default function SmartSlotPicker({
       };
     }
 
-    // ✅ If no guest calendar, use simple gray styling
     if (!hasGuestCalendar) {
       return {
         button: 'border-gray-300 bg-white hover:bg-gray-50 hover:border-gray-400 hover:shadow-md',
@@ -132,6 +132,11 @@ export default function SmartSlotPicker({
     return <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4" />;
   };
 
+  const handleDateSelect = (date) => {
+    setSelectedDate(date);
+    setSelectedSlot(null);
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-8 sm:py-12">
@@ -144,35 +149,55 @@ export default function SmartSlotPicker({
   }
 
   const dates = Object.keys(slots);
-  const visibleDates = showAllDates ? dates : dates.slice(0, 4);
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* ✅ UPDATED Summary - Different styling based on calendar connection */}
+    <div className="space-y-6">
+      {/* Step Indicator */}
+      <div className="flex items-center gap-3 text-sm">
+        <div className={`flex items-center gap-2 ${selectedDate ? 'text-green-600' : 'text-blue-600 font-semibold'}`}>
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+            selectedDate ? 'bg-green-100' : 'bg-blue-100'
+          }`}>
+            {selectedDate ? <Check className="h-4 w-4" /> : <span className="text-xs font-bold">1</span>}
+          </div>
+          <span>Pick a date</span>
+        </div>
+        <ArrowRight className="h-4 w-4 text-slate-300" />
+        <div className={`flex items-center gap-2 ${selectedDate ? 'text-blue-600 font-semibold' : 'text-slate-400'}`}>
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+            selectedDate ? 'bg-blue-100' : 'bg-slate-100'
+          }`}>
+            <span className="text-xs font-bold">2</span>
+          </div>
+          <span>Choose a time</span>
+        </div>
+      </div>
+
+      {/* Summary */}
       {summary && summary.availableSlots > 0 && (
-        <div className={`border-2 rounded-lg sm:rounded-xl p-3 sm:p-4 ${
+        <div className={`border-2 rounded-xl p-4 ${
           hasGuestCalendar 
             ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
             : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200'
         }`}>
-          <div className="flex items-start gap-2 sm:gap-3">
-            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+          <div className="flex items-start gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
               hasGuestCalendar ? 'bg-green-500' : 'bg-blue-500'
             }`}>
-              <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+              <Calendar className="h-5 w-5 text-white" />
             </div>
             <div className="flex-1">
-              <p className={`text-sm sm:text-base font-bold ${
+              <p className={`text-base font-bold ${
                 hasGuestCalendar ? 'text-green-900' : 'text-blue-900'
               }`}>
                 {summary.availableSlots} available slot{summary.availableSlots !== 1 ? 's' : ''} found
               </p>
               {hasGuestCalendar ? (
-                <p className="text-xs sm:text-sm text-green-700 mt-0.5">
+                <p className="text-sm text-green-700 mt-0.5">
                   ✨ Showing mutual availability with AI-ranked suggestions
                 </p>
               ) : (
-                <p className="text-xs sm:text-sm text-blue-700 mt-0.5">
+                <p className="text-sm text-blue-700 mt-0.5">
                   Showing all available times. Connect your calendar next time for personalized suggestions!
                 </p>
               )}
@@ -182,14 +207,14 @@ export default function SmartSlotPicker({
       )}
 
       {summary && summary.availableSlots === 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
-          <div className="flex items-start gap-2 sm:gap-3">
-            <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-xs sm:text-sm font-semibold text-yellow-900">
+              <p className="text-sm font-semibold text-yellow-900">
                 No available slots in the next {summary.settings?.horizonDays || 30} days
               </p>
-              <p className="text-[10px] sm:text-xs text-yellow-700 mt-1">
+              <p className="text-xs text-yellow-700 mt-1">
                 Try connecting your calendar or contact the organizer directly
               </p>
             </div>
@@ -197,128 +222,96 @@ export default function SmartSlotPicker({
         </div>
       )}
 
-      {/* Date Selector */}
+      {/* Calendar Button - Primary Action */}
       <div>
-        <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3 flex items-center gap-2">
-          <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
-          Select a date
-        </h3>
-        
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-          {visibleDates.map(date => {
-            const daySlots = slots[date];
-            const availableCount = daySlots.filter(s => s.status === 'available').length;
-            const isSelected = selectedDate === date;
-
-            // ✅ Only show best match badge if guest has calendar
-            const bestMatch = hasGuestCalendar ? daySlots
-              .filter(s => s.status === 'available')
-              .reduce((max, s) => Math.max(max, s.matchScore || 0), 0) : 0;
-
-            return (
-              <button
-                key={date}
-                onClick={() => {
-                  setSelectedDate(date);
-                  setSelectedSlot(null);
-                }}
-                disabled={availableCount === 0}
-                className={`p-2 sm:p-3 rounded-lg sm:rounded-xl border-2 text-left transition-all min-h-[80px] sm:min-h-[90px] ${
-                  isSelected 
-                    ? 'border-blue-500 bg-blue-50 shadow-md' 
-                    : availableCount > 0
-                    ? 'border-gray-300 hover:border-blue-300 active:bg-blue-50'
-                    : 'border-red-200 bg-red-50 opacity-75 cursor-not-allowed'
-                }`}
-              >
-                <p className="text-[10px] sm:text-xs font-semibold text-gray-600">
-                  {daySlots[0]?.dayOfWeek}
-                </p>
-                <p className={`text-xs sm:text-sm font-bold mt-1 ${availableCount > 0 ? 'text-gray-900' : 'text-gray-500'}`}>
-                  {new Date(daySlots[0]?.start).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric'
-                  })}
-                </p>
-                {availableCount > 0 ? (
-                  <>
-                    <div className="flex items-center gap-1 mt-1">
-                      <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-green-600" />
-                      <p className="text-[10px] sm:text-xs font-medium text-green-600">
-                        {availableCount} slot{availableCount !== 1 ? 's' : ''}
-                      </p>
-                    </div>
-                    {/* ✅ Only show "Great matches" if guest has calendar connected */}
-                    {hasGuestCalendar && bestMatch >= 80 && (
-                      <div className="flex items-center gap-1 mt-1">
-                        <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-purple-600" />
-                        <p className="text-[10px] sm:text-xs font-medium text-purple-600">
-                          Great matches
-                        </p>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="mt-1">
-                    <p className="text-[10px] sm:text-xs text-red-600 font-medium">
-                      No slots
-                    </p>
-                  </div>
-                )}
-              </button>
-            );
-          })}
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+              <span className="text-xs font-bold text-blue-600">1</span>
+            </div>
+            Select a date
+          </h3>
+          {selectedDate && (
+            <span className="text-sm text-green-600 font-medium flex items-center gap-1">
+              <Check className="h-4 w-4" />
+              {new Date(slots[selectedDate][0]?.start).toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric' 
+              })}
+            </span>
+          )}
         </div>
 
-        {dates.length > 4 && (
-          <div className="mt-3 sm:mt-4 text-center">
-            <button
-              onClick={() => setShowAllDates(!showAllDates)}
-              className="px-3 sm:px-4 py-2 text-xs sm:text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors flex items-center justify-center gap-1.5 sm:gap-2 mx-auto min-h-[44px]"
-            >
-              {showAllDates ? (
-                <>
-                  <ChevronUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  Show less dates
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  Show more dates ({dates.length - 4} more)
-                </>
-              )}
-            </button>
+        {/* Big Calendar Button */}
+        <button
+          onClick={() => setShowCalendarModal(true)}
+          className="w-full p-6 border-2 border-dashed border-blue-300 rounded-2xl hover:border-blue-500 hover:bg-blue-50 transition-all group"
+        >
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Calendar className="h-8 w-8 text-blue-600" />
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-gray-900 group-hover:text-blue-700">
+                {selectedDate ? 'Change Date' : 'Open Calendar'}
+              </p>
+              <p className="text-sm text-gray-600 mt-1">
+                Browse available dates in calendar view
+              </p>
+            </div>
           </div>
-        )}
+        </button>
       </div>
 
-      {/* Time Slots */}
+      {/* Time Slots Section - Only show when date is selected */}
       {selectedDate && slots[selectedDate] && (
-        <div>
-          <div className="flex items-center justify-between mb-2 sm:mb-3">
-            <h3 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
-              Available times ({duration} min)
+        <div className="pt-6 border-t-2 border-slate-200">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                <span className="text-xs font-bold text-blue-600">2</span>
+              </div>
+              Choose your time
             </h3>
-            <button
-              onClick={() => setShowUnavailable(!showUnavailable)}
-              className="text-[10px] sm:text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 transition-colors min-h-[44px]"
-            >
-              {showUnavailable ? (
-                <>
-                  <EyeOff className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                  <span className="hidden sm:inline">Hide unavailable</span>
-                </>
-              ) : (
-                <>
-                  <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                  <span className="hidden sm:inline">Show all times</span>
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-500">{duration} min slots</span>
+              <button
+                onClick={() => setShowUnavailable(!showUnavailable)}
+                className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+              >
+                {showUnavailable ? (
+                  <>
+                    <EyeOff className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Hide unavailable</span>
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Show all</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[60vh] sm:max-h-96 overflow-y-auto">
+          {/* Show selected date info */}
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+            <p className="text-sm text-blue-900">
+              <span className="font-semibold">
+                {new Date(slots[selectedDate][0]?.start).toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </span>
+              <span className="text-blue-600 ml-2">
+                • {slots[selectedDate].filter(s => s.status === 'available').length} times available
+              </span>
+            </p>
+          </div>
+
+          {/* Time slots grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto">
             {slots[selectedDate]
               .filter(slot => {
                 if (slot.status === 'available') return true;
@@ -342,9 +335,8 @@ export default function SmartSlotPicker({
                         onSlotSelected(slot);
                         console.log('✅ Slot selected:', slot.time, 'Match score:', slot.matchScore);
                       }}
-                      className={`relative p-3 sm:p-4 rounded-lg border-2 text-left transition-all min-h-[90px] sm:min-h-[100px] active:scale-95 ${matchClasses.button}`}
+                      className={`relative p-4 rounded-lg border-2 text-left transition-all min-h-[100px] active:scale-95 ${matchClasses.button}`}
                     >
-                      {/* ✅ Only show match score badge if guest has calendar AND score is good */}
                       {hasGuestCalendar && slot.matchScore && slot.matchScore >= 70 && !isSelected && (
                         <div className="absolute top-2 right-2">
                           <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${matchClasses.badge} shadow-sm`}>
@@ -354,9 +346,8 @@ export default function SmartSlotPicker({
                         </div>
                       )}
 
-                      {/* Time */}
                       <div className="flex items-start justify-between gap-1 mb-2">
-                        <span className={`text-base sm:text-lg font-bold ${matchClasses.text}`}>
+                        <span className={`text-lg font-bold ${matchClasses.text}`}>
                           {slot.time}
                         </span>
                         {isSelected && (
@@ -364,9 +355,8 @@ export default function SmartSlotPicker({
                         )}
                       </div>
 
-                      {/* ✅ Match Label - only show AI labels if guest has calendar */}
                       <div className="space-y-1">
-                        <p className={`text-[10px] sm:text-xs font-bold ${isSelected ? 'text-white' : matchClasses.text}`}>
+                        <p className={`text-xs font-bold ${isSelected ? 'text-white' : matchClasses.text}`}>
                           {isSelected 
                             ? 'Selected' 
                             : hasGuestCalendar && slot.matchLabel 
@@ -374,20 +364,19 @@ export default function SmartSlotPicker({
                               : 'Available'}
                         </p>
                         
-                        {/* ✅ Match details - only if guest has calendar */}
                         {!isSelected && hasGuestCalendar && slot.matchScore && (
                           <div className={`flex items-center gap-1 ${matchClasses.icon}`}>
                             {slot.matchScore >= 90 && (
-                              <span className="text-[9px] sm:text-[10px] font-medium">Excellent time!</span>
+                              <span className="text-[10px] font-medium">Excellent time!</span>
                             )}
                             {slot.matchScore >= 80 && slot.matchScore < 90 && (
-                              <span className="text-[9px] sm:text-[10px] font-medium">Great choice</span>
+                              <span className="text-[10px] font-medium">Great choice</span>
                             )}
                             {slot.matchScore >= 70 && slot.matchScore < 80 && (
-                              <span className="text-[9px] sm:text-[10px] font-medium">Good option</span>
+                              <span className="text-[10px] font-medium">Good option</span>
                             )}
                             {slot.matchScore < 70 && slot.matchScore >= 60 && (
-                              <span className="text-[9px] sm:text-[10px] font-medium">Fair match</span>
+                              <span className="text-[10px] font-medium">Fair match</span>
                             )}
                           </div>
                         )}
@@ -399,15 +388,15 @@ export default function SmartSlotPicker({
                     <button
                       key={index}
                       disabled
-                      className="p-2.5 sm:p-3 rounded-lg border border-gray-200 bg-gray-50 text-left opacity-60 cursor-not-allowed min-h-[90px] sm:min-h-[100px]"
+                      className="p-3 rounded-lg border border-gray-200 bg-gray-50 text-left opacity-60 cursor-not-allowed min-h-[100px]"
                       title={slot.details}
                     >
                       <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs sm:text-sm font-medium text-gray-600">
+                        <span className="text-sm font-medium text-gray-600">
                           {slot.time}
                         </span>
                       </div>
-                      <p className="text-[10px] sm:text-xs text-gray-500 mt-1 truncate">
+                      <p className="text-xs text-gray-500 mt-1 truncate">
                         {slot.reason === 'organizer_busy' && '🔴 Busy'}
                         {slot.reason === 'guest_busy' && '🟡 You\'re busy'}
                         {slot.reason === 'outside_hours' && '⚪ Off hours'}
@@ -421,16 +410,17 @@ export default function SmartSlotPicker({
                 }
               })}
           </div>
-
-          {slots[selectedDate] && (
-            <div className="mt-2 sm:mt-3 text-center">
-              <p className="text-xs sm:text-sm text-gray-600">
-                {slots[selectedDate].filter(s => s.status === 'available').length} available time
-                {slots[selectedDate].filter(s => s.status === 'available').length !== 1 ? 's' : ''} on this day
-              </p>
-            </div>
-          )}
         </div>
+      )}
+
+      {/* Calendar Modal */}
+      {showCalendarModal && (
+        <CalendarModal 
+          slots={slots}
+          onSelectDate={handleDateSelect}
+          onClose={() => setShowCalendarModal(false)}
+          selectedDate={selectedDate}
+        />
       )}
     </div>
   );
