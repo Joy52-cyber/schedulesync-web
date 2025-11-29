@@ -4,10 +4,13 @@ import {
   Calendar, User, Clock, MapPin,
   Sparkles, ArrowRight, ExternalLink, Loader2,
   Ban, ChevronRight, RefreshCw, CheckCircle,
-  AlertTriangle, ArrowLeft, Plus, X
+  AlertTriangle, ArrowLeft, Plus, X, CreditCard, DollarSign
 } from 'lucide-react';
-import { bookings, oauth, eventTypes as eventTypesAPI } from '../utils/api';
+import api, { bookings, payments, oauth } from '../utils/api';
 import SmartSlotPicker from '../components/SmartSlotPicker';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
+import PaymentForm from '../components/PaymentForm';
 
 const FadeIn = ({ children, className = "" }) => (
   <div className={`animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-forwards ${className}`}>
@@ -20,6 +23,7 @@ export default function BookingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
+  // --- State ---
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
@@ -50,15 +54,20 @@ export default function BookingPage() {
   const [guestTimezone, setGuestTimezone] = useState('');
     
   const [selectedSlot, setSelectedSlot] = useState(null);
-  
+
+  // Payment State
+  const [pricingInfo, setPricingInfo] = useState(null);
+  const [showPayment, setShowPayment] = useState(false);
+  const [stripePromise, setStripePromise] = useState(null);
+  const [paymentIntentId, setPaymentIntentId] = useState(null);
+
+  // --- Effects ---
 
   useEffect(() => {
     try {
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       setGuestTimezone(timezone);
-      console.log('🌍 Guest timezone detected:', timezone);
     } catch (error) {
-      console.error('Failed to detect timezone:', error);
       setGuestTimezone('UTC');
     }
   }, []);
@@ -70,8 +79,10 @@ export default function BookingPage() {
       setRescheduleToken(rescheduleParam);
     }
     loadBookingInfo();
+    loadPricingInfo();
   }, [token]);
 
+  // OAuth Handler
   useEffect(() => {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
@@ -87,9 +98,10 @@ export default function BookingPage() {
         
         let response;
         if (provider === 'microsoft') {
-          response = await oauth.handleMicrosoftCallback(code);
+           // Fallback if oauth helper is missing handleMicrosoftCallback
+           response = await api.post('/auth/microsoft/callback', { code });
         } else {
-          response = await oauth.guestGoogleAuth(code, token);
+           response = await oauth.guestGoogleAuth(code, token);
         }
         
         const data = response.data;
@@ -110,6 +122,7 @@ export default function BookingPage() {
           attendee_email: data.email || prev.attendee_email,
         }));
 
+        // Reconstruct URL params to keep state
         const typeParam = searchParams.get('type');
         const rescheduleParam = searchParams.get('reschedule');
         let newUrl = `/book/${token}`;
@@ -127,6 +140,8 @@ export default function BookingPage() {
     })();
   }, [searchParams, token, navigate, hasProcessedOAuth]);
 
+  // --- Data Loading ---
+
   const loadBookingInfo = async () => {
     try {
       setLoading(true);
@@ -135,6 +150,7 @@ export default function BookingPage() {
 
       if (!payload.team || !payload.member) throw new Error('Missing info');
 
+      // External Link Redirect
       if (payload.member.external_booking_link && !isReschedule) {
         setRedirecting(true);
         setMemberInfo(payload.member);
@@ -160,9 +176,12 @@ export default function BookingPage() {
       }
       
       let allEventTypes = payload.eventTypes || [];
-      if (allEventTypes.length === 0 && !directMemberLink) {
-        const eventTypesRes = await eventTypesAPI.getAll();
-        allEventTypes = eventTypesRes.data.eventTypes || [];
+      // If event types are missing from payload, try fetching them if the API supports it
+      if (allEventTypes.length === 0 && !directMemberLink && api.eventTypes) {
+        try {
+            const eventTypesRes = await api.eventTypes.getAll(); 
+            allEventTypes = eventTypesRes.data.eventTypes || [];
+        } catch (e) { console.warn("Event types not supported or failed to load"); }
       }
       
       const activeEventTypes = allEventTypes.filter(et => et.is_active !== false);
@@ -200,6 +219,25 @@ export default function BookingPage() {
     }
   };
 
+  const loadPricingInfo = async () => {
+    try {
+      const response = await payments.getPricing(token);
+      const data = response.data;
+      setPricingInfo(data);
+
+      if (data.paymentRequired && data.price > 0) {
+        const configResponse = await payments.getConfig();
+        const config = configResponse.data;
+        setStripePromise(loadStripe(config.publishableKey));
+      }
+    } catch (error) {
+      console.warn('Pricing load failed, assuming free:', error);
+      setPricingInfo({ paymentRequired: false, price: 0, currency: 'USD' });
+    }
+  };
+
+  // --- Handlers ---
+
   const handleSelectEventType = (eventType) => {
     setSelectedEventType(eventType);
     const params = new URLSearchParams(searchParams);
@@ -210,7 +248,7 @@ export default function BookingPage() {
 
   const handleCalendarConnect = (provider) => {
     const currentUrl = window.location.origin + window.location.pathname;
-    const redirectUri = currentUrl;
+    const redirectUri = currentUrl; // Redirect back to same page
     const state = `guest-booking:${token}:${provider}`;
     
     if (provider === 'google') {
@@ -226,18 +264,6 @@ export default function BookingPage() {
         state: state,
       });
       window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-    } else if (provider === 'microsoft') {
-      const clientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
-      const scope = 'openid email profile Calendars.Read';
-      const params = new URLSearchParams({
-        client_id: clientId, 
-        redirect_uri: redirectUri, 
-        response_type: 'code',
-        scope: scope, 
-        response_mode: 'query', 
-        state: state,
-      });
-      window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
     }
   };
 
@@ -255,30 +281,58 @@ export default function BookingPage() {
 
   const handleAddAttendee = () => {
     if (!newAttendeeEmail.trim()) return;
-    
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(newAttendeeEmail)) {
-      alert('Please enter a valid email address');
-      return;
-    }
-    
-    if (additionalAttendees.includes(newAttendeeEmail) || newAttendeeEmail === formData.attendee_email) {
-      alert('This email is already added');
-      return;
-    }
+    if (!emailRegex.test(newAttendeeEmail)) return alert('Please enter a valid email');
+    if (additionalAttendees.includes(newAttendeeEmail) || newAttendeeEmail === formData.attendee_email) return alert('Email already added');
     
     setAdditionalAttendees([...additionalAttendees, newAttendeeEmail]);
     setNewAttendeeEmail('');
   };
 
-  const handleRemoveAttendee = (emailToRemove) => {
-    setAdditionalAttendees(additionalAttendees.filter(email => email !== emailToRemove));
+  const handleRemoveAttendee = (email) => {
+    setAdditionalAttendees(additionalAttendees.filter(e => e !== email));
+  };
+
+  // --- Submission ---
+
+  const handlePaymentSuccess = async (paymentIntentId) => {
+    setPaymentIntentId(paymentIntentId);
+    try {
+      setSubmitting(true);
+      const response = await payments.confirmBooking({
+        paymentIntentId,
+        bookingToken: token,
+        slot: selectedSlot,
+        attendeeName: formData.attendee_name,
+        attendeeEmail: formData.attendee_email,
+        notes: formData.notes,
+        // Pass extra data if your backend supports it
+        additionalAttendees, 
+        guestTimezone
+      });
+
+      if (response.data.success) {
+        finishBooking(response.data.booking);
+      }
+    } catch (error) {
+      console.error('Payment confirmation failed:', error);
+      alert('Payment successful but booking creation failed. Please contact support.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedSlot) return;
     
+    // Check Payment
+    if (pricingInfo?.paymentRequired && pricingInfo?.price > 0) {
+      setShowPayment(true);
+      return;
+    }
+    
+    // Create Free Booking
     try {
       setSubmitting(true);
       const response = await bookings.create({
@@ -288,12 +342,20 @@ export default function BookingPage() {
         additional_attendees: additionalAttendees,
         guest_timezone: guestTimezone,
         event_type_id: selectedEventType?.id,
-        event_type_slug: selectedEventType?.slug,
         reschedule_token: rescheduleToken, 
       });
       
-      const booking = response.data.booking;
-      const bookingData = {
+      finishBooking(response.data.booking);
+    } catch (err) {
+      if (err.response?.status === 410) setIsLinkUsed(true);
+      else alert(err.response?.data?.error || 'Failed to create booking.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const finishBooking = (booking) => {
+     const bookingData = {
         id: booking?.id,
         start_time: selectedSlot.start,
         end_time: selectedSlot.end,
@@ -303,34 +365,59 @@ export default function BookingPage() {
         guest_timezone: guestTimezone,
         organizer_name: memberInfo?.name || memberInfo?.user_name,
         team_name: teamInfo?.name,
-        event_type: selectedEventType?.title || selectedEventType?.name,
+        event_type: selectedEventType?.title,
         duration: selectedEventType?.duration || 30,
         notes: formData.notes,
         meet_link: booking?.meet_link,
         booking_token: booking?.booking_token || token,
-        manage_token: booking?.manage_token,
-        is_reschedule: isReschedule,
+        payment_amount: pricingInfo?.price,
+        payment_currency: pricingInfo?.currency,
       };
-      navigate(`/booking-confirmation?data=${encodeURIComponent(JSON.stringify(bookingData))}`);
-    } catch (err) {
-      if (err.response?.status === 410) setIsLinkUsed(true);
-      else alert(err.response?.data?.error || 'Failed to create booking.');
-    } finally {
-      setSubmitting(false);
-    }
+      const dataParam = encodeURIComponent(JSON.stringify(bookingData));
+      navigate(`/booking-confirmation?data=${dataParam}`);
   };
 
   const duration = selectedEventType?.duration || memberInfo?.default_duration || 30;
   const avatarLetter = memberInfo?.name?.[0]?.toUpperCase() || memberInfo?.user_name?.[0]?.toUpperCase() || 'U';
 
-  if (loading || redirecting) return <LoadingScreen redirecting={redirecting} memberName={memberInfo?.name} />;
-  if (isLinkUsed) return <ExpiredLinkScreen />;
-  if (error && !teamInfo) return <ErrorScreen error={error} />;
+  // --- Render Loading/Errors ---
+  if (loading || redirecting) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+            <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+            <p className="text-gray-600 font-medium">
+                {redirecting ? `Redirecting to ${memberInfo?.name}'s page...` : 'Loading booking details...'}
+            </p>
+        </div>
+    </div>
+  );
 
+  if (isLinkUsed) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="bg-white p-8 rounded-2xl shadow-lg text-center max-w-md">
+            <Ban className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900">Link Expired</h2>
+            <p className="text-gray-600 mt-2">This booking link has already been used or is no longer valid.</p>
+        </div>
+    </div>
+  );
+
+  if (error && !teamInfo) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="bg-white p-8 rounded-2xl shadow-lg text-center max-w-md">
+            <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900">Booking Unavailable</h2>
+            <p className="text-gray-600 mt-2">{error}</p>
+        </div>
+    </div>
+  );
+
+  // --- Render Main UI ---
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 md:p-6 font-sans">
       <div className="bg-white w-full max-w-6xl rounded-[2rem] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] border border-slate-100">
         
+        {/* Sidebar */}
         <div className="md:w-1/3 bg-slate-50 border-r border-slate-200 p-8 flex flex-col relative">
           {(step !== 'event-select' && step !== 'loading') && (
             <button onClick={handleBack} className="absolute top-6 left-6 p-2 rounded-full hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
@@ -381,10 +468,23 @@ export default function BookingPage() {
                 )}
               </div>
             ) : (
-              <div className="mt-8 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-                <p className="text-sm text-blue-700">Please select a meeting type from the list to continue.</p>
-              </div>
+                // If no specific event type selected, show generic duration
+                <div className="flex items-center gap-2 text-slate-600">
+                    <Clock className="h-4 w-4" />
+                    <span className="font-medium">{duration} min</span>
+                </div>
             )}
+            
+            {pricingInfo?.paymentRequired && (
+                 <div className="mt-6 bg-green-50 p-4 rounded-xl border border-green-100">
+                    <div className="flex items-center gap-2 text-green-700 font-bold mb-1">
+                        <DollarSign className="h-4 w-4" />
+                        {pricingInfo.currency} {pricingInfo.price}
+                    </div>
+                    <p className="text-xs text-green-600">Payment required to book</p>
+                 </div>
+            )}
+
           </div>
           
           <div className="mt-auto pt-6 text-xs text-slate-300 font-medium">
@@ -392,6 +492,7 @@ export default function BookingPage() {
           </div>
         </div>
 
+        {/* Main Area */}
         <div className="md:w-2/3 bg-white p-6 md:p-10 overflow-y-auto relative">
           
           {step === 'event-select' && (
@@ -427,7 +528,7 @@ export default function BookingPage() {
                   <Sparkles className="h-8 w-8 text-indigo-600" />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900">Check for conflicts?</h2>
-                <p className="text-slate-500 mt-2">Sign in to overlay your calendar availability on top of {memberInfo?.name?.split(' ')[0]}'s schedule.</p>
+                <p className="text-slate-500 mt-2">Sign in to overlay your calendar availability on top of the schedule.</p>
               </div>
 
               <div className="space-y-4">
@@ -441,23 +542,6 @@ export default function BookingPage() {
                     <span className="block text-xs text-slate-500">We'll only read your busy times</span>
                   </div>
                   <ArrowRight className="h-5 w-5 text-slate-300 group-hover:text-red-500 transition-colors" />
-                </button>
-
-                <button 
-                  onClick={() => handleCalendarConnect('microsoft')}
-                  className="w-full flex items-center p-4 rounded-xl border border-slate-200 hover:border-blue-200 hover:bg-blue-50/30 transition-all group"
-                >
-                  <div className="h-6 w-6 mr-4 grid grid-cols-2 gap-0.5">
-                    <div className="bg-[#f35325]"></div>
-                    <div className="bg-[#81bc06]"></div>
-                    <div className="bg-[#05a6f0]"></div>
-                    <div className="bg-[#ffba08]"></div>
-                  </div>
-                  <div className="text-left flex-1">
-                    <span className="block font-semibold text-slate-900">Connect Outlook / Office 365</span>
-                    <span className="block text-xs text-slate-500">We'll only read your busy times</span>
-                  </div>
-                  <ArrowRight className="h-5 w-5 text-slate-300 group-hover:text-blue-500 transition-colors" />
                 </button>
 
                 <div className="relative py-4">
@@ -485,13 +569,6 @@ export default function BookingPage() {
                 <div className="mb-3 inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-sm font-medium self-start">
                   <div className="w-2 h-2 bg-green-500 rounded-full" />
                   Using your calendar: {guestCalendar.email}
-                </div>
-              )}
-
-              {guestTimezone && (
-                <div className="mb-6 inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium self-start">
-                  <Clock className="h-4 w-4" />
-                  Your timezone: {guestTimezone}
                 </div>
               )}
 
@@ -550,84 +627,34 @@ export default function BookingPage() {
                         placeholder="john@example.com"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Additional Notes</label>
-                      <textarea 
-                        value={formData.notes}
-                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })} 
-                        rows="3"
-                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
-                        placeholder="Anything specific you want to discuss?"
-                      />
-                    </div>
-
+                    
+                    {/* Attendees Section */}
                     <div className="pt-4 border-t border-slate-200">
-                      <label className="block text-sm font-medium text-slate-700 mb-3">
-                        Invite Others to This Meeting
-                      </label>
-                      
-                      {additionalAttendees.length > 0 && (
-                        <div className="space-y-2 mb-3">
-                          {additionalAttendees.map((email, index) => (
-                            <div key={index} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg group">
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4 text-slate-400" />
-                                <span className="text-sm text-slate-700">{email}</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveAttendee(email)}
-                                className="text-slate-400 hover:text-red-600 transition-colors"
-                                title="Remove attendee"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ))}
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Invite Others</label>
+                      {additionalAttendees.map((email, idx) => (
+                        <div key={idx} className="flex justify-between bg-slate-50 p-2 rounded mb-2">
+                            <span className="text-sm">{email}</span>
+                            <button type="button" onClick={() => handleRemoveAttendee(email)}><X className="h-4 w-4 text-slate-400" /></button>
                         </div>
-                      )}
-
+                      ))}
                       <div className="flex gap-2">
-                        <input
-                          type="email"
-                          value={newAttendeeEmail}
-                          onChange={(e) => setNewAttendeeEmail(e.target.value)}
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddAttendee();
-                            }
-                          }}
-                          className="flex-1 px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm"
-                          placeholder="colleague@example.com"
+                        <input 
+                            type="email" 
+                            value={newAttendeeEmail} 
+                            onChange={(e) => setNewAttendeeEmail(e.target.value)} 
+                            placeholder="colleague@example.com" 
+                            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
                         />
-                        <button
-                          type="button"
-                          onClick={handleAddAttendee}
-                          className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium text-sm flex items-center gap-1"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Add
-                        </button>
+                        <button type="button" onClick={handleAddAttendee} className="px-3 py-2 bg-slate-100 rounded-lg text-sm font-medium"><Plus className="h-4 w-4" /></button>
                       </div>
-                      <p className="text-xs text-slate-500 mt-2">
-                        Additional attendees will receive calendar invites and meeting details
-                      </p>
                     </div>
 
                     <button 
                       type="submit"
                       disabled={submitting} 
-                      className="w-full mt-4 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="w-full mt-4 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                      {submitting ? (
-                        <>
-                          <Loader2 className="animate-spin h-5 w-5" />
-                          {isReschedule ? 'Confirming...' : 'Booking...'}
-                        </>
-                      ) : (
-                        <>{isReschedule ? 'Confirm Reschedule' : 'Confirm Booking'}</>
-                      )}
+                      {submitting ? <Loader2 className="animate-spin h-5 w-5" /> : (isReschedule ? 'Confirm Reschedule' : (pricingInfo?.paymentRequired ? 'Proceed to Payment' : 'Confirm Booking'))}
                     </button>
                   </form>
                 </div>
@@ -637,3 +664,27 @@ export default function BookingPage() {
 
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {showPayment && pricingInfo && stripePromise && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 max-h-[90vh] overflow-y-auto">
+             <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold">Complete Payment</h2>
+                <button onClick={() => setShowPayment(false)}><X className="h-6 w-6 text-gray-400" /></button>
+             </div>
+             <Elements stripe={stripePromise}>
+                <PaymentForm 
+                    amount={pricingInfo.price} 
+                    currency={pricingInfo.currency} 
+                    onPaymentSuccess={handlePaymentSuccess} 
+                    onCancel={() => setShowPayment(false)} 
+                    bookingDetails={{ token, slot: selectedSlot, ...formData }} 
+                />
+             </Elements>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
