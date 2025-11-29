@@ -317,11 +317,67 @@ const bookingConfirmationOrganizerWithPayment = (booking) => {
   `;
 };
 
+// ✅ NEW: Email for additional attendees
+const bookingConfirmationAdditionalAttendee = (booking, invitedBy) => {
+  console.log('📧 ADDITIONAL ATTENDEE EMAIL - Booking data:', {
+    id: booking.id,
+    manage_token: booking.manage_token,
+    invited_by: invitedBy
+  });
+
+  const date = new Date(booking.start_time).toLocaleDateString('en-US', { 
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+  });
+  const time = new Date(booking.start_time).toLocaleTimeString('en-US', { 
+    hour: 'numeric', minute: '2-digit' 
+  });
+  const endTime = new Date(booking.end_time).toLocaleTimeString('en-US', { 
+    hour: 'numeric', minute: '2-digit' 
+  });
+
+  const manageUrl = booking.manage_token 
+    ? `${process.env.FRONTEND_URL}/manage/${booking.manage_token}`
+    : null;
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #4F46E5;">You're Invited! 📧</h2>
+      <p>Hi there,</p>
+      <p><strong>${invitedBy}</strong> has invited you to join a meeting with <strong>${booking.organizer_name}</strong>.</p>
+      
+      <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <p style="margin: 5px 0;"><strong>📅 Date:</strong> ${date}</p>
+        <p style="margin: 5px 0;"><strong>🕒 Time:</strong> ${time} - ${endTime}</p>
+        <p style="margin: 5px 0;"><strong>👥 Host:</strong> ${booking.organizer_name}</p>
+        <p style="margin: 5px 0;"><strong>📍 Organized by:</strong> ${invitedBy}</p>
+        ${booking.meet_link ? `<p style="margin: 5px 0;"><strong>🎥 Join:</strong> <a href="${booking.meet_link}" style="color: #4F46E5;">Google Meet</a></p>` : ''}
+        ${booking.notes ? `<p style="margin: 5px 0;"><strong>📝 Notes:</strong> ${booking.notes}</p>` : ''}
+      </div>
+
+      <div style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 4px; margin: 20px 0;">
+        <p style="margin: 0; color: #1e40af; font-size: 14px;">
+          <strong>ℹ️ Note:</strong> You were added as an additional attendee by ${invitedBy}. You'll receive a calendar invite shortly.
+        </p>
+      </div>
+
+      ${manageUrl ? `
+      <div style="margin: 20px 0;">
+        <p>Need to manage this booking?</p>
+        <a href="${manageUrl}" style="background: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View Booking Details</a>
+      </div>
+      ` : ''}
+      
+      <p style="color: #999; font-size: 12px; margin-top: 30px;">Powered by ScheduleSync</p>
+    </div>
+  `;
+};
+
 module.exports = {
   emailVerification,
   bookingConfirmationGuest,
   bookingConfirmationOrganizer,
-  bookingReminder, // ✅ NEW: Export reminder function
+  bookingConfirmationAdditionalAttendee, // ✅ NEW
+  bookingReminder,
   bookingCancellation,
   bookingReschedule,
   bookingConfirmationGuestWithPayment,

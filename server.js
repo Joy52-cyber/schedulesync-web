@@ -807,6 +807,73 @@ app.get('/api/public/booking/:username/:eventSlug', async (req, res) => {
   }
 });
 
+// ========== BOOKING CREATION ENDPOINT ==========
+app.post('/api/bookings', async (req, res) => {
+  try {
+    const { 
+      token, 
+      slot, 
+      attendee_name, 
+      attendee_email, 
+      notes,
+      additional_attendees = [], // ✅ Get additional attendees
+      guest_timezone,
+      event_type_id,
+      event_type_slug,
+      reschedule_token
+    } = req.body;
+
+    // ... your existing booking creation code ...
+
+    // After booking is created, send emails:
+    
+    // 1. Email to main attendee
+    await resend.emails.send({
+      from: 'ScheduleSync <noreply@schedulesync.com>',
+      to: attendee_email,
+      subject: `Booking Confirmed - ${memberInfo.name}`,
+      html: emailTemplates.bookingConfirmationGuest(bookingData)
+    });
+
+    // 2. Email to organizer
+    await resend.emails.send({
+      from: 'ScheduleSync <noreply@schedulesync.com>',
+      to: memberInfo.email,
+      subject: `New Booking - ${attendee_name}`,
+      html: emailTemplates.bookingConfirmationOrganizer(bookingData)
+    });
+
+    // ✅ 3. NEW: Email to additional attendees
+    if (additional_attendees && additional_attendees.length > 0) {
+      console.log(`📧 Sending emails to ${additional_attendees.length} additional attendees`);
+      
+      for (const additionalEmail of additional_attendees) {
+        try {
+          await resend.emails.send({
+            from: 'ScheduleSync <noreply@schedulesync.com>',
+            to: additionalEmail,
+            subject: `Meeting Invitation - ${memberInfo.name}`,
+            html: emailTemplates.bookingConfirmationGuest({
+              ...bookingData,
+              attendee_email: additionalEmail, // Override email
+              attendee_name: additionalEmail.split('@')[0] // Use email username as name
+            })
+          });
+          console.log(`✅ Additional attendee email sent to: ${additionalEmail}`);
+        } catch (emailError) {
+          console.error(`❌ Failed to send to ${additionalEmail}:`, emailError);
+          // Don't fail the whole booking if one email fails
+        }
+      }
+    }
+
+    res.json({ success: true, booking: bookingData });
+  } catch (error) {
+    console.error('❌ Booking creation error:', error);
+    res.status(500).json({ error: 'Failed to create booking' });
+  }
+});
+
 // ============ AUTHENTICATION MIDDLEWARE ============
 
 const authenticateToken = (req, res, next) => {
