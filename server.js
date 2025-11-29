@@ -816,58 +816,56 @@ app.post('/api/bookings', async (req, res) => {
       attendee_name, 
       attendee_email, 
       notes,
-      additional_attendees = [], // ✅ Get additional attendees
+      additional_attendees = [],
       guest_timezone,
       event_type_id,
       event_type_slug,
       reschedule_token
     } = req.body;
 
-    // ... your existing booking creation code ...
+    console.log('📝 Creating booking:', { token, attendee_name, attendee_email });
 
-    // After booking is created, send emails:
-    
-    // 1. Email to main attendee
-    await resend.emails.send({
-      from: 'ScheduleSync <noreply@schedulesync.com>',
-      to: attendee_email,
-      subject: `Booking Confirmed - ${memberInfo.name}`,
-      html: emailTemplates.bookingConfirmationGuest(bookingData)
-    });
+    // ✅ STEP 1: Look up the booking token to get member info
+    const tokenLookup = await pool.query(`
+      SELECT 
+        tm.id as member_id,
+        tm.name as member_name,
+        tm.email as member_email,
+        tm.user_name as member_username,
+        t.id as team_id,
+        t.name as team_name,
+        bt.token,
+        bt.type as token_type
+      FROM booking_tokens bt
+      JOIN team_members tm ON bt.member_id = tm.id
+      JOIN teams t ON tm.team_id = t.id
+      WHERE bt.token = $1
+    `, [token]);
 
-    // 2. Email to organizer
-    await resend.emails.send({
-      from: 'ScheduleSync <noreply@schedulesync.com>',
-      to: memberInfo.email,
-      subject: `New Booking - ${attendee_name}`,
-      html: emailTemplates.bookingConfirmationOrganizer(bookingData)
-    });
-
-    // ✅ 3. NEW: Email to additional attendees
-    if (additional_attendees && additional_attendees.length > 0) {
-      console.log(`📧 Sending emails to ${additional_attendees.length} additional attendees`);
-      
-      for (const additionalEmail of additional_attendees) {
-        try {
-          await resend.emails.send({
-            from: 'ScheduleSync <noreply@schedulesync.com>',
-            to: additionalEmail,
-            subject: `Meeting Invitation - ${memberInfo.name}`,
-            html: emailTemplates.bookingConfirmationGuest({
-              ...bookingData,
-              attendee_email: additionalEmail, // Override email
-              attendee_name: additionalEmail.split('@')[0] // Use email username as name
-            })
-          });
-          console.log(`✅ Additional attendee email sent to: ${additionalEmail}`);
-        } catch (emailError) {
-          console.error(`❌ Failed to send to ${additionalEmail}:`, emailError);
-          // Don't fail the whole booking if one email fails
-        }
-      }
+    if (tokenLookup.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
     }
 
-    res.json({ success: true, booking: bookingData });
+    const tokenData = tokenLookup.rows[0];
+
+    // ✅ STEP 2: Create memberInfo object
+    const memberInfo = {
+      id: tokenData.member_id,
+      name: tokenData.member_name,
+      email: tokenData.member_email,
+      username: tokenData.member_username
+    };
+
+    const teamInfo = {
+      id: tokenData.team_id,
+      name: tokenData.team_name
+    };
+
+    console.log('👤 Member:', memberInfo.name, 'Team:', teamInfo.name);
+
+    // Now you can use memberInfo in your emails!
+    // ... rest of your booking creation code ...
+
   } catch (error) {
     console.error('❌ Booking creation error:', error);
     res.status(500).json({ error: 'Failed to create booking' });

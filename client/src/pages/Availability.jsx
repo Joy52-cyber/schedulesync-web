@@ -301,16 +301,31 @@ export default function Availability() {
                                 />
                             </div>
                             
-                            {/* Actions */}
-                            <div className="flex items-center gap-1">
-                                {index === 0 ? (
-                                   <button onClick={() => addSlot(day.key)} className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-md transition-colors" title="Add another slot">
-                                      <Plus className="h-4 w-4" />
-                                   </button>
-                                ) : (
-                                   <button onClick={() => removeSlot(day.key, index)} className="p-1.5 hover:bg-red-50 text-red-500 rounded-md transition-colors" title="Remove slot">
-                                      <Trash2 className="h-4 w-4" />
-                                   </button>
+                           {/* Actions */}
+<div className="flex items-center gap-1">
+  {/* Delete button on EVERY slot */}
+  <button
+    onClick={() => removeSlot(day.key, index)}
+    className="p-1.5 hover:bg-red-50 text-red-500 rounded-md transition-colors"
+    title="Remove slot"
+  >
+    <Trash2 className="h-4 w-4" />
+  </button>
+
+  {/* Add button only on the LAST slot */}
+  {index === settings.slots.length - 1 && (
+    <button
+      onClick={() => addSlot(day.key)}
+      className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-md transition-colors"
+      title="Add another slot"
+    >
+      <Plus className="h-4 w-4" />
+    </button>
+  )}
+</div>
+
+
+
                                 )}
                             </div>
                           </div>
