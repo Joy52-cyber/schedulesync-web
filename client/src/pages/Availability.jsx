@@ -78,37 +78,36 @@ export default function Availability() {
 
           if (m?.working_hours) {
             const normalizedHours = {};
-            Object.keys(m.working_hours).forEach((dayKey) => {
-              const dayData = m.working_hours[dayKey];
-              if (!dayData) return;
 
-              if (Array.isArray(dayData.slots)) {
-                // Already new format
-                normalizedHours[dayKey] = {
-                  enabled: dayData.enabled ?? true,
-                  slots: dayData.slots.map((slot) => ({
-                    start: slot.start || '09:00',
-                    end: slot.end || '17:00',
-                  })),
-                };
+            Object.keys(m.working_hours).forEach((day) => {
+              const dayData = m.working_hours[day];
+
+              if (dayData?.slots) {
+                normalizedHours[day] = dayData;
               } else {
-                // Old format { enabled, start, end }
-                normalizedHours[dayKey] = {
-                  enabled: dayData.enabled ?? true,
+                normalizedHours[day] = {
+                  enabled: dayData?.enabled ?? false,
                   slots: [
                     {
-                      start: dayData.start || '09:00',
-                      end: dayData.end || '17:00',
+                      start: dayData?.start || '09:00',
+                      end: dayData?.end || '17:00',
                     },
                   ],
                 };
               }
             });
 
-            setAvailability((prev) => ({
-              workingHours: { ...prev.workingHours, ...normalizedHours },
+            // Ensure all weekdays exist (prevents undefined)
+            WEEKDAYS.forEach(({ key }) => {
+              if (!normalizedHours[key]) {
+                normalizedHours[key] = availability.workingHours[key];
+              }
+            });
+
+            setAvailability({
+              workingHours: normalizedHours,
               bufferTime: m.buffer_time || 0,
-            }));
+            });
           }
         }
       }
@@ -141,101 +140,59 @@ export default function Availability() {
     }
   };
 
-  const toggleDay = (dayKey) => {
+  const toggleDay = (day) => {
     setAvailability((prev) => ({
       ...prev,
       workingHours: {
         ...prev.workingHours,
-        [dayKey]: {
-          ...prev.workingHours[dayKey],
-          enabled: !prev.workingHours[dayKey].enabled,
+        [day]: {
+          ...prev.workingHours[day],
+          enabled: !prev.workingHours[day].enabled,
         },
       },
     }));
   };
 
-  const updateSlot = (dayKey, index, field, value) => {
-    setAvailability((prev) => {
-      const daySettings = prev.workingHours[dayKey];
-      const newSlots = [...daySettings.slots];
-      newSlots[index] = { ...newSlots[index], [field]: value };
+  const updateSlot = (day, index, field, value) => {
+    const newSlots = [...availability.workingHours[day].slots];
+    newSlots[index] = { ...newSlots[index], [field]: value };
 
-      return {
-        ...prev,
-        workingHours: {
-          ...prev.workingHours,
-          [dayKey]: { ...daySettings, slots: newSlots },
-        },
-      };
-    });
+    setAvailability((prev) => ({
+      ...prev,
+      workingHours: {
+        ...prev.workingHours,
+        [day]: { ...prev.workingHours[day], slots: newSlots },
+      },
+    }));
   };
 
-  const addSlot = (dayKey) => {
-    setAvailability((prev) => {
-      const daySettings = prev.workingHours[dayKey];
-      const newSlots = [
-        ...daySettings.slots,
-        { start: '09:00', end: '17:00' },
-      ];
-      return {
-        ...prev,
-        workingHours: {
-          ...prev.workingHours,
-          [dayKey]: { ...daySettings, slots: newSlots },
-        },
-      };
-    });
+  const addSlot = (day) => {
+    const newSlots = [
+      ...availability.workingHours[day].slots,
+      { start: '09:00', end: '17:00' },
+    ];
+
+    setAvailability((prev) => ({
+      ...prev,
+      workingHours: {
+        ...prev.workingHours,
+        [day]: { ...prev.workingHours[day], slots: newSlots },
+      },
+    }));
   };
 
-  const removeSlot = (dayKey, index) => {
-    setAvailability((prev) => {
-      const daySettings = prev.workingHours[dayKey];
-      if (!daySettings || daySettings.slots.length === 0) return prev;
+  const removeSlot = (day, index) => {
+    const newSlots = availability.workingHours[day].slots.filter(
+      (_, i) => i !== index
+    );
 
-      const newSlots = daySettings.slots.filter((_, i) => i !== index);
-
-      return {
-        ...prev,
-        workingHours: {
-          ...prev.workingHours,
-          [dayKey]: {
-            ...daySettings,
-            // Keep at least one slot so UI doesn't break
-            slots: newSlots.length
-              ? newSlots
-              : [{ start: '09:00', end: '17:00' }],
-          },
-        },
-      };
-    });
-  };
-
-  const copyToWeekdays = (sourceDayKey) => {
-    setAvailability((prev) => {
-      const src = prev.workingHours[sourceDayKey];
-      if (!src) return prev;
-
-      const srcSlots = src.slots.map((slot) => ({
-        start: slot.start,
-        end: slot.end,
-      }));
-
-      const updatedWorkingHours = { ...prev.workingHours };
-
-      Object.keys(updatedWorkingHours).forEach((dayKey) => {
-        if (!['saturday', 'sunday'].includes(dayKey)) {
-          updatedWorkingHours[dayKey] = {
-            enabled: true,
-            slots: srcSlots.map((slot) => ({ ...slot })),
-          };
-        }
-      });
-
-      return {
-        ...prev,
-        workingHours: updatedWorkingHours,
-      };
-    });
+    setAvailability((prev) => ({
+      ...prev,
+      workingHours: {
+        ...prev.workingHours,
+        [day]: { ...prev.workingHours[day], slots: newSlots },
+      },
+    }));
   };
 
   if (loading) {
@@ -249,7 +206,7 @@ export default function Availability() {
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        {/* Header */}
+        {/* Page Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Availability</h1>
@@ -291,10 +248,7 @@ export default function Availability() {
             <select
               value={profile.timezone}
               onChange={(e) =>
-                setProfile((prev) => ({
-                  ...prev,
-                  timezone: e.target.value,
-                }))
+                setProfile({ ...profile, timezone: e.target.value })
               }
               className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
             >
@@ -319,7 +273,7 @@ export default function Availability() {
               </p>
             </div>
             <button
-              onClick={() => copyToWeekdays('monday')}
+              onClick={() => copyMondayToWeekdays()}
               className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
             >
               <Copy className="h-3 w-3" /> Copy Monday to weekdays
@@ -334,12 +288,12 @@ export default function Availability() {
               return (
                 <div
                   key={day.key}
-                  className={`flex flex-col md:flex-row items-start md:items-center px-6 py-4 gap-4 ${
+                  className={`flex flex-col md:flex-row items-start gap-4 px-6 py-4 ${
                     isWeekend ? 'bg-gray-50/50' : ''
                   }`}
                 >
-                  {/* Day toggle */}
-                  <div className="flex items-center gap-3 w-32 pt-2 md:pt-0">
+                  {/* Day Toggle / Label (fixed column so days don't move) */}
+                  <div className="flex items-center gap-3 w-32 flex-shrink-0">
                     <input
                       type="checkbox"
                       checked={settings.enabled}
@@ -351,18 +305,18 @@ export default function Availability() {
                     </span>
                   </div>
 
-                  {/* Slots */}
+                  {/* Slots area */}
                   <div className="flex-1 w-full">
                     {!settings.enabled ? (
                       <span className="text-sm text-gray-400 italic">
                         Unavailable
                       </span>
                     ) : (
-                      <div className="space-y-3">
+                      <div className="space-y-3 w-full">
                         {settings.slots.map((slot, index) => (
                           <div
                             key={index}
-                            className="flex flex-wrap items-center gap-3"
+                            className="flex items-center gap-3"
                           >
                             <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-2 py-1 shadow-sm">
                               <input
@@ -394,27 +348,27 @@ export default function Availability() {
                               />
                             </div>
 
-                            {/* Actions: add + delete on every row */}
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => addSlot(day.key)}
-                                className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-md transition-colors"
-                                title="Add another slot"
-                              >
-                                <Plus className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => removeSlot(day.key, index)}
-                                className="p-1.5 hover:bg-red-50 text-red-500 rounded-md transition-colors"
-                                title="Delete this slot"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
+                            {/* Delete for every slot */}
+                            <button
+                              type="button"
+                              onClick={() => removeSlot(day.key, index)}
+                              className="p-1.5 hover:bg-red-50 text-red-500 rounded-md transition-colors"
+                              title="Remove slot"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
                         ))}
+
+                        {/* Add slot button (always creates a new slot BELOW existing ones) */}
+                        <button
+                          type="button"
+                          onClick={() => addSlot(day.key)}
+                          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-1"
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>Add time block</span>
+                        </button>
                       </div>
                     )}
                   </div>
@@ -426,4 +380,21 @@ export default function Availability() {
       </div>
     </div>
   );
+
+  // helper defined after JSX for clarity
+  function copyMondayToWeekdays() {
+    const srcSlots = [...availability.workingHours.monday.slots];
+    const updated = { ...availability.workingHours };
+
+    Object.keys(updated).forEach((dayKey) => {
+      if (!['saturday', 'sunday'].includes(dayKey)) {
+        updated[dayKey] = {
+          enabled: true,
+          slots: JSON.parse(JSON.stringify(srcSlots)),
+        };
+      }
+    });
+
+    setAvailability((prev) => ({ ...prev, workingHours: updated }));
+  }
 }
