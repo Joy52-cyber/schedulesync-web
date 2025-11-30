@@ -4132,8 +4132,8 @@ app.delete('/api/event-types/:id', authenticateToken, async (req, res) => {
 
 // ONE-TIME MIGRATION (Remove after running)
 // ============================================
-app.get('/api/admin/migrate-single-use-names', authenticateToken, async (req, res) => {
-  try {
+ app.get('/api/admin/migrate-single-use-names', async (req, res) => {
+try {
     await pool.query(`
       ALTER TABLE single_use_links 
       ADD COLUMN IF NOT EXISTS name VARCHAR(100)
@@ -4151,7 +4151,7 @@ app.get('/api/admin/migrate-single-use-names', authenticateToken, async (req, re
 app.post('/api/single-use-links', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { name } = req.body;  // ✅ ADD THIS LINE
+    const { name } = req.body;  // ✅ EXTRACT NAME FROM REQUEST
 
     // Get user's member_id
     const memberResult = await pool.query(
@@ -4165,13 +4165,13 @@ app.post('/api/single-use-links', authenticateToken, async (req, res) => {
 
     const memberId = memberResult.rows[0].id;
     const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    // ✅ UPDATED: Insert with name
+    // ✅ INSERT WITH NAME COLUMN
     await pool.query(
       `INSERT INTO single_use_links (token, member_id, name, expires_at) 
        VALUES ($1, $2, $3, $4)`,
-      [token, memberId, name || null, expiresAt]  // ✅ ADD name parameter
+      [token, memberId, name || null, expiresAt]
     );
 
     console.log('✅ Single-use link created:', { token, name, expires_at: expiresAt });
@@ -4179,7 +4179,7 @@ app.post('/api/single-use-links', authenticateToken, async (req, res) => {
     res.json({ 
       success: true, 
       token,
-      name: name || null,  // ✅ ADD THIS
+      name: name || null,
       expires_at: expiresAt 
     });
   } catch (error) {
@@ -4193,7 +4193,6 @@ app.get('/api/single-use-links/recent', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Get user's member_id
     const memberResult = await pool.query(
       'SELECT id FROM team_members WHERE user_id = $1 LIMIT 1',
       [userId]
@@ -4205,7 +4204,7 @@ app.get('/api/single-use-links/recent', authenticateToken, async (req, res) => {
 
     const memberId = memberResult.rows[0].id;
 
-    // ✅ UPDATED: Select name field
+    // ✅ SELECT NAME COLUMN
     const result = await pool.query(
       `SELECT token, name, used, created_at, expires_at 
        FROM single_use_links 
