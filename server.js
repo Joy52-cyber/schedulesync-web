@@ -1256,51 +1256,33 @@ app.post('/api/bookings', async (req, res) => {
             notes: notes || '',
           });
 
-          // ========== 1. PRIMARY ATTENDEE EMAIL ==========
-          console.log('📤 Attempting to send email to:', attendee_email);
-          console.log('🔑 Resend API key exists?', !!process.env.RESEND_API_KEY);
-          console.log('🔑 Resend API key starts with:', process.env.RESEND_API_KEY?.substring(0, 10));
-          console.log('📨 Calling resend.emails.send...');
-
-          const primaryResult = await resend.emails.send({
-            from: 'ScheduleSync <bookings@schedulesync.com>',
-            to: attendee_email,
-            subject: `Booking Confirmed: ${selectedEventType?.title || 'Meeting'} with ${assignedMember.organizer_name}`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #2563eb;">Your booking is confirmed!</h2>
-                <p>Hi ${attendee_name},</p>
-                <p>Your meeting with <strong>${assignedMember.organizer_name}</strong> has been scheduled.</p>
-                
-                <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                  <p style="margin: 5px 0;"><strong>📅 When:</strong> ${new Date(slot.start).toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })}</p>
-                  <p style="margin: 5px 0;"><strong>⏰ Duration:</strong> ${duration} minutes</p>
-                  ${notes ? `<p style="margin: 5px 0;"><strong>📝 Notes:</strong> ${notes}</p>` : ''}
-                  ${additional_attendees?.length > 0 ? `<p style="margin: 5px 0;"><strong>👥 Other Attendees:</strong> ${additional_attendees.join(', ')}</p>` : ''}
-                  ${meetLink ? `<p style="margin: 5px 0;"><strong>🔗 Google Meet:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ''}
-                </div>
-
-                <p>The calendar invite has been attached to this email.</p>
-                
-                <div style="margin: 30px 0;">
-                  <a href="${manageUrl}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Manage Booking</a>
-                </div>
-                
-                <p style="color: #64748b; font-size: 14px;">Need to reschedule or cancel? Use the link above.</p>
-              </div>
-            `,
-            attachments: [
-              {
-                filename: 'meeting.ics',
-                content: Buffer.from(icsContent).toString('base64'),
-              },
-            ],
-          });
-
-          console.log('✅ Email sent - FULL RESULT:', JSON.stringify(primaryResult, null, 2));
-          console.log('✅ Email sent to primary attendee:', attendee_email);
-
-          // ========== 2. ADDITIONAL ATTENDEES LOOP ==========
+           // 1. Primary attendee email
+  await resend.emails.send({
+    from: 'ScheduleSync <bookings@schedulesync.com>',
+    to: attendee_email,
+    subject: `Booking Confirmed with ${assignedMember.organizer_name}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2563eb;">Your booking is confirmed!</h2>
+        <p>Hi ${attendee_name},</p>
+        <p>Your meeting with <strong>${assignedMember.organizer_name}</strong> has been scheduled.</p>
+        <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 5px 0;"><strong>📅 When:</strong> ${new Date(slot.start).toLocaleString()}</p>
+          <p style="margin: 5px 0;"><strong>⏰ Duration:</strong> ${duration} minutes</p>
+          ${notes ? `<p style="margin: 5px 0;"><strong>📝 Notes:</strong> ${notes}</p>` : ''}
+          ${additional_attendees?.length > 0 ? `<p style="margin: 5px 0;"><strong>👥 Others:</strong> ${additional_attendees.join(', ')}</p>` : ''}
+          ${meetLink ? `<p style="margin: 5px 0;"><strong>🔗 Meet:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ''}
+        </div>
+        <div style="margin: 30px 0;">
+          <a href="${manageUrl}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Manage Booking</a>
+        </div>
+      </div>
+    `,
+    attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+  });
+  console.log('✅ Email sent to primary attendee:', attendee_email);
+         
+  // ========== 2. ADDITIONAL ATTENDEES LOOP ==========
           console.log('🔍 Checking additional attendees:', {
             exists: !!additional_attendees,
             isArray: Array.isArray(additional_attendees),
