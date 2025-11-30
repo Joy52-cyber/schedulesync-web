@@ -3143,9 +3143,7 @@ function getMatchColor(score) {
   if (score >= 60) return 'yellow';
   return 'gray';
 }
-
 // ============ ENHANCED SLOT GENERATION WITH ALL AVAILABILITY RULES ============
-
 app.post('/api/book/:token/slots-with-status', async (req, res) => {
   try {
     const { token } = req.params;
@@ -3156,7 +3154,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       timezone = 'America/New_York'
     } = req.body;
 
-    console.log('📅 Generating slots for token:', token, 'Length:', token.length);
+    console.log('📅 Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
 
     // ========== 1. GET MEMBER & SETTINGS ==========
     let memberResult;
@@ -3171,7 +3169,10 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
                 tm.booking_horizon_days,
                 tm.daily_booking_cap,
                 u.google_access_token, 
-                u.google_refresh_token, 
+                u.google_refresh_token,
+                u.microsoft_access_token,
+                u.microsoft_refresh_token,
+                u.provider,
                 u.name as organizer_name,
                 t.id as team_id
          FROM single_use_links sul
@@ -3193,7 +3194,10 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
                 tm.booking_horizon_days,
                 tm.daily_booking_cap,
                 u.google_access_token, 
-                u.google_refresh_token, 
+                u.google_refresh_token,
+                u.microsoft_access_token,
+                u.microsoft_refresh_token,
+                u.provider,
                 u.name as organizer_name,
                 t.id as team_id
          FROM team_members tm
@@ -3203,33 +3207,100 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         [token]
       );
     }
+
     if (memberResult.rows.length === 0) {
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
     const member = memberResult.rows[0];
     
-    // Default settings
-    const bufferTime = member.buffer_time || 0; // minutes
-    const leadTimeHours = member.lead_time_hours || 0; // minimum notice
-    const horizonDays = member.booking_horizon_days || 30; // max days ahead
-    const dailyCap = member.daily_booking_cap || null; // max bookings per day
-    
-    const workingHours = member.working_hours || {
-      monday: { enabled: true, start: '09:00', end: '17:00' },
-      tuesday: { enabled: true, start: '09:00', end: '17:00' },
-      wednesday: { enabled: true, start: '09:00', end: '17:00' },
-      thursday: { enabled: true, start: '09:00', end: '17:00' },
-      friday: { enabled: true, start: '09:00', end: '17:00' },
-      saturday: { enabled: false, start: '09:00', end: '17:00' },
-      sunday: { enabled: false, start: '09:00', end: '17:00' },
-    };
+    // ✅ CRITICAL: Validate and sanitize working_hours
+    let workingHours;
+    try {
+      // Parse if string
+      if (typeof member.working_hours === 'string') {
+        workingHours = JSON.parse(member.working_hours);
+      } else if (member.working_hours && typeof member.working_hours === 'object') {
+        workingHours = member.working_hours;
+      } else {
+        workingHours = null;
+      }
 
-    console.log('⚙️ Settings:', {
-      bufferTime,
-      leadTimeHours,
-      horizonDays,
-      dailyCap
+      // Check for invalid format (has 'slots' property)
+      if (workingHours) {
+        const firstDay = Object.keys(workingHours)[0];
+        if (workingHours[firstDay]?.slots) {
+          console.warn('⚠️ Detected invalid working_hours format (has slots property)');
+          workingHours = null;
+        }
+      }
+
+      // Validate structure of each day
+      if (workingHours) {
+        const validDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        let isValid = true;
+        
+        for (const day of validDays) {
+          if (workingHours[day]) {
+            const daySettings = workingHours[day];
+            
+            // Check required properties
+            if (typeof daySettings.enabled !== 'boolean' || 
+                !daySettings.start || 
+                !daySettings.end ||
+                typeof daySettings.start !== 'string' ||
+                typeof daySettings.end !== 'string') {
+              console.warn(`⚠️ Invalid ${day} settings:`, daySettings);
+              isValid = false;
+              break;
+            }
+
+            // Validate time format (HH:MM)
+            const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+            if (!timeRegex.test(daySettings.start) || !timeRegex.test(daySettings.end)) {
+              console.warn(`⚠️ Invalid time format for ${day}:`, { start: daySettings.start, end: daySettings.end });
+              isValid = false;
+              break;
+            }
+          }
+        }
+
+        if (!isValid) {
+          workingHours = null;
+        }
+      }
+
+    } catch (parseError) {
+      console.error('❌ Failed to parse working_hours:', parseError.message);
+      workingHours = null;
+    }
+
+    // Use defaults if working_hours is invalid
+    if (!workingHours) {
+      console.log('⚙️ Using default working hours (9 AM - 5 PM, Mon-Fri)');
+      workingHours = {
+        monday: { enabled: true, start: '09:00', end: '17:00' },
+        tuesday: { enabled: true, start: '09:00', end: '17:00' },
+        wednesday: { enabled: true, start: '09:00', end: '17:00' },
+        thursday: { enabled: true, start: '09:00', end: '17:00' },
+        friday: { enabled: true, start: '09:00', end: '17:00' },
+        saturday: { enabled: false, start: '09:00', end: '17:00' },
+        sunday: { enabled: false, start: '09:00', end: '17:00' },
+      };
+    }
+
+    // Default settings
+    const bufferTime = member.buffer_time || 0;
+    const leadTimeHours = member.lead_time_hours || 0;
+    const horizonDays = member.booking_horizon_days || 30;
+    const dailyCap = member.daily_booking_cap || null;
+
+    console.log('⚙️ Settings loaded:', {
+      buffer: bufferTime,
+      leadTime: leadTimeHours,
+      horizon: horizonDays,
+      dailyCap,
+      workingDays: Object.keys(workingHours).filter(k => workingHours[k].enabled)
     });
 
     // ========== 2. GET BLOCKED TIMES ==========
@@ -3242,7 +3313,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     );
     const blockedTimes = blockedResult.rows;
 
-    // ========== 3. GET EXISTING BOOKINGS (for buffer & daily cap) ==========
+    // ========== 3. GET EXISTING BOOKINGS ==========
     const now = new Date();
     const endDate = new Date(now);
     endDate.setDate(endDate.getDate() + horizonDays);
@@ -3259,56 +3330,55 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     );
     const existingBookings = bookingsResult.rows;
 
-  // ========== 4. GET ORGANIZER CALENDAR BUSY TIMES ==========
-let organizerBusy = [];
-if (member.provider === 'google' && member.google_access_token && member.google_refresh_token) {
-  try {
-    const calendar = google.calendar({ version: 'v3' });
-    const organizerAuth = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET
-    );
-    organizerAuth.setCredentials({
-      access_token: member.google_access_token,
-      refresh_token: member.google_refresh_token
-    });
+    // ========== 4. GET ORGANIZER CALENDAR BUSY TIMES ==========
+    let organizerBusy = [];
+    if (member.provider === 'google' && member.google_access_token && member.google_refresh_token) {
+      try {
+        const calendar = google.calendar({ version: 'v3' });
+        const organizerAuth = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET
+        );
+        organizerAuth.setCredentials({
+          access_token: member.google_access_token,
+          refresh_token: member.google_refresh_token
+        });
 
-    const freeBusyResponse = await calendar.freebusy.query({
-      auth: organizerAuth,
-      requestBody: {
-        timeMin: now.toISOString(),
-        timeMax: endDate.toISOString(),
-        items: [{ id: 'primary' }],
-      },
-    });
+        const freeBusyResponse = await calendar.freebusy.query({
+          auth: organizerAuth,
+          requestBody: {
+            timeMin: now.toISOString(),
+            timeMax: endDate.toISOString(),
+            items: [{ id: 'primary' }],
+          },
+        });
 
-    organizerBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
-    console.log('✅ Google calendar loaded:', organizerBusy.length, 'busy blocks');
-  } catch (error) {
-    console.error('⚠️ Failed to fetch Google calendar:', error.message);
-  }
-} else if (member.provider === 'microsoft' && member.microsoft_access_token && member.microsoft_refresh_token) {
-  try {
-    const events = await getMicrosoftCalendarEvents(
-      member.microsoft_access_token,
-      member.microsoft_refresh_token,
-      now.toISOString(),
-      endDate.toISOString()
-    );
+        organizerBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
+        console.log('✅ Google calendar loaded:', organizerBusy.length, 'busy blocks');
+      } catch (error) {
+        console.error('⚠️ Failed to fetch Google calendar:', error.message);
+      }
+    } else if (member.provider === 'microsoft' && member.microsoft_access_token && member.microsoft_refresh_token) {
+      try {
+        const events = await getMicrosoftCalendarEvents(
+          member.microsoft_access_token,
+          member.microsoft_refresh_token,
+          now.toISOString(),
+          endDate.toISOString()
+        );
 
-    organizerBusy = events.map(e => ({
-      start: e.start.dateTime,
-      end: e.end.dateTime
-    }));
-    
-    console.log('✅ Microsoft calendar loaded:', organizerBusy.length, 'busy blocks');
-  } catch (error) {
-    console.error('⚠️ Failed to fetch Microsoft calendar:', error.message);
-  }
-}
+        organizerBusy = events.map(e => ({
+          start: e.start.dateTime,
+          end: e.end.dateTime
+        }));
+        
+        console.log('✅ Microsoft calendar loaded:', organizerBusy.length, 'busy blocks');
+      } catch (error) {
+        console.error('⚠️ Failed to fetch Microsoft calendar:', error.message);
+      }
+    }
 
     // ========== 5. GET GUEST CALENDAR BUSY TIMES ==========
-   
     let guestBusy = [];
     if (guestAccessToken) {
       try {
@@ -3340,8 +3410,6 @@ if (member.provider === 'google' && member.google_access_token && member.google_
     }
 
     // ========== 6. HELPER FUNCTIONS ==========
-    const tzOffsetHours = getTimezoneOffset(timezone);
-
     const dayNameMap = {
       0: 'sunday',
       1: 'monday',
@@ -3353,30 +3421,36 @@ if (member.provider === 'google' && member.google_access_token && member.google_
     };
 
     const isWithinWorkingHours = (slotStart, dayOfWeek) => {
-  const dayName = dayNameMap[dayOfWeek];
-  const daySettings = workingHours[dayName];
-  
-  if (!daySettings || !daySettings.enabled) {
-    return false;
-  }
+      try {
+        const dayName = dayNameMap[dayOfWeek];
+        const daySettings = workingHours[dayName];
+        
+        if (!daySettings || !daySettings.enabled) {
+          return false;
+        }
 
-  const slotHour = slotStart.getHours();
-  const slotMinute = slotStart.getMinutes();
-  const slotTime = slotHour * 60 + slotMinute;
+        const slotHour = slotStart.getHours();
+        const slotMinute = slotStart.getMinutes();
+        const slotTime = slotHour * 60 + slotMinute;
 
-  // ✅ FIXED: Use safe parsing with proper return
-  const parsedStart = safeParseTime(daySettings.start);
-  const parsedEnd = safeParseTime(daySettings.end);
-  
-  if (!parsedStart || !parsedEnd) {
-    return false;  // ✅ Return false if invalid times
-  }
+        // Parse start/end times
+        const [startHour, startMin] = daySettings.start.split(':').map(Number);
+        const [endHour, endMin] = daySettings.end.split(':').map(Number);
+        
+        if (isNaN(startHour) || isNaN(startMin) || isNaN(endHour) || isNaN(endMin)) {
+          console.warn(`⚠️ Invalid time format for ${dayName}`);
+          return false;
+        }
 
-  const startTime = parsedStart.hours * 60 + parsedStart.minutes;
-  const endTime = parsedEnd.hours * 60 + parsedEnd.minutes;
+        const startTime = startHour * 60 + startMin;
+        const endTime = endHour * 60 + endMin;
 
-  return slotTime >= startTime && slotTime < endTime;
-};
+        return slotTime >= startTime && slotTime < endTime;
+      } catch (error) {
+        console.error('❌ Error in isWithinWorkingHours:', error);
+        return false;
+      }
+    };
 
     const hasConflict = (slotStart, slotEnd, busyTimes) => {
       return busyTimes.some(busy => {
@@ -3409,14 +3483,12 @@ if (member.provider === 'google' && member.google_access_token && member.google_
         const bookingStart = new Date(booking.start_time);
         const bookingEnd = new Date(booking.end_time);
 
-        // Check if slot is too close before booking
         const beforeBuffer = new Date(bookingStart);
         beforeBuffer.setMinutes(beforeBuffer.getMinutes() - bufferTime);
         if (slotEnd > beforeBuffer && slotStart < bookingStart) {
           return true;
         }
 
-        // Check if slot is too close after booking
         const afterBuffer = new Date(bookingEnd);
         afterBuffer.setMinutes(afterBuffer.getMinutes() + bufferTime);
         if (slotStart < afterBuffer && slotEnd > bookingEnd) {
@@ -3427,232 +3499,143 @@ if (member.provider === 'google' && member.google_access_token && member.google_
       });
     };
 
-    // ========== DEBUG: CHECK SLOT DATA ==========
-console.log('🔍 DEBUG - Slot data:', {
-  slot_exists: !!slot,
-  slot_start: slot?.start,
-  slot_end: slot?.end,
-  slot_full: JSON.stringify(slot),
-  assignedMembers_count: assignedMembers.length
-});
-
-if (!slot || !slot.start || !slot.end) {
-  console.error('❌ CRITICAL: Missing slot data!');
-  return res.status(400).json({ 
-    error: 'Invalid booking slot data',
-    debug: { slot, token, attendee_email }
-  });
-}
-
-// Validate slot format
-try {
-  const startDate = new Date(slot.start);
-  const endDate = new Date(slot.end);
-  
-  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-    throw new Error('Invalid date format');
-  }
-  
-  console.log('✅ Slot validation passed:', {
-    start: startDate.toISOString(),
-    end: endDate.toISOString()
-  });
-} catch (dateError) {
-  console.error('❌ Invalid slot dates:', dateError.message);
-  return res.status(400).json({ 
-    error: 'Invalid booking time format',
-    details: dateError.message
-  });
-}
-
-
-    // ========== 7. GENERATE SLOTS WITH ALL RULES ==========
+    // ========== 7. GENERATE SLOTS ==========
     const slots = [];
-    const dailyBookingCounts = {}; // Track bookings per day for daily cap
+    const dailyBookingCounts = {};
 
-    // Calculate earliest bookable time (now + lead time)
     const earliestBookable = new Date(now);
     earliestBookable.setHours(earliestBookable.getHours() + leadTimeHours);
 
-    // Calculate latest bookable time (now + horizon)
     const latestBookable = new Date(now);
     latestBookable.setDate(latestBookable.getDate() + horizonDays);
 
     console.log('⏰ Time window:', {
-      earliestBookable: earliestBookable.toISOString(),
-      latestBookable: latestBookable.toISOString()
+      earliest: earliestBookable.toISOString(),
+      latest: latestBookable.toISOString()
     });
 
-    // ========== GENERATE SLOTS FOR EACH DAY ==========
+    for (let dayOffset = 0; dayOffset < horizonDays; dayOffset++) {
+      const checkDate = new Date(now);
+      checkDate.setDate(checkDate.getDate() + dayOffset);
+      checkDate.setHours(0, 0, 0, 0);
 
-for (let dayOffset = 0; dayOffset < horizonDays; dayOffset++) {
-  // Setup date for this iteration
-  const checkDate = new Date(now);
-  checkDate.setDate(checkDate.getDate() + dayOffset);
-  checkDate.setHours(0, 0, 0, 0);
+      const dayOfWeek = checkDate.getDay();
+      const dayName = dayNameMap[dayOfWeek];
+      const daySettings = workingHours[dayName];
 
-  // Get day-specific settings
-  const dayOfWeek = checkDate.getDay();
-  const dayName = dayNameMap[dayOfWeek];
-  const daySettings = workingHours[dayName];
-
-  // Skip if day is not enabled
-  if (!daySettings || !daySettings.enabled) {
-    continue;
-  }
-
-  // Parse and validate working hours
-  const parsedStart = safeParseTime(daySettings.start);
-  const parsedEnd = safeParseTime(daySettings.end);
-  
-  if (!parsedStart || !parsedEnd) {
-  console.error('❌ Invalid working hours for', dayName, 'Data:', {
-    start: daySettings.start,
-    end: daySettings.end,
-    type_start: typeof daySettings.start,
-    type_end: typeof daySettings.end,
-    full_settings: daySettings
-  });
-  continue;
-}
-
-  // Extract hour and minute values
-  const startHour = parsedStart.hours;
-  const startMinute = parsedStart.minutes;
-  const endHour = parsedEnd.hours;
-  const endMinute = parsedEnd.minutes;
-
-  // Initialize daily booking count for capacity tracking
-  const dateKey = checkDate.toISOString().split('T')[0];
-  if (!dailyBookingCounts[dateKey]) {
-    dailyBookingCounts[dateKey] = existingBookings.filter(b => {
-      const bookingDate = new Date(b.start_time).toISOString().split('T')[0];
-      return bookingDate === dateKey;
-    }).length;
-  }
-
-  // Generate 30-minute slots within working hours
-  for (let hour = startHour; hour < endHour; hour++) {
-    for (let minute = 0; minute < 60; minute += 30) {
-      // Ensure slot doesn't exceed working hours
-      if (hour === endHour - 1 && minute + duration > 60) break;
-      if (hour >= endHour) break;
-
-      // Create slot start time
-      const slotStart = new Date(checkDate);
-      slotStart.setHours(hour, minute, 0, 0);
-      
-      // Create slot end time
-      const slotEnd = new Date(slotStart);
-      slotEnd.setMinutes(slotEnd.getMinutes() + duration);
-
-      // Initialize slot status
-      let status = 'available';
-      let reason = null;
-      let details = null;
-
-      // ========== APPLY AVAILABILITY RULES ==========
-      
-      // Rule 1: Lead time
-      if (slotStart < earliestBookable) {
-        status = 'unavailable';
-        reason = 'lead_time';
-        details = `Minimum ${leadTimeHours}h notice required`;
-      }
-      // Rule 2: Horizon limit
-      else if (slotStart > latestBookable) {
-        status = 'unavailable';
-        reason = 'horizon';
-        details = `Only ${horizonDays} days ahead available`;
-      }
-      // Rule 3: Working hours (double-check)
-      else if (!isWithinWorkingHours(slotStart, dayOfWeek)) {
-        status = 'unavailable';
-        reason = 'outside_hours';
-        details = 'Outside working hours';
-      }
-      // Rule 4: Blocked times
-      else if (isBlocked(slotStart, slotEnd)) {
-        status = 'unavailable';
-        reason = 'blocked';
-        details = 'Time blocked by organizer';
-      }
-      // Rule 5: Buffer time violations
-      else if (hasBufferViolation(slotStart, slotEnd)) {
-        status = 'unavailable';
-        reason = 'buffer';
-        details = `${bufferTime}min buffer required`;
-      }
-      // Rule 6: Daily cap
-      else if (dailyCap && dailyBookingCounts[dateKey] >= dailyCap) {
-        status = 'unavailable';
-        reason = 'daily_cap';
-        details = `Daily limit (${dailyCap}) reached`;
-      }
-      // Rule 7: Organizer calendar conflicts
-      else if (hasConflict(slotStart, slotEnd, organizerBusy)) {
-        status = 'unavailable';
-        reason = 'organizer_busy';
-        details = `${member.organizer_name || 'Organizer'} has another meeting`;
-      }
-      // Rule 8: Guest calendar conflicts
-      else if (hasConflict(slotStart, slotEnd, guestBusy)) {
-        status = 'unavailable';
-        reason = 'guest_busy';
-        details = "You have another meeting";
+      if (!daySettings || !daySettings.enabled) {
+        continue;
       }
 
-      // Format time for display
-      const time = new Intl.DateTimeFormat('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-        timeZone: timezone
-      }).format(slotStart);
+      // Parse working hours for this day
+      const [startHour, startMin] = daySettings.start.split(':').map(Number);
+      const [endHour, endMin] = daySettings.end.split(':').map(Number);
 
-      // Create slot object
-      const slotData = {
-        start: slotStart.toISOString(),
-        end: slotEnd.toISOString(),
-        status,
-        reason,
-        details,
-        time,
-        timestamp: slotStart.getTime()
-      };
-
-      // Calculate match score for available slots
-      if (status === 'available') {
-        slotData.matchScore = calculateSlotScore(slotData, existingBookings, timezone);
-        slotData.matchLabel = getMatchLabel(slotData.matchScore);
-        slotData.matchColor = getMatchColor(slotData.matchScore);
-      } else {
-        slotData.matchScore = 0;
-        slotData.matchLabel = 'Unavailable';
-        slotData.matchColor = 'gray';
+      if (isNaN(startHour) || isNaN(endHour)) {
+        console.warn(`⚠️ Skipping ${dayName} - invalid time format`);
+        continue;
       }
 
-      // Add slot to array
-      slots.push(slotData);
+      const dateKey = checkDate.toISOString().split('T')[0];
+      if (!dailyBookingCounts[dateKey]) {
+        dailyBookingCounts[dateKey] = existingBookings.filter(b => {
+          const bookingDate = new Date(b.start_time).toISOString().split('T')[0];
+          return bookingDate === dateKey;
+        }).length;
+      }
+
+      // Generate 30-minute slots
+      for (let hour = startHour; hour < endHour; hour++) {
+        for (let minute = 0; minute < 60; minute += 30) {
+          if (hour === endHour - 1 && minute + duration > 60) break;
+          if (hour >= endHour) break;
+
+          const slotStart = new Date(checkDate);
+          slotStart.setHours(hour, minute, 0, 0);
+          
+          const slotEnd = new Date(slotStart);
+          slotEnd.setMinutes(slotEnd.getMinutes() + duration);
+
+          let status = 'available';
+          let reason = null;
+          let details = null;
+
+          // Apply availability rules
+          if (slotStart < earliestBookable) {
+            status = 'unavailable';
+            reason = 'lead_time';
+            details = `Minimum ${leadTimeHours}h notice required`;
+          } else if (slotStart > latestBookable) {
+            status = 'unavailable';
+            reason = 'horizon';
+            details = `Only ${horizonDays} days ahead available`;
+          } else if (!isWithinWorkingHours(slotStart, dayOfWeek)) {
+            status = 'unavailable';
+            reason = 'outside_hours';
+            details = 'Outside working hours';
+          } else if (isBlocked(slotStart, slotEnd)) {
+            status = 'unavailable';
+            reason = 'blocked';
+            details = 'Time blocked by organizer';
+          } else if (hasBufferViolation(slotStart, slotEnd)) {
+            status = 'unavailable';
+            reason = 'buffer';
+            details = `${bufferTime}min buffer required`;
+          } else if (dailyCap && dailyBookingCounts[dateKey] >= dailyCap) {
+            status = 'unavailable';
+            reason = 'daily_cap';
+            details = `Daily limit (${dailyCap}) reached`;
+          } else if (hasConflict(slotStart, slotEnd, organizerBusy)) {
+            status = 'unavailable';
+            reason = 'organizer_busy';
+            details = `${member.organizer_name || 'Organizer'} has another meeting`;
+          } else if (hasConflict(slotStart, slotEnd, guestBusy)) {
+            status = 'unavailable';
+            reason = 'guest_busy';
+            details = "You have another meeting";
+          }
+
+          const time = new Intl.DateTimeFormat('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+            timeZone: timezone
+          }).format(slotStart);
+
+          const slotData = {
+            start: slotStart.toISOString(),
+            end: slotEnd.toISOString(),
+            status,
+            reason,
+            details,
+            time,
+            timestamp: slotStart.getTime()
+          };
+
+          if (status === 'available') {
+            slotData.matchScore = calculateSlotScore(slotData, existingBookings, timezone);
+            slotData.matchLabel = getMatchLabel(slotData.matchScore);
+            slotData.matchColor = getMatchColor(slotData.matchScore);
+          } else {
+            slotData.matchScore = 0;
+            slotData.matchLabel = 'Unavailable';
+            slotData.matchColor = 'gray';
+          }
+
+          slots.push(slotData);
+        }
+      }
     }
-  }
-}
-    // ========== 7.5. SORT BY MATCH SCORE ==========
-console.log('🎯 Sorting slots by match score...');
-slots.sort((a, b) => {
-  // Available slots first
-  if (a.status === 'available' && b.status !== 'available') return -1;
-  if (a.status !== 'available' && b.status === 'available') return 1;
-  
-  // Then by match score (highest first)
-  if (a.matchScore !== b.matchScore) {
-    return b.matchScore - a.matchScore;
-  }
-  
-  // Then by timestamp (earliest first)
-  return a.timestamp - b.timestamp;
-});
-    // ========== 8. GROUP BY DATE ==========
+
+    // ========== 8. SORT BY MATCH SCORE ==========
+    slots.sort((a, b) => {
+      if (a.status === 'available' && b.status !== 'available') return -1;
+      if (a.status !== 'available' && b.status === 'available') return 1;
+      if (a.matchScore !== b.matchScore) return b.matchScore - a.matchScore;
+      return a.timestamp - b.timestamp;
+    });
+
+    // ========== 9. GROUP BY DATE ==========
     const slotsByDate = {};
     slots.forEach(slot => {
       const slotDate = new Date(slot.start);
@@ -3665,20 +3648,11 @@ slots.sort((a, b) => {
         timeZone: timezone
       }).format(slotDate);
       
-      const dayOfWeek = new Intl.DateTimeFormat('en-US', { 
-        weekday: 'short',
-        timeZone: timezone 
-      }).format(slotDate);
-      
       if (!slotsByDate[dateKey]) {
         slotsByDate[dateKey] = [];
       }
       
-      slotsByDate[dateKey].push({
-        ...slot,
-        date: dateKey,
-        dayOfWeek: dayOfWeek
-      });
+      slotsByDate[dateKey].push(slot);
     });
 
     console.log(`✅ Generated ${slots.length} slots across ${Object.keys(slotsByDate).length} days`);
@@ -3702,8 +3676,13 @@ slots.sort((a, b) => {
     });
 
   } catch (error) {
-    console.error('❌ Enhanced slot generation error:', error);
-    res.status(500).json({ error: 'Failed to generate slots' });
+    console.error('❌ Slots generation error:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to generate slots',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Server error',
+      hint: 'Check server logs for details'
+    });
   }
 });
 
