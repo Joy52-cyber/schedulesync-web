@@ -4324,12 +4324,10 @@ app.get('/api/book/:token', async (req, res) => {
     if (token.length === 64) {
       console.log('🔑 Checking single-use links table...');
       const singleUseCheck = await pool.query(
-        `SELECT sul.token as single_use_token, tm.*, t.name as team_name, t.description as team_description,
-                u.name as member_name, u.email as member_email, u.id as user_id
+        `SELECT sul.token as single_use_token, sul.name as link_name, sul.team_id,
+                t.name as team_name, t.description as team_description, t.scheduling_mode
          FROM single_use_links sul
-         JOIN team_members tm ON sul.member_id = tm.id
-         JOIN teams t ON tm.team_id = t.id
-         LEFT JOIN users u ON tm.user_id = u.id
+         JOIN teams t ON sul.team_id = t.id
          WHERE sul.token = $1 
            AND sul.used = false 
            AND sul.expires_at > NOW()`,
@@ -4338,34 +4336,31 @@ app.get('/api/book/:token', async (req, res) => {
       
       if (singleUseCheck.rows.length > 0) {
         console.log('✅ Valid single-use link found');
-        const member = singleUseCheck.rows[0];
+        const link = singleUseCheck.rows[0];
         
-        // Get event types
-        let eventTypes = [];
-        if (member.user_id) {
-          const eventsRes = await pool.query(
-            'SELECT * FROM event_types WHERE user_id = $1 AND is_active = true ORDER BY duration ASC',
-            [member.user_id]
-          );
-          eventTypes = eventsRes.rows;
-        }
+        // Get active team members
+        const membersResult = await pool.query(
+          `SELECT tm.*, u.name as user_name, u.email as user_email, u.id as user_id
+           FROM team_members tm
+           JOIN users u ON tm.user_id = u.id
+           WHERE tm.team_id = $1 AND tm.is_active = true
+           ORDER BY tm.priority DESC, tm.id ASC`,
+          [link.team_id]
+        );
         
         return res.json({
           data: {
+            type: 'single_use',
             team: { 
-              id: member.team_id, 
-              name: member.team_name, 
-              description: member.team_description 
+              id: link.team_id, 
+              name: link.team_name, 
+              description: link.team_description,
+              scheduling_mode: link.scheduling_mode
             },
-            member: { 
-              name: member.name || member.member_name || member.email, 
-              email: member.email || member.member_email, 
-              external_booking_link: member.external_booking_link, 
-              external_booking_platform: member.external_booking_platform 
-            },
-            eventTypes: eventTypes,
+            members: membersResult.rows,
+            linkName: link.link_name,
             isSingleUse: true,
-            singleUseToken: member.single_use_token
+            singleUseToken: link.single_use_token
           }
         });
       } else {
@@ -4374,9 +4369,61 @@ app.get('/api/book/:token', async (req, res) => {
       }
     }
     
-    // 2. Otherwise, check regular team member booking tokens (32 chars)
+    // 2. Check if it's a TEAM booking token (32 chars)
+    console.log('🔑 Checking teams table...');
+    const teamCheck = await pool.query(
+      `SELECT t.id, t.name, t.description, t.scheduling_mode, t.booking_token
+       FROM teams t
+       WHERE t.booking_token = $1`,
+      [token]
+    );
+    
+    if (teamCheck.rows.length > 0) {
+      console.log('✅ Team booking link found');
+      const team = teamCheck.rows[0];
+      
+      // Get active team members
+      const membersResult = await pool.query(
+        `SELECT tm.*, u.name as user_name, u.email as user_email, u.id as user_id
+         FROM team_members tm
+         JOIN users u ON tm.user_id = u.id
+         WHERE tm.team_id = $1 AND tm.is_active = true
+         ORDER BY tm.priority DESC, tm.id ASC`,
+        [team.id]
+      );
+      
+      // Get all event types from all team members
+      const memberIds = membersResult.rows.map(m => m.user_id).filter(Boolean);
+      let eventTypes = [];
+      if (memberIds.length > 0) {
+        const eventsRes = await pool.query(
+          `SELECT DISTINCT et.* 
+           FROM event_types et
+           WHERE et.user_id = ANY($1) AND et.is_active = true 
+           ORDER BY et.duration ASC`,
+          [memberIds]
+        );
+        eventTypes = eventsRes.rows;
+      }
+      
+      return res.json({
+        data: {
+          type: 'team',
+          team: { 
+            id: team.id, 
+            name: team.name, 
+            description: team.description,
+            scheduling_mode: team.scheduling_mode
+          },
+          members: membersResult.rows,
+          eventTypes: eventTypes
+        }
+      });
+    }
+    
+    // 3. Check if it's a MEMBER booking token (32 chars)
     console.log('🔑 Checking team_members table...');
-    const result = await pool.query(
+    const memberCheck = await pool.query(
       `SELECT tm.*, t.name as team_name, t.description as team_description, 
        u.name as member_name, u.email as member_email, u.id as user_id
        FROM team_members tm 
@@ -4385,15 +4432,16 @@ app.get('/api/book/:token', async (req, res) => {
        WHERE tm.booking_token = $1`,
       [token]
     );
-
-    if (result.rows.length === 0) {
-      console.log('❌ Token not found in team_members');
+    
+    if (memberCheck.rows.length === 0) {
+      console.log('❌ Token not found in any table');
       return res.status(404).json({ error: 'Booking link not found' });
     }
-
-    const member = result.rows[0];
-
-    // Get event types
+    
+    console.log('✅ Member booking link found');
+    const member = memberCheck.rows[0];
+    
+    // Get event types for this specific member
     let eventTypes = [];
     if (member.user_id) {
       const eventsRes = await pool.query(
@@ -4402,23 +4450,25 @@ app.get('/api/book/:token', async (req, res) => {
       );
       eventTypes = eventsRes.rows;
     }
-
-    res.json({
+    
+    return res.json({
       data: {
+        type: 'member',
         team: { 
           id: member.team_id, 
           name: member.team_name, 
           description: member.team_description 
         },
         member: { 
+          id: member.id,
           name: member.name || member.member_name || member.email, 
-          email: member.email || member.member_email, 
-          external_booking_link: member.external_booking_link, 
-          external_booking_platform: member.external_booking_platform 
+          email: member.email || member.member_email,
+          user_id: member.user_id
         },
         eventTypes: eventTypes
       }
     });
+    
   } catch (error) {
     console.error('Get booking by token error:', error);
     res.status(500).json({ error: 'Failed to fetch booking details' });
