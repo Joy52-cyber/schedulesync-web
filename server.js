@@ -1222,41 +1222,31 @@ app.post('/api/bookings', async (req, res) => {
             console.error('⚠️ Microsoft calendar creation failed:', calendarError.message);
           }
         }
+        // ========== SEND CONFIRMATION EMAILS ==========
+try {
+  console.log('📧 Preparing to send emails...');
+  
+  const manageUrl = `${process.env.FRONTEND_URL}/manage/${createdBookings[0].manage_token}`;
+  const assignedMember = {
+    organizer_name: member.member_name || member.name,
+    email: member.member_email || member.email
+  };
+  const duration = Math.round((new Date(slot.end) - new Date(slot.start)) / 60000);
 
-       // ========== SEND CONFIRMATION EMAILS ==========
-        try {
-          console.log('📧 EMAIL TEMPLATE - Booking data:', {
-            id: createdBookings[0].id,
-            manage_token: createdBookings[0].manage_token,
-            booking_token: token
-          });
+  // Create ICS file
+  const icsContent = generateICS({
+    id: createdBookings[0].id,
+    start_time: createdBookings[0].start_time,
+    end_time: createdBookings[0].end_time,
+    attendee_name,
+    attendee_email,
+    organizer_name: assignedMember.organizer_name,
+    organizer_email: assignedMember.email,
+    team_name: member.team_name,
+    notes: notes || '',
+  });
 
-          const manageUrl = `${process.env.FRONTEND_URL}/manage/${createdBookings[0].manage_token}`;
-          console.log('📧 EMAIL TEMPLATE - Generated URL:', manageUrl);
-
-          // Get member info for emails
-          const assignedMember = {
-            organizer_name: member.member_name || member.name,
-            email: member.member_email || member.email
-          };
-
-          const selectedEventType = { title: 'Meeting' };
-          const duration = Math.round((new Date(slot.end) - new Date(slot.start)) / 60000);
-
-          // Create ICS attachment
-          const icsContent = generateICS({
-            id: createdBookings[0].id,
-            start_time: createdBookings[0].start_time,
-            end_time: createdBookings[0].end_time,
-            attendee_name,
-            attendee_email,
-            organizer_name: assignedMember.organizer_name,
-            organizer_email: assignedMember.email,
-            team_name: member.team_name,
-            notes: notes || '',
-          });
-
-           // 1. Primary attendee email
+  // 1. Primary attendee email
   await resend.emails.send({
     from: 'ScheduleSync <bookings@schedulesync.com>',
     to: attendee_email,
@@ -1281,32 +1271,69 @@ app.post('/api/bookings', async (req, res) => {
     attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
   });
   console.log('✅ Email sent to primary attendee:', attendee_email);
-         
-  // ========== 2. ADDITIONAL ATTENDEES LOOP ==========
-          console.log('🔍 Checking additional attendees:', {
-            exists: !!additional_attendees,
-            isArray: Array.isArray(additional_attendees),
-            length: additional_attendees?.length,
-            value: additional_attendees
-          });
 
-          if (additional_attendees && Array.isArray(additional_attendees) && additional_attendees.length > 0) {
-            console.log(`📤 Sending emails to ${additional_attendees.length} additional attendees...`);
-            
-            for (const additionalEmail of additional_attendees) {
-              try {
-                console.log(`📤 Attempting to send email to: ${additionalEmail}`);
-                console.log('🔑 Resend API key exists?', !!process.env.RESEND_API_KEY);
-                console.log('🔑 Resend API key starts with:', process.env.RESEND_API_KEY?.substring(0, 10));
-                console.l
+  // 2. Additional attendees
+  if (additional_attendees && Array.isArray(additional_attendees) && additional_attendees.length > 0) {
+    console.log(`📤 Sending to ${additional_attendees.length} additional attendees...`);
+    for (const email of additional_attendees) {
+      await resend.emails.send({
+        from: 'ScheduleSync <bookings@schedulesync.com>',
+        to: email,
+        subject: `Meeting Invitation with ${assignedMember.organizer_name}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2563eb;">You're invited!</h2>
+            <p><strong>${attendee_name}</strong> has invited you to a meeting with <strong>${assignedMember.organizer_name}</strong>.</p>
+            <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 5px 0;"><strong>📅 When:</strong> ${new Date(slot.start).toLocaleString()}</p>
+              <p style="margin: 5px 0;"><strong>⏰ Duration:</strong> ${duration} minutes</p>
+              ${notes ? `<p style="margin: 5px 0;"><strong>📝 Notes:</strong> ${notes}</p>` : ''}
+              <p style="margin: 5px 0;"><strong>👤 Invited by:</strong> ${attendee_name} (${attendee_email})</p>
+              ${meetLink ? `<p style="margin: 5px 0;"><strong>🔗 Meet:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ''}
+            </div>
+          </div>
+        `,
+        attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+      });
+      console.log(`✅ Email sent to: ${email}`);
+    }
+  }
 
+  // 3. Organizer email
+  await resend.emails.send({
+    from: 'ScheduleSync <bookings@schedulesync.com>',
+    to: assignedMember.email,
+    subject: `New Booking: ${attendee_name}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2563eb;">New booking received!</h2>
+        <p>Hi ${assignedMember.organizer_name},</p>
+        <p>New booking from <strong>${attendee_name}</strong>.</p>
+        <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 5px 0;"><strong>👤 Primary:</strong> ${attendee_name} (${attendee_email})</p>
+          ${additional_attendees?.length > 0 ? `<p style="margin: 5px 0;"><strong>👥 Others:</strong> ${additional_attendees.join(', ')}</p>` : ''}
+          <p style="margin: 5px 0;"><strong>📅 When:</strong> ${new Date(slot.start).toLocaleString()}</p>
+          <p style="margin: 5px 0;"><strong>⏰ Duration:</strong> ${duration} minutes</p>
+          ${notes ? `<p style="margin: 5px 0;"><strong>📝 Notes:</strong> ${notes}</p>` : ''}
+          ${meetLink ? `<p style="margin: 5px 0;"><strong>🔗 Meet:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ''}
+        </div>
+      </div>
+    `,
+    attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+  });
+  console.log('✅ Email sent to organizer:', assignedMember.email);
+  console.log('✅ All confirmation emails sent');
 
-      } catch (error) {
+} catch (error) {
+  console.error('❌ Email send failed:', error);
+}
+
+      } catch (error) {  // ← ADD THIS - Background processing error
         console.error('❌ Background processing error:', error);
       }
-    })();
+    })();  // ← ADD THIS - Close async IIFE
 
-  } catch (error) {
+  } catch (error) {  // ← ADD THIS - Main endpoint error handler
     console.error('❌ Create booking error:', error);
     console.error('Stack:', error.stack);
     if (!res.headersSent) {
@@ -1316,7 +1343,9 @@ app.post('/api/bookings', async (req, res) => {
       });
     }
   }
-});
+});  // ← ADD THIS - Close /api/bookings POST endpoint
+
+       
 // ============ AUTHENTICATION MIDDLEWARE ============
 
 const authenticateToken = (req, res, next) => {
