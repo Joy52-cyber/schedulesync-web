@@ -827,20 +827,20 @@ app.post('/api/bookings', async (req, res) => {
 
     // ✅ STEP 1: Look up the booking token to get member info
     const tokenLookup = await pool.query(`
-      SELECT 
-        tm.id as member_id,
-        tm.name as member_name,
-        tm.email as member_email,
-        tm.user_name as member_username,
-        t.id as team_id,
-        t.name as team_name,
-        bt.token,
-        bt.type as token_type
-      FROM booking_tokens bt
-      JOIN team_members tm ON bt.member_id = tm.id
-      JOIN teams t ON tm.team_id = t.id
-      WHERE bt.token = $1
-    `, [token]);
+  SELECT 
+    tm.id as member_id,
+    tm.name as member_name,
+    tm.email as member_email,
+    tm.name as member_username,  -- ✅ Use 'name' instead
+    t.id as team_id,
+    t.name as team_name,
+    bt.token,
+    bt.type as token_type
+  FROM booking_tokens bt
+  JOIN team_members tm ON bt.member_id = tm.id
+  JOIN teams t ON tm.team_id = t.id
+  WHERE bt.token = $1
+`, [token]);
 
     if (tokenLookup.rows.length === 0) {
       return res.status(404).json({ error: 'Invalid booking token' });

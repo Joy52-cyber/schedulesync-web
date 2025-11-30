@@ -3,25 +3,36 @@ import { X, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-r
 
 export default function CalendarModal({ slots, onSelectDate, onClose, selectedDate }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [normalizedSlots, setNormalizedSlots] = useState({});
 
-  // 🔍 SUPER DEBUG: Log everything on mount
+  // 🔧 FIX: Convert formatted date keys to ISO format
   useEffect(() => {
-    console.log('🔍🔍🔍 CALENDAR MODAL SUPER DEBUG 🔍🔍🔍');
-    console.log('📦 Slots prop type:', typeof slots);
-    console.log('📦 Slots is array?', Array.isArray(slots));
-    console.log('📦 Slots is object?', slots && typeof slots === 'object');
-    console.log('📦 Slots keys:', Object.keys(slots || {}));
-    console.log('📦 Full slots object:', JSON.stringify(slots, null, 2));
+    console.log('🔧 Normalizing slot keys from API...');
+    console.log('📦 Original slots keys:', Object.keys(slots || {}).slice(0, 3));
     
-    // Check first few dates
-    const sampleKeys = Object.keys(slots || {}).slice(0, 5);
-    console.log('🔑 Sample date keys from API:', sampleKeys);
+    const normalized = {};
     
-    sampleKeys.forEach(key => {
-      const daySlots = slots[key];
-      const available = daySlots.filter(s => s.status === 'available').length;
-      console.log(`📅 ${key}: ${available} available out of ${daySlots.length} total`);
+    Object.keys(slots || {}).forEach(key => {
+      // Try to parse the date string
+      const date = new Date(key);
+      
+      if (!isNaN(date.getTime())) {
+        // Convert to ISO format YYYY-MM-DD
+        const isoKey = date.toISOString().split('T')[0];
+        normalized[isoKey] = slots[key];
+        
+        if (Object.keys(normalized).length <= 3) {
+          console.log(`✅ Converted: "${key}" → "${isoKey}"`);
+        }
+      } else {
+        console.warn(`⚠️ Could not parse date: "${key}"`);
+      }
     });
+    
+    console.log('✅ Normalized slots keys:', Object.keys(normalized).slice(0, 5));
+    console.log('✅ Total dates after normalization:', Object.keys(normalized).length);
+    
+    setNormalizedSlots(normalized);
   }, [slots]);
 
   const monthNames = ["January", "February", "March", "April", "May", "June",
@@ -36,7 +47,6 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
     const daysInMonth = lastDay.getDate();
     const startingDayOfWeek = firstDay.getDay();
 
-    console.log('📆 Calendar showing:', monthNames[month], year);
     return { daysInMonth, startingDayOfWeek, year, month };
   };
 
@@ -52,35 +62,13 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
 
   const getDateKey = (day) => {
     const date = new Date(year, month, day);
-    const key = date.toISOString().split('T')[0];
-    
-    // Log first few to see format
-    if (day <= 3) {
-      console.log(`🔑 Day ${day} generates key: "${key}"`);
-    }
-    
-    return key;
+    return date.toISOString().split('T')[0];
   };
 
   const getAvailableCount = (dateKey) => {
-    const daySlots = slots[dateKey];
-    
-    // Debug first few days
-    if (!daySlots && dateKey.endsWith('-01') || dateKey.endsWith('-02') || dateKey.endsWith('-03')) {
-      console.log(`⚠️ No slots found for key: "${dateKey}"`);
-      console.log(`   Available keys in slots object:`, Object.keys(slots).slice(0, 10));
-    }
-    
+    const daySlots = normalizedSlots[dateKey];
     if (!daySlots) return 0;
-    
-    const count = daySlots.filter(s => s.status === 'available').length;
-    
-    // Log all dates with slots
-    if (count > 0) {
-      console.log(`✅ "${dateKey}": ${count} available slots`);
-    }
-    
-    return count;
+    return daySlots.filter(s => s.status === 'available').length;
   };
 
   const isToday = (day) => {
@@ -118,11 +106,9 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
         key={day}
         onClick={() => {
           if (!isPast && availableCount > 0) {
-            console.log('🎯 User clicked date:', dateKey, 'with', availableCount, 'slots');
+            console.log('🎯 Selected date:', dateKey, 'with', availableCount, 'slots');
             onSelectDate(dateKey);
             onClose();
-          } else {
-            console.log('❌ Cannot select:', dateKey, '- isPast:', isPast, 'availableCount:', availableCount);
           }
         }}
         disabled={isPast || availableCount === 0}
@@ -193,14 +179,6 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
 
         {/* Calendar */}
         <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
-          {/* Debug Info */}
-          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs font-mono">
-            <p className="font-bold text-yellow-900 mb-1">🔍 Debug Info:</p>
-            <p>Total slots dates: {Object.keys(slots || {}).length}</p>
-            <p>Sample date keys: {Object.keys(slots || {}).slice(0, 3).join(', ')}</p>
-            <p className="mt-2 text-yellow-700">Check browser console (F12) for detailed logs</p>
-          </div>
-
           {/* Month Navigation */}
           <div className="flex items-center justify-between mb-6">
             <button
