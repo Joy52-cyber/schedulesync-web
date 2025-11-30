@@ -1247,9 +1247,9 @@ try {
   });
 
   // 1. Primary attendee email
-  await resend.emails.send({
-    from: 'ScheduleSync <bookings@schedulesync.com>',
-    to: attendee_email,
+ await resend.emails.send({
+  from: 'ScheduleSync <bookings@trucal.xyz>',  // ← Change this
+  to: attendee_email,
     subject: `Booking Confirmed with ${assignedMember.organizer_name}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -1277,8 +1277,8 @@ try {
     console.log(`📤 Sending to ${additional_attendees.length} additional attendees...`);
     for (const email of additional_attendees) {
       await resend.emails.send({
-        from: 'ScheduleSync <bookings@schedulesync.com>',
-        to: email,
+  from: 'ScheduleSync <bookings@trucal.xyz>',  // ← Change this
+  to: email,
         subject: `Meeting Invitation with ${assignedMember.organizer_name}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -1301,8 +1301,8 @@ try {
 
   // 3. Organizer email
   await resend.emails.send({
-    from: 'ScheduleSync <bookings@schedulesync.com>',
-    to: assignedMember.email,
+  from: 'ScheduleSync <bookings@trucal.xyz>',  // ← Change this
+  to: assignedMember.email,
     subject: `New Booking: ${attendee_name}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
