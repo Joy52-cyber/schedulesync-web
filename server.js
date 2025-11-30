@@ -857,52 +857,340 @@ app.post('/api/bookings', async (req, res) => {
       reschedule_token
     } = req.body;
 
-    console.log('📝 Creating booking:', { token, attendee_name, attendee_email });
+    console.log('📝 Creating booking:', { 
+      token: token?.substring(0, 10) + '...', 
+      attendee_name, 
+      attendee_email,
+      hasSlot: !!slot,
+      slotData: slot 
+    });
 
-    // ✅ STEP 1: Look up the booking token to get member info
-    const tokenLookup = await pool.query(`
-  SELECT 
-    tm.id as member_id,
-    tm.name as member_name,
-    tm.email as member_email,
-    tm.name as member_username,  -- ✅ Use 'name' instead
-    t.id as team_id,
-    t.name as team_name,
-    bt.token,
-    bt.type as token_type
-  FROM booking_tokens bt
-  JOIN team_members tm ON bt.member_id = tm.id
-  JOIN teams t ON tm.team_id = t.id
-  WHERE bt.token = $1
-`, [token]);
+    // ✅ VALIDATION
+    if (!token || !slot || !attendee_name || !attendee_email) {
+      console.error('❌ Missing required fields');
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
 
-    if (tokenLookup.rows.length === 0) {
+    if (!slot.start || !slot.end) {
+      console.error('❌ Invalid slot data:', slot);
+      return res.status(400).json({ error: 'Invalid booking slot data' });
+    }
+
+    // ✅ STEP 1: Look up token (check single-use vs regular)
+    let memberResult;
+    
+    if (token.length === 64) {
+      console.log('🔑 Looking up single-use link...');
+      memberResult = await pool.query(
+        `SELECT tm.*, 
+                t.name as team_name, 
+                t.booking_mode, 
+                t.owner_id, 
+                t.id as team_id,
+                u.google_access_token, 
+                u.google_refresh_token,
+                u.microsoft_access_token,
+                u.microsoft_refresh_token,
+                u.provider,
+                u.email as member_email, 
+                u.name as member_name
+         FROM single_use_links sul
+         JOIN team_members tm ON sul.member_id = tm.id
+         JOIN teams t ON tm.team_id = t.id 
+         LEFT JOIN users u ON tm.user_id = u.id 
+         WHERE sul.token = $1
+           AND sul.used = false
+           AND sul.expires_at > NOW()`,
+        [token]
+      );
+    } else {
+      console.log('🔑 Looking up regular token...');
+      memberResult = await pool.query(
+        `SELECT tm.*, 
+                t.name as team_name, 
+                t.booking_mode, 
+                t.owner_id,
+                t.id as team_id,
+                u.google_access_token, 
+                u.google_refresh_token,
+                u.microsoft_access_token,
+                u.microsoft_refresh_token,
+                u.provider,
+                u.email as member_email, 
+                u.name as member_name
+         FROM team_members tm 
+         JOIN teams t ON tm.team_id = t.id 
+         LEFT JOIN users u ON tm.user_id = u.id 
+         WHERE tm.booking_token = $1`,
+        [token]
+      );
+    }
+
+    if (memberResult.rows.length === 0) {
+      console.log('❌ Invalid or expired booking token');
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
-    const tokenData = tokenLookup.rows[0];
+    const member = memberResult.rows[0];
+    const bookingMode = member.booking_mode || 'individual';
 
-    // ✅ STEP 2: Create memberInfo object
-    const memberInfo = {
-      id: tokenData.member_id,
-      name: tokenData.member_name,
-      email: tokenData.member_email,
-      username: tokenData.member_username
-    };
+    console.log('✅ Token found - Member:', member.name || member.member_name, 'Mode:', bookingMode);
 
-    const teamInfo = {
-      id: tokenData.team_id,
-      name: tokenData.team_name
-    };
+    // ✅ STEP 2: Determine assigned members based on booking mode
+    let assignedMembers = [];
 
-    console.log('👤 Member:', memberInfo.name, 'Team:', teamInfo.name);
+    switch (bookingMode) {
+      case 'individual':
+        assignedMembers = [{ 
+          id: member.id, 
+          name: member.name, 
+          user_id: member.user_id 
+        }];
+        break;
 
-    // Now you can use memberInfo in your emails!
-    // ... rest of your booking creation code ...
+      case 'round_robin':
+        const rrResult = await pool.query(
+          `SELECT tm.id, tm.name, tm.user_id, COUNT(b.id) as booking_count
+           FROM team_members tm
+           LEFT JOIN bookings b ON tm.id = b.member_id
+           WHERE tm.team_id = $1
+           GROUP BY tm.id, tm.name, tm.user_id
+           ORDER BY booking_count ASC, tm.id ASC
+           LIMIT 1`,
+          [member.team_id]
+        );
+        assignedMembers = rrResult.rows.length > 0 
+          ? [rrResult.rows[0]] 
+          : [{ id: member.id, name: member.name, user_id: member.user_id }];
+        break;
+
+      case 'first_available':
+        const faResult = await pool.query(
+          `SELECT tm.id, tm.name, tm.user_id
+           FROM team_members tm
+           WHERE tm.team_id = $1
+           AND NOT EXISTS (
+             SELECT 1 FROM bookings b
+             WHERE b.member_id = tm.id
+             AND b.status != 'cancelled'
+             AND (
+               (b.start_time <= $2 AND b.end_time > $2)
+               OR (b.start_time < $3 AND b.end_time >= $3)
+               OR (b.start_time >= $2 AND b.end_time <= $3)
+             )
+           )
+           ORDER BY tm.id ASC
+           LIMIT 1`,
+          [member.team_id, slot.start, slot.end]
+        );
+        assignedMembers = faResult.rows.length > 0 
+          ? [faResult.rows[0]] 
+          : [{ id: member.id, name: member.name, user_id: member.user_id }];
+        break;
+
+      case 'collective':
+        const collectiveResult = await pool.query(
+          'SELECT id, name, user_id FROM team_members WHERE team_id = $1',
+          [member.team_id]
+        );
+        assignedMembers = collectiveResult.rows;
+        break;
+
+      default:
+        assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
+    }
+
+    console.log('👥 Assigned members:', assignedMembers.length);
+
+    // ✅ STEP 3: Create booking(s)
+    const createdBookings = [];
+
+    for (const assignedMember of assignedMembers) {
+      const manageToken = crypto.randomBytes(16).toString('hex');
+      
+      console.log(`💾 Creating booking for member ${assignedMember.id}...`);
+      
+      const bookingResult = await pool.query(
+        `INSERT INTO bookings (
+          team_id, member_id, user_id, 
+          attendee_name, attendee_email, 
+          start_time, end_time, 
+          title, notes, 
+          booking_token, status, manage_token
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+        RETURNING *`,
+        [
+          member.team_id,
+          assignedMember.id,
+          assignedMember.user_id,
+          attendee_name,
+          attendee_email,
+          slot.start,
+          slot.end,
+          `Meeting with ${attendee_name}`,
+          notes || '',
+          token,
+          'confirmed',
+          manageToken
+        ]
+      );
+      
+      createdBookings.push(bookingResult.rows[0]);
+      console.log(`✅ Booking created: ID ${bookingResult.rows[0].id}`);
+    }
+
+    // ✅ Mark single-use link as used
+    if (token.length === 64) {
+      await pool.query('UPDATE single_use_links SET used = true WHERE token = $1', [token]);
+      console.log('✅ Single-use link marked as used');
+    }
+
+    // ✅ Notify organizer
+    if (member.user_id) {
+      await notifyBookingCreated(createdBookings[0], member.user_id);
+    }
+
+    // ✅ RESPOND IMMEDIATELY
+    console.log('📤 Sending success response');
+    res.json({ 
+      success: true,
+      booking: createdBookings[0],
+      bookings: createdBookings,
+      mode: bookingMode,
+      meet_link: null,
+      message: bookingMode === 'collective' 
+        ? `Booking confirmed with all ${createdBookings.length} team members!`
+        : 'Booking confirmed! Calendar invite will arrive shortly.'
+    });
+
+    // ✅ STEP 4: Background processing (calendar event + emails)
+    (async () => {
+      try {
+        let meetLink = null;
+        let calendarEventId = null;
+
+        // Create calendar event with meeting link
+        if (member.provider === 'google' && member.google_access_token && member.google_refresh_token) {
+          try {
+            console.log('📅 Creating Google Calendar event...');
+            
+            const oauth2Client = new google.auth.OAuth2(
+              process.env.GOOGLE_CLIENT_ID,
+              process.env.GOOGLE_CLIENT_SECRET,
+              process.env.GOOGLE_REDIRECT_URI
+            );
+
+            oauth2Client.setCredentials({
+              access_token: member.google_access_token,
+              refresh_token: member.google_refresh_token
+            });
+
+            const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+            const event = {
+              summary: `Meeting with ${attendee_name}`,
+              description: notes || 'Scheduled via ScheduleSync',
+              start: {
+                dateTime: slot.start,
+                timeZone: 'UTC',
+              },
+              end: {
+                dateTime: slot.end,
+                timeZone: 'UTC',
+              },
+              attendees: [
+                { email: attendee_email, displayName: attendee_name },
+                { email: member.member_email, displayName: member.member_name }
+              ],
+              conferenceData: {
+                createRequest: {
+                  requestId: `schedulesync-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  conferenceSolutionKey: { type: 'hangoutsMeet' }
+                }
+              }
+            };
+
+            const calendarResponse = await calendar.events.insert({
+              calendarId: 'primary',
+              resource: event,
+              conferenceDataVersion: 1,
+              sendUpdates: 'all'
+            });
+
+            meetLink = calendarResponse.data.hangoutLink;
+            calendarEventId = calendarResponse.data.id;
+
+            for (const booking of createdBookings) {
+              await pool.query(
+                `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
+                [meetLink, calendarEventId, booking.id]
+              );
+            }
+
+            console.log('✅ Google Calendar event created:', meetLink);
+          } catch (calendarError) {
+            console.error('⚠️ Calendar creation failed:', calendarError.message);
+          }
+        }
+
+        // Send confirmation emails
+        try {
+          const icsFile = generateICS({
+            id: createdBookings[0].id,
+            start_time: createdBookings[0].start_time,
+            end_time: createdBookings[0].end_time,
+            attendee_name: attendee_name,
+            attendee_email: attendee_email,
+            organizer_name: member.member_name || member.name,
+            organizer_email: member.member_email || member.email,
+            team_name: member.team_name,
+            notes: notes,
+          });
+
+          const bookingWithMeetLink = {
+            ...createdBookings[0],
+            attendee_name,
+            attendee_email,
+            organizer_name: member.member_name || member.name,
+            team_name: member.team_name,
+            notes,
+            meet_link: meetLink,
+          };
+
+          // Email to guest
+          await sendBookingEmail({
+            to: attendee_email,
+            subject: '✅ Booking Confirmed - ScheduleSync',
+            html: emailTemplates.bookingConfirmationGuest(bookingWithMeetLink),
+            icsAttachment: icsFile,
+          });
+
+          // Email to organizer
+          if (member.member_email || member.email) {
+            await sendBookingEmail({
+              to: member.member_email || member.email,
+              subject: '📅 New Booking Received - ScheduleSync',
+              html: emailTemplates.bookingConfirmationOrganizer(bookingWithMeetLink),
+              icsAttachment: icsFile,
+            });
+          }
+          
+          console.log('✅ Confirmation emails sent');
+        } catch (emailError) {
+          console.error('⚠️ Email send failed:', emailError);
+        }
+      } catch (error) {
+        console.error('❌ Background processing error:', error);
+      }
+    })();
 
   } catch (error) {
-    console.error('❌ Booking creation error:', error);
-    res.status(500).json({ error: 'Failed to create booking' });
+    console.error('❌ Create booking error:', error);
+    console.error('Stack:', error.stack);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to create booking' });
+    }
   }
 });
 
@@ -3057,6 +3345,45 @@ if (member.provider === 'google' && member.google_access_token && member.google_
       });
     };
 
+    // ========== DEBUG: CHECK SLOT DATA ==========
+console.log('🔍 DEBUG - Slot data:', {
+  slot_exists: !!slot,
+  slot_start: slot?.start,
+  slot_end: slot?.end,
+  slot_full: JSON.stringify(slot),
+  assignedMembers_count: assignedMembers.length
+});
+
+if (!slot || !slot.start || !slot.end) {
+  console.error('❌ CRITICAL: Missing slot data!');
+  return res.status(400).json({ 
+    error: 'Invalid booking slot data',
+    debug: { slot, token, attendee_email }
+  });
+}
+
+// Validate slot format
+try {
+  const startDate = new Date(slot.start);
+  const endDate = new Date(slot.end);
+  
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    throw new Error('Invalid date format');
+  }
+  
+  console.log('✅ Slot validation passed:', {
+    start: startDate.toISOString(),
+    end: endDate.toISOString()
+  });
+} catch (dateError) {
+  console.error('❌ Invalid slot dates:', dateError.message);
+  return res.status(400).json({ 
+    error: 'Invalid booking time format',
+    details: dateError.message
+  });
+}
+
+
     // ========== 7. GENERATE SLOTS WITH ALL RULES ==========
     const slots = [];
     const dailyBookingCounts = {}; // Track bookings per day for daily cap
@@ -4183,7 +4510,9 @@ for (const assignedMember of assignedMembers) {
   // Generate unique manage token for this booking
   const manageToken = crypto.randomBytes(16).toString('hex');
   
-  const bookingResult = await pool.query(
+ // Add timeout wrapper
+const bookingResult = await Promise.race([
+  pool.query(
     `INSERT INTO bookings (
       team_id, member_id, user_id, 
       attendee_name, attendee_email, 
@@ -4207,7 +4536,23 @@ for (const assignedMember of assignedMembers) {
       'confirmed',
       manageToken
     ]
-  );
+  ),
+  new Promise((_, reject) => 
+    setTimeout(() => reject(new Error('⏱️ Database INSERT timeout after 10 seconds')), 10000)
+  )
+]).catch(error => {
+  console.error('❌ Database INSERT failed:', error.message);
+  console.error('📊 Parameters:', {
+    team_id: member.team_id,
+    member_id: assignedMember.id,
+    user_id: assignedMember.user_id,
+    attendee_name,
+    attendee_email,
+    start_time: slot.start,
+    end_time: slot.end
+  });
+  throw error;
+});
   createdBookings.push(bookingResult.rows[0]);
   console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
 }
@@ -4401,13 +4746,12 @@ if (token.length === 64) {
     console.error('❌ Background processing error:', error);
   }
 })();
-
-  } catch (error) {  // ❌ EXTRA - This doesn't match anything!
-    console.error('❌ Create booking error:', error);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Failed to create booking' });
-    }
+} catch (error) {  // This properly closes the main try block
+  console.error('❌ Create booking error:', error);
+  if (!res.headersSent) {
+    res.status(500).json({ error: 'Failed to create booking' });
   }
+}
 });
 
 // ============ BOOKING MANAGEMENT BY TOKEN (NO AUTH REQUIRED) ============
