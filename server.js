@@ -865,18 +865,47 @@ app.post('/api/bookings', async (req, res) => {
       slotData: slot 
     });
 
-    // ✅ VALIDATION
+    // ✅ STEP 1: VALIDATION
     if (!token || !slot || !attendee_name || !attendee_email) {
-      console.error('❌ Missing required fields');
+      console.error('❌ Missing required fields:', {
+        hasToken: !!token,
+        hasSlot: !!slot,
+        hasName: !!attendee_name,
+        hasEmail: !!attendee_email
+      });
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     if (!slot.start || !slot.end) {
       console.error('❌ Invalid slot data:', slot);
-      return res.status(400).json({ error: 'Invalid booking slot data' });
+      return res.status(400).json({ 
+        error: 'Invalid booking slot data',
+        debug: { slot }
+      });
     }
 
-    // ✅ STEP 1: Look up token (check single-use vs regular)
+    // Validate slot format
+    try {
+      const startDate = new Date(slot.start);
+      const endDate = new Date(slot.end);
+      
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        throw new Error('Invalid date format');
+      }
+      
+      console.log('✅ Slot validation passed:', {
+        start: startDate.toISOString(),
+        end: endDate.toISOString()
+      });
+    } catch (dateError) {
+      console.error('❌ Invalid slot dates:', dateError.message);
+      return res.status(400).json({ 
+        error: 'Invalid booking time format',
+        details: dateError.message
+      });
+    }
+
+    // ✅ STEP 2: Look up token (check single-use vs regular)
     let memberResult;
     
     if (token.length === 64) {
@@ -934,18 +963,23 @@ app.post('/api/bookings', async (req, res) => {
     const member = memberResult.rows[0];
     const bookingMode = member.booking_mode || 'individual';
 
-    console.log('✅ Token found - Member:', member.name || member.member_name, 'Mode:', bookingMode);
+    console.log('✅ Token found:', {
+      memberName: member.name || member.member_name,
+      teamName: member.team_name,
+      mode: bookingMode
+    });
 
-    // ✅ STEP 2: Determine assigned members based on booking mode
+    // ✅ STEP 3: Determine assigned members based on booking mode
     let assignedMembers = [];
 
     switch (bookingMode) {
       case 'individual':
         assignedMembers = [{ 
           id: member.id, 
-          name: member.name, 
+          name: member.name || member.member_name, 
           user_id: member.user_id 
         }];
+        console.log('👤 Individual mode: Assigning to', assignedMembers[0].name);
         break;
 
       case 'round_robin':
@@ -961,7 +995,8 @@ app.post('/api/bookings', async (req, res) => {
         );
         assignedMembers = rrResult.rows.length > 0 
           ? [rrResult.rows[0]] 
-          : [{ id: member.id, name: member.name, user_id: member.user_id }];
+          : [{ id: member.id, name: member.name || member.member_name, user_id: member.user_id }];
+        console.log('🔄 Round-robin: Assigning to', assignedMembers[0].name);
         break;
 
       case 'first_available':
@@ -985,7 +1020,8 @@ app.post('/api/bookings', async (req, res) => {
         );
         assignedMembers = faResult.rows.length > 0 
           ? [faResult.rows[0]] 
-          : [{ id: member.id, name: member.name, user_id: member.user_id }];
+          : [{ id: member.id, name: member.name || member.member_name, user_id: member.user_id }];
+        console.log('⚡ First-available: Assigning to', assignedMembers[0].name);
         break;
 
       case 'collective':
@@ -994,15 +1030,18 @@ app.post('/api/bookings', async (req, res) => {
           [member.team_id]
         );
         assignedMembers = collectiveResult.rows;
+        console.log('👥 Collective mode: Assigning to all', assignedMembers.length, 'members');
         break;
 
       default:
-        assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
+        assignedMembers = [{ 
+          id: member.id, 
+          name: member.name || member.member_name, 
+          user_id: member.user_id 
+        }];
     }
 
-    console.log('👥 Assigned members:', assignedMembers.length);
-
-    // ✅ STEP 3: Create booking(s)
+    // ✅ STEP 4: Create booking(s)
     const createdBookings = [];
 
     for (const assignedMember of assignedMembers) {
@@ -1037,7 +1076,7 @@ app.post('/api/bookings', async (req, res) => {
       );
       
       createdBookings.push(bookingResult.rows[0]);
-      console.log(`✅ Booking created: ID ${bookingResult.rows[0].id}`);
+      console.log(`✅ Booking created: ID ${bookingResult.rows[0].id}, manage_token: ${manageToken}`);
     }
 
     // ✅ Mark single-use link as used
@@ -1051,7 +1090,7 @@ app.post('/api/bookings', async (req, res) => {
       await notifyBookingCreated(createdBookings[0], member.user_id);
     }
 
-    // ✅ RESPOND IMMEDIATELY
+    // ✅ STEP 5: RESPOND IMMEDIATELY
     console.log('📤 Sending success response');
     res.json({ 
       success: true,
@@ -1064,7 +1103,7 @@ app.post('/api/bookings', async (req, res) => {
         : 'Booking confirmed! Calendar invite will arrive shortly.'
     });
 
-    // ✅ STEP 4: Background processing (calendar event + emails)
+    // ✅ STEP 6: Background processing (calendar event + emails)
     (async () => {
       try {
         let meetLink = null;
@@ -1108,6 +1147,13 @@ app.post('/api/bookings', async (req, res) => {
                   requestId: `schedulesync-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                   conferenceSolutionKey: { type: 'hangoutsMeet' }
                 }
+              },
+              reminders: {
+                useDefault: false,
+                overrides: [
+                  { method: 'email', minutes: 24 * 60 },
+                  { method: 'popup', minutes: 30 }
+                ]
               }
             };
 
@@ -1121,6 +1167,7 @@ app.post('/api/bookings', async (req, res) => {
             meetLink = calendarResponse.data.hangoutLink;
             calendarEventId = calendarResponse.data.id;
 
+            // Update all bookings with meet link
             for (const booking of createdBookings) {
               await pool.query(
                 `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
@@ -1131,6 +1178,39 @@ app.post('/api/bookings', async (req, res) => {
             console.log('✅ Google Calendar event created:', meetLink);
           } catch (calendarError) {
             console.error('⚠️ Calendar creation failed:', calendarError.message);
+          }
+        } else if (member.provider === 'microsoft' && member.microsoft_access_token && member.microsoft_refresh_token) {
+          try {
+            console.log('📅 Creating Microsoft Calendar event...');
+
+            const eventResult = await createMicrosoftCalendarEvent(
+              member.microsoft_access_token,
+              member.microsoft_refresh_token,
+              {
+                title: `Meeting with ${attendee_name}`,
+                description: notes || 'Scheduled via ScheduleSync',
+                startTime: slot.start,
+                endTime: slot.end,
+                attendees: [
+                  { email: attendee_email, name: attendee_name },
+                  { email: member.member_email, name: member.member_name }
+                ]
+              }
+            );
+
+            meetLink = eventResult.meetingUrl;
+            calendarEventId = eventResult.id;
+
+            for (const booking of createdBookings) {
+              await pool.query(
+                `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
+                [meetLink, calendarEventId, booking.id]
+              );
+            }
+
+            console.log('✅ Microsoft Calendar event created:', meetLink);
+          } catch (calendarError) {
+            console.error('⚠️ Microsoft calendar creation failed:', calendarError.message);
           }
         }
 
@@ -1189,11 +1269,13 @@ app.post('/api/bookings', async (req, res) => {
     console.error('❌ Create booking error:', error);
     console.error('Stack:', error.stack);
     if (!res.headersSent) {
-      res.status(500).json({ error: 'Failed to create booking' });
+      res.status(500).json({ 
+        error: 'Failed to create booking',
+        message: process.env.NODE_ENV === 'development' ? error.message : 'An error occurred'
+      });
     }
   }
 });
-
 // ============ AUTHENTICATION MIDDLEWARE ============
 
 const authenticateToken = (req, res, next) => {
