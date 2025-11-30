@@ -670,6 +670,19 @@ async function migrateDatabase() {
       ADD COLUMN IF NOT EXISTS calendly_user_uri TEXT
     `);
 
+    // Add to existing single_use_links table creation
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS single_use_links (
+    id SERIAL PRIMARY KEY,
+    token VARCHAR(255) UNIQUE NOT NULL,
+    member_id INTEGER REFERENCES team_members(id) ON DELETE CASCADE,
+    name VARCHAR(100),  -- ← ADD THIS LINE
+    used BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT NOW(),
+    expires_at TIMESTAMP DEFAULT NOW() + INTERVAL '24 hours'
+  )
+`);
+
     await pool.query(`
   ALTER TABLE team_members
   ADD COLUMN IF NOT EXISTS working_hours JSONB DEFAULT '{
@@ -688,8 +701,6 @@ async function migrateDatabase() {
     console.error('❌ Migration error:', error);
   }
 }
-
-
 
 // Call it after initDB()
 initDB().then(() => migrateDatabase());
@@ -4125,6 +4136,7 @@ app.delete('/api/event-types/:id', authenticateToken, async (req, res) => {
 app.post('/api/single-use-links', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
+    const { name } = req.body;
     
     // Find the user's personal member ID
     const memberResult = await pool.query(
@@ -4141,8 +4153,8 @@ app.post('/api/single-use-links', authenticateToken, async (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
 
     await pool.query(
-      `INSERT INTO single_use_links (token, member_id) VALUES ($1, $2)`,
-      [token, memberId]
+      `INSERT INTO single_use_links (token, member_id, name) VALUES ($1, $2, $3)`,  // ← ADD name
+      [token, memberId, name || null]  // ← ADD name parameter
     );
 
     res.json({ success: true, token: token });
@@ -4157,7 +4169,6 @@ app.get('/api/single-use-links/recent', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
-    // Find the user's personal member ID
     const memberResult = await pool.query(
       `SELECT tm.id FROM team_members tm JOIN teams t ON tm.team_id = t.id 
        WHERE tm.user_id = $1 AND t.owner_id = $1 LIMIT 1`,
@@ -4171,7 +4182,7 @@ app.get('/api/single-use-links/recent', authenticateToken, async (req, res) => {
     const memberId = memberResult.rows[0].id;
     
     const result = await pool.query(
-      `SELECT token, used, created_at, expires_at 
+      `SELECT token, name, used, created_at, expires_at   -- ← ADD name here
        FROM single_use_links 
        WHERE member_id = $1 
        ORDER BY created_at DESC 
@@ -4185,7 +4196,6 @@ app.get('/api/single-use-links/recent', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch links' });
   }
 });
-
 // ============ BOOKING ROUTES ============
 
 app.get('/api/bookings', authenticateToken, async (req, res) => {

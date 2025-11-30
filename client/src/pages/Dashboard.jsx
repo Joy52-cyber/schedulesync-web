@@ -49,6 +49,7 @@ export default function Dashboard() {
   const [newSingleUseToken, setNewSingleUseToken] = useState('');
   const [showSingleUseModal, setShowSingleUseModal] = useState(false);
   const [copiedSingleUse, setCopiedSingleUse] = useState('');
+  const [linkName, setLinkName] = useState('');  // ← ADD THIS STATE
 
   useEffect(() => {
     loadAllData();
@@ -134,13 +135,15 @@ export default function Dashboard() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // ✅ UPDATED: Pass name to API
   const handleGenerateSingleUse = async () => {
     setGeneratingSingleUse(true);
     try {
-      const response = await singleUseLinks.generate();
+      const response = await singleUseLinks.generate({ name: linkName.trim() || null });
       const token = response.data.token;
       setNewSingleUseToken(token);
       setShowSingleUseModal(true);
+      setLinkName('');  // ← RESET INPUT
       await loadSingleUseLinks();
       notify.success('Single-use link generated! 🎫');
     } catch (error) {
@@ -304,6 +307,7 @@ export default function Dashboard() {
               </div>
             )}
 
+            {/* ✅ UPDATED SINGLE-USE LINKS SECTION */}
             <div className="bg-purple-50/50 rounded-2xl border border-purple-200 p-5 shadow-sm">
               <div className="mb-4">
                 <h3 className="text-lg font-bold text-purple-900 flex items-center gap-2">
@@ -315,6 +319,19 @@ export default function Dashboard() {
                 </p>
               </div>
 
+              {/* ✅ NAME INPUT FIELD */}
+              <div className="mb-3">
+                <input
+                  type="text"
+                  placeholder="Name this link (optional) - e.g., 'Joy', 'Client ABC'"
+                  value={linkName}
+                  onChange={(e) => setLinkName(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  maxLength={50}
+                />
+              </div>
+
+              {/* ✅ UPDATED BUTTON */}
               <button
                 onClick={handleGenerateSingleUse}
                 disabled={generatingSingleUse}
@@ -328,11 +345,12 @@ export default function Dashboard() {
                 ) : (
                   <>
                     <Ticket className="h-5 w-5" />
-                    Generate New Single-Use Link
+                    {linkName ? `Generate Link for "${linkName}"` : 'Generate New Single-Use Link'}
                   </>
                 )}
               </button>
 
+              {/* ✅ UPDATED LINKS LIST */}
               {singleUseLinksData.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-2">Recent Links:</p>
@@ -344,47 +362,53 @@ export default function Dashboard() {
                     return (
                       <div key={link.token} className="flex items-center justify-between p-3 bg-white rounded-lg border border-purple-200">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className={`px-2 py-1 rounded-md ${status.color} text-xs font-semibold flex items-center gap-1`}>
+                          <div className={`px-2 py-1 rounded-md ${status.color} text-xs font-semibold flex items-center gap-1 flex-shrink-0`}>
                             <StatusIcon className="h-3 w-3" />
                             {status.label}
                           </div>
-                          <code className="text-xs text-gray-600 font-mono truncate">
-                            {link.token.substring(0, 16)}...
-                          </code>
+                          
+                          {/* ✅ SHOW NAME IF EXISTS */}
+                          {link.name ? (
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className="text-sm font-bold text-purple-900 truncate">{link.name}</span>
+                              <code className="text-xs text-gray-500 font-mono flex-shrink-0">({link.token.substring(0, 8)}...)</code>
+                            </div>
+                          ) : (
+                            <code className="text-xs text-gray-600 font-mono truncate">
+                              {link.token.substring(0, 16)}...
+                            </code>
+                          )}
                         </div>
 
                         {isActive && (
-  <div className="flex gap-2">
-    <button
-      onClick={() => handleCopySingleUse(link.token)}
-      className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-semibold hover:bg-purple-700 transition-colors flex items-center gap-1"
-    >
-      {copiedSingleUse === link.token ? (
-        <>
-          <Check className="h-3 w-3" />
-          Copied
-        </>
-      ) : (
-        <>
-          <Copy className="h-3 w-3" />
-          Copy
-        </>
-      )}
-    </button>
+                          <div className="flex gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => handleCopySingleUse(link.token)}
+                              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-semibold hover:bg-purple-700 transition-colors flex items-center gap-1"
+                            >
+                              {copiedSingleUse === link.token ? (
+                                <>
+                                  <Check className="h-3 w-3" />
+                                  Copied
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3 w-3" />
+                                  Copy
+                                </>
+                              )}
+                            </button>
 
-    {/* FIXED LINK BUTTON */}
-    <a
-      href={`${window.location.origin}/book/${link.token}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-300 transition-colors flex items-center gap-1"
-    >
-      <ExternalLink className="h-3 w-3" />
-      Open
-    </a>
-  </div>
-
-
+                            
+                              href={`${window.location.origin}/book/${link.token}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-300 transition-colors flex items-center gap-1"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Open
+                            </a>
+                          </div>
                         )}
                       </div>
                     );

@@ -189,7 +189,7 @@ export const ai = {
 // SINGLE-USE LINKS
 // ============================================
 export const singleUseLinks = {
-  generate: () => api.post('/single-use-links'),
+  generate: (data) => api.post('/single-use-links', data),  // ✅ CHANGED: Now accepts data object
   getRecent: () => api.get('/single-use-links/recent'),
   get: (token) => api.get(`/single-use-links/${token}`),
   revoke: (token) => api.delete(`/single-use-links/${token}`),
