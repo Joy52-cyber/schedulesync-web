@@ -118,14 +118,14 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
 
   // ============ DATE SELECTION HANDLER (BULLETPROOF) ============
   const handleDateClick = (e, dateKey, availableCount, isPast) => {
-    // ✅ NUCLEAR OPTION: Stop EVERYTHING
+    // ✅ Stop ALL event propagation
     if (e) {
       e.preventDefault();
       e.stopPropagation();
-      e.stopImmediatePropagation();
-      e.nativeEvent?.preventDefault();
-      e.nativeEvent?.stopPropagation();
-      e.nativeEvent?.stopImmediatePropagation();
+      // Only call stopImmediatePropagation if it exists
+      if (typeof e.stopImmediatePropagation === 'function') {
+        e.stopImmediatePropagation();
+      }
     }
     
     if (isPast || availableCount === 0) {
