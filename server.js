@@ -857,6 +857,15 @@ app.post('/api/bookings', async (req, res) => {
       reschedule_token
     } = req.body;
 
+     console.log('🔍 REQUEST BODY DEBUG:', {
+      attendee_name,
+      attendee_email,
+      additional_attendees,
+      additional_attendees_type: typeof additional_attendees,
+      additional_attendees_length: additional_attendees?.length,
+      additional_attendees_isArray: Array.isArray(additional_attendees)
+    });
+
     console.log('📝 Creating booking:', { 
       token: token?.substring(0, 10) + '...', 
       attendee_name, 
@@ -6165,47 +6174,56 @@ const bookingResult = await pool.query(
     console.log('✅ Email sent to primary attendee:', attendee_email);
 
     // 2. Send to ADDITIONAL ATTENDEES
-    if (additional_attendees && Array.isArray(additional_attendees) && additional_attendees.length > 0) {
-      console.log(`📤 Sending emails to ${additional_attendees.length} additional attendees...`);
-      
-      for (const additionalEmail of additional_attendees) {
-        try {
-          await resend.emails.send({
-            from: 'ScheduleSync <bookings@schedulesync.com>',
-            to: additionalEmail,
-            subject: `Meeting Invitation: ${selectedEventType?.title || 'Meeting'} with ${assignedMember.organizer_name}`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #2563eb;">You're invited to a meeting!</h2>
-                <p>Hi there,</p>
-                <p><strong>${attendee_name}</strong> has invited you to a meeting with <strong>${assignedMember.organizer_name}</strong>.</p>
-                
-                <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                  <p style="margin: 5px 0;"><strong>📅 When:</strong> ${new Date(slot.start).toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })}</p>
-                  <p style="margin: 5px 0;"><strong>⏰ Duration:</strong> ${duration} minutes</p>
-                  ${notes ? `<p style="margin: 5px 0;"><strong>📝 Notes:</strong> ${notes}</p>` : ''}
-                  <p style="margin: 5px 0;"><strong>👤 Organizer:</strong> ${attendee_name} (${attendee_email})</p>
-                </div>
+console.log('🔍 Checking additional attendees:', {
+  exists: !!additional_attendees,
+  isArray: Array.isArray(additional_attendees),
+  length: additional_attendees?.length,
+  value: additional_attendees
+});
 
-                <p>The calendar invite has been attached to this email. Please add it to your calendar.</p>
-                
-                <p style="color: #64748b; font-size: 14px; margin-top: 30px;">If you have questions about this meeting, please contact ${attendee_name} at ${attendee_email}.</p>
-              </div>
-            `,
-            attachments: [
-              {
-                filename: 'meeting.ics',
-                content: Buffer.from(icsContent).toString('base64'),
-              },
-            ],
-          });
+if (additional_attendees && Array.isArray(additional_attendees) && additional_attendees.length > 0) {
+  console.log(`📤 Sending emails to ${additional_attendees.length} additional attendees...`);
+  
+  for (const additionalEmail of additional_attendees) {
+    try {
+      await resend.emails.send({
+        from: 'ScheduleSync <bookings@schedulesync.com>',
+        to: additionalEmail,
+        subject: `Meeting Invitation: ${selectedEventType?.title || 'Meeting'} with ${assignedMember.organizer_name}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2563eb;">You're invited to a meeting!</h2>
+            <p>Hi there,</p>
+            <p><strong>${attendee_name}</strong> has invited you to a meeting with <strong>${assignedMember.organizer_name}</strong>.</p>
+            
+            <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 5px 0;"><strong>📅 When:</strong> ${new Date(slot.start).toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })}</p>
+              <p style="margin: 5px 0;"><strong>⏰ Duration:</strong> ${duration} minutes</p>
+              ${notes ? `<p style="margin: 5px 0;"><strong>📝 Notes:</strong> ${notes}</p>` : ''}
+              <p style="margin: 5px 0;"><strong>👤 Organizer:</strong> ${attendee_name} (${attendee_email})</p>
+            </div>
 
-          console.log(`✅ Email sent to additional attendee: ${additionalEmail}`);
-        } catch (err) {
-          console.error(`❌ Failed to send email to additional attendee ${additionalEmail}:`, err.message);
-        }
-      }
+            <p>The calendar invite has been attached to this email. Please add it to your calendar.</p>
+            
+            <p style="color: #64748b; font-size: 14px; margin-top: 30px;">If you have questions about this meeting, please contact ${attendee_name} at ${attendee_email}.</p>
+          </div>
+        `,
+        attachments: [
+          {
+            filename: 'meeting.ics',
+            content: Buffer.from(icsContent).toString('base64'),
+          },
+        ],
+      });
+
+      console.log(`✅ Email sent to additional attendee: ${additionalEmail}`);
+    } catch (err) {
+      console.error(`❌ Failed to send email to additional attendee ${additionalEmail}:`, err.message);
     }
+  }
+} else {
+  console.log('⚠️ No additional attendees to email');
+}
 
     // 3. Send to ORGANIZER
     await resend.emails.send({
