@@ -2639,12 +2639,13 @@ app.delete('/api/teams/:id', authenticateToken, async (req, res) => {
 
 
 // Update team member (general info: name, email, etc.)
+
 app.patch('/api/teams/:teamId/members/:memberId', authenticateToken, async (req, res) => {
   const { teamId, memberId } = req.params;
-  const { email, name } = req.body;
-
+  const { name, role, priority, is_active } = req.body;
+  
   try {
-    // Verify ownership
+    // Verify ownership or admin status
     const teamCheck = await pool.query(
       'SELECT * FROM teams WHERE id = $1 AND owner_id = $2', 
       [teamId, req.user.id]
@@ -2654,27 +2655,33 @@ app.patch('/api/teams/:teamId/members/:memberId', authenticateToken, async (req,
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Update member
+    // Update member with all settings
     const result = await pool.query(
       `UPDATE team_members 
-       SET email = COALESCE($1, email),
-           name = COALESCE($2, name)
-       WHERE id = $3 AND team_id = $4 
+       SET name = COALESCE($1, name),
+           role = COALESCE($2, role),
+           priority = COALESCE($3, priority),
+           is_active = COALESCE($4, is_active)
+       WHERE id = $5 AND team_id = $6 
        RETURNING *`,
-      [email, name, memberId, teamId]
+      [name || null, role, priority, is_active, memberId, teamId]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Member not found' });
     }
 
-    console.log(`✅ Member ${memberId} updated`);
-    res.json({ member: result.rows[0] });
+    res.json({ 
+      success: true, 
+      member: result.rows[0] 
+    });
+
   } catch (error) {
-    console.error('Update member error:', error);
+    console.error('Error updating member:', error);
     res.status(500).json({ error: 'Failed to update member' });
   }
 });
+    
 
 // Toggle team member active status
 app.patch('/api/teams/:teamId/members/:memberId/status', authenticateToken, async (req, res) => {

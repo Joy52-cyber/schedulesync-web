@@ -1,104 +1,61 @@
 ﻿import { useState, useEffect } from 'react';
-import { X, ExternalLink, Link2, Loader2, Check, User } from 'lucide-react';
-import { teams } from '../utils/api';
-
-const PLATFORMS = [
-  { id: 'calendly', name: 'Calendly' },
-  { id: 'cal.com', name: 'Cal.com' },
-  { id: 'acuity', name: 'Acuity' },
-  { id: 'hubspot', name: 'HubSpot' },
-  { id: 'custom', name: 'Other' },
-];
+import { X, Save, User, Shield, TrendingUp, Loader2 } from 'lucide-react';
+import api from '../utils/api';
 
 export default function TeamMemberEditModal({ isOpen, onClose, member, teamId, onSave }) {
-  const [platform, setPlatform] = useState('calendly');
-  const [link, setLink] = useState('');
+  const [formData, setFormData] = useState({
+    name: '',
+    role: 'member',
+    priority: 1,
+    is_active: true,
+  });
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
 
-  // Reset form when member changes
   useEffect(() => {
     if (member) {
-      setPlatform(member.external_booking_platform || 'calendly');
-      setLink(member.external_booking_link || '');
-      setError('');
+      setFormData({
+        name: member.user_name || member.name || '',
+        role: member.role || 'member',
+        priority: member.priority || 1,
+        is_active: member.is_active !== false,
+      });
     }
   }, [member]);
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!member) return;
+
+    setSaving(true);
+    try {
+      const response = await api.patch(`/teams/${teamId}/members/${member.id}`, {
+        name: formData.name || null,
+        role: formData.role,
+        priority: parseInt(formData.priority, 10),
+        is_active: formData.is_active,
+      });
+
+      if (onSave) {
+        onSave(response.data.member);
+      }
+
+      alert('Member updated successfully!');
+      onClose();
+    } catch (error) {
+      console.error('Error updating member:', error);
+      alert(error.response?.data?.error || 'Failed to update member');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (!isOpen || !member) return null;
-
-  const validateUrl = (url) => {
-    if (!url) return true;
-    try {
-      new URL(url);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  const handleSave = async () => {
-    if (link && !validateUrl(link)) {
-      setError('Please enter a valid URL');
-      return;
-    }
-
-    setSaving(true);
-    setError('');
-
-    try {
-      const data = {
-        external_booking_link: link.trim() || null,
-        external_booking_platform: link.trim() ? platform : null,
-      };
-
-      await teams.updateMemberExternalLink(teamId, member.id, data);
-      
-      // Update local state
-      onSave({
-        ...member,
-        external_booking_link: data.external_booking_link,
-        external_booking_platform: data.external_booking_platform,
-      });
-      
-      onClose();
-    } catch (err) {
-      console.error('Error saving member settings:', err);
-      setError(err.response?.data?.error || 'Failed to save');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleClear = async () => {
-    setSaving(true);
-    try {
-      await teams.updateMemberExternalLink(teamId, member.id, {
-        external_booking_link: null,
-        external_booking_platform: null,
-      });
-      
-      onSave({
-        ...member,
-        external_booking_link: null,
-        external_booking_platform: null,
-      });
-      
-      setLink('');
-      setPlatform('calendly');
-      onClose();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to clear');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+      <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 rounded-t-2xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
@@ -106,7 +63,9 @@ export default function TeamMemberEditModal({ isOpen, onClose, member, teamId, o
               </div>
               <div>
                 <h2 className="text-lg font-bold text-white">Member Settings</h2>
-                <p className="text-blue-100 text-sm">{member.user_name || member.name || member.email}</p>
+                <p className="text-blue-100 text-sm">
+                  {member.user_name || member.name || member.email}
+                </p>
               </div>
             </div>
             <button
@@ -118,138 +77,134 @@ export default function TeamMemberEditModal({ isOpen, onClose, member, teamId, o
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-5">
-          {/* External Booking Link Section */}
-          <div className="border-2 border-gray-100 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <Link2 className="h-5 w-5 text-purple-600" />
-              <h3 className="font-semibold text-gray-900">External Booking Link</h3>
-            </div>
-
-            {/* Info Box */}
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
-              <p className="text-sm text-purple-800">
-                Redirect bookings to an external scheduling tool like Calendly or Cal.com.
-              </p>
-            </div>
-
-            {/* Platform Selection */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Platform
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {PLATFORMS.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setPlatform(p.id)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                      platform === p.id
-                        ? 'bg-purple-600 text-white shadow-md'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {p.name}
-                  </button>
-                ))}
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Member Info Display */}
+          <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                {member.user_name?.charAt(0) || member.name?.charAt(0) || 'U'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 truncate">
+                  {member.user_name || member.name || 'Unknown'}
+                </p>
+                <p className="text-sm text-gray-600 truncate">
+                  {member.user_email || member.email}
+                </p>
               </div>
             </div>
-
-            {/* Link Input */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Booking URL
-              </label>
-              <input
-                type="url"
-                value={link}
-                onChange={(e) => {
-                  setLink(e.target.value);
-                  setError('');
-                }}
-                placeholder={
-                  platform === 'calendly'
-                    ? 'https://calendly.com/username/30min'
-                    : platform === 'cal.com'
-                    ? 'https://cal.com/username/meeting'
-                    : platform === 'acuity'
-                    ? 'https://acuityscheduling.com/...'
-                    : platform === 'hubspot'
-                    ? 'https://meetings.hubspot.com/username'
-                    : 'https://...'
-                }
-                className={`w-full px-4 py-2.5 border-2 rounded-xl outline-none transition-all text-sm ${
-                  error
-                    ? 'border-red-300 focus:border-red-500 focus:ring-4 focus:ring-red-100'
-                    : 'border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100'
-                }`}
-              />
-              {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-            </div>
-
-            {/* Preview */}
-            {link && validateUrl(link) && (
-              <div className="mt-4 bg-gray-50 rounded-lg p-3 border border-gray-200">
-                <p className="text-xs font-medium text-gray-500 uppercase mb-1">Preview</p>
-                <a
-                  href={link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-purple-600 hover:text-purple-800 text-sm font-medium break-all"
-                >
-                  <ExternalLink className="h-4 w-4 flex-shrink-0" />
-                  {link}
-                </a>
-              </div>
-            )}
-
-            {/* Current Status */}
-            {member.external_booking_link && (
-              <div className="mt-4 flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
-                <div className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-green-600" />
-                  <span className="text-sm text-green-800 font-medium">
-                    Redirecting to {member.external_booking_platform || 'external'}
-                  </span>
-                </div>
-                <button
-                  onClick={handleClear}
-                  disabled={saving}
-                  className="text-xs text-red-600 hover:text-red-800 font-medium"
-                >
-                  Remove
-                </button>
-              </div>
-            )}
           </div>
-        </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 font-semibold transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              'Save Settings'
-            )}
-          </button>
-        </div>
+          {/* Display Name */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <span className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Display Name (Optional)
+              </span>
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Leave empty to use account name"
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Override the name from their account for this team
+            </p>
+          </div>
+
+          {/* Role */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <span className="flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                Role
+              </span>
+            </label>
+            <select
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+            >
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Admins can manage team settings and members
+            </p>
+          </div>
+
+          {/* Priority */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <span className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Priority
+              </span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              value={formData.priority}
+              onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Higher priority members get bookings first in round-robin mode
+            </p>
+          </div>
+
+          {/* Active Status */}
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.is_active}
+                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <div>
+                <p className="font-semibold text-gray-900">Active Member</p>
+                <p className="text-xs text-gray-600">
+                  Inactive members won't receive bookings
+                </p>
+              </div>
+            </label>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  Save Changes
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
