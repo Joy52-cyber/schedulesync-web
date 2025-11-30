@@ -17,6 +17,8 @@ import {
   Ticket,
   X,
   ExternalLink,
+  Upload,
+  ArrowRight,
 } from 'lucide-react';
 
 import api, {
@@ -50,6 +52,7 @@ export default function Dashboard() {
   const [showSingleUseModal, setShowSingleUseModal] = useState(false);
   const [copiedSingleUse, setCopiedSingleUse] = useState('');
   const [linkName, setLinkName] = useState('');
+  const [showCalendlyBanner, setShowCalendlyBanner] = useState(true);
 
   useEffect(() => {
     loadAllData();
@@ -251,6 +254,7 @@ export default function Dashboard() {
       <main className="w-full">
         <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8">
           <div className="space-y-6">
+            {/* Timezone Selector */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 bg-blue-50 rounded-lg">
@@ -266,6 +270,60 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* CALENDLY IMPORT BANNER - PROMINENT PLACEMENT */}
+            {showCalendlyBanner && (
+              <div className="bg-gradient-to-r from-purple-50 via-pink-50 to-purple-50 rounded-2xl border-2 border-purple-300 p-5 shadow-lg relative overflow-hidden">
+                <button
+                  onClick={() => setShowCalendlyBanner(false)}
+                  className="absolute top-3 right-3 p-1 hover:bg-white/50 rounded-lg transition-colors"
+                >
+                  <X className="h-4 w-4 text-purple-600" />
+                </button>
+                
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+                  <div className="flex-shrink-0">
+                    <div className="h-14 w-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+                      <Upload className="h-7 w-7 text-white" />
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-purple-900 mb-1 flex items-center gap-2">
+                      Coming from Calendly? 
+                      <span className="text-sm bg-purple-600 text-white px-2 py-0.5 rounded-full font-semibold">NEW</span>
+                    </h3>
+                    <p className="text-purple-700 text-sm mb-3">
+                      Import your event types, availability, and booking history in just 2 minutes. Zero manual setup required!
+                    </p>
+                    <div className="flex flex-wrap gap-2 text-xs text-purple-600">
+                      <span className="flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Event Types
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Availability
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Past Bookings
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => navigate('/import/calendly')}
+                    className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover:shadow-xl transition-all flex items-center justify-center gap-2 whitespace-nowrap"
+                  >
+                    <Upload className="h-5 w-5" />
+                    Start Import
+                    <ArrowRight className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Booking Link */}
             {bookingLink ? (
               <div className="bg-blue-50/50 rounded-2xl border border-blue-200 p-5 shadow-sm">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -306,6 +364,7 @@ export default function Dashboard() {
               </div>
             )}
 
+            {/* Single-Use Links */}
             <div className="bg-purple-50/50 rounded-2xl border border-purple-200 p-5 shadow-sm">
               <div className="mb-4">
                 <h3 className="text-lg font-bold text-purple-900 flex items-center gap-2">
@@ -392,15 +451,8 @@ export default function Dashboard() {
                                 </>
                               )}
                             </button>
-                            <button
-  onClick={() => navigate('/import/calendly')}
-  className="px-4 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors font-medium flex items-center gap-2"
->
-  <Upload className="h-4 w-4" />
-  Import from Calendly
-</button>
 
-                            <a
+                            
                               href={`${window.location.origin}/book/${link.token}`}
                               target="_blank"
                               rel="noopener noreferrer"
@@ -418,6 +470,7 @@ export default function Dashboard() {
               )}
             </div>
 
+            {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {statCards.map((stat, idx) => (
                 <div key={idx} className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100 hover:shadow-xl transition-all">
@@ -434,6 +487,7 @@ export default function Dashboard() {
               ))}
             </div>
 
+            {/* Recent Bookings */}
             <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -491,6 +545,7 @@ export default function Dashboard() {
         </div>
       </main>
 
+      {/* Single-Use Link Modal */}
       {showSingleUseModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 relative">
