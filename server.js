@@ -4362,16 +4362,15 @@ if (member.provider === 'google' && member.google_access_token && member.google_
             });
           }
           
-          console.log('✅ Confirmation emails sent with Meet link');
-        } catch (emailError) {
-          console.error('⚠️ Failed to send emails:', emailError);
-        }
-      } catch (error) {
-        console.error('❌ Background processing error:', error);
-      }
-    })();
-
-  } catch (error) {
+       console.log('✅ Confirmation emails sent with Meet link');
+     } catch (emailError) {
+  console.error('⚠️ Failed to send emails:', emailError);
+}
+    } catch (error) {  // ← Closes async try
+      console.error('❌ Background processing error:', error);
+    }
+  })();  // ← Closes async IIFE
+  } catch (error) {  // ❌ EXTRA - This doesn't match anything!
     console.error('❌ Create booking error:', error);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to create booking' });
