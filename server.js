@@ -3040,50 +3040,154 @@ if (!parsedStart) continue;
       latestBookable: latestBookable.toISOString()
     });
 
-    // Generate slots for each day
-    for (let dayOffset = 0; dayOffset < horizonDays; dayOffset++) {
-      const checkDate = new Date(now);
-      checkDate.setDate(checkDate.getDate() + dayOffset);
-      checkDate.setHours(0, 0, 0, 0);
+    // ========== GENERATE SLOTS FOR EACH DAY ==========
 
-      const dayOfWeek = checkDate.getDay();
-      const dayName = dayNameMap[dayOfWeek];
-      const daySettings = workingHours[dayName];
+for (let dayOffset = 0; dayOffset < horizonDays; dayOffset++) {
+  // Setup date for this iteration
+  const checkDate = new Date(now);
+  checkDate.setDate(checkDate.getDate() + dayOffset);
+  checkDate.setHours(0, 0, 0, 0);
 
-      // Skip if day is not enabled
-      if (!daySettings || !daySettings.enabled) {
-        continue;
+  // Get day-specific settings
+  const dayOfWeek = checkDate.getDay();
+  const dayName = dayNameMap[dayOfWeek];
+  const daySettings = workingHours[dayName];
+
+  // Skip if day is not enabled
+  if (!daySettings || !daySettings.enabled) {
+    continue;
+  }
+
+  // Parse and validate working hours
+  const parsedStart = safeParseTime(daySettings.start);
+  const parsedEnd = safeParseTime(daySettings.end);
+  
+  if (!parsedStart || !parsedEnd) {
+    console.error('❌ Invalid working hours for', dayName);
+    continue;
+  }
+
+  // Extract hour and minute values
+  const startHour = parsedStart.hours;
+  const startMinute = parsedStart.minutes;
+  const endHour = parsedEnd.hours;
+  const endMinute = parsedEnd.minutes;
+
+  // Initialize daily booking count for capacity tracking
+  const dateKey = checkDate.toISOString().split('T')[0];
+  if (!dailyBookingCounts[dateKey]) {
+    dailyBookingCounts[dateKey] = existingBookings.filter(b => {
+      const bookingDate = new Date(b.start_time).toISOString().split('T')[0];
+      return bookingDate === dateKey;
+    }).length;
+  }
+
+  // Generate 30-minute slots within working hours
+  for (let hour = startHour; hour < endHour; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      // Ensure slot doesn't exceed working hours
+      if (hour === endHour - 1 && minute + duration > 60) break;
+      if (hour >= endHour) break;
+
+      // Create slot start time
+      const slotStart = new Date(checkDate);
+      slotStart.setHours(hour, minute, 0, 0);
+      
+      // Create slot end time
+      const slotEnd = new Date(slotStart);
+      slotEnd.setMinutes(slotEnd.getMinutes() + duration);
+
+      // Initialize slot status
+      let status = 'available';
+      let reason = null;
+      let details = null;
+
+      // ========== APPLY AVAILABILITY RULES ==========
+      
+      // Rule 1: Lead time
+      if (slotStart < earliestBookable) {
+        status = 'unavailable';
+        reason = 'lead_time';
+        details = `Minimum ${leadTimeHours}h notice required`;
+      }
+      // Rule 2: Horizon limit
+      else if (slotStart > latestBookable) {
+        status = 'unavailable';
+        reason = 'horizon';
+        details = `Only ${horizonDays} days ahead available`;
+      }
+      // Rule 3: Working hours (double-check)
+      else if (!isWithinWorkingHours(slotStart, dayOfWeek)) {
+        status = 'unavailable';
+        reason = 'outside_hours';
+        details = 'Outside working hours';
+      }
+      // Rule 4: Blocked times
+      else if (isBlocked(slotStart, slotEnd)) {
+        status = 'unavailable';
+        reason = 'blocked';
+        details = 'Time blocked by organizer';
+      }
+      // Rule 5: Buffer time violations
+      else if (hasBufferViolation(slotStart, slotEnd)) {
+        status = 'unavailable';
+        reason = 'buffer';
+        details = `${bufferTime}min buffer required`;
+      }
+      // Rule 6: Daily cap
+      else if (dailyCap && dailyBookingCounts[dateKey] >= dailyCap) {
+        status = 'unavailable';
+        reason = 'daily_cap';
+        details = `Daily limit (${dailyCap}) reached`;
+      }
+      // Rule 7: Organizer calendar conflicts
+      else if (hasConflict(slotStart, slotEnd, organizerBusy)) {
+        status = 'unavailable';
+        reason = 'organizer_busy';
+        details = `${member.organizer_name || 'Organizer'} has another meeting`;
+      }
+      // Rule 8: Guest calendar conflicts
+      else if (hasConflict(slotStart, slotEnd, guestBusy)) {
+        status = 'unavailable';
+        reason = 'guest_busy';
+        details = "You have another meeting";
       }
 
-      // Parse working hours for this day
-      const [startHour, startMinute] = daySettings.start.split(':').map(Number);
-      const [endHour, endMinute] = daySettings.end.split(':').map(Number);
+      // Format time for display
+      const time = new Intl.DateTimeFormat('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: timezone
+      }).format(slotStart);
 
-      // Initialize daily booking count
-      const dateKey = checkDate.toISOString().split('T')[0];
-      if (!dailyBookingCounts[dateKey]) {
-        dailyBookingCounts[dateKey] = existingBookings.filter(b => {
-          const bookingDate = new Date(b.start_time).toISOString().split('T')[0];
-          return bookingDate === dateKey;
-        }).length;
+      // Create slot object
+      const slotData = {
+        start: slotStart.toISOString(),
+        end: slotEnd.toISOString(),
+        status,
+        reason,
+        details,
+        time,
+        timestamp: slotStart.getTime()
+      };
+
+      // Calculate match score for available slots
+      if (status === 'available') {
+        slotData.matchScore = calculateSlotScore(slotData, existingBookings, timezone);
+        slotData.matchLabel = getMatchLabel(slotData.matchScore);
+        slotData.matchColor = getMatchColor(slotData.matchScore);
+      } else {
+        slotData.matchScore = 0;
+        slotData.matchLabel = 'Unavailable';
+        slotData.matchColor = 'gray';
       }
 
-      // Generate 30-minute slots within working hours
-      for (let hour = startHour; hour < endHour; hour++) {
-        for (let minute = 0; minute < 60; minute += 30) {
-          // Skip if this time is past the end of working hours
-          if (hour === endHour - 1 && minute + duration > 60) break;
-          if (hour >= endHour) break;
-
-          const slotStart = new Date(checkDate);
-          slotStart.setHours(hour, minute, 0, 0);
-          
-          const slotEnd = new Date(slotStart);
-          slotEnd.setMinutes(slotEnd.getMinutes() + duration);
-
-          let status = 'available';
-          let reason = null;
-          let details = null;
+      // Add slot to array
+      slots.push(slotData);
+    }
+  }
+}
 
           // ========== APPLY ALL RULES ==========
 
