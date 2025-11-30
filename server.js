@@ -6182,7 +6182,7 @@ console.log('🔍 Checking additional attendees:', {
 });
 
 if (additional_attendees && Array.isArray(additional_attendees) && additional_attendees.length > 0) {
-  console.log(`📤 Sending emails to ${additional_attendees.length} additional attendees...`);
+  console.log(`📤 Sending emails to ${additional_attendees.length} additional attendees...`);  // ✅ FIXED
   
   for (const additionalEmail of additional_attendees) {
     try {
@@ -6216,9 +6216,9 @@ if (additional_attendees && Array.isArray(additional_attendees) && additional_at
         ],
       });
 
-      console.log(`✅ Email sent to additional attendee: ${additionalEmail}`);
+      console.log(`✅ Email sent to additional attendee: ${additionalEmail}`);  // ✅ FIXED
     } catch (err) {
-      console.error(`❌ Failed to send email to additional attendee ${additionalEmail}:`, err.message);
+      console.error(`❌ Failed to send email to additional attendee ${additionalEmail}:`, err.message);  // ✅ FIXED
     }
   }
 } else {
