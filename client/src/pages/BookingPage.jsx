@@ -268,6 +268,14 @@ export default function BookingPage() {
     e.preventDefault();
     if (!selectedSlot) return;
     
+    console.log('📤 Submitting booking with data:', {
+    attendee_name: formData.attendee_name,
+    attendee_email: formData.attendee_email,
+    additional_attendees: additionalAttendees,
+    additional_attendees_length: additionalAttendees.length
+  });
+  
+
     try {
       setSubmitting(true);
       const response = await bookings.create({
