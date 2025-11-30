@@ -1,7 +1,8 @@
 ﻿import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, Calendar, Info } from 'lucide-react';
 
-export default function CalendarModal({ slots, onSelectDate, onClose, selectedDate }) {
+function CalendarModalContent({ slots, onSelectDate, onClose, selectedDate }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [normalizedSlots, setNormalizedSlots] = useState({});
 
@@ -25,8 +26,7 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
           continue;
         }
 
-        // ✅ NEW: Use local timezone components instead of UTC
-        // This prevents the ±1 day shift that toISOString() causes
+        // ✅ Use local timezone components instead of UTC
         const year = parsedDate.getFullYear();
         const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
         const day = String(parsedDate.getDate()).padStart(2, '0');
@@ -45,7 +45,6 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
     }
 
     console.log(`✅ Normalization complete: Success: ${successCount} dates, Failed: ${failCount} dates`);
-    console.log('📦 Normalized keys (first 5):', Object.keys(normalized).slice(0, 5));
     setNormalizedSlots(normalized);
   }, [slots]);
 
@@ -53,7 +52,6 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
   useEffect(() => {
     if (Object.keys(normalizedSlots).length === 0) return;
     
-    // Find the first date that has available slots
     const sortedDates = Object.keys(normalizedSlots)
       .filter(dateKey => {
         const daySlots = normalizedSlots[dateKey];
@@ -63,14 +61,10 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
     
     if (sortedDates.length === 0) return;
     
-    const firstAvailableDate = sortedDates[0]; // e.g., "2025-12-01"
-    console.log('🎯 First available date found:', firstAvailableDate);
+    const firstAvailableDate = sortedDates[0];
+    const [year, month] = firstAvailableDate.split('-').map(Number);
+    const targetMonth = new Date(year, month - 1, 1);
     
-    // Parse the YYYY-MM-DD format
-    const [year, month, day] = firstAvailableDate.split('-').map(Number);
-    const targetMonth = new Date(year, month - 1, 1); // month is 0-indexed
-    
-    console.log('📅 Auto-navigating calendar to:', targetMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
     setCurrentMonth(targetMonth);
   }, [normalizedSlots]);
 
@@ -103,47 +97,11 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
     return compareDate < today;
   };
 
-  // ============ MONTH NAVIGATION ============
-  const prevMonth = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
-  };
-
-  const nextMonth = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
-  };
-
-  // ============ DATE SELECTION HANDLER (BULLETPROOF) ============
-  const handleDateClick = (e, dateKey, availableCount, isPast) => {
-    // ✅ Stop ALL event propagation
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      // Only call stopImmediatePropagation if it exists
-      if (typeof e.stopImmediatePropagation === 'function') {
-        e.stopImmediatePropagation();
-      }
-    }
-    
-    if (isPast || availableCount === 0) {
-      console.log('⚠️ Cannot select:', dateKey, { isPast, availableCount });
-      return false;
-    }
-    
-    console.log('🎯 Date selected:', dateKey, `(${availableCount} slots available)`);
-    
-    // Call parent handlers
-    try {
-      onSelectDate(dateKey);
-      onClose();
-    } catch (error) {
-      console.error('Error in date selection:', error);
-    }
-    
-    return false;
+  // ============ DATE SELECTION - SIMPLE VERSION ============
+  const handleDateSelect = (dateKey) => {
+    console.log('🎯 Date clicked in modal:', dateKey);
+    onSelectDate(dateKey);
+    onClose();
   };
 
   // ============ CALENDAR GRID BUILDER ============
@@ -176,82 +134,44 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
       grid.push(
         <div
           key={day}
-          role="button"
-          tabIndex={isPast || !hasSlots ? -1 : 0}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
+          onClick={() => {
             if (!isPast && hasSlots) {
-              handleDateClick(e, dateKey, availableCount, isPast);
-            }
-            return false;
-          }}
-          onMouseDown={(e) => e.preventDefault()}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              e.stopPropagation();
-              if (!isPast && hasSlots) {
-                handleDateClick(e, dateKey, availableCount, isPast);
-              }
+              handleDateSelect(dateKey);
             }
           }}
-          className={`h-16 sm:h-20 rounded-lg border-2 transition-all relative group focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+          className={`h-16 sm:h-20 rounded-lg border-2 transition-all relative group ${
             isSelectedDate
               ? 'border-blue-500 bg-blue-50 shadow-md ring-2 ring-blue-200'
               : hasSlots && !isPast
               ? 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md cursor-pointer active:scale-95'
               : 'border-gray-100 bg-gray-50 cursor-not-allowed opacity-50'
           }`}
-          aria-label={
-            isPast 
-              ? `${day} - Past date` 
-              : hasSlots 
-              ? `${day} - ${availableCount} slot${availableCount !== 1 ? 's' : ''} available`
-              : `${day} - No slots available`
-          }
-          aria-disabled={isPast || !hasSlots}
         >
           <div className="flex flex-col items-center justify-center h-full p-1 pointer-events-none">
-            {/* Day Number */}
             <span className={`text-base sm:text-lg font-semibold ${
-              todayDate
-                ? 'text-blue-600'
-                : hasSlots && !isPast
-                ? 'text-gray-900'
-                : 'text-gray-400'
+              todayDate ? 'text-blue-600' : hasSlots && !isPast ? 'text-gray-900' : 'text-gray-400'
             }`}>
               {day}
             </span>
             
-            {/* Available Slots Indicator */}
             {hasSlots && !isPast && (
               <div className="flex items-center gap-0.5 mt-1">
-                <div className={`w-1.5 h-1.5 rounded-full ${
-                  isSelectedDate ? 'bg-blue-500' : 'bg-green-500'
-                }`} />
-                <span className={`text-[10px] font-medium ${
-                  isSelectedDate ? 'text-blue-600' : 'text-green-600'
-                }`}>
+                <div className={`w-1.5 h-1.5 rounded-full ${isSelectedDate ? 'bg-blue-500' : 'bg-green-500'}`} />
+                <span className={`text-[10px] font-medium ${isSelectedDate ? 'text-blue-600' : 'text-green-600'}`}>
                   {availableCount}
                 </span>
               </div>
             )}
             
-            {/* Today Badge */}
             {todayDate && (
-              <span className="text-[9px] text-blue-600 font-bold uppercase mt-0.5">
-                Today
-              </span>
+              <span className="text-[9px] text-blue-600 font-bold uppercase mt-0.5">Today</span>
             )}
 
-            {/* Selected Badge */}
             {isSelectedDate && (
               <div className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
             )}
           </div>
 
-          {/* Hover Tooltip */}
           {hasSlots && !isPast && (
             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 shadow-lg">
               {availableCount} slot{availableCount !== 1 ? 's' : ''} available
@@ -267,7 +187,6 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
     return grid;
   };
 
-  // ============ STATS CALCULATION ============
   const totalAvailableSlots = Object.values(normalizedSlots).reduce((sum, daySlots) => {
     return sum + daySlots.filter(s => s.status === 'available').length;
   }, 0);
@@ -281,10 +200,9 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
     })
     .length;
 
-  // ============ UI RENDER ============
   return (
     <div 
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-[9999]"
       onClick={onClose}
     >
       <div 
@@ -299,25 +217,17 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
                 <Calendar className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
-                  Select a Date
-                </h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Select a Date</h2>
                 <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
                   {totalAvailableSlots} total slots available
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
-              aria-label="Close calendar"
-            >
+            <div onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer">
               <X className="h-5 w-5 text-gray-500" />
-            </button>
+            </div>
           </div>
 
-          {/* Month Stats */}
           {availableDatesInMonth > 0 && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3 flex items-start gap-2">
               <Info className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
@@ -332,30 +242,23 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
         <div className="p-4 sm:p-6">
           {/* Month Navigation */}
           <div className="flex items-center justify-between mb-4">
-            <button
-              type="button"
-              onClick={prevMonth}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Previous month"
+            <div
+              onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
             >
               <ChevronLeft className="h-5 w-5 text-gray-600" />
-            </button>
+            </div>
             
             <h3 className="text-base sm:text-lg font-bold text-gray-900">
-              {currentMonth.toLocaleDateString('en-US', { 
-                month: 'long', 
-                year: 'numeric' 
-              })}
+              {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
             </h3>
             
-            <button
-              type="button"
-              onClick={nextMonth}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Next month"
+            <div
+              onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
             >
               <ChevronRight className="h-5 w-5 text-gray-600" />
-            </button>
+            </div>
           </div>
 
           {/* Day Labels */}
@@ -390,16 +293,16 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
               </div>
             </div>
           </div>
-
-          {/* Empty State */}
-          {Object.keys(normalizedSlots).length === 0 && (
-            <div className="text-center py-8">
-              <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 text-sm">No availability data loaded</p>
-            </div>
-          )}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CalendarModal(props) {
+  // ✅ Render modal using React Portal - OUTSIDE the form DOM tree!
+  return createPortal(
+    <CalendarModalContent {...props} />,
+    document.body
   );
 }
