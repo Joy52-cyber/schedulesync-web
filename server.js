@@ -2740,12 +2740,6 @@ function getMatchColor(score) {
 
 // ============ ENHANCED SLOT GENERATION WITH ALL AVAILABILITY RULES ============
 
-const { timezone } = req.body;
-
-if (!timezone) {
-  return res.status(400).json({ error: 'Timezone is required' });
-}
-
 app.post('/api/book/:token/slots-with-status', async (req, res) => {
   try {
     const { token } = req.params;
