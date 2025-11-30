@@ -49,7 +49,7 @@ export default function Dashboard() {
   const [newSingleUseToken, setNewSingleUseToken] = useState('');
   const [showSingleUseModal, setShowSingleUseModal] = useState(false);
   const [copiedSingleUse, setCopiedSingleUse] = useState('');
-  const [linkName, setLinkName] = useState('');  // ← ADD THIS STATE
+  const [linkName, setLinkName] = useState('');
 
   useEffect(() => {
     loadAllData();
@@ -135,7 +135,6 @@ export default function Dashboard() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ✅ UPDATED: Pass name to API
   const handleGenerateSingleUse = async () => {
     setGeneratingSingleUse(true);
     try {
@@ -143,7 +142,7 @@ export default function Dashboard() {
       const token = response.data.token;
       setNewSingleUseToken(token);
       setShowSingleUseModal(true);
-      setLinkName('');  // ← RESET INPUT
+      setLinkName('');
       await loadSingleUseLinks();
       notify.success('Single-use link generated! 🎫');
     } catch (error) {
@@ -307,7 +306,6 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* ✅ UPDATED SINGLE-USE LINKS SECTION */}
             <div className="bg-purple-50/50 rounded-2xl border border-purple-200 p-5 shadow-sm">
               <div className="mb-4">
                 <h3 className="text-lg font-bold text-purple-900 flex items-center gap-2">
@@ -319,7 +317,6 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              {/* ✅ NAME INPUT FIELD */}
               <div className="mb-3">
                 <input
                   type="text"
@@ -331,7 +328,6 @@ export default function Dashboard() {
                 />
               </div>
 
-              {/* ✅ UPDATED BUTTON */}
               <button
                 onClick={handleGenerateSingleUse}
                 disabled={generatingSingleUse}
@@ -350,7 +346,6 @@ export default function Dashboard() {
                 )}
               </button>
 
-              {/* ✅ UPDATED LINKS LIST */}
               {singleUseLinksData.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-2">Recent Links:</p>
@@ -367,7 +362,6 @@ export default function Dashboard() {
                             {status.label}
                           </div>
                           
-                          {/* ✅ SHOW NAME IF EXISTS */}
                           {link.name ? (
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               <span className="text-sm font-bold text-purple-900 truncate">{link.name}</span>
@@ -398,8 +392,7 @@ export default function Dashboard() {
                                 </>
                               )}
                             </button>
-
-                            
+                            <a
                               href={`${window.location.origin}/book/${link.token}`}
                               target="_blank"
                               rel="noopener noreferrer"
