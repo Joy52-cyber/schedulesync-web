@@ -5804,7 +5804,6 @@ const bookingResult = await pool.query(
   }
 });
 
-
 // Test Anthropic API connection
 app.get('/api/test/anthropic', authenticateToken, async (req, res) => {
   try {
