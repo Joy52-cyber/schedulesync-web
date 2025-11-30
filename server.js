@@ -4130,37 +4130,61 @@ app.delete('/api/event-types/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// ONE-TIME MIGRATION (Remove after running)
+// ============================================
+app.get('/api/admin/migrate-single-use-names', authenticateToken, async (req, res) => {
+  try {
+    await pool.query(`
+      ALTER TABLE single_use_links 
+      ADD COLUMN IF NOT EXISTS name VARCHAR(100)
+    `);
+    res.json({ success: true, message: 'Migration complete - name column added!' });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ============ SINGLE USE LINK ENDPOINTS ============
 
 // Generate a Single-Use Link
 app.post('/api/single-use-links', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { name } = req.body;
-    
-    // Find the user's personal member ID
+    const { name } = req.body;  // ✅ ADD THIS LINE
+
+    // Get user's member_id
     const memberResult = await pool.query(
-      `SELECT tm.id FROM team_members tm JOIN teams t ON tm.team_id = t.id 
-       WHERE tm.user_id = $1 AND t.owner_id = $1 LIMIT 1`,
+      'SELECT id FROM team_members WHERE user_id = $1 LIMIT 1',
       [userId]
     );
 
     if (memberResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Personal schedule not found.' });
+      return res.status(400).json({ error: 'No team membership found' });
     }
-    
+
     const memberId = memberResult.rows[0].id;
     const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+    // ✅ UPDATED: Insert with name
     await pool.query(
-      `INSERT INTO single_use_links (token, member_id, name) VALUES ($1, $2, $3)`,  // ← ADD name
-      [token, memberId, name || null]  // ← ADD name parameter
+      `INSERT INTO single_use_links (token, member_id, name, expires_at) 
+       VALUES ($1, $2, $3, $4)`,
+      [token, memberId, name || null, expiresAt]  // ✅ ADD name parameter
     );
 
-    res.json({ success: true, token: token });
+    console.log('✅ Single-use link created:', { token, name, expires_at: expiresAt });
+    
+    res.json({ 
+      success: true, 
+      token,
+      name: name || null,  // ✅ ADD THIS
+      expires_at: expiresAt 
+    });
   } catch (error) {
-    console.error('Generate single-use link error:', error);
-    res.status(500).json({ error: 'Failed to generate link' });
+    console.error('❌ Generate single-use link error:', error);
+    res.status(500).json({ error: 'Failed to generate single-use link' });
   }
 });
 
@@ -4168,21 +4192,22 @@ app.post('/api/single-use-links', authenticateToken, async (req, res) => {
 app.get('/api/single-use-links/recent', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    
+
+    // Get user's member_id
     const memberResult = await pool.query(
-      `SELECT tm.id FROM team_members tm JOIN teams t ON tm.team_id = t.id 
-       WHERE tm.user_id = $1 AND t.owner_id = $1 LIMIT 1`,
+      'SELECT id FROM team_members WHERE user_id = $1 LIMIT 1',
       [userId]
     );
 
     if (memberResult.rows.length === 0) {
       return res.json({ links: [] });
     }
-    
+
     const memberId = memberResult.rows[0].id;
-    
+
+    // ✅ UPDATED: Select name field
     const result = await pool.query(
-      `SELECT token, name, used, created_at, expires_at   -- ← ADD name here
+      `SELECT token, name, used, created_at, expires_at 
        FROM single_use_links 
        WHERE member_id = $1 
        ORDER BY created_at DESC 
@@ -4192,7 +4217,7 @@ app.get('/api/single-use-links/recent', authenticateToken, async (req, res) => {
 
     res.json({ links: result.rows });
   } catch (error) {
-    console.error('Get recent single-use links error:', error);
+    console.error('❌ Get recent single-use links error:', error);
     res.status(500).json({ error: 'Failed to fetch links' });
   }
 });
