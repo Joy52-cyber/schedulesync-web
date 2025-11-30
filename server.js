@@ -2579,8 +2579,29 @@ app.put('/api/team-members/:id/availability', authenticateToken, async (req, res
 
     const member = memberResult.rows[0];
 
-    if (member.owner_id !== userId && member.user_id !== userId) {
+   if (member.owner_id !== userId && member.user_id !== userId) {
       return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // ✅ VALIDATE AND FIX working_hours structure
+    const validatedWorkingHours = {};
+    for (const [day, settings] of Object.entries(working_hours)) {
+      if (settings.slots) {
+        // Frontend sent wrong format with 'slots' array, fix it
+        console.log(`⚠️ Fixing invalid working_hours for ${day}`);
+        validatedWorkingHours[day] = {
+          enabled: settings.enabled || false,
+          start: "09:00",
+          end: "17:00"
+        };
+      } else {
+        // Correct format already
+        validatedWorkingHours[day] = {
+          enabled: settings.enabled || false,
+          start: settings.start || "09:00",
+          end: settings.end || "17:00"
+        };
+      }
     }
 
     // Update team member settings
@@ -2593,7 +2614,7 @@ app.put('/api/team-members/:id/availability', authenticateToken, async (req, res
        working_hours = $5
    WHERE id = $6`,
   [buffer_time || 0, lead_time_hours || 0, booking_horizon_days || 30, 
-   daily_booking_cap, JSON.stringify(working_hours), memberId]
+   daily_booking_cap, JSON.stringify(validatedWorkingHours), memberId]
 );
 
     // Update blocked times
