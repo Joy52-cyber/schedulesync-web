@@ -202,12 +202,6 @@ const MICROSOFT_CONFIG = {
   ]
 };
 
-// ============ CALENDLY API CONFIG ============
-const CALENDLY_CONFIG = {
-  apiKey: process.env.CALENDLY_API_KEY,
-  baseUrl: 'https://api.calendly.com'
-};
-
 // ============ MICROSOFT GRAPH API HELPERS ============
 
 async function refreshMicrosoftToken(refreshToken) {
@@ -321,92 +315,6 @@ async function createMicrosoftCalendarEvent(accessToken, refreshToken, eventData
   }
 }
 
-// ============ CALENDLY API HELPERS ============
-
-async function getCalendlyUser(apiKey) {
-  try {
-    const response = await fetch(`${CALENDLY_CONFIG.baseUrl}/users/me`, {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) throw new Error('Failed to get Calendly user');
-    const data = await response.json();
-    return data.resource;
-  } catch (error) {
-    console.error('❌ Calendly user fetch error:', error);
-    throw error;
-  }
-}
-
-async function getCalendlyEventTypes(apiKey, userUri) {
-  try {
-    const response = await fetch(`${CALENDLY_CONFIG.baseUrl}/event_types?user=${encodeURIComponent(userUri)}`, {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) throw new Error('Failed to get event types');
-    const data = await response.json();
-    return data.collection || [];
-  } catch (error) {
-    console.error('❌ Calendly event types fetch error:', error);
-    return [];
-  }
-}
-
-async function createCalendlyScheduledEvent(apiKey, eventTypeUri, startTime, inviteeEmail, inviteeName) {
-  try {
-    const response = await fetch(`${CALENDLY_CONFIG.baseUrl}/scheduled_events`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        event_type: eventTypeUri,
-        start_time: startTime,
-        invitee_email: inviteeEmail,
-        invitee_name: inviteeName
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to create event');
-    }
-
-    const data = await response.json();
-    return data.resource;
-  } catch (error) {
-    console.error('❌ Calendly event creation error:', error);
-    throw error;
-  }
-}
-
-async function cancelCalendlyEvent(apiKey, eventUri, reason) {
-  try {
-    const response = await fetch(`${CALENDLY_CONFIG.baseUrl}/scheduled_events/${eventUri}/cancellation`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ reason: reason || 'Cancelled via ScheduleSync' })
-    });
-
-    if (!response.ok) throw new Error('Failed to cancel event');
-    return await response.json();
-  } catch (error) {
-    console.error('❌ Calendly cancellation error:', error);
-    throw error;
-  }
-}
-
 // ============ MIDDLEWARE ============
 
 app.use(cors());
@@ -474,10 +382,6 @@ async function initDB() {
     name VARCHAR(255),
     booking_token VARCHAR(255) UNIQUE NOT NULL,
     invited_by INTEGER REFERENCES users(id),
-    external_booking_link TEXT,
-    external_booking_platform VARCHAR(50) DEFAULT 'calendly',
-    calendly_api_key TEXT,
-    calendly_user_uri TEXT,
     booking_count INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT NOW()
   )
@@ -663,12 +567,6 @@ async function migrateDatabase() {
       ADD COLUMN IF NOT EXISTS provider VARCHAR(50) DEFAULT 'google'
     `);
     
-    // Add Calendly columns
-    await pool.query(`
-      ALTER TABLE team_members
-      ADD COLUMN IF NOT EXISTS calendly_api_key TEXT,
-      ADD COLUMN IF NOT EXISTS calendly_user_uri TEXT
-    `);
 
     // Add to existing single_use_links table creation
 await pool.query(`
@@ -1783,133 +1681,6 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
   }
 });
 
-// ============ CALENDLY OAUTH ============
-// ✅ CORRECT - Remove the orphaned scope line entirely
-app.get('/api/auth/calendly/url', (req, res) => {
-  try {
-    if (!process.env.CALENDLY_CLIENT_ID) {
-      console.error('❌ CALENDLY_CLIENT_ID not configured');
-      return res.status(503).json({ 
-        error: 'Calendly login not configured',
-        message: 'Please contact support to enable Calendly integration'
-      });
-    }
-
-    const authUrl = `https://auth.calendly.com/oauth/authorize?` +
-      `client_id=${process.env.CALENDLY_CLIENT_ID}` +
-      `&response_type=code` +
-      `&redirect_uri=${encodeURIComponent(process.env.CALENDLY_REDIRECT_URI)}`;
-    
-    console.log('🔗 Generated Calendly OAuth URL');
-    res.json({ url: authUrl });
-  } catch (error) {
-    console.error('❌ Error generating Calendly OAuth URL:', error);
-    res.status(500).json({ error: 'Failed to generate OAuth URL' });
-  }
-});
-
-app.post('/api/auth/calendly/callback', authenticateToken, async (req, res) => {
-  try {
-    const { code } = req.body;
-
-    if (!code) {
-      return res.status(400).json({ error: 'Authorization code required' });
-    }
-
-    const tokenResponse = await fetch('https://auth.calendly.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'authorization_code',
-        code: code,
-        redirect_uri: process.env.CALENDLY_REDIRECT_URI,
-        client_id: process.env.CALENDLY_CLIENT_ID,
-        client_secret: process.env.CALENDLY_CLIENT_SECRET
-      })
-    });
-
-    const tokens = await tokenResponse.json();
-    
-    if (!tokenResponse.ok) {
-      throw new Error(tokens.error_description || 'Token exchange failed');
-    }
-
-    const user = await getCalendlyUser(tokens.access_token);
-
-    const userId = req.user.id;
-    await pool.query(
-      `UPDATE team_members SET calendly_api_key = $1, calendly_user_uri = $2 
-       WHERE user_id = $3`,
-      [tokens.access_token, user.uri, userId]
-    );
-
-    console.log('✅ Calendly OAuth successful');
-
-    res.json({
-      success: true,
-      calendlyConnected: true,
-      userUri: user.uri
-    });
-  } catch (error) {
-    console.error('❌ Calendly OAuth error:', error);
-    res.status(500).json({ error: 'Calendly authentication failed' });
-  }
-});
-
-// ============ CALENDLY SYNC ENDPOINTS ============
-
-app.get('/api/calendly/event-types', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    const memberResult = await pool.query(
-      `SELECT calendly_api_key, calendly_user_uri FROM team_members WHERE user_id = $1 LIMIT 1`,
-      [userId]
-    );
-
-    if (memberResult.rows.length === 0 || !memberResult.rows[0].calendly_api_key) {
-      return res.status(404).json({ error: 'Calendly not connected' });
-    }
-
-    const member = memberResult.rows[0];
-    const eventTypes = await getCalendlyEventTypes(member.calendly_api_key, member.calendly_user_uri);
-
-    res.json({ eventTypes });
-  } catch (error) {
-    console.error('❌ Calendly event types error:', error);
-    res.status(500).json({ error: 'Failed to fetch Calendly event types' });
-  }
-});
-
-app.post('/api/calendly/create-event', authenticateToken, async (req, res) => {
-  try {
-    const { eventTypeUri, startTime, inviteeEmail, inviteeName } = req.body;
-    const userId = req.user.id;
-
-    const memberResult = await pool.query(
-      `SELECT calendly_api_key FROM team_members WHERE user_id = $1 LIMIT 1`,
-      [userId]
-    );
-
-    if (memberResult.rows.length === 0 || !memberResult.rows[0].calendly_api_key) {
-      return res.status(404).json({ error: 'Calendly not connected' });
-    }
-
-    const event = await createCalendlyScheduledEvent(
-      memberResult.rows[0].calendly_api_key,
-      eventTypeUri,
-      startTime,
-      inviteeEmail,
-      inviteeName
-    );
-
-    res.json({ success: true, event });
-  } catch (error) {
-    console.error('❌ Calendly create event error:', error);
-    res.status(500).json({ error: 'Failed to create Calendly event' });
-  }
-});
-
 // ============ EMAIL/PASSWORD AUTHENTICATION ============
 
 // Register with email/password
@@ -2378,6 +2149,302 @@ app.post('/api/book/auth/google', async (req, res) => {
   }
 });
 
+// ============================================
+// CALENDLY MIGRATION TOOL
+// ============================================
+
+app.post('/api/import/calendly', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      api_key,
+      import_event_types = true,
+      import_availability = true,
+      import_bookings_days = 90,
+    } = req.body;
+
+    if (!api_key) {
+      return res.status(400).json({ error: 'Calendly API key is required' });
+    }
+
+    console.log('🔄 Starting Calendly import for user:', userId);
+
+    const calendlyHeaders = {
+      'Authorization': `Bearer ${api_key}`,
+      'Content-Type': 'application/json',
+    };
+
+    const results = {
+      event_types: 0,
+      availability_rules: 0,
+      bookings: 0,
+      warnings: [],
+    };
+
+    // Get user's personal team
+    const teamResult = await pool.query(
+      `SELECT t.id, tm.id as member_id 
+       FROM teams t
+       JOIN team_members tm ON tm.team_id = t.id
+       WHERE tm.user_id = $1 AND t.name LIKE '%Personal%'
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (teamResult.rows.length === 0) {
+      return res.status(400).json({ error: 'No personal team found. Please complete onboarding first.' });
+    }
+
+    const { id: teamId, member_id: memberId } = teamResult.rows[0];
+
+    // ====================================
+    // 1. GET CALENDLY USER INFO
+    // ====================================
+    let calendlyUser;
+    try {
+      const userResponse = await axios.get('https://api.calendly.com/users/me', {
+        headers: calendlyHeaders,
+      });
+      calendlyUser = userResponse.data.resource;
+      console.log('✅ Calendly user fetched:', calendlyUser.email);
+    } catch (error) {
+      console.error('❌ Failed to fetch Calendly user:', error.response?.data || error.message);
+      return res.status(401).json({ 
+        error: 'Invalid Calendly API key or insufficient permissions' 
+      });
+    }
+
+    // ====================================
+    // 2. IMPORT EVENT TYPES
+    // ====================================
+    if (import_event_types) {
+      try {
+        const eventTypesResponse = await axios.get(
+          `https://api.calendly.com/event_types?user=${calendlyUser.uri}`,
+          { headers: calendlyHeaders }
+        );
+
+        const eventTypes = eventTypesResponse.data.collection || [];
+        console.log(`📅 Found ${eventTypes.length} event types`);
+
+        for (const et of eventTypes) {
+          // Skip if not active
+          if (!et.active) {
+            results.warnings.push(`Skipped inactive event type: ${et.name}`);
+            continue;
+          }
+
+          // Extract duration (in minutes)
+          const duration = et.duration || 30;
+
+          // Generate slug from name
+          const slug = et.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+          // Create event type in ScheduleSync
+          await pool.query(
+            `INSERT INTO event_types (
+              user_id, 
+              title,
+              slug,
+              duration, 
+              description, 
+              color,
+              is_active
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (user_id, slug) DO NOTHING`,
+            [
+              userId,
+              et.name,
+              slug,
+              duration,
+              et.description_plain || et.description_html || '',
+              et.color || '#3B82F6',
+              true,
+            ]
+          );
+
+          results.event_types++;
+        }
+
+        console.log(`✅ Imported ${results.event_types} event types`);
+      } catch (error) {
+        console.error('❌ Event types import error:', error.response?.data || error.message);
+        results.warnings.push('Failed to import some event types');
+      }
+    }
+
+    // ====================================
+    // 3. IMPORT AVAILABILITY
+    // ====================================
+    if (import_availability) {
+      try {
+        const availabilityResponse = await axios.get(
+          `https://api.calendly.com/user_availability_schedules?user=${calendlyUser.uri}`,
+          { headers: calendlyHeaders }
+        );
+
+        const schedules = availabilityResponse.data.collection || [];
+        
+        if (schedules.length > 0) {
+          // Use the first/default schedule
+          const schedule = schedules[0];
+          
+          // Fetch full schedule details
+          const scheduleDetailResponse = await axios.get(schedule.uri, {
+            headers: calendlyHeaders,
+          });
+
+          const scheduleRules = scheduleDetailResponse.data.resource.rules || [];
+          console.log(`⏰ Found ${scheduleRules.length} availability rules`);
+
+          // Convert Calendly rules to ScheduleSync format
+          const workingHours = {
+            monday: { enabled: false, start: '09:00', end: '17:00' },
+            tuesday: { enabled: false, start: '09:00', end: '17:00' },
+            wednesday: { enabled: false, start: '09:00', end: '17:00' },
+            thursday: { enabled: false, start: '09:00', end: '17:00' },
+            friday: { enabled: false, start: '09:00', end: '17:00' },
+            saturday: { enabled: false, start: '09:00', end: '17:00' },
+            sunday: { enabled: false, start: '09:00', end: '17:00' },
+          };
+
+          for (const rule of scheduleRules) {
+            const dayMap = {
+              'monday': 'monday',
+              'tuesday': 'tuesday',
+              'wednesday': 'wednesday',
+              'thursday': 'thursday',
+              'friday': 'friday',
+              'saturday': 'saturday',
+              'sunday': 'sunday',
+            };
+
+            const day = dayMap[rule.wday.toLowerCase()];
+            if (day && rule.intervals && rule.intervals.length > 0) {
+              // Use first interval for start/end times
+              const firstInterval = rule.intervals[0];
+              workingHours[day] = {
+                enabled: true,
+                start: firstInterval.from,
+                end: firstInterval.to,
+              };
+            }
+          }
+
+          // Update availability in ScheduleSync
+          await pool.query(
+            `UPDATE team_members 
+             SET working_hours = $1
+             WHERE id = $2`,
+            [JSON.stringify(workingHours), memberId]
+          );
+
+          results.availability_rules = scheduleRules.length;
+          console.log(`✅ Imported availability rules`);
+        }
+      } catch (error) {
+        console.error('❌ Availability import error:', error.response?.data || error.message);
+        results.warnings.push('Failed to import availability settings');
+      }
+    }
+
+    // ====================================
+    // 4. IMPORT PAST BOOKINGS (for analytics)
+    // ====================================
+    if (import_bookings_days > 0) {
+      try {
+        const minDate = new Date();
+        minDate.setDate(minDate.getDate() - import_bookings_days);
+
+        const bookingsResponse = await axios.get(
+          `https://api.calendly.com/scheduled_events?user=${calendlyUser.uri}&min_start_time=${minDate.toISOString()}&status=active`,
+          { headers: calendlyHeaders }
+        );
+
+        const bookings = bookingsResponse.data.collection || [];
+        console.log(`📊 Found ${bookings.length} past bookings`);
+
+        for (const booking of bookings) {
+          // Get invitee details
+          let attendeeName = 'Guest';
+          let attendeeEmail = 'guest@example.com';
+
+          try {
+            const inviteeUri = booking.uri;
+            const eventUuid = inviteeUri.split('/').pop();
+            
+            const inviteesResponse = await axios.get(
+              `https://api.calendly.com/scheduled_events/${eventUuid}/invitees`,
+              { headers: calendlyHeaders }
+            );
+
+            const invitees = inviteesResponse.data.collection || [];
+            if (invitees.length > 0) {
+              attendeeName = invitees[0].name || attendeeName;
+              attendeeEmail = invitees[0].email || attendeeEmail;
+            }
+          } catch (err) {
+            console.warn('Could not fetch invitee details:', err.message);
+          }
+
+          // Import as historical booking
+          const manageToken = crypto.randomBytes(16).toString('hex');
+          
+          await pool.query(
+            `INSERT INTO bookings (
+              team_id,
+              member_id,
+              user_id,
+              attendee_name,
+              attendee_email,
+              start_time,
+              end_time,
+              status,
+              notes,
+              manage_token
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT DO NOTHING`,
+            [
+              teamId,
+              memberId,
+              userId,
+              attendeeName,
+              attendeeEmail,
+              new Date(booking.start_time),
+              new Date(booking.end_time),
+              'confirmed',
+              `Imported from Calendly: ${booking.name}`,
+              manageToken
+            ]
+          );
+
+          results.bookings++;
+        }
+
+        console.log(`✅ Imported ${results.bookings} past bookings`);
+      } catch (error) {
+        console.error('❌ Bookings import error:', error.response?.data || error.message);
+        results.warnings.push('Failed to import some past bookings');
+      }
+    }
+
+    // ====================================
+    // RESPONSE
+    // ====================================
+    console.log('✅ Calendly import complete:', results);
+
+    res.json({
+      success: true,
+      ...results,
+    });
+  } catch (error) {
+    console.error('❌ Calendly import error:', error);
+    res.status(500).json({ 
+      error: 'Import failed. Please check your API key and try again.' 
+    });
+  }
+});
+
 // ============ TEAM ROUTES ============
 
 
@@ -2734,8 +2801,7 @@ app.get('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
 
 app.post('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
   const { teamId } = req.params;
-  const { email, name, sendEmail = true, external_booking_link, external_booking_platform } = req.body;
-
+  const { email, name, sendEmail = true } = req.body;
   try {
     const teamCheck = await pool.query('SELECT * FROM teams WHERE id = $1 AND owner_id = $2', [teamId, req.user.id]);
     if (teamCheck.rows.length === 0) return res.status(403).json({ error: 'Not authorized' });
@@ -6523,28 +6589,7 @@ app.get('/api/auth/microsoft/url', (req, res) => {
     res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
 });
-// ============ CALENDLY OAUTH ============
-app.get('/api/auth/calendly/url', (req, res) => {
-  try {
-    // Validate credentials exist
-    if (!process.env.CALENDLY_CLIENT_ID) {
-      console.error('❌ CALENDLY_CLIENT_ID not configured');
-      return res.status(503).json({ 
-        error: 'Calendly login not configured',
-        message: 'Please contact support to enable Calendly integration'
-      });
-    }
-    const authUrl = `https://auth.calendly.com/oauth/authorize?` +
-      `client_id=${process.env.CALENDLY_CLIENT_ID}` +
-      `&response_type=code` +
-      `&redirect_uri=${encodeURIComponent(process.env.CALENDLY_REDIRECT_URI)}`;
-    console.log('🔗 Generated Calendly OAuth URL');
-    res.json({ url: authUrl });
-  } catch (error) {
-    console.error('❌ Error generating Calendly OAuth URL:', error);
-    res.status(500).json({ error: 'Failed to generate OAuth URL' });
-  }
-});
+
 
 const cron = require('node-cron');
 // ========== REMINDER ENGINE ==========

@@ -392,6 +392,14 @@ export default function Dashboard() {
                                 </>
                               )}
                             </button>
+                            <button
+  onClick={() => navigate('/import/calendly')}
+  className="px-4 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors font-medium flex items-center gap-2"
+>
+  <Upload className="h-4 w-4" />
+  Import from Calendly
+</button>
+
                             <a
                               href={`${window.location.origin}/book/${link.token}`}
                               target="_blank"

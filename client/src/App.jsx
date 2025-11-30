@@ -24,7 +24,7 @@ import EventTypes from './pages/EventTypes';
 import EventTypeForm from './pages/EventTypeForm';
 import EventTypeDetail from './pages/EventTypeDetail';
 import Availability from './pages/Availability';
-
+import CalendlyMigration from './pages/CalendlyMigration';
 // Team
 import Teams from './pages/Teams';
 import TeamSettings from './pages/TeamSettings';
@@ -124,7 +124,7 @@ function App() {
             <Route path="/payment/status" element={<PaymentStatus />} />
             <Route path="/booking-success" element={<BookingConfirmation />} />
             <Route path="/booking-confirmation" element={<BookingConfirmation />} />
-
+            <Route path="/import/calendly" element={<CalendlyMigration />} />
 
             {/* Protected App Layout (keeps Navbar / sidebar from Layout.jsx) */}
             <Route
