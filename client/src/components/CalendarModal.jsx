@@ -1,70 +1,51 @@
 ﻿import { useState, useEffect } from 'react';
-import { X, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Info } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Calendar, Info } from 'lucide-react';
 
 export default function CalendarModal({ slots, onSelectDate, onClose, selectedDate }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [normalizedSlots, setNormalizedSlots] = useState({});
 
-  // ============ DATE NORMALIZATION WITH TIMEZONE FIX ============
+  // ============ TIMEZONE-SAFE DATE NORMALIZATION ============
   useEffect(() => {
-    console.log('🔧 CalendarModal: Normalizing slot keys...');
-    console.log('📦 Received slots object:', slots);
-    console.log('📦 Original slot keys (first 5):', Object.keys(slots || {}).slice(0, 5));
-    
-    if (!slots || Object.keys(slots).length === 0) {
-      console.warn('⚠️ No slots provided to CalendarModal');
-      setNormalizedSlots({});
-      return;
-    }
+    console.log('🔄 Normalizing slots for calendar modal...');
+    console.log('📦 Original slot keys (first 5):', Object.keys(slots).slice(0, 5));
     
     const normalized = {};
     let successCount = 0;
     let failCount = 0;
-    
-    Object.keys(slots).forEach(key => {
+
+    for (const [dateKey, daySlots] of Object.entries(slots)) {
       try {
-        // Handle multiple date formats
-        let date;
+        // Parse the formatted date string back to a Date object
+        const parsedDate = new Date(dateKey);
         
-        // Check if already in ISO format (YYYY-MM-DD)
-        if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
-          date = new Date(key + 'T12:00:00'); // Add noon to avoid timezone issues
-        } else {
-          // Parse formatted dates like "Monday, December 2, 2024"
-          date = new Date(key);
-        }
-        
-        if (isNaN(date.getTime())) {
-          console.warn(`⚠️ Could not parse date: "${key}"`);
+        if (isNaN(parsedDate.getTime())) {
+          console.warn('⚠️ Invalid date:', dateKey);
           failCount++;
-          return;
+          continue;
         }
-        
-        // ✅ CRITICAL FIX: Build ISO key from LOCAL date components (not UTC)
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
+
+        // ✅ NEW: Use local timezone components instead of UTC
+        // This prevents the ±1 day shift that toISOString() causes
+        const year = parsedDate.getFullYear();
+        const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+        const day = String(parsedDate.getDate()).padStart(2, '0');
         const isoKey = `${year}-${month}-${day}`;
+
+        normalized[isoKey] = daySlots;
         
-        // Store the slots array for this date
-        normalized[isoKey] = slots[key];
-        successCount++;
-        
-        if (successCount <= 3) {
-          console.log(`✅ Converted: "${key}" → "${isoKey}" (${slots[key].length} slots)`);
+        if (successCount < 5) {
+          console.log(`✅ Converted: "${dateKey}" → "${isoKey}" (${daySlots.length} slots)`);
         }
+        successCount++;
       } catch (error) {
-        console.error(`❌ Error parsing date "${key}":`, error);
+        console.error('❌ Error normalizing date:', dateKey, error);
         failCount++;
       }
-    });
-    
-    console.log('✅ Normalization complete:');
-    console.log(`   - Success: ${successCount} dates`);
-    console.log(`   - Failed: ${failCount} dates`);
-    console.log(`   - Normalized keys (first 5):`, Object.keys(normalized).slice(0, 5));
-    console.log(`   - Total dates available:`, Object.keys(normalized).length);
-    
+    }
+
+    console.log(`✅ Normalization complete: Success: ${successCount} dates, Failed: ${failCount} dates`);
+    console.log('📦 Normalized keys (first 5):', Object.keys(normalized).slice(0, 5));
     setNormalizedSlots(normalized);
   }, [slots]);
 
@@ -72,7 +53,7 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
   useEffect(() => {
     if (Object.keys(normalizedSlots).length === 0) return;
     
-    // Find the earliest date with available slots
+    // Find the first date that has available slots
     const sortedDates = Object.keys(normalizedSlots)
       .filter(dateKey => {
         const daySlots = normalizedSlots[dateKey];
@@ -83,267 +64,303 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
     if (sortedDates.length === 0) return;
     
     const firstAvailableDate = sortedDates[0]; // e.g., "2025-12-01"
+    console.log('🎯 First available date found:', firstAvailableDate);
+    
+    // Parse the YYYY-MM-DD format
     const [year, month, day] = firstAvailableDate.split('-').map(Number);
+    const targetMonth = new Date(year, month - 1, 1); // month is 0-indexed
     
-    const targetMonth = new Date(year, month - 1, 1); // month - 1 because JS months are 0-indexed
-    
-    console.log('📅 Auto-navigating to first available month:', {
-      firstAvailableDate,
-      targetMonth: targetMonth.toLocaleDateString()
-    });
-    
+    console.log('📅 Auto-navigating calendar to:', targetMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
     setCurrentMonth(targetMonth);
   }, [normalizedSlots]);
 
-  // ============ CALENDAR CONFIGURATION ============
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
-
-  const getDaysInMonth = (date) => {
+  // ============ HELPER FUNCTIONS ============
+  const getDateKey = (date) => {
     const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    return { daysInMonth, startingDayOfWeek, year, month };
-  };
-
-  const { daysInMonth, startingDayOfWeek, year, month } = getDaysInMonth(currentMonth);
-
-  // ============ NAVIGATION ============
-  const previousMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
-  };
-
-  const nextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
-  };
-
-  // ============ DATE HELPERS ============
-  const getDateKey = (day) => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const date = new Date(year, month, day);
-    
-    // Build ISO key (YYYY-MM-DD) from local components
-    const isoYear = date.getFullYear();
-    const isoMonth = String(date.getMonth() + 1).padStart(2, '0');
-    const isoDay = String(date.getDate()).padStart(2, '0');
-    
-    return `${isoYear}-${isoMonth}-${isoDay}`;
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   const getAvailableCount = (dateKey) => {
     const daySlots = normalizedSlots[dateKey];
-    if (!daySlots || !Array.isArray(daySlots)) {
-      return 0;
-    }
+    if (!daySlots) return 0;
     return daySlots.filter(s => s.status === 'available').length;
   };
 
-  const isToday = (day) => {
+  const isToday = (date) => {
     const today = new Date();
-    return day === today.getDate() && 
-           month === today.getMonth() && 
-           year === today.getFullYear();
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
   };
 
-  const isPastDate = (day) => {
-    const date = new Date(year, month, day);
+  const isPastDate = (date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    date.setHours(0, 0, 0, 0);
-    return date < today;
+    const compareDate = new Date(date);
+    compareDate.setHours(0, 0, 0, 0);
+    return compareDate < today;
   };
 
-  // ============ DATE SELECTION HANDLER ============
-  const handleDateClick = (e, dateKey, availableCount, isPast) => {
-    // ✅ CRITICAL: Prevent any default behavior and stop propagation
+  // ============ MONTH NAVIGATION ============
+  const prevMonth = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+  };
+
+  const nextMonth = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+  };
+
+  // ============ DATE SELECTION HANDLER (BULLETPROOF) ============
+  const handleDateClick = (e, dateKey, availableCount, isPast) => {
+    // ✅ NUCLEAR OPTION: Stop EVERYTHING
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      e.nativeEvent?.preventDefault();
+      e.nativeEvent?.stopPropagation();
+      e.nativeEvent?.stopImmediatePropagation();
+    }
     
     if (isPast || availableCount === 0) {
       console.log('⚠️ Cannot select:', dateKey, { isPast, availableCount });
-      return;
+      return false;
     }
     
     console.log('🎯 Date selected:', dateKey, `(${availableCount} slots available)`);
     
     // Call parent handlers
-    onSelectDate(dateKey);
-    onClose();
+    try {
+      onSelectDate(dateKey);
+      onClose();
+    } catch (error) {
+      console.error('Error in date selection:', error);
+    }
+    
+    return false;
   };
 
-  // ============ BUILD CALENDAR GRID ============
-  const days = [];
-  
-  // Empty cells for days before the first day of the month
-  for (let i = 0; i < startingDayOfWeek; i++) {
-    days.push(
-      <div key={`empty-${i}`} className="h-16 sm:h-20" />
-    );
-  }
+  // ============ CALENDAR GRID BUILDER ============
+  const buildCalendarGrid = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
 
-  // Actual days of the month
-  for (let day = 1; day <= daysInMonth; day++) {
-    const dateKey = getDateKey(day);
-    const availableCount = getAvailableCount(dateKey);
-    const isSelectedDate = selectedDate === dateKey;
-    const isPast = isPastDate(day);
-    const todayDate = isToday(day);
-    const hasSlots = availableCount > 0;
+    const grid = [];
 
-    days.push(
-      <button
-        key={day}
-        type="button"
-        onClick={(e) => handleDateClick(e, dateKey, availableCount, isPast)}
-        disabled={isPast || !hasSlots}
-        className={`h-16 sm:h-20 rounded-lg border-2 transition-all relative group focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-          isSelectedDate
-            ? 'border-blue-500 bg-blue-50 shadow-md ring-2 ring-blue-200'
-            : hasSlots && !isPast
-            ? 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md cursor-pointer active:scale-95'
-            : 'border-gray-100 bg-gray-50 cursor-not-allowed opacity-50'
-        }`}
-        aria-label={
-          isPast 
-            ? `${day} - Past date` 
-            : hasSlots 
-            ? `${day} - ${availableCount} slot${availableCount !== 1 ? 's' : ''} available`
-            : `${day} - No slots available`
-        }
-      >
-        <div className="flex flex-col items-center justify-center h-full p-1">
-          {/* Day Number */}
-          <span className={`text-base sm:text-lg font-semibold ${
-            todayDate
-              ? 'text-blue-600'
+    // Empty cells before the first day
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      grid.push(<div key={`empty-${i}`} className="h-16 sm:h-20" />);
+    }
+
+    // Days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      const dateKey = getDateKey(date);
+      const availableCount = getAvailableCount(dateKey);
+      const hasSlots = availableCount > 0;
+      const todayDate = isToday(date);
+      const isPast = isPastDate(date);
+      const isSelectedDate = selectedDate === dateKey;
+
+      grid.push(
+        <div
+          key={day}
+          role="button"
+          tabIndex={isPast || !hasSlots ? -1 : 0}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!isPast && hasSlots) {
+              handleDateClick(e, dateKey, availableCount, isPast);
+            }
+            return false;
+          }}
+          onMouseDown={(e) => e.preventDefault()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!isPast && hasSlots) {
+                handleDateClick(e, dateKey, availableCount, isPast);
+              }
+            }
+          }}
+          className={`h-16 sm:h-20 rounded-lg border-2 transition-all relative group focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+            isSelectedDate
+              ? 'border-blue-500 bg-blue-50 shadow-md ring-2 ring-blue-200'
               : hasSlots && !isPast
-              ? 'text-gray-900'
-              : 'text-gray-400'
-          }`}>
-            {day}
-          </span>
-          
-          {/* Available Slots Indicator */}
-          {hasSlots && !isPast && (
-            <div className="flex items-center gap-0.5 mt-1">
-              <div className={`w-1.5 h-1.5 rounded-full ${
-                isSelectedDate ? 'bg-blue-500' : 'bg-green-500'
-              }`} />
-              <span className={`text-[10px] font-medium ${
-                isSelectedDate ? 'text-blue-600' : 'text-green-600'
-              }`}>
-                {availableCount}
-              </span>
-            </div>
-          )}
-          
-          {/* Today Badge */}
-          {todayDate && (
-            <span className="text-[9px] text-blue-600 font-bold uppercase mt-0.5">
-              Today
+              ? 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md cursor-pointer active:scale-95'
+              : 'border-gray-100 bg-gray-50 cursor-not-allowed opacity-50'
+          }`}
+          aria-label={
+            isPast 
+              ? `${day} - Past date` 
+              : hasSlots 
+              ? `${day} - ${availableCount} slot${availableCount !== 1 ? 's' : ''} available`
+              : `${day} - No slots available`
+          }
+          aria-disabled={isPast || !hasSlots}
+        >
+          <div className="flex flex-col items-center justify-center h-full p-1 pointer-events-none">
+            {/* Day Number */}
+            <span className={`text-base sm:text-lg font-semibold ${
+              todayDate
+                ? 'text-blue-600'
+                : hasSlots && !isPast
+                ? 'text-gray-900'
+                : 'text-gray-400'
+            }`}>
+              {day}
             </span>
-          )}
+            
+            {/* Available Slots Indicator */}
+            {hasSlots && !isPast && (
+              <div className="flex items-center gap-0.5 mt-1">
+                <div className={`w-1.5 h-1.5 rounded-full ${
+                  isSelectedDate ? 'bg-blue-500' : 'bg-green-500'
+                }`} />
+                <span className={`text-[10px] font-medium ${
+                  isSelectedDate ? 'text-blue-600' : 'text-green-600'
+                }`}>
+                  {availableCount}
+                </span>
+              </div>
+            )}
+            
+            {/* Today Badge */}
+            {todayDate && (
+              <span className="text-[9px] text-blue-600 font-bold uppercase mt-0.5">
+                Today
+              </span>
+            )}
 
-          {/* Selected Badge */}
-          {isSelectedDate && (
-            <div className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+            {/* Selected Badge */}
+            {isSelectedDate && (
+              <div className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+            )}
+          </div>
+
+          {/* Hover Tooltip */}
+          {hasSlots && !isPast && (
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 shadow-lg">
+              {availableCount} slot{availableCount !== 1 ? 's' : ''} available
+              <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                <div className="border-4 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
           )}
         </div>
+      );
+    }
 
-        {/* Hover Tooltip */}
-        {hasSlots && !isPast && (
-          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 shadow-lg">
-            {availableCount} slot{availableCount !== 1 ? 's' : ''} available
-            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-              <div className="border-4 border-transparent border-t-gray-900"></div>
-            </div>
-          </div>
-        )}
-      </button>
-    );
-  }
+    return grid;
+  };
 
-  // ============ STATS ============
-  const totalDatesWithSlots = Object.keys(normalizedSlots).filter(key => {
-    const slots = normalizedSlots[key];
-    return slots && slots.some(s => s.status === 'available');
-  }).length;
-
+  // ============ STATS CALCULATION ============
   const totalAvailableSlots = Object.values(normalizedSlots).reduce((sum, daySlots) => {
-    return sum + (daySlots?.filter(s => s.status === 'available').length || 0);
+    return sum + daySlots.filter(s => s.status === 'available').length;
   }, 0);
 
+  const availableDatesInMonth = Object.keys(normalizedSlots)
+    .filter(dateKey => {
+      const [year, month] = dateKey.split('-').map(Number);
+      return year === currentMonth.getFullYear() && 
+             month === currentMonth.getMonth() + 1 &&
+             getAvailableCount(dateKey) > 0;
+    })
+    .length;
+
+  // ============ UI RENDER ============
   return (
     <div 
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50"
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden animate-in slide-in-from-bottom-8 duration-300"
+        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        
-        {/* ============ HEADER ============ */}
-        <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-6 flex items-center justify-between z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-              <CalendarIcon className="h-5 w-5" />
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 rounded-t-2xl z-10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                <Calendar className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+                  Select a Date
+                </h2>
+                <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+                  {totalAvailableSlots} total slots available
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-bold">Select a Date</h2>
-              <p className="text-sm text-white/80">
-                {totalDatesWithSlots} dates with {totalAvailableSlots} available slots
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-full hover:bg-white/20 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
-            aria-label="Close calendar"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* ============ CALENDAR BODY ============ */}
-        <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
-          
-          {/* Month Navigation */}
-          <div className="flex items-center justify-between mb-6">
             <button
               type="button"
-              onClick={previousMonth}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors group focus:outline-none focus:ring-2 focus:ring-blue-400"
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
+              aria-label="Close calendar"
+            >
+              <X className="h-5 w-5 text-gray-500" />
+            </button>
+          </div>
+
+          {/* Month Stats */}
+          {availableDatesInMonth > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3 flex items-start gap-2">
+              <Info className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs sm:text-sm text-green-800">
+                <span className="font-semibold">{availableDatesInMonth} day{availableDatesInMonth !== 1 ? 's' : ''}</span> with available slots in {currentMonth.toLocaleDateString('en-US', { month: 'long' })}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Calendar */}
+        <div className="p-4 sm:p-6">
+          {/* Month Navigation */}
+          <div className="flex items-center justify-between mb-4">
+            <button
+              type="button"
+              onClick={prevMonth}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               aria-label="Previous month"
             >
-              <ChevronLeft className="h-5 w-5 text-gray-600 group-hover:text-gray-900" />
+              <ChevronLeft className="h-5 w-5 text-gray-600" />
             </button>
             
-            <h3 className="text-lg font-bold text-gray-900">
-              {monthNames[month]} {year}
+            <h3 className="text-base sm:text-lg font-bold text-gray-900">
+              {currentMonth.toLocaleDateString('en-US', { 
+                month: 'long', 
+                year: 'numeric' 
+              })}
             </h3>
             
             <button
               type="button"
               onClick={nextMonth}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors group focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               aria-label="Next month"
             >
-              <ChevronRight className="h-5 w-5 text-gray-600 group-hover:text-gray-900" />
+              <ChevronRight className="h-5 w-5 text-gray-600" />
             </button>
           </div>
 
           {/* Day Labels */}
-          <div className="grid grid-cols-7 gap-2 mb-2">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+          <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
               <div key={day} className="text-center text-xs font-semibold text-gray-500 py-2">
                 {day}
               </div>
@@ -351,47 +368,36 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
           </div>
 
           {/* Calendar Grid */}
-          <div className="grid grid-cols-7 gap-2">
-            {days}
+          <div className="grid grid-cols-7 gap-1 sm:gap-2">
+            {buildCalendarGrid()}
+          </div>
+
+          {/* Legend */}
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <p className="text-xs font-semibold text-gray-700 mb-2">Legend:</p>
+            <div className="flex flex-wrap gap-3 text-xs">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span className="text-gray-600">Available slots</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                <span className="text-gray-600">Selected date</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 bg-gray-300 rounded-full"></div>
+                <span className="text-gray-600">No slots</span>
+              </div>
+            </div>
           </div>
 
           {/* Empty State */}
           {Object.keys(normalizedSlots).length === 0 && (
-            <div className="mt-8 text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-              <Info className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-600 font-medium">No available dates found</p>
-              <p className="text-xs text-gray-500 mt-1">Try connecting your calendar or contact the organizer</p>
+            <div className="text-center py-8">
+              <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm">No availability data loaded</p>
             </div>
           )}
-
-          {/* Legend */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Legend</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-gray-200 rounded bg-white flex items-center justify-center">
-                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                </div>
-                <span className="text-xs text-gray-600">Available</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-blue-500 rounded bg-blue-50 relative">
-                  <div className="absolute top-0 right-0 w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                </div>
-                <span className="text-xs text-gray-600">Selected</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-blue-500 rounded bg-white flex items-center justify-center">
-                  <span className="text-[8px] font-bold text-blue-600">T</span>
-                </div>
-                <span className="text-xs text-gray-600">Today</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-gray-100 rounded bg-gray-50 opacity-50"></div>
-                <span className="text-xs text-gray-600">Unavailable</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

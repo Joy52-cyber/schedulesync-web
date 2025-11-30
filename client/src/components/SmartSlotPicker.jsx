@@ -133,9 +133,12 @@ export default function SmartSlotPicker({
     return <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4" />;
   };
 
+  // ============ DATE SELECTION HANDLER (BULLETPROOF) ============
   const handleDateSelect = (date) => {
+    console.log('📅 SmartSlotPicker: Date selected:', date);
     setSelectedDate(date);
     setSelectedSlot(null);
+    // ✅ Don't allow any propagation
     return false;
   };
 
@@ -246,7 +249,12 @@ export default function SmartSlotPicker({
 
         {/* Big Calendar Button */}
         <button
-          onClick={() => setShowCalendarModal(true)}
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setShowCalendarModal(true);
+          }}
           className="w-full p-6 border-2 border-dashed border-blue-300 rounded-2xl hover:border-blue-500 hover:bg-blue-50 transition-all group"
         >
           <div className="flex flex-col items-center gap-3">
@@ -278,6 +286,7 @@ export default function SmartSlotPicker({
             <div className="flex items-center gap-3">
               <span className="text-xs text-slate-500">{duration} min slots</span>
               <button
+                type="button"
                 onClick={() => setShowUnavailable(!showUnavailable)}
                 className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
               >
@@ -330,6 +339,7 @@ export default function SmartSlotPicker({
                   return (
                     <button
                       key={index}
+                      type="button"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -389,6 +399,7 @@ export default function SmartSlotPicker({
                   return (
                     <button
                       key={index}
+                      type="button"
                       disabled
                       className="p-3 rounded-lg border border-gray-200 bg-gray-50 text-left opacity-60 cursor-not-allowed min-h-[100px]"
                       title={slot.details}
