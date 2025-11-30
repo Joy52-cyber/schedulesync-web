@@ -2953,26 +2953,30 @@ if (member.provider === 'google' && member.google_access_token && member.google_
     };
 
     const isWithinWorkingHours = (slotStart, dayOfWeek) => {
-      const dayName = dayNameMap[dayOfWeek];
-      const daySettings = workingHours[dayName];
-      
-      if (!daySettings || !daySettings.enabled) {
-        return false;
-      }
+  const dayName = dayNameMap[dayOfWeek];
+  const daySettings = workingHours[dayName];
+  
+  if (!daySettings || !daySettings.enabled) {
+    return false;
+  }
 
-      const slotHour = slotStart.getHours();
-      const slotMinute = slotStart.getMinutes();
-      const slotTime = slotHour * 60 + slotMinute;
+  const slotHour = slotStart.getHours();
+  const slotMinute = slotStart.getMinutes();
+  const slotTime = slotHour * 60 + slotMinute;
 
-      const parsedStart = safeParseTime(daySettings.start);
-if (!parsedStart) continue;
-// Use parsedStart.hours and parsedStart.minutes
-      const [endHour, endMinute] = daySettings.end.split(':').map(Number);
-      const startTime = startHour * 60 + startMinute;
-      const endTime = endHour * 60 + endMinute;
+  // ✅ FIXED: Use safe parsing with proper return
+  const parsedStart = safeParseTime(daySettings.start);
+  const parsedEnd = safeParseTime(daySettings.end);
+  
+  if (!parsedStart || !parsedEnd) {
+    return false;  // ✅ Return false if invalid times
+  }
 
-      return slotTime >= startTime && slotTime < endTime;
-    };
+  const startTime = parsedStart.hours * 60 + parsedStart.minutes;
+  const endTime = parsedEnd.hours * 60 + parsedEnd.minutes;
+
+  return slotTime >= startTime && slotTime < endTime;
+};
 
     const hasConflict = (slotStart, slotEnd, busyTimes) => {
       return busyTimes.some(busy => {
