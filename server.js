@@ -3859,6 +3859,94 @@ app.get('/api/book/:token', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch booking details' });
   }
 });
+
+// ============ FIX WORKING HOURS DATA (ONE-TIME ADMIN ENDPOINT) ============
+app.get('/api/admin/fix-working-hours-data', authenticateToken, async (req, res) => {
+  try {
+    console.log('🔧 Starting working_hours data migration...');
+    
+    const members = await pool.query('SELECT id, working_hours FROM team_members');
+    let fixed = 0;
+    let alreadyGood = 0;
+    let errors = 0;
+
+    for (const member of members.rows) {
+      try {
+        const current = member.working_hours;
+        
+        // Check if this member has bad data (contains 'slots' property)
+        if (current && typeof current === 'object') {
+          let needsFix = false;
+          
+          // Check each day for the 'slots' property
+          for (const day of ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']) {
+            if (current[day] && current[day].slots) {
+              needsFix = true;
+              break;
+            }
+          }
+          
+          if (needsFix) {
+            console.log(`⚠️ Fixing member ${member.id} - Found 'slots' property`);
+            
+            // Replace with correct default structure
+            await pool.query(
+              `UPDATE team_members SET working_hours = $1 WHERE id = $2`,
+              [JSON.stringify({
+                monday: { enabled: true, start: "09:00", end: "17:00" },
+                tuesday: { enabled: true, start: "09:00", end: "17:00" },
+                wednesday: { enabled: true, start: "09:00", end: "17:00" },
+                thursday: { enabled: true, start: "09:00", end: "17:00" },
+                friday: { enabled: true, start: "09:00", end: "17:00" },
+                saturday: { enabled: false, start: "09:00", end: "17:00" },
+                sunday: { enabled: false, start: "09:00", end: "17:00" }
+              }), member.id]
+            );
+            fixed++;
+          } else {
+            alreadyGood++;
+          }
+        } else if (!current) {
+          // Member has no working_hours at all, set defaults
+          console.log(`➕ Setting defaults for member ${member.id}`);
+          await pool.query(
+            `UPDATE team_members SET working_hours = $1 WHERE id = $2`,
+            [JSON.stringify({
+              monday: { enabled: true, start: "09:00", end: "17:00" },
+              tuesday: { enabled: true, start: "09:00", end: "17:00" },
+              wednesday: { enabled: true, start: "09:00", end: "17:00" },
+              thursday: { enabled: true, start: "09:00", end: "17:00" },
+              friday: { enabled: true, start: "09:00", end: "17:00" },
+              saturday: { enabled: false, start: "09:00", end: "17:00" },
+              sunday: { enabled: false, start: "09:00", end: "17:00" }
+            }), member.id]
+          );
+          fixed++;
+        }
+      } catch (memberError) {
+        console.error(`❌ Error processing member ${member.id}:`, memberError);
+        errors++;
+      }
+    }
+
+    console.log('✅ Data migration complete');
+    console.log(`   - Fixed: ${fixed}`);
+    console.log(`   - Already correct: ${alreadyGood}`);
+    console.log(`   - Errors: ${errors}`);
+
+    res.json({ 
+      success: true, 
+      fixed: fixed,
+      alreadyGood: alreadyGood,
+      errors: errors,
+      total: members.rows.length
+    });
+  } catch (error) {
+    console.error('❌ Data migration error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ============================================
 // TEAM BOOKING PAGE (separate from member links)
 // ============================================
