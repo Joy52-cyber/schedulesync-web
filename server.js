@@ -4209,167 +4209,167 @@ for (const assignedMember of assignedMembers) {
     });
 
     // ========== ASYNC: CREATE CALENDAR EVENT & SEND EMAILS ==========
-    (async () => {
+   // ========== ASYNC: CREATE CALENDAR EVENT & SEND EMAILS ==========
+(async () => {
+  try {
+    let meetLink = null;
+    let calendarEventId = null;
+
+    // Create calendar event with meeting link
+    if (member.provider === 'google' && member.google_access_token && member.google_refresh_token) {
       try {
-        let meetLink = null;
-        let calendarEventId = null;
+        console.log('📅 Creating Google Calendar event with Meet link (async)...');
+        
+        const oauth2Client = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET,
+          process.env.GOOGLE_REDIRECT_URI
+        );
 
-        // 
+        oauth2Client.setCredentials({
+          access_token: member.google_access_token,
+          refresh_token: member.google_refresh_token
+        });
 
-        // Create calendar event with meeting link
-if (member.provider === 'google' && member.google_access_token && member.google_refresh_token) {
-  try {
-    console.log('📅 Creating Google Calendar event with Meet link (async)...');
+        const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
-
-    oauth2Client.setCredentials({
-      access_token: member.google_access_token,
-      refresh_token: member.google_refresh_token
-    });
-
-    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-
-    const event = {
-      summary: `Meeting with ${attendee_name}`,
-      description: notes || 'Scheduled via ScheduleSync',
-      start: {
-        dateTime: slot.start,
-        timeZone: 'UTC',
-      },
-      end: {
-        dateTime: slot.end,
-        timeZone: 'UTC',
-      },
-      attendees: [
-        { email: attendee_email, displayName: attendee_name },
-        { email: member.member_email, displayName: member.member_name }
-      ],
-      conferenceData: {
-        createRequest: {
-          requestId: `schedulesync-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          conferenceSolutionKey: {
-            type: 'hangoutsMeet'
+        const event = {
+          summary: `Meeting with ${attendee_name}`,
+          description: notes || 'Scheduled via ScheduleSync',
+          start: {
+            dateTime: slot.start,
+            timeZone: 'UTC',
+          },
+          end: {
+            dateTime: slot.end,
+            timeZone: 'UTC',
+          },
+          attendees: [
+            { email: attendee_email, displayName: attendee_name },
+            { email: member.member_email, displayName: member.member_name }
+          ],
+          conferenceData: {
+            createRequest: {
+              requestId: `schedulesync-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              conferenceSolutionKey: {
+                type: 'hangoutsMeet'
+              }
+            }
+          },
+          reminders: {
+            useDefault: false,
+            overrides: [
+              { method: 'email', minutes: 24 * 60 },
+              { method: 'popup', minutes: 30 }
+            ]
           }
+        };
+
+        const calendarResponse = await calendar.events.insert({
+          calendarId: 'primary',
+          resource: event,
+          conferenceDataVersion: 1,
+          sendUpdates: 'all'
+        });
+
+        meetLink = calendarResponse.data.hangoutLink || null;
+        calendarEventId = calendarResponse.data.id;
+
+        for (const booking of createdBookings) {
+          await pool.query(
+            `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
+            [meetLink, calendarEventId, booking.id]
+          );
         }
-      },
-      reminders: {
-        useDefault: false,
-        overrides: [
-          { method: 'email', minutes: 24 * 60 },
-          { method: 'popup', minutes: 30 }
-        ]
+
+        console.log('✅ Google Calendar event created with Meet link:', meetLink);
+      } catch (calendarError) {
+        console.error('⚠️ Google Calendar event creation failed:', calendarError.message);
       }
-    };
+    } else if (member.provider === 'microsoft' && member.microsoft_access_token && member.microsoft_refresh_token) {
+      try {
+        console.log('📅 Creating Microsoft Calendar event with Teams link (async)...');
 
-    const calendarResponse = await calendar.events.insert({
-      calendarId: 'primary',
-      resource: event,
-      conferenceDataVersion: 1,
-      sendUpdates: 'all'
-    });
-
-    meetLink = calendarResponse.data.hangoutLink || null;
-    calendarEventId = calendarResponse.data.id;
-
-    for (const booking of createdBookings) {
-      await pool.query(
-        `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
-        [meetLink, calendarEventId, booking.id]
-      );
-    }
-
-    console.log('✅ Google Calendar event created with Meet link:', meetLink);
-  } catch (calendarError) {
-    console.error('⚠️ Google Calendar event creation failed:', calendarError.message);
-  }
-} else if (member.provider === 'microsoft' && member.microsoft_access_token && member.microsoft_refresh_token) {
-  try {
-    console.log('📅 Creating Microsoft Calendar event with Teams link (async)...');
-
-    const eventResult = await createMicrosoftCalendarEvent(
-      member.microsoft_access_token,
-      member.microsoft_refresh_token,
-      {
-        title: `Meeting with ${attendee_name}`,
-        description: notes || 'Scheduled via ScheduleSync',
-        startTime: slot.start,
-        endTime: slot.end,
-        attendees: [
-          { email: attendee_email, name: attendee_name },
-          { email: member.member_email, name: member.member_name }
-        ]
-      }
-    );
-
-    meetLink = eventResult.meetingUrl;
-    calendarEventId = eventResult.id;
-
-    for (const booking of createdBookings) {
-      await pool.query(
-        `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
-        [meetLink, calendarEventId, booking.id]
-      );
-    }
-
-    console.log('✅ Microsoft Calendar event created with Teams link:', meetLink);
-  } catch (calendarError) {
-    console.error('⚠️ Microsoft Calendar event creation failed:', calendarError.message);
-  }
-}    
-
-        // Send confirmation emails
-        try {
-          const icsFile = generateICS({
-            id: createdBookings[0].id,
-            start_time: createdBookings[0].start_time,
-            end_time: createdBookings[0].end_time,
-            attendee_name: attendee_name,
-            attendee_email: attendee_email,
-            organizer_name: member.member_name || member.name,
-            organizer_email: member.member_email || member.email,
-            team_name: member.team_name,
-            notes: notes,
-          });
-
-          const bookingWithMeetLink = {
-            ...createdBookings[0],
-            attendee_name,
-            attendee_email,
-            organizer_name: member.member_name || member.name,
-            team_name: member.team_name,
-            notes,
-            meet_link: meetLink,
-          };
-
-          await sendBookingEmail({
-            to: attendee_email,
-            subject: '✅ Booking Confirmed - ScheduleSync',
-            html: emailTemplates.bookingConfirmationGuest(bookingWithMeetLink),
-            icsAttachment: icsFile,
-          });
-
-          if (member.member_email || member.email) {
-            await sendBookingEmail({
-              to: member.member_email || member.email,
-              subject: '📅 New Booking Received - ScheduleSync',
-              html: emailTemplates.bookingConfirmationOrganizer(bookingWithMeetLink),
-              icsAttachment: icsFile,
-            });
+        const eventResult = await createMicrosoftCalendarEvent(
+          member.microsoft_access_token,
+          member.microsoft_refresh_token,
+          {
+            title: `Meeting with ${attendee_name}`,
+            description: notes || 'Scheduled via ScheduleSync',
+            startTime: slot.start,
+            endTime: slot.end,
+            attendees: [
+              { email: attendee_email, name: attendee_name },
+              { email: member.member_email, name: member.member_name }
+            ]
           }
-          
-       console.log('✅ Confirmation emails sent with Meet link');
-     } catch (emailError) {
-  console.error('⚠️ Failed to send emails:', emailError);
-}
-    } catch (error) {  // ← Closes async try
-      console.error('❌ Background processing error:', error);
+        );
+
+        meetLink = eventResult.meetingUrl;
+        calendarEventId = eventResult.id;
+
+        for (const booking of createdBookings) {
+          await pool.query(
+            `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
+            [meetLink, calendarEventId, booking.id]
+          );
+        }
+
+        console.log('✅ Microsoft Calendar event created with Teams link:', meetLink);
+      } catch (calendarError) {
+        console.error('⚠️ Microsoft Calendar event creation failed:', calendarError.message);
+      }
     }
-  })();  // ← Closes async IIFE
+
+    // Send confirmation emails
+    try {
+      const icsFile = generateICS({
+        id: createdBookings[0].id,
+        start_time: createdBookings[0].start_time,
+        end_time: createdBookings[0].end_time,
+        attendee_name: attendee_name,
+        attendee_email: attendee_email,
+        organizer_name: member.member_name || member.name,
+        organizer_email: member.member_email || member.email,
+        team_name: member.team_name,
+        notes: notes,
+      });
+
+      const bookingWithMeetLink = {
+        ...createdBookings[0],
+        attendee_name,
+        attendee_email,
+        organizer_name: member.member_name || member.name,
+        team_name: member.team_name,
+        notes,
+        meet_link: meetLink,
+      };
+
+      await sendBookingEmail({
+        to: attendee_email,
+        subject: '✅ Booking Confirmed - ScheduleSync',
+        html: emailTemplates.bookingConfirmationGuest(bookingWithMeetLink),
+        icsAttachment: icsFile,
+      });
+
+      if (member.member_email || member.email) {
+        await sendBookingEmail({
+          to: member.member_email || member.email,
+          subject: '📅 New Booking Received - ScheduleSync',
+          html: emailTemplates.bookingConfirmationOrganizer(bookingWithMeetLink),
+          icsAttachment: icsFile,
+        });
+      }
+      
+      console.log('✅ Confirmation emails sent with Meet link');
+    } catch (emailError) {
+      console.error('⚠️ Failed to send emails:', emailError);
+    }
+  } catch (error) {
+    console.error('❌ Background processing error:', error);
+  }
+})();
+
   } catch (error) {  // ❌ EXTRA - This doesn't match anything!
     console.error('❌ Create booking error:', error);
     if (!res.headersSent) {
