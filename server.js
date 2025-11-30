@@ -1318,9 +1318,9 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
 });
 
 // ============ CALENDLY OAUTH ============
+// ✅ CORRECT - Remove the orphaned scope line entirely
 app.get('/api/auth/calendly/url', (req, res) => {
   try {
-    // Validate credentials exist
     if (!process.env.CALENDLY_CLIENT_ID) {
       console.error('❌ CALENDLY_CLIENT_ID not configured');
       return res.status(503).json({ 
@@ -1333,8 +1333,8 @@ app.get('/api/auth/calendly/url', (req, res) => {
       `client_id=${process.env.CALENDLY_CLIENT_ID}` +
       `&response_type=code` +
       `&redirect_uri=${encodeURIComponent(process.env.CALENDLY_REDIRECT_URI)}`;
-     `&scope=${encodeURIComponent(scopes.join(' '))}`;  // ✅ ADD THIS LINE
-      console.log('🔗 Generated Calendly OAuth URL');
+    
+    console.log('🔗 Generated Calendly OAuth URL');
     res.json({ url: authUrl });
   } catch (error) {
     console.error('❌ Error generating Calendly OAuth URL:', error);
@@ -4058,38 +4058,36 @@ for (const assignedMember of assignedMembers) {
   // Generate unique manage token for this booking
   const manageToken = crypto.randomBytes(16).toString('hex');
   
-  // ✅ CREATE PROPER DATE OBJECTS
-  const startTime = new Date(slot.start);
-  const endTime = new Date(slot.end);
+  // ✅ CORRECT - Use proper variable names
+const startTime = new Date(bookingData.datetime);
+const endTime = new Date(startTime.getTime() + bookingData.duration_minutes * 60000);
+const manageToken = crypto.randomBytes(16).toString('hex');
 
-  const bookingResult = await pool.query(
-    `INSERT INTO bookings (
-      team_id, member_id, user_id, 
-      attendee_name, attendee_email, 
-      start_time, end_time, 
-      title,
-      notes, 
-      booking_token, status,
-      manage_token
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
-    RETURNING *`,
-    [
-      member.team_id,
-      assignedMember.id,               // ✅ Use assignedMember
-      assignedMember.user_id,          // ✅ FIXED
-      attendee_name,                   // ✅ FIXED - from req.body
-      attendee_email,                  // ✅ FIXED - from req.body
-      startTime.toISOString(),         // ✅ FIXED
-      endTime.toISOString(),           // ✅ FIXED
-      `Meeting with ${attendee_name}`, // ✅ FIXED
-      notes || '',                     // ✅ FIXED - from req.body
-      token,                           // ✅ Use the booking token
-      'confirmed',
-      manageToken
-    ]
-  );
-
+const bookingResult = await pool.query(
+  `INSERT INTO bookings (
+    team_id, member_id, user_id, 
+    attendee_name, attendee_email, 
+    start_time, end_time, 
+    title, notes, 
+    booking_token, status, manage_token
+  )
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+  RETURNING *`,
+  [
+    member.team_id,
+    member.id,                      // ✅ Use member.id
+    userId,                         // ✅ Use userId from req.user
+    attendeeName,                   // ✅ Correct variable name
+    email,                          // ✅ Correct variable name
+    startTime.toISOString(),        // ✅ Proper ISO string
+    endTime.toISOString(),          // ✅ Proper ISO string
+    bookingData.title || `Meeting with ${attendeeName}`,
+    bookingData.notes || '',
+    member.booking_token,
+    'confirmed',
+    manageToken
+  ]
+);
   createdBookings.push(bookingResult.rows[0]);
   console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
 }
@@ -6340,128 +6338,6 @@ module.exports = {
   checkAndSendReminders,
   lastReminderRun
 };
-
-// ============ TIMEZONE ENDPOINTS ============
-
-// Get user's timezone
-app.get('/api/user/timezone', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const result = await pool.query(
-      'SELECT timezone FROM users WHERE id = $1',
-      [userId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    res.json({ 
-      timezone: result.rows[0].timezone || 'America/New_York' 
-    });
-  } catch (error) {
-    console.error('Get timezone error:', error);
-    res.status(500).json({ error: 'Failed to get timezone' });
-  }
-});
-
-// Update user's timezone
-app.put('/api/user/timezone', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { timezone } = req.body;
-    
-    if (!timezone) {
-      return res.status(400).json({ error: 'Timezone is required' });
-    }
-    
-    await pool.query(
-      'UPDATE users SET timezone = $1 WHERE id = $2',
-      [timezone, userId]
-    );
-    
-    console.log(`✅ Updated timezone for user ${userId}: ${timezone}`);
-    
-    res.json({ success: true, timezone });
-  } catch (error) {
-    console.error('Update timezone error:', error);
-    res.status(500).json({ error: 'Failed to update timezone' });
-  }
-});
-
-// Get team member's timezone
-app.get('/api/team-members/:id/timezone', authenticateToken, async (req, res) => {
-  try {
-    const memberId = parseInt(req.params.id);
-    const userId = req.user.id;
-    
-    const memberResult = await pool.query(
-      `SELECT tm.*, t.owner_id 
-       FROM team_members tm 
-       JOIN teams t ON tm.team_id = t.id 
-       WHERE tm.id = $1`,
-      [memberId]
-    );
-    
-    if (memberResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Team member not found' });
-    }
-    
-    const member = memberResult.rows[0];
-    
-    if (member.owner_id !== userId && member.user_id !== userId) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-    
-    res.json({ timezone: member.timezone || 'America/New_York' });
-  } catch (error) {
-    console.error('Get member timezone error:', error);
-    res.status(500).json({ error: 'Failed to get timezone' });
-  }
-});
-
-// Update team member's timezone
-app.put('/api/team-members/:id/timezone', authenticateToken, async (req, res) => {
-  try {
-    const memberId = parseInt(req.params.id);
-    const userId = req.user.id;
-    const { timezone } = req.body;
-    
-    if (!timezone) {
-      return res.status(400).json({ error: 'Timezone is required' });
-    }
-    
-    const memberResult = await pool.query(
-      `SELECT tm.*, t.owner_id 
-       FROM team_members tm 
-       JOIN teams t ON tm.team_id = t.id 
-       WHERE tm.id = $1`,
-      [memberId]
-    );
-    
-    if (memberResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Team member not found' });
-    }
-    
-    const member = memberResult.rows[0];
-    
-    if (member.owner_id !== userId && member.user_id !== userId) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-    
-    await pool.query(
-      'UPDATE team_members SET timezone = $1 WHERE id = $2',
-      [timezone, memberId]
-    );
-    
-    console.log(`✅ Updated timezone for member ${memberId}: ${timezone}`);
-    
-    res.json({ success: true, timezone });
-  } catch (error) {
-    console.error('Update member timezone error:', error);
-    res.status(500).json({ error: 'Failed to update timezone' });
-  }
-});
 
 // ============ ONBOARDING / PROFILE UPDATE ============
 app.put('/api/users/profile', authenticateToken, async (req, res) => {
