@@ -14,8 +14,6 @@ import {
   Calendar,
   Settings,
   Copy,
-  ExternalLink,
-  Link2,
 } from 'lucide-react';
 import api, { teams } from '../utils/api';
 import TeamMemberEditModal from '../components/TeamMemberEditModal';
@@ -241,12 +239,6 @@ export default function TeamMembers() {
                       <Shield className="h-3 w-3" />
                       {member.role || 'member'}
                     </span>
-                    {member.external_booking_link && (
-                      <span className="flex items-center gap-1 bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full text-xs font-semibold capitalize">
-                        <ExternalLink className="h-3 w-3" />
-                        {member.external_booking_platform || 'External'}
-                      </span>
-                    )}
                   </div>
 
                   {/* Stats Row */}
@@ -265,18 +257,9 @@ export default function TeamMembers() {
                     </div>
                   </div>
 
-                  {/* Link Info */}
+                  {/* Booking Link Info */}
                   <div className="mb-4">
-                    {member.external_booking_link ? (
-                      <div className="p-3 bg-purple-50 rounded-xl border border-purple-200">
-                        <div className="flex items-center gap-2 text-purple-700">
-                          <Link2 className="h-4 w-4 flex-shrink-0" />
-                          <span className="text-xs font-medium truncate">
-                            Redirects to {member.external_booking_platform || 'external'}
-                          </span>
-                        </div>
-                      </div>
-                    ) : member.booking_token ? (
+                    {member.booking_token ? (
                       <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs text-blue-700 font-mono truncate">
