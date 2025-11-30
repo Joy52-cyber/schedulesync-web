@@ -136,6 +136,7 @@ export default function SmartSlotPicker({
   const handleDateSelect = (date) => {
     setSelectedDate(date);
     setSelectedSlot(null);
+    return false;
   };
 
   if (loading) {
