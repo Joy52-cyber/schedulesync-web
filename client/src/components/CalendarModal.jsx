@@ -4,7 +4,6 @@ import { X, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Info } from 'lu
 export default function CalendarModal({ slots, onSelectDate, onClose, selectedDate }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [normalizedSlots, setNormalizedSlots] = useState({});
-  const [debugMode, setDebugMode] = useState(false); // Set to false for production
 
   // ============ DATE NORMALIZATION WITH TIMEZONE FIX ============
   useEffect(() => {
@@ -68,6 +67,33 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
     
     setNormalizedSlots(normalized);
   }, [slots]);
+
+  // ============ AUTO-NAVIGATE TO FIRST AVAILABLE MONTH ============
+  useEffect(() => {
+    if (Object.keys(normalizedSlots).length === 0) return;
+    
+    // Find the earliest date with available slots
+    const sortedDates = Object.keys(normalizedSlots)
+      .filter(dateKey => {
+        const daySlots = normalizedSlots[dateKey];
+        return daySlots && daySlots.some(s => s.status === 'available');
+      })
+      .sort();
+    
+    if (sortedDates.length === 0) return;
+    
+    const firstAvailableDate = sortedDates[0]; // e.g., "2025-12-01"
+    const [year, month, day] = firstAvailableDate.split('-').map(Number);
+    
+    const targetMonth = new Date(year, month - 1, 1); // month - 1 because JS months are 0-indexed
+    
+    console.log('📅 Auto-navigating to first available month:', {
+      firstAvailableDate,
+      targetMonth: targetMonth.toLocaleDateString()
+    });
+    
+    setCurrentMonth(targetMonth);
+  }, [normalizedSlots]);
 
   // ============ CALENDAR CONFIGURATION ============
   const monthNames = [
@@ -134,6 +160,24 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
     return date < today;
   };
 
+  // ============ DATE SELECTION HANDLER ============
+  const handleDateClick = (e, dateKey, availableCount, isPast) => {
+    // ✅ CRITICAL: Prevent any default behavior and stop propagation
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (isPast || availableCount === 0) {
+      console.log('⚠️ Cannot select:', dateKey, { isPast, availableCount });
+      return;
+    }
+    
+    console.log('🎯 Date selected:', dateKey, `(${availableCount} slots available)`);
+    
+    // Call parent handlers
+    onSelectDate(dateKey);
+    onClose();
+  };
+
   // ============ BUILD CALENDAR GRID ============
   const days = [];
   
@@ -156,33 +200,22 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
     days.push(
       <button
         key={day}
-        onClick={() => {
-          if (!isPast && hasSlots) {
-            console.log('🎯 Date selected:', dateKey, `(${availableCount} slots available)`);
-            onSelectDate(dateKey);
-            onClose();
-          } else {
-            console.log('⚠️ Cannot select:', dateKey, {
-              isPast,
-              hasSlots,
-              availableCount
-            });
-          }
-        }}
+        type="button"
+        onClick={(e) => handleDateClick(e, dateKey, availableCount, isPast)}
         disabled={isPast || !hasSlots}
-        className={`h-16 sm:h-20 rounded-lg border-2 transition-all relative group ${
+        className={`h-16 sm:h-20 rounded-lg border-2 transition-all relative group focus:outline-none focus:ring-2 focus:ring-blue-400 ${
           isSelectedDate
             ? 'border-blue-500 bg-blue-50 shadow-md ring-2 ring-blue-200'
             : hasSlots && !isPast
-            ? 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md cursor-pointer'
+            ? 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md cursor-pointer active:scale-95'
             : 'border-gray-100 bg-gray-50 cursor-not-allowed opacity-50'
         }`}
-        title={
+        aria-label={
           isPast 
-            ? 'Past date' 
+            ? `${day} - Past date` 
             : hasSlots 
-            ? `${availableCount} slot${availableCount !== 1 ? 's' : ''} available`
-            : 'No slots available'
+            ? `${day} - ${availableCount} slot${availableCount !== 1 ? 's' : ''} available`
+            : `${day} - No slots available`
         }
       >
         <div className="flex flex-col items-center justify-center h-full p-1">
@@ -220,7 +253,7 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
 
           {/* Selected Badge */}
           {isSelectedDate && (
-            <div className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full" />
+            <div className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
           )}
         </div>
 
@@ -248,8 +281,14 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
   }, 0);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden animate-in slide-in-from-bottom-8 duration-300"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* ============ HEADER ============ */}
         <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-6 flex items-center justify-between z-10">
@@ -265,8 +304,9 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full hover:bg-white/20 flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-full hover:bg-white/20 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
             aria-label="Close calendar"
           >
             <X className="h-5 w-5" />
@@ -276,28 +316,12 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
         {/* ============ CALENDAR BODY ============ */}
         <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
           
-          {/* Debug Panel (Remove in production) */}
-          {debugMode && (
-            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs space-y-1">
-              <p className="font-bold text-yellow-900">🐛 Debug Info:</p>
-              <p><strong>Original keys (first 3):</strong> {Object.keys(slots || {}).slice(0, 3).join(', ')}</p>
-              <p><strong>Normalized keys (first 3):</strong> {Object.keys(normalizedSlots || {}).slice(0, 3).join(', ')}</p>
-              <p><strong>Total normalized dates:</strong> {Object.keys(normalizedSlots || {}).length}</p>
-              <p><strong>Selected date key:</strong> {selectedDate || 'none'}</p>
-              <button
-                onClick={() => console.log('Full normalized slots:', normalizedSlots)}
-                className="mt-2 px-2 py-1 bg-yellow-200 rounded text-yellow-900 hover:bg-yellow-300"
-              >
-                Log to Console
-              </button>
-            </div>
-          )}
-
           {/* Month Navigation */}
           <div className="flex items-center justify-between mb-6">
             <button
+              type="button"
               onClick={previousMonth}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors group"
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors group focus:outline-none focus:ring-2 focus:ring-blue-400"
               aria-label="Previous month"
             >
               <ChevronLeft className="h-5 w-5 text-gray-600 group-hover:text-gray-900" />
@@ -308,8 +332,9 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
             </h3>
             
             <button
+              type="button"
               onClick={nextMonth}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors group"
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors group focus:outline-none focus:ring-2 focus:ring-blue-400"
               aria-label="Next month"
             >
               <ChevronRight className="h-5 w-5 text-gray-600 group-hover:text-gray-900" />
@@ -350,7 +375,9 @@ export default function CalendarModal({ slots, onSelectDate, onClose, selectedDa
                 <span className="text-xs text-gray-600">Available</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-blue-500 rounded bg-blue-50"></div>
+                <div className="w-4 h-4 border-2 border-blue-500 rounded bg-blue-50 relative">
+                  <div className="absolute top-0 right-0 w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                </div>
                 <span className="text-xs text-gray-600">Selected</span>
               </div>
               <div className="flex items-center gap-2">
