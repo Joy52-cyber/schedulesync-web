@@ -11,6 +11,7 @@ export default function SmartSlotPicker({
   timezone = 'UTC' 
 }) {
   const [slots, setSlots] = useState({});
+  const [normalizedSlots, setNormalizedSlots] = useState({});
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -19,6 +20,53 @@ export default function SmartSlotPicker({
   const [showCalendarModal, setShowCalendarModal] = useState(false);
 
   const hasGuestCalendar = guestCalendar?.signedIn === true;
+
+  // ============ NORMALIZE SLOTS TO ISO FORMAT ============
+  useEffect(() => {
+    if (!slots || Object.keys(slots).length === 0) {
+      setNormalizedSlots({});
+      return;
+    }
+
+    const normalized = {};
+    for (const [dateKey, daySlots] of Object.entries(slots)) {
+      try {
+        const parsedDate = new Date(dateKey);
+        if (!isNaN(parsedDate.getTime())) {
+          const year = parsedDate.getFullYear();
+          const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+          const day = String(parsedDate.getDate()).padStart(2, '0');
+          const isoKey = `${year}-${month}-${day}`;
+          normalized[isoKey] = daySlots;
+        }
+      } catch (error) {
+        console.warn('Error normalizing date:', dateKey, error);
+      }
+    }
+    setNormalizedSlots(normalized);
+  }, [slots]);
+
+  // ============ AUTO-SELECT FIRST AVAILABLE DATE ============
+  useEffect(() => {
+    if (Object.keys(normalizedSlots).length === 0) return;
+
+    // Auto-select first available date if none selected
+    if (!selectedDate) {
+      const firstAvailableDate = Object.keys(normalizedSlots)
+        .sort()
+        .find(date => normalizedSlots[date].some(slot => slot.status === 'available'));
+      if (firstAvailableDate) {
+        console.log('📅 Auto-selecting first available date:', firstAvailableDate);
+        setSelectedDate(firstAvailableDate);
+      }
+    } else if (!normalizedSlots[selectedDate]) {
+      // If selected date no longer exists, pick a new one
+      const firstAvailableDate = Object.keys(normalizedSlots)
+        .sort()
+        .find(date => normalizedSlots[date].some(slot => slot.status === 'available'));
+      if (firstAvailableDate) setSelectedDate(firstAvailableDate);
+    }
+  }, [normalizedSlots]);
 
   useEffect(() => {
     loadSlots();
@@ -48,21 +96,6 @@ export default function SmartSlotPicker({
     
     setSlots(slotsData.slots);
     setSummary(slotsData.summary);
-
-    // Auto-select first available date if none selected
-    if (!selectedDate) {
-      const firstAvailableDate = Object.keys(slotsData.slots).find(date => 
-        slotsData.slots[date].some(slot => slot.status === 'available')
-      );
-      if (firstAvailableDate) {
-        setSelectedDate(firstAvailableDate);
-      }
-    } else if (!slotsData.slots[selectedDate]) {
-       const firstAvailableDate = Object.keys(slotsData.slots).find(date => 
-          slotsData.slots[date].some(slot => slot.status === 'available')
-        );
-        if (firstAvailableDate) setSelectedDate(firstAvailableDate);
-    }
 
   } catch (error) {
     console.error('❌ Error loading slots:', error);
@@ -236,10 +269,10 @@ export default function SmartSlotPicker({
             </div>
             Select a date
           </h3>
-          {selectedDate && (
+          {selectedDate && normalizedSlots[selectedDate] && (
             <span className="text-sm text-green-600 font-medium flex items-center gap-1">
               <Check className="h-4 w-4" />
-              {new Date(slots[selectedDate][0]?.start).toLocaleDateString('en-US', { 
+              {new Date(normalizedSlots[selectedDate][0]?.start).toLocaleDateString('en-US', { 
                 month: 'short', 
                 day: 'numeric' 
               })}
@@ -274,7 +307,7 @@ export default function SmartSlotPicker({
       </div>
 
       {/* Time Slots Section - Only show when date is selected */}
-      {selectedDate && slots[selectedDate] && (
+      {selectedDate && normalizedSlots[selectedDate] && (
         <div className="pt-6 border-t-2 border-slate-200">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -309,21 +342,21 @@ export default function SmartSlotPicker({
           <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
             <p className="text-sm text-blue-900">
               <span className="font-semibold">
-                {new Date(slots[selectedDate][0]?.start).toLocaleDateString('en-US', { 
+                {new Date(normalizedSlots[selectedDate][0]?.start).toLocaleDateString('en-US', { 
                   weekday: 'long', 
                   month: 'long', 
                   day: 'numeric' 
                 })}
               </span>
               <span className="text-blue-600 ml-2">
-                • {slots[selectedDate].filter(s => s.status === 'available').length} times available
+                • {normalizedSlots[selectedDate].filter(s => s.status === 'available').length} times available
               </span>
             </p>
           </div>
 
           {/* Time slots grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto">
-            {slots[selectedDate]
+            {normalizedSlots[selectedDate]
               .filter(slot => {
                 if (slot.status === 'available') return true;
                 return showUnavailable;
