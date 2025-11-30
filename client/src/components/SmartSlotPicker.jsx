@@ -7,7 +7,8 @@ export default function SmartSlotPicker({
   bookingToken, 
   guestCalendar = null,
   duration = 30,
-  onSlotSelected
+  onSlotSelected,
+  timezone = 'UTC' 
 }) {
   const [slots, setSlots] = useState({});
   const [selectedDate, setSelectedDate] = useState(null);
@@ -21,54 +22,54 @@ export default function SmartSlotPicker({
 
   useEffect(() => {
     loadSlots();
-  }, [bookingToken, guestCalendar, duration]);
+  }, [bookingToken, guestCalendar, duration , timezone]);
 
   const loadSlots = async () => {
-    try {
-      setLoading(true);
-      
-      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      console.log('🌍 User timezone detected:', userTimezone);
-      
-      const response = await bookings.getSlots(bookingToken, {
-        guestAccessToken: guestCalendar?.accessToken,
-        guestRefreshToken: guestCalendar?.refreshToken,
-        duration: duration,
-        timezone: userTimezone
-      });
+  try {
+    setLoading(true);
+    
+    // ✅ Use timezone prop instead of detecting again
+    console.log('🌍 Using timezone:', timezone);
+    
+    const response = await bookings.getSlots(bookingToken, {
+      guestAccessToken: guestCalendar?.accessToken,
+      guestRefreshToken: guestCalendar?.refreshToken,
+      duration: duration,
+      timezone: timezone  // ✅ Use the prop
+    });
 
-      const slotsData = response.data;
+    const slotsData = response.data;
 
-      console.log('📊 Loaded slots:', {
-        totalDates: Object.keys(slotsData.slots).length,
-        availableSlots: slotsData.summary.availableSlots,
-        hasGuestCalendar: hasGuestCalendar
-      });
-      
-      setSlots(slotsData.slots);
-      setSummary(slotsData.summary);
+    console.log('📊 Loaded slots:', {
+      totalDates: Object.keys(slotsData.slots).length,
+      availableSlots: slotsData.summary.availableSlots,
+      hasGuestCalendar: hasGuestCalendar
+    });
+    
+    setSlots(slotsData.slots);
+    setSummary(slotsData.summary);
 
-      // Auto-select first available date if none selected
-      if (!selectedDate) {
-        const firstAvailableDate = Object.keys(slotsData.slots).find(date => 
+    // Auto-select first available date if none selected
+    if (!selectedDate) {
+      const firstAvailableDate = Object.keys(slotsData.slots).find(date => 
+        slotsData.slots[date].some(slot => slot.status === 'available')
+      );
+      if (firstAvailableDate) {
+        setSelectedDate(firstAvailableDate);
+      }
+    } else if (!slotsData.slots[selectedDate]) {
+       const firstAvailableDate = Object.keys(slotsData.slots).find(date => 
           slotsData.slots[date].some(slot => slot.status === 'available')
         );
-        if (firstAvailableDate) {
-          setSelectedDate(firstAvailableDate);
-        }
-      } else if (!slotsData.slots[selectedDate]) {
-         const firstAvailableDate = Object.keys(slotsData.slots).find(date => 
-            slotsData.slots[date].some(slot => slot.status === 'available')
-          );
-          if (firstAvailableDate) setSelectedDate(firstAvailableDate);
-      }
-
-    } catch (error) {
-      console.error('❌ Error loading slots:', error);
-    } finally {
-      setLoading(false);
+        if (firstAvailableDate) setSelectedDate(firstAvailableDate);
     }
-  };
+
+  } catch (error) {
+    console.error('❌ Error loading slots:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const getMatchClasses = (matchColor, isSelected) => {
     if (isSelected) {
