@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
   CheckCircle,
   Calendar,
@@ -13,12 +13,10 @@ import {
   Copy,
   Check,
   Video,
-  ArrowLeft
 } from 'lucide-react';
 
 export default function BookingConfirmation() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const [bookingData, setBookingData] = useState(null);
   const [showConfetti, setShowConfetti] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -144,12 +142,7 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">No Booking Data</h2>
           <p className="text-gray-600 mb-6">We couldn't find your booking information.</p>
-          <button
-            onClick={() => navigate('/')}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Go to Dashboard
-          </button>
+          <p className="text-sm text-gray-500">You can safely close this page.</p>
         </div>
       </div>
     );
@@ -186,37 +179,34 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-3">
             You're All Set! 🎉
           </h1>
-          <p className="text-xl text-gray-600">
-            Your meeting has been confirmed
-          </p>
+          <p className="text-xl text-gray-600">Your meeting has been confirmed</p>
         </div>
 
         {/* Google Meet Link - Featured */}
-        {bookingData.meet_link && (
-          <div className="bg-gradient-to-br from-purple-500 to-blue-500 rounded-3xl shadow-2xl p-8 mb-6 text-white animate-fadeInUp" style={{animationDelay: '0.05s'}}>
-            <div className="flex flex-col items-center text-center">
-              <div className="w-20 h-20 bg-white bg-opacity-20 rounded-full flex items-center justify-center mb-4">
-                <Video className="h-10 w-10 text-white" />
-              </div>
-              <h2 className="text-2xl font-bold mb-2">Your Meeting Link</h2>
-              <p className="text-blue-100 mb-6">Join via Google Meet at the scheduled time</p>
-              {/* ✅ FIX: Added the missing <a tag */}
-              <a
-                href={bookingData.meet_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-3 bg-white text-purple-600 px-8 py-4 rounded-xl hover:shadow-2xl hover:scale-105 transition-all font-bold text-lg"
-              >
-                <Video className="h-6 w-6" />
-                <span>Join Google Meet</span>
-                <ExternalLink className="h-5 w-5" />
-              </a>
-              <p className="text-sm text-blue-100 mt-4">
-                💡 This link is also in your calendar invite and email
-              </p>
-            </div>
-          </div>
-        )}
+{bookingData.meet_link && (
+  <div className="bg-gradient-to-br from-purple-500 to-blue-500 rounded-3xl shadow-2xl p-8 mb-6 text-white animate-fadeInUp" style={{animationDelay: '0.05s'}}>
+    <div className="flex flex-col items-center text-center">
+      <div className="w-20 h-20 bg-white bg-opacity-20 rounded-full flex items-center justify-center mb-4">
+        <Video className="h-10 w-10 text-white" />
+      </div>
+      <h2 className="text-2xl font-bold mb-2">Your Meeting Link</h2>
+      <p className="text-blue-100 mb-6">Join via Google Meet at the scheduled time</p>
+      <a
+        href={bookingData.meet_link}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-3 bg-white text-purple-600 px-8 py-4 rounded-xl hover:shadow-2xl hover:scale-105 transition-all font-bold text-lg"
+      >
+        <Video className="h-6 w-6" />
+        <span>Join Google Meet</span>
+        <ExternalLink className="h-5 w-5" />
+      </a>
+      <p className="text-sm text-blue-100 mt-4">
+        💡 This link is also in your calendar invite and email
+      </p>
+    </div>
+  </div>
+)}
 
         {/* Main Booking Details Card */}
         <div className="bg-white rounded-3xl shadow-xl p-8 mb-6 animate-fadeInUp" style={{animationDelay: '0.1s'}}>
@@ -240,9 +230,7 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
                   <Calendar className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                    Date
-                  </p>
+                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">Date</p>
                   <p className="text-lg font-semibold text-gray-900">
                     {formatDate(bookingData.start_time)}
                   </p>
@@ -254,9 +242,7 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
                   <Clock className="h-5 w-5 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                    Time
-                  </p>
+                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">Time</p>
                   <p className="text-lg font-semibold text-gray-900">
                     {formatTime(bookingData.start_time)} - {formatTime(bookingData.end_time)}
                   </p>
@@ -274,16 +260,12 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
                   <User className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                    Organizer
-                  </p>
+                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">Organizer</p>
                   <p className="text-lg font-semibold text-gray-900">
                     {bookingData.organizer_name || 'Team Member'}
                   </p>
                   {bookingData.team_name && (
-                    <p className="text-sm text-gray-600 mt-1">
-                      {bookingData.team_name}
-                    </p>
+                    <p className="text-sm text-gray-600 mt-1">{bookingData.team_name}</p>
                   )}
                 </div>
               </div>
@@ -293,9 +275,7 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
                   <Mail className="h-5 w-5 text-pink-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                    Your Email
-                  </p>
+                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">Your Email</p>
                   <p className="text-lg font-semibold text-gray-900">
                     {bookingData.attendee_name}
                   </p>
@@ -318,9 +298,7 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
                   <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
                     Meeting Notes
                   </p>
-                  <p className="text-gray-900">
-                    {bookingData.notes}
-                  </p>
+                  <p className="text-gray-900">{bookingData.notes}</p>
                 </div>
               </div>
             </div>
@@ -408,7 +386,7 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
         </div>
 
         {/* What's Next Card */}
-        <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-2xl border-2 border-blue-200 p-6 mb-6 animate-fadeInUp" style={{animationDelay: '0.4s'}}>
+        <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-2xl border-2 border-blue-200 p-6 animate-fadeInUp" style={{animationDelay: '0.4s'}}>
           <div className="flex items-center gap-2 mb-4">
             <CheckCircle className="h-5 w-5 text-blue-600" />
             <h3 className="font-bold text-gray-900">What Happens Next?</h3>
@@ -455,17 +433,6 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
             </div>
           </div>
         </div>
-
-        {/* Back Button */}
-        <div className="text-center animate-fadeInUp" style={{animationDelay: '0.5s'}}>
-          <button
-            onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-white text-gray-700 rounded-xl hover:bg-gray-50 border-2 border-gray-200 hover:border-gray-300 transition-all font-medium shadow-sm"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
-          </button>
-        </div>
       </div>
 
       {/* Styles */}
@@ -511,26 +478,12 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
           animation: scaleIn 0.5s ease-out;
         }
 
-        .confetti-container {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          pointer-events: none;
-          z-index: 9999;
-        }
-
-        .confetti {
-          position: absolute;
-          width: 10px;
-          height: 10px;
-          top: -10px;
+        .animate-confetti {
           animation: confettiFall 3s linear forwards;
         }
 
         @media print {
-          .confetti-container {
+          .fixed {
             display: none;
           }
         }
