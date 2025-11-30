@@ -167,6 +167,25 @@ async function callAnthropicWithRetry(requestBody, retries = 2) {
   }
 }
   
+function safeParseTime(timeString) {
+  if (!timeString || typeof timeString !== 'string') return null;
+  const parts = timeString.split(':');
+  if (parts.length !== 2) return null;
+  const hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+  if (isNaN(hours) || isNaN(minutes)) return null;
+  return { hours, minutes };
+}
+
+function validateTimezone(timezone) {
+  if (!timezone || typeof timezone !== 'string') return false;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: timezone });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 // ============ MICROSOFT OAUTH CONFIG ============
 const MICROSOFT_CONFIG = {
@@ -2721,6 +2740,12 @@ function getMatchColor(score) {
 
 // ============ ENHANCED SLOT GENERATION WITH ALL AVAILABILITY RULES ============
 
+const { timezone } = req.body;
+
+if (!timezone) {
+  return res.status(400).json({ error: 'Timezone is required' });
+}
+
 app.post('/api/book/:token/slots-with-status', async (req, res) => {
   try {
     const { token } = req.params;
@@ -2939,7 +2964,9 @@ if (member.provider === 'google' && member.google_access_token && member.google_
       const slotMinute = slotStart.getMinutes();
       const slotTime = slotHour * 60 + slotMinute;
 
-      const [startHour, startMinute] = daySettings.start.split(':').map(Number);
+      const parsedStart = safeParseTime(daySettings.start);
+if (!parsedStart) continue;
+// Use parsedStart.hours and parsedStart.minutes
       const [endHour, endMinute] = daySettings.end.split(':').map(Number);
       const startTime = startHour * 60 + startMinute;
       const endTime = endHour * 60 + endMinute;
