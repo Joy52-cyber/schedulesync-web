@@ -76,14 +76,14 @@ export default function SmartSlotPicker({
   try {
     setLoading(true);
     
+    // ✅ Use timezone prop instead of detecting again
     console.log('🌍 Using timezone:', timezone);
     
     const response = await bookings.getSlots(bookingToken, {
       guestAccessToken: guestCalendar?.accessToken,
       guestRefreshToken: guestCalendar?.refreshToken,
-      guestProvider: guestCalendar?.provider,  // ← ADD THIS LINE
       duration: duration,
-      timezone: timezone
+      timezone: timezone  // ✅ Use the prop
     });
 
     const slotsData = response.data;
@@ -167,13 +167,41 @@ export default function SmartSlotPicker({
   };
 
   // ============ DATE SELECTION HANDLER (BULLETPROOF) ============
+ 
   const handleDateSelect = (date) => {
-    console.log('📅 SmartSlotPicker: Date selected:', date);
-    setSelectedDate(date);
+  console.log('📅 SmartSlotPicker: Date received:', date);
+  
+  // ✅ NORMALIZE THE DATE TO ISO FORMAT
+  try {
+    let normalizedDate;
+    
+    // If date is already in YYYY-MM-DD format, use it
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      normalizedDate = date;
+    } else {
+      // Parse the date string and convert to YYYY-MM-DD
+      const parsedDate = new Date(date);
+      if (!isNaN(parsedDate.getTime())) {
+        const year = parsedDate.getFullYear();
+        const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+        const day = String(parsedDate.getDate()).padStart(2, '0');
+        normalizedDate = `${year}-${month}-${day}`;
+      } else {
+        console.error('❌ Invalid date format:', date);
+        return false;
+      }
+    }
+    
+    console.log('✅ Normalized date:', normalizedDate);
+    setSelectedDate(normalizedDate);
     setSelectedSlot(null);
-    // ✅ Don't allow any propagation
-    return false;
-  };
+    
+  } catch (error) {
+    console.error('❌ Error normalizing date:', error);
+  }
+  
+  return false;
+};
 
   if (loading) {
     return (
