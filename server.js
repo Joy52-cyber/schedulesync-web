@@ -2103,6 +2103,8 @@ app.get('/api/auth/create-test-user', async (req, res) => {
 });
 
 // ============ GUEST OAUTH (BOOKING PAGE - READ ONLY) ============
+
+// Google Callback
 app.post('/api/book/auth/google', async (req, res) => {
   try {
     const { code, bookingToken } = req.body;
@@ -2120,7 +2122,7 @@ app.post('/api/book/auth/google', async (req, res) => {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      `${process.env.FRONTEND_URL}/oauth/callback/google/guest` // ✅ STATIC REDIRECT
+      `${process.env.FRONTEND_URL}/oauth/callback/google/guest`
     );
 
     const { tokens } = await oauth2Client.getToken(code);
@@ -2149,7 +2151,7 @@ app.post('/api/book/auth/google', async (req, res) => {
   }
 });
 
-// ============ GOOGLE GUEST OAUTH URL GENERATOR ============
+// Google URL Generator
 app.get('/api/book/auth/google/url', async (req, res) => {
   try {
     const { bookingToken } = req.query;
@@ -2158,7 +2160,6 @@ app.get('/api/book/auth/google/url', async (req, res) => {
       return res.status(400).json({ error: 'Booking token required' });
     }
 
-    // Verify token exists
     const memberCheck = await pool.query(
       'SELECT id FROM team_members WHERE booking_token = $1',
       [bookingToken]
@@ -2185,7 +2186,7 @@ app.get('/api/book/auth/google/url', async (req, res) => {
       access_type: 'offline',
       scope: scopes,
       prompt: 'select_account',
-      state: bookingToken, // Pass booking token in state
+      state: bookingToken,
     });
 
     console.log('🔗 Generated Google guest OAuth URL');
@@ -2196,8 +2197,54 @@ app.get('/api/book/auth/google/url', async (req, res) => {
   }
 });
 
-// ============ GUEST MICROSOFT OAUTH (BOOKING PAGE - READ ONLY) ============
+// Microsoft URL Generator ← ADD THIS!
+app.get('/api/book/auth/microsoft/url', async (req, res) => {
+  try {
+    const { bookingToken } = req.query;
+    
+    console.log('🔗 Microsoft guest OAuth URL request:', bookingToken);
+    
+    if (!bookingToken) {
+      return res.status(400).json({ error: 'Booking token required' });
+    }
 
+    const memberCheck = await pool.query(
+      'SELECT id FROM team_members WHERE booking_token = $1',
+      [bookingToken]
+    );
+
+    if (memberCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    const redirectUri = `${process.env.FRONTEND_URL}/oauth/callback/microsoft/guest`;
+    
+    const scopes = [
+      'openid',
+      'profile',
+      'email',
+      'Calendars.Read',
+      'offline_access'
+    ];
+
+    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
+      `client_id=${process.env.MICROSOFT_CLIENT_ID}` +
+      `&response_type=code` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&response_mode=query` +
+      `&scope=${encodeURIComponent(scopes.join(' '))}` +
+      `&state=${bookingToken}` +
+      `&prompt=select_account`;
+    
+    console.log('✅ Microsoft guest OAuth URL generated');
+    res.json({ url: authUrl });
+  } catch (error) {
+    console.error('❌ Error generating Microsoft guest OAuth URL:', error);
+    res.status(500).json({ error: 'Failed to generate OAuth URL' });
+  }
+});
+
+// Microsoft Callback
 app.post('/api/book/auth/microsoft', async (req, res) => {
   try {
     const { code, bookingToken } = req.body;
@@ -2208,7 +2255,6 @@ app.post('/api/book/auth/microsoft', async (req, res) => {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
-    // Verify booking token
     const memberCheck = await pool.query(
       'SELECT * FROM team_members WHERE booking_token = $1',
       [bookingToken]
@@ -2218,8 +2264,8 @@ app.post('/api/book/auth/microsoft', async (req, res) => {
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
-    // Exchange code for tokens
     const redirectUri = `${process.env.FRONTEND_URL}/oauth/callback/microsoft/guest`;
+    
     console.log('📡 Exchanging Microsoft code for guest tokens...');
     console.log('Redirect URI:', redirectUri);
     
@@ -2240,21 +2286,15 @@ app.post('/api/book/auth/microsoft', async (req, res) => {
 
     const { access_token, refresh_token, scope } = tokenResponse.data;
 
-    // Get user info
     const userResponse = await axios.get('https://graph.microsoft.com/v1.0/me', {
       headers: { Authorization: `Bearer ${access_token}` }
     });
 
     const microsoftUser = userResponse.data;
     const email = microsoftUser.mail || microsoftUser.userPrincipalName;
-    
-    // Check if calendar access was granted
     const hasCalendarAccess = scope && scope.includes('Calendars.Read');
 
-    console.log('✅ Guest Microsoft OAuth successful:', { 
-      email, 
-      hasCalendarAccess 
-    });
+    console.log('✅ Guest Microsoft OAuth successful:', { email, hasCalendarAccess });
 
     res.json({
       success: true,
