@@ -783,7 +783,7 @@ app.post('/api/bookings', async (req, res) => {
       reschedule_token
     } = req.body;
 
-     console.log('?? REQUEST BODY DEBUG:', {
+    console.log('📋 REQUEST BODY DEBUG:', {
       attendee_name,
       attendee_email,
       additional_attendees,
@@ -792,7 +792,7 @@ app.post('/api/bookings', async (req, res) => {
       additional_attendees_isArray: Array.isArray(additional_attendees)
     });
 
-    console.log('?? Creating booking:', { 
+    console.log('🔧 Creating booking:', { 
       token: token?.substring(0, 10) + '...', 
       attendee_name, 
       attendee_email,
@@ -800,9 +800,9 @@ app.post('/api/bookings', async (req, res) => {
       slotData: slot 
     });
 
-    // ? STEP 1: VALIDATION
+    // ========== STEP 1: VALIDATION ==========
     if (!token || !slot || !attendee_name || !attendee_email) {
-      console.error('? Missing required fields:', {
+      console.error('❌ Missing required fields:', {
         hasToken: !!token,
         hasSlot: !!slot,
         hasName: !!attendee_name,
@@ -812,7 +812,7 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     if (!slot.start || !slot.end) {
-      console.error('? Invalid slot data:', slot);
+      console.error('❌ Invalid slot data:', slot);
       return res.status(400).json({ 
         error: 'Invalid booking slot data',
         debug: { slot }
@@ -828,23 +828,23 @@ app.post('/api/bookings', async (req, res) => {
         throw new Error('Invalid date format');
       }
       
-      console.log('? Slot validation passed:', {
+      console.log('✅ Slot validation passed:', {
         start: startDate.toISOString(),
         end: endDate.toISOString()
       });
     } catch (dateError) {
-      console.error('? Invalid slot dates:', dateError.message);
+      console.error('❌ Invalid slot dates:', dateError.message);
       return res.status(400).json({ 
         error: 'Invalid booking time format',
         details: dateError.message
       });
     }
 
-    // ? STEP 2: Look up token (check single-use vs regular)
+    // ========== STEP 2: LOOK UP TOKEN ==========
     let memberResult;
     
     if (token.length === 64) {
-      console.log('?? Looking up single-use link...');
+      console.log('🔍 Looking up single-use link...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 t.name as team_name, 
@@ -868,41 +868,81 @@ app.post('/api/bookings', async (req, res) => {
         [token]
       );
     } else {
-  console.log('🔍 Looking up regular token...');
-  memberResult = await pool.query(
-    `SELECT tm.*, 
-            t.name as team_name, 
-            t.booking_mode, 
-            t.owner_id,
-            t.id as team_id,
-            u.google_access_token, 
-            u.google_refresh_token,
-            u.microsoft_access_token,
-            u.microsoft_refresh_token,
-            u.provider,
-            u.email as member_email, 
-            u.name as member_name
-     FROM team_members tm 
-     JOIN teams t ON tm.team_id = t.id 
-     LEFT JOIN users u ON tm.user_id = u.id 
-     WHERE tm.booking_token = $1`,
-    [token]
-  );
-}
+      // ✅ FIRST: Check if it's a TEAM token
+      console.log('🔍 Checking if team token...');
+      const teamCheck = await pool.query(
+        `SELECT t.id as team_id, t.booking_mode
+         FROM teams t
+         WHERE t.team_booking_token = $1`,
+        [token]
+      );
+
+      if (teamCheck.rows.length > 0) {
+        // Team token found - use the first active member
+        const teamData = teamCheck.rows[0];
+        console.log('✅ Team token detected for booking, loading first active member...');
+        
+        memberResult = await pool.query(
+          `SELECT tm.*, 
+                  t.name as team_name, 
+                  t.booking_mode, 
+                  t.owner_id,
+                  t.id as team_id,
+                  u.google_access_token, 
+                  u.google_refresh_token,
+                  u.microsoft_access_token,
+                  u.microsoft_refresh_token,
+                  u.provider,
+                  u.email as member_email, 
+                  u.name as member_name
+           FROM team_members tm 
+           JOIN teams t ON tm.team_id = t.id 
+           LEFT JOIN users u ON tm.user_id = u.id 
+           WHERE tm.team_id = $1
+             AND (tm.is_active = true OR tm.is_active IS NULL)
+           ORDER BY tm.id ASC
+           LIMIT 1`,
+          [teamData.team_id]
+        );
+      } else {
+        // Not a team token, check regular member token
+        console.log('🔍 Looking up regular token...');
+        memberResult = await pool.query(
+          `SELECT tm.*, 
+                  t.name as team_name, 
+                  t.booking_mode, 
+                  t.owner_id,
+                  t.id as team_id,
+                  u.google_access_token, 
+                  u.google_refresh_token,
+                  u.microsoft_access_token,
+                  u.microsoft_refresh_token,
+                  u.provider,
+                  u.email as member_email, 
+                  u.name as member_name
+           FROM team_members tm 
+           JOIN teams t ON tm.team_id = t.id 
+           LEFT JOIN users u ON tm.user_id = u.id 
+           WHERE tm.booking_token = $1`,
+          [token]
+        );
+      }
+    }
 
     if (memberResult.rows.length === 0) {
-      console.log('? Invalid or expired booking token');
+      console.log('❌ Invalid or expired booking token');
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
     const member = memberResult.rows[0];
     const bookingMode = member.booking_mode || 'individual';
 
-    console.log('? Token found:', {
+    console.log('✅ Token found:', {
       memberName: member.name || member.member_name,
       teamName: member.team_name,
       mode: bookingMode
     });
+
 
     // ? STEP 3: Determine assigned members based on booking mode
     let assignedMembers = [];
