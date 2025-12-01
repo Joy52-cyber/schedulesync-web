@@ -1,4 +1,4 @@
-
+﻿
 
 // ============ STARTUP DEBUGGING ============
 console.log('========================================');
@@ -319,6 +319,23 @@ async function createMicrosoftCalendarEvent(accessToken, refreshToken, eventData
 
 app.use(cors());
 app.use(express.json());
+
+// ============ LOG ALL 404s FOR DEBUGGING ============
+app.use((req, res, next) => {
+  const originalSend = res.send;
+  res.send = function(data) {
+    if (res.statusCode === 404) {
+      console.log('🔴 404 ERROR:', {
+        method: req.method,
+        path: req.path,
+        url: req.originalUrl,
+        referer: req.get('referer')
+      });
+    }
+    originalSend.call(this, data);
+  };
+  next();
+});
 
 // ============ DATABASE CONNECTION ============
 
@@ -1355,6 +1372,40 @@ function getTimezoneOffset(timezone) {
   };
   
   return tzOffsets[timezone] || 0;
+
+  // ============ CALENDAR STATUS ENDPOINT ============
+app.get('/api/calendar/status', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const result = await pool.query(
+      `SELECT calendar_sync_enabled, provider, 
+              google_access_token, google_refresh_token, 
+              microsoft_access_token, microsoft_refresh_token
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = result.rows[0];
+    const hasGoogleCalendar = !!(user.google_access_token && user.google_refresh_token);
+    const hasMicrosoftCalendar = !!(user.microsoft_access_token && user.microsoft_refresh_token);
+    
+    res.json({
+      calendar_sync_enabled: user.calendar_sync_enabled || false,
+      provider: user.provider || null,
+      has_google_calendar: hasGoogleCalendar,
+      has_microsoft_calendar: hasMicrosoftCalendar,
+      is_connected: user.calendar_sync_enabled && (hasGoogleCalendar || hasMicrosoftCalendar)
+    });
+  } catch (error) {
+    console.error('❌ Calendar status error:', error);
+    res.status(500).json({ error: 'Failed to get calendar status' });
+  }
+});
 }
 
 // ============ ORGANIZER OAUTH (DASHBOARD LOGIN WITH CALENDAR ACCESS) ============
@@ -6756,7 +6807,7 @@ console.log('? AI booking created:', booking.id);
 // ========== RESPOND IMMEDIATELY ==========
 res.json({
   type: 'success',
-  message: `? **Meeting confirmed!**\n\n"${bookingData.title || 'Meeting'}" scheduled for **${startTime.toLocaleDateString()}** at **${startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}**\n\n?? Confirmation emails sent to:\n� **${email}** (attendee)\n� **${userEmail}** (you)\n\n?? Calendar invite with Google Meet link will arrive shortly.`,
+  message: `? **Meeting confirmed!**\n\n"${bookingData.title || 'Meeting'}" scheduled for **${startTime.toLocaleDateString()}** at **${startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}**\n\n?? Confirmation emails sent to:\n• **${email}** (attendee)\n• **${userEmail}** (you)\n\n?? Calendar invite with Google Meet link will arrive shortly.`,
   booking: booking
 });
   } catch (error) {
