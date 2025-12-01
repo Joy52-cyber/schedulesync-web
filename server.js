@@ -2188,7 +2188,7 @@ app.get('/api/book/auth/google/url', async (req, res) => {
       access_type: 'offline',
       scope: scopes,
       prompt: 'select_account',
-      state: guest-booking:${bookingToken}:google,
+      state: `guest-booking:${bookingToken}:google`,
     });
 
     console.log('?? Generated Google guest OAuth URL');
