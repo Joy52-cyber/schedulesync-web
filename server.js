@@ -4636,7 +4636,7 @@ app.get('/api/bookings/:token', async (req, res) => {
       
       // Get event types
       const eventTypesResult = await pool.query(
-        `SELECT id, title, name, duration, description, is_active, color, slug
+        `SELECT id, title, duration, description, is_active, color, slug
          FROM event_types 
          WHERE user_id = $1 AND is_active = true 
          ORDER BY duration ASC`,
@@ -4645,38 +4645,37 @@ app.get('/api/bookings/:token', async (req, res) => {
       
       console.log('?? Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
       
-      return res.json({
-        data: {
-          team: {
-            id: team.id,
-            name: team.name,
-            description: team.description,
-            booking_mode: team.booking_mode || 'round_robin',
-            owner_name: team.owner_name
-          },
-          member: membersResult.rows[0] || {
-            id: null,
-            name: team.owner_name || team.name,
-            email: team.owner_email,
-            default_duration: 30
-          },
-          members: membersResult.rows,
-          eventTypes: eventTypesResult.rows.map(et => ({
-            id: et.id,
-            title: et.title || et.name,
-            name: et.name || et.title,
-            duration: et.duration,
-            description: et.description,
-            color: et.color,
-            slug: et.slug,
-            is_active: true
-          })),
-          isTeamBooking: true,
-          skipEventTypes: false
-        }
-      });
+     return res.json({
+    data: {
+      team: {
+        id: team.id,
+        name: team.name,
+        description: team.description,
+        booking_mode: team.booking_mode || 'round_robin',
+        owner_name: team.owner_name
+      },
+      member: membersResult.rows[0] || {
+        id: null,
+        name: team.owner_name || team.name,
+        email: team.owner_email,
+        default_duration: 30
+      },
+      members: membersResult.rows,
+      eventTypes: eventTypesResult.rows.map(et => ({
+        id: et.id,
+        title: et.title,           // ? CHANGED
+        name: et.title,             // ? CHANGED
+        duration: et.duration,
+        description: et.description,
+        color: et.color,
+        slug: et.slug,
+        is_active: true
+      })),
+      isTeamBooking: true,
+      skipEventTypes: false
     }
-    
+  });
+}
     // ========== CHECK 2: Member Booking Token ==========
     const memberResult = await pool.query(
       `SELECT tm.*, 
@@ -4719,7 +4718,7 @@ app.get('/api/bookings/:token', async (req, res) => {
       
       // Get event types for this member's team
       const eventTypesResult = await pool.query(
-        `SELECT id, title, name, duration, description, is_active, color, slug
+        `SELECT id, title, duration, description, is_active, color, slug
          FROM event_types 
          WHERE team_id = $1 AND is_active = true 
          ORDER BY duration ASC`,
@@ -4741,8 +4740,8 @@ app.get('/api/bookings/:token', async (req, res) => {
           },
           eventTypes: eventTypesResult.rows.map(et => ({
             id: et.id,
-            title: et.title || et.name,
-            name: et.name || et.title,
+            title: et.title,
+            name: et.title,
             duration: et.duration,
             description: et.description,
             color: et.color,
@@ -4885,7 +4884,7 @@ app.get('/api/book/:token', async (req, res) => {
       
       // Get event types
       const eventTypesResult = await pool.query(
-        `SELECT id, title, name, duration, description, is_active, color, slug
+        `SELECT id, title, duration, description, is_active, color, slug
          FROM event_types 
          WHERE user_id = $1 AND is_active = true 
          ORDER BY duration ASC`,
@@ -4912,8 +4911,8 @@ app.get('/api/book/:token', async (req, res) => {
           members: membersResult.rows,
           eventTypes: eventTypesResult.rows.map(et => ({
             id: et.id,
-            title: et.title || et.name,
-            name: et.name || et.title,
+            title: et.title,
+            name: et.title,
             duration: et.duration,
             description: et.description,
             color: et.color,
@@ -4968,7 +4967,7 @@ app.get('/api/book/:token', async (req, res) => {
       
       // Get event types for this member's team
       const eventTypesResult = await pool.query(
-        `SELECT id, title, name, duration, description, is_active, color, slug
+        `SELECT id, title, duration, description, is_active, color, slug
          FROM event_types 
          WHERE team_id = $1 AND is_active = true 
          ORDER BY duration ASC`,
@@ -4990,8 +4989,8 @@ app.get('/api/book/:token', async (req, res) => {
           },
           eventTypes: eventTypesResult.rows.map(et => ({
             id: et.id,
-            title: et.title || et.name,
-            name: et.name || et.title,
+            title: et.title,
+            name: et.title,
             duration: et.duration,
             description: et.description,
             color: et.color,
@@ -7602,6 +7601,8 @@ process.on('unhandledRejection', (err) => {
 });
 
 module.exports = app;
+
+
 
 
 
