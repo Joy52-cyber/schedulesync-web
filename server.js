@@ -3522,13 +3522,13 @@ function getMatchColor(score) {
 app.post('/api/book/:token/slots-with-status', async (req, res) => {
   try {
     const { token } = req.params;
-    const { 
-        guestAccessToken: undefined,   // ← falsy
-  guestRefreshToken: undefined,  // ← falsy
-  guestProvider: undefined,      // ← falsy
-  duration: 30,
-  timezone: 'America/New_York'
-    } = req.body;
+   const { 
+  guestAccessToken,           // ← No colon, no undefined
+  guestRefreshToken,          // ← No colon, no undefined
+  guestProvider,              // ← No colon, no undefined
+  duration = 30,              // ← Use = for default values
+  timezone = 'America/New_York'
+} = req.body;
 
     console.log('📅 Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
 
