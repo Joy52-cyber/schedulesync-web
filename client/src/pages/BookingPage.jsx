@@ -541,6 +541,7 @@ export default function BookingPage() {
                     guestCalendar={guestCalendar} 
                     onSlotSelected={setSelectedSlot}
                     duration={duration}
+                    timezone={guestTimezone} 
                   />
                 </div>
               )}
