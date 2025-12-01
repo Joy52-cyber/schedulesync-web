@@ -2034,6 +2034,8 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   }
 });
 
+
+
 // ============ CREATE TEST USER (NO VERIFICATION) ============
 app.get('/api/auth/create-test-user', async (req, res) => {
   try {
@@ -2101,6 +2103,57 @@ app.get('/api/auth/create-test-user', async (req, res) => {
     res.status(500).json({ error: 'Failed to create test user' });
   }
 });
+
+// ========== 5. GET GUEST CALENDAR BUSY TIMES ==========
+let guestBusy = [];
+if (guestAccessToken) {
+  if (guestProvider === 'google') {  // ← Add provider check
+    try {
+      const calendar = google.calendar({ version: 'v3' });
+      const guestAuth = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        `${process.env.FRONTEND_URL}/oauth/callback/google/guest`
+      );
+      guestAuth.setCredentials({
+        access_token: guestAccessToken,
+        refresh_token: guestRefreshToken
+      });
+
+      const freeBusyResponse = await calendar.freebusy.query({
+        auth: guestAuth,
+        requestBody: {
+          timeMin: now.toISOString(),
+          timeMax: endDate.toISOString(),
+          items: [{ id: 'primary' }],
+        },
+      });
+
+      guestBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
+      console.log('✅ Guest Google calendar loaded:', guestBusy.length, 'busy blocks');
+    } catch (error) {
+      console.error('⚠️ Failed to fetch guest Google calendar:', error.message);
+    }
+  } else if (guestProvider === 'microsoft') {  // ← ADD THIS
+    try {
+      const events = await getMicrosoftCalendarEvents(
+        guestAccessToken,
+        guestRefreshToken,
+        now.toISOString(),
+        endDate.toISOString()
+      );
+
+      guestBusy = events.map(e => ({
+        start: e.start.dateTime,
+        end: e.end.dateTime
+      }));
+      
+      console.log('✅ Guest Microsoft calendar loaded:', guestBusy.length, 'busy blocks');
+    } catch (error) {
+      console.error('⚠️ Failed to fetch guest Microsoft calendar:', error.message);
+    }
+  }
+}
 
 // ============ GUEST OAUTH (BOOKING PAGE - READ ONLY) ============
 
@@ -3470,10 +3523,11 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
   try {
     const { token } = req.params;
     const { 
-      guestAccessToken, 
-      guestRefreshToken,
-      duration = 30,
-      timezone = 'America/New_York'
+        guestAccessToken: undefined,   // ← falsy
+  guestRefreshToken: undefined,  // ← falsy
+  guestProvider: undefined,      // ← falsy
+  duration: 30,
+  timezone: 'America/New_York'
     } = req.body;
 
     console.log('📅 Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
@@ -3699,38 +3753,62 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         console.error('⚠️ Failed to fetch Microsoft calendar:', error.message);
       }
     }
-
     // ========== 5. GET GUEST CALENDAR BUSY TIMES ==========
-    let guestBusy = [];
-    if (guestAccessToken) {
-      try {
-        const calendar = google.calendar({ version: 'v3' });
-        const guestAuth = new google.auth.OAuth2(
-          process.env.GOOGLE_CLIENT_ID,
-          process.env.GOOGLE_CLIENT_SECRET,
-          `${process.env.FRONTEND_URL}/oauth/callback`
-        );
-        guestAuth.setCredentials({
-          access_token: guestAccessToken,
-          refresh_token: guestRefreshToken
-        });
+let guestBusy = [];
+if (guestAccessToken && guestProvider) {
+  if (guestProvider === 'google') {
+    try {
+      const calendar = google.calendar({ version: 'v3' });
+      const guestAuth = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        `${process.env.FRONTEND_URL}/oauth/callback/google/guest`
+      );
+      guestAuth.setCredentials({
+        access_token: guestAccessToken,
+        refresh_token: guestRefreshToken
+      });
 
-        const freeBusyResponse = await calendar.freebusy.query({
-          auth: guestAuth,
-          requestBody: {
-            timeMin: now.toISOString(),
-            timeMax: endDate.toISOString(),
-            items: [{ id: 'primary' }],
-          },
-        });
+      const freeBusyResponse = await calendar.freebusy.query({
+        auth: guestAuth,
+        requestBody: {
+          timeMin: now.toISOString(),
+          timeMax: endDate.toISOString(),
+          items: [{ id: 'primary' }],
+        },
+      });
 
-        guestBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
-        console.log('✅ Guest calendar loaded:', guestBusy.length, 'busy blocks');
-      } catch (error) {
-        console.error('⚠️ Failed to fetch guest calendar:', error.message);
-      }
+      guestBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
+      console.log('✅ Guest Google calendar loaded:', guestBusy.length, 'busy blocks');
+    } catch (error) {
+      console.error('⚠️ Failed to fetch guest Google calendar:', error.message);
     }
+  } else if (guestProvider === 'microsoft') {
+    try {
+      console.log('📅 Fetching Microsoft guest calendar...');
+      const events = await getMicrosoftCalendarEvents(
+        guestAccessToken,
+        guestRefreshToken,
+        now.toISOString(),
+        endDate.toISOString()
+      );
 
+      guestBusy = events.map(e => ({
+        start: e.start.dateTime,
+        end: e.end.dateTime
+      }));
+      
+      console.log('✅ Guest Microsoft calendar loaded:', guestBusy.length, 'busy blocks');
+    } catch (error) {
+      console.error('⚠️ Failed to fetch guest Microsoft calendar:', error.message);
+    }
+  } else {
+    console.log('⚠️ Unknown guest provider:', guestProvider);
+  }
+} else if (guestAccessToken && !guestProvider) {
+  console.log('⚠️ Guest access token provided but no provider specified');
+}
+    
     // ========== 6. HELPER FUNCTIONS ==========
     const dayNameMap = {
       0: 'sunday',
