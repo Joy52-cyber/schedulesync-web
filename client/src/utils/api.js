@@ -27,10 +27,22 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Global response interceptor
+// ✅ FIXED: Proper response interceptor with auth handling
 api.interceptors.response.use(
   (response) => response,
-  (error) => Promise.reject(error)
+  (error) => {
+    // Handle auth failures
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      console.log('🔐 Auth failed, clearing token and redirecting...');
+      localStorage.removeItem('token');
+      
+      // Only redirect if we're not already on login page
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login?error=session_expired';
+      }
+    }
+    return Promise.reject(error);
+  }
 );
 
 // ============================================
@@ -69,7 +81,6 @@ export const teams = {
   removeMember: (teamId, memberId) =>
     api.delete(`/teams/${teamId}/members/${memberId}`),
 
-  // ✅ FIXED: Single updateMember function for all member updates
   updateMember: (teamId, memberId, data) =>
     api.put(`/teams/${teamId}/members/${memberId}`, data),
 
@@ -134,10 +145,19 @@ export const calendar = {
 };
 
 // ============================================
-// OAUTH (Google + Microsoft + Calendly)
+// ✅ FIXED: COMPLETE OAUTH OBJECT WITH ALL MISSING METHODS
 // ============================================
 export const oauth = {
-  // ✅ CORRECT - no /api prefix (baseURL already has it)
+  // ✅ ORGANIZER LOGIN OAUTH METHODS (was missing!)
+  getGoogleUrl: () => api.get('/auth/google/url'),
+  
+  getMicrosoftUrl: () => api.get('/auth/microsoft/url'),
+  
+  handleGoogleCallback: (code) => api.post('/auth/google/callback', { code }),
+  
+  handleMicrosoftCallback: (code) => api.post('/auth/microsoft/callback', { code }),
+
+  // ✅ GUEST OAUTH METHODS (for booking pages)  
   getGoogleGuestUrl: (bookingToken) =>
     api.get(`/book/auth/google/url?bookingToken=${bookingToken}`),
   
@@ -147,12 +167,15 @@ export const oauth = {
   guestGoogleAuth: (code, bookingToken) =>
     api.post('/book/auth/google', { code, bookingToken }),
     
-  handleMicrosoftCallback: (code) =>
-    api.post('/auth/microsoft/callback', { code }),
-    
   handleMicrosoftGuestCallback: (code, bookingToken) =>
     api.post('/book/auth/microsoft', { code, bookingToken }),
+
+  // ✅ CALENDLY OAUTH (if you implement it later)
+  getCalendlyUrl: () => api.get('/auth/calendly/url'),
+  
+  handleCalendlyCallback: (code) => api.post('/auth/calendly/callback', { code }),
 };
+
 // ============================================
 // PAYMENTS
 // ============================================
@@ -166,7 +189,7 @@ export const payments = {
 };
 
 // ============================================
-// AI - ✅ FIXED ENDPOINT
+// AI
 // ============================================
 export const ai = {
   schedule: (message, history) =>
@@ -174,7 +197,7 @@ export const ai = {
       message,
       conversationHistory: history,
     }),
-  confirm: (data) => api.post('/ai/schedule/confirm', data), // ✅ FIXED: Was /ai/confirm
+  confirm: (data) => api.post('/ai/schedule/confirm', data),
   suggest: (preferences) => api.post('/ai/suggest', { preferences }),
 };
 
@@ -182,7 +205,7 @@ export const ai = {
 // SINGLE-USE LINKS
 // ============================================
 export const singleUseLinks = {
-  generate: (data) => api.post('/single-use-links', data),  // ✅ CHANGED: Now accepts data object
+  generate: (data) => api.post('/single-use-links', data),
   getRecent: () => api.get('/single-use-links/recent'),
   get: (token) => api.get(`/single-use-links/${token}`),
   revoke: (token) => api.delete(`/single-use-links/${token}`),
@@ -253,15 +276,12 @@ export const user = {
 // ============================================
 // BACKWARDS COMPATIBILITY - DIRECT EXPORTS
 // ============================================
-
-// These support: import { getGoogleUrl, handleGoogleCallback } from '../utils/api'
 export const getGoogleUrl = oauth.getGoogleUrl;
-export const handleGoogleCallback = oauth.handleCallback;
+export const handleGoogleCallback = oauth.handleGoogleCallback;
 
 // ============================================
 // UTILITY FUNCTIONS
 // ============================================
-
 export const isAuthenticated = () => {
   return !!localStorage.getItem('token');
 };
@@ -314,9 +334,8 @@ export const batchRequest = async (requests) => {
 };
 
 // ============================================
-// ✅ VITAL FIX: ATTACH MODULES TO DEFAULT EXPORT
+// ✅ ATTACH ALL MODULES TO API INSTANCE
 // ============================================
-// This ensures things like `api.auth.login()` and `api.oauth.getGoogleUrl()` work.
 api.auth = auth;
 api.oauth = oauth;
 api.teams = teams;

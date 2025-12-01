@@ -8,23 +8,35 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   // Hydrate from localStorage on first load
-  useEffect(() => {
-    try {
-      const storedToken = localStorage.getItem("token");
-      const storedUser = localStorage.getItem("user");
-
-      if (storedToken && storedUser) {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      }
-    } catch (err) {
-      console.error("❌ Error restoring auth from storage:", err);
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-    } finally {
-      setLoading(false);
+  // In AuthContext.jsx - add this logging
+useEffect(() => {
+  try {
+    const storedToken = localStorage.getItem("token");
+    const storedUser = localStorage.getItem("user");
+    
+    console.log('🔍 AuthContext hydrating:', {
+      hasStoredToken: !!storedToken,
+      tokenLength: storedToken?.length,
+      hasStoredUser: !!storedUser,
+      userValid: storedUser ? 'valid JSON' : 'missing'
+    });
+    
+    if (storedToken && storedUser) {
+      const parsedUser = JSON.parse(storedUser);
+      setToken(storedToken);
+      setUser(parsedUser);
+      console.log('✅ Auth restored:', { user: parsedUser.email, tokenLength: storedToken.length });
+    } else {
+      console.log('❌ Auth not restored - missing data');
     }
-  }, []);
+  } catch (err) {
+    console.error("❌ Error restoring auth from storage:", err);
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   const login = (newToken, newUser) => {
     setToken(newToken);

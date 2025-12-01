@@ -47,11 +47,18 @@ import BookingConfirmation from './components/BookingConfirmation';
 // ======================
 function LoginWrapper({ Component }) {
   const { login } = useAuth();
+  const navigate = useNavigate(); // Add this
 
   const handleLogin = (token, user) => {
+    console.log('🔐 LoginWrapper received:', { 
+      token: token?.substring(0, 20) + '...', 
+      user: user?.email 
+    });
+    
     login(token, user);
-    // Hard redirect so everything (contexts, etc.) sees the new auth state
-    window.location.href = '/dashboard';
+    
+    // Use React Router instead of hard redirect
+    navigate('/dashboard', { replace: true });
   };
 
   return <Component onLogin={handleLogin} />;
