@@ -67,6 +67,32 @@ export const auth = {
 };
 
 // ============================================
+// OAUTH (Guest Calendar Connection)
+// ============================================
+export const oauth = {
+  // Get OAuth URLs for guest calendar connection
+  getGoogleGuestUrl: (bookingToken) => 
+    api.get('/api/book/auth/google/url', { params: { bookingToken } }),
+  
+  getMicrosoftGuestUrl: (bookingToken) => 
+    api.get('/api/book/auth/microsoft/url', { params: { bookingToken } }),
+  
+  // Handle OAuth callbacks for guest calendar connection
+  guestGoogleAuth: (code, bookingToken) => 
+    api.post('/api/book/auth/google', { code, bookingToken }),
+  
+  handleMicrosoftCallback: (code, bookingToken) => 
+    api.post('/api/book/auth/microsoft', { code, bookingToken }),
+  
+  // Regular user OAuth (for dashboard)
+  handleGoogleCallback: (code) => 
+    api.post('/auth/google/callback', { code }),
+  
+  handleCalendlyCallback: (code) => 
+    api.post('/auth/calendly/callback', { code }),
+};
+
+// ============================================
 // TEAMS & MEMBERS
 // ============================================
 export const teams = {

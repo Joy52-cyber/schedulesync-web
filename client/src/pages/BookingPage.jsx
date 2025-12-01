@@ -162,11 +162,18 @@ export default function BookingPage() {
         }
         
       } catch (err) {
-        console.error('❌ Guest OAuth failed:', err);
-        setError('Failed to connect calendar. Please try again.');
-        setHasProcessedOAuth(false);
-        setStep('calendar-choice');
-      }
+  console.error('❌ Guest OAuth failed:', err);
+  console.error('Error details:', err.response?.status, err.response?.data);
+  setError('Failed to connect calendar. Please try again.');
+  // ✅ Don't reset hasProcessedOAuth - let it stay true to prevent loop
+  setStep('calendar-choice');
+  
+  // Clear the URL to remove code/state params
+  const params = new URLSearchParams(searchParams);
+  params.delete('code');
+  params.delete('state');
+  navigate(`/book/${token}?${params.toString()}`, { replace: true });
+}
     })();
   }, [searchParams, token, navigate, hasProcessedOAuth, eventTypes]);
 
