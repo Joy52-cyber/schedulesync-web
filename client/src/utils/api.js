@@ -27,7 +27,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// ✅ FIXED: Proper response interceptor with auth handling
+// Response interceptor with auth handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -59,37 +59,35 @@ export const auth = {
     api.post('/auth/reset-password', { token, newPassword }),
   resendVerification: (email) =>
     api.post('/auth/resend-verification', { email }),
-
   updateProfile: (data) => api.put('/users/profile', data),
-
-  // ✅ Google OAuth (kept for backwards compatibility)
   getGoogleUrl: () => api.get('/auth/google/url'),
 };
 
 // ============================================
-// OAUTH (Guest Calendar Connection)
+// OAUTH - COMPLETE (Merged from duplicates)
 // ============================================
 export const oauth = {
-  // Get OAuth URLs for guest calendar connection
-  getGoogleGuestUrl: (bookingToken) => 
-    api.get('/api/book/auth/google/url', { params: { bookingToken } }),
+  // ORGANIZER LOGIN OAUTH METHODS
+  getGoogleUrl: () => api.get('/auth/google/url'),
+  getMicrosoftUrl: () => api.get('/auth/microsoft/url'),
+  getCalendlyUrl: () => api.get('/auth/calendly/url'),
   
-  getMicrosoftGuestUrl: (bookingToken) => 
-    api.get('/api/book/auth/microsoft/url', { params: { bookingToken } }),
+  handleGoogleCallback: (code) => api.post('/auth/google/callback', { code }),
+  handleMicrosoftCallback: (code) => api.post('/auth/microsoft/callback', { code }),
+  handleCalendlyCallback: (code) => api.post('/auth/calendly/callback', { code }),
+
+  // GUEST OAUTH METHODS (for booking pages)  
+  getGoogleGuestUrl: (bookingToken) =>
+    api.get('/book/auth/google/url', { params: { bookingToken } }),
   
-  // Handle OAuth callbacks for guest calendar connection
-  guestGoogleAuth: (code, bookingToken) => 
-    api.post('/api/book/auth/google', { code, bookingToken }),
+  getMicrosoftGuestUrl: (bookingToken) =>
+    api.get('/book/auth/microsoft/url', { params: { bookingToken } }),
   
-  handleMicrosoftCallback: (code, bookingToken) => 
-    api.post('/api/book/auth/microsoft', { code, bookingToken }),
-  
-  // Regular user OAuth (for dashboard)
-  handleGoogleCallback: (code) => 
-    api.post('/auth/google/callback', { code }),
-  
-  handleCalendlyCallback: (code) => 
-    api.post('/auth/calendly/callback', { code }),
+  guestGoogleAuth: (code, bookingToken) =>
+    api.post('/book/auth/google', { code, bookingToken }),
+    
+  guestMicrosoftAuth: (code, bookingToken) =>
+    api.post('/book/auth/microsoft', { code, bookingToken }),
 };
 
 // ============================================
@@ -168,38 +166,6 @@ export const calendar = {
   listEvents: (startDate, endDate) =>
     api.get(`/calendar/events?start=${startDate}&end=${endDate}`),
   syncEvents: () => api.post('/calendar/sync'),
-};
-
-// ============================================
-// ✅ FIXED: COMPLETE OAUTH OBJECT WITH ALL MISSING METHODS
-// ============================================
-export const oauth = {
-  // ✅ ORGANIZER LOGIN OAUTH METHODS (was missing!)
-  getGoogleUrl: () => api.get('/auth/google/url'),
-  
-  getMicrosoftUrl: () => api.get('/auth/microsoft/url'),
-  
-  handleGoogleCallback: (code) => api.post('/auth/google/callback', { code }),
-  
-  handleMicrosoftCallback: (code) => api.post('/auth/microsoft/callback', { code }),
-
-  // ✅ GUEST OAUTH METHODS (for booking pages)  
-  getGoogleGuestUrl: (bookingToken) =>
-    api.get(`/book/auth/google/url?bookingToken=${bookingToken}`),
-  
-  getMicrosoftGuestUrl: (bookingToken) =>
-    api.get(`/book/auth/microsoft/url?bookingToken=${bookingToken}`),
-  
-  guestGoogleAuth: (code, bookingToken) =>
-    api.post('/book/auth/google', { code, bookingToken }),
-    
-  handleMicrosoftGuestCallback: (code, bookingToken) =>
-    api.post('/book/auth/microsoft', { code, bookingToken }),
-
-  // ✅ CALENDLY OAUTH (if you implement it later)
-  getCalendlyUrl: () => api.get('/auth/calendly/url'),
-  
-  handleCalendlyCallback: (code) => api.post('/auth/calendly/callback', { code }),
 };
 
 // ============================================
@@ -360,7 +326,7 @@ export const batchRequest = async (requests) => {
 };
 
 // ============================================
-// ✅ ATTACH ALL MODULES TO API INSTANCE
+// ATTACH ALL MODULES TO API INSTANCE
 // ============================================
 api.auth = auth;
 api.oauth = oauth;

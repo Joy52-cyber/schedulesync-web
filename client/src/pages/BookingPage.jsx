@@ -88,9 +88,11 @@ export default function BookingPage() {
         setError('');
         const provider = state.split(':')[2] || 'google';
         
+        console.log('📞 Calling OAuth with provider:', provider);
+        
         let response;
         if (provider === 'microsoft') {
-          response = await oauth.handleMicrosoftCallback(code);
+          response = await oauth.guestMicrosoftAuth(code, token);
         } else {
           response = await oauth.guestGoogleAuth(code, token);
         }
@@ -114,38 +116,7 @@ export default function BookingPage() {
           attendee_email: data.email || prev.attendee_email,
         }));
 
-        // ✅ RESTORE SAVED STATE FROM LOCALSTORAGE
-        const savedState = localStorage.getItem('schedulesync_oauth_return');
-        console.log('📦 Saved state:', savedState);
-        
-        if (savedState) {
-          try {
-            const state = JSON.parse(savedState);
-            console.log('🔄 Restoring state:', state);
-            
-            // Restore event type if it was saved
-            if (state.eventTypeId && eventTypes.length > 0) {
-              const eventType = eventTypes.find(et => et.id === state.eventTypeId);
-              if (eventType) {
-                console.log('✅ Restored event type:', eventType.title);
-                setSelectedEventType(eventType);
-              }
-            }
-            
-            // Restore step
-            if (state.step) {
-              console.log('✅ Restored step:', state.step);
-              setStep(state.step);
-            }
-            
-            // Clean up
-            localStorage.removeItem('schedulesync_oauth_return');
-          } catch (err) {
-            console.error('Failed to restore state:', err);
-          }
-        }
-
-        // Clean URL
+        // Clean URL (state restoration happens in separate effect)
         const typeParam = searchParams.get('type');
         const rescheduleParam = searchParams.get('reschedule');
         let newUrl = `/book/${token}`;
@@ -156,26 +127,68 @@ export default function BookingPage() {
         
         navigate(newUrl, { replace: true });
         
-        // If no saved state or state restoration, default to form
-        if (!savedState) {
-          setStep('form');
-        }
-        
       } catch (err) {
-  console.error('❌ Guest OAuth failed:', err);
-  console.error('Error details:', err.response?.status, err.response?.data);
-  setError('Failed to connect calendar. Please try again.');
-  // ✅ Don't reset hasProcessedOAuth - let it stay true to prevent loop
-  setStep('calendar-choice');
-  
-  // Clear the URL to remove code/state params
-  const params = new URLSearchParams(searchParams);
-  params.delete('code');
-  params.delete('state');
-  navigate(`/book/${token}?${params.toString()}`, { replace: true });
-}
+        console.error('❌ Guest OAuth failed:', err);
+        console.error('Error details:', err.response?.status, err.response?.data);
+        setError('Failed to connect calendar. Please try again.');
+        setStep('calendar-choice');
+        
+        // Clear the URL to remove code/state params
+        const params = new URLSearchParams(searchParams);
+        params.delete('code');
+        params.delete('state');
+        navigate(`/book/${token}?${params.toString()}`, { replace: true });
+      }
     })();
-  }, [searchParams, token, navigate, hasProcessedOAuth, eventTypes]);
+  }, [searchParams, token, navigate, hasProcessedOAuth]);
+
+  // Restore saved state after eventTypes are loaded
+  useEffect(() => {
+    // Only run if we have guest calendar and eventTypes are loaded
+    if (!guestCalendar?.signedIn || eventTypes.length === 0) return;
+    
+    const savedState = localStorage.getItem('schedulesync_oauth_return');
+    if (!savedState) return;
+    
+    try {
+      const state = JSON.parse(savedState);
+      console.log('🔄 Restoring saved state:', state);
+      
+      // Check if this state is recent (within last 5 minutes)
+      if (Date.now() - state.timestamp > 5 * 60 * 1000) {
+        console.log('⏰ Saved state expired, ignoring');
+        localStorage.removeItem('schedulesync_oauth_return');
+        return;
+      }
+      
+      // Restore event type
+      if (state.eventTypeId) {
+        const eventType = eventTypes.find(et => et.id === state.eventTypeId);
+        if (eventType) {
+          console.log('✅ Restored event type:', eventType.title);
+          setSelectedEventType(eventType);
+          
+          // Update URL with event type slug
+          const params = new URLSearchParams(searchParams);
+          params.set('type', state.eventTypeSlug);
+          setSearchParams(params, { replace: true });
+        }
+      }
+      
+      // Restore step
+      if (state.step) {
+        console.log('✅ Restored step:', state.step);
+        setStep(state.step);
+      }
+      
+      // Clean up
+      localStorage.removeItem('schedulesync_oauth_return');
+      
+    } catch (err) {
+      console.error('Failed to restore state:', err);
+      localStorage.removeItem('schedulesync_oauth_return');
+    }
+  }, [guestCalendar?.signedIn, eventTypes, searchParams, setSearchParams]);
 
   const loadBookingInfo = async () => {
     try {
@@ -260,13 +273,13 @@ export default function BookingPage() {
 
   const handleCalendarConnect = async (provider) => {
     try {
-      // ✅ SAVE CURRENT STATE BEFORE OAUTH REDIRECT
+      // Save current state before OAuth redirect
       if (selectedEventType) {
         const stateToSave = {
           token: token,
           eventTypeId: selectedEventType.id,
           eventTypeSlug: selectedEventType.slug,
-          step: 'form', // After OAuth, go directly to form/slot selection
+          step: 'form',
           timestamp: Date.now()
         };
         
@@ -286,7 +299,6 @@ export default function BookingPage() {
       const authUrl = response.data.url;
       console.log('🔗 Redirecting to OAuth:', authUrl);
       
-      // Redirect to the auth URL
       window.location.href = authUrl;
       
     } catch (error) {
@@ -548,7 +560,7 @@ export default function BookingPage() {
                     guestCalendar={guestCalendar} 
                     onSlotSelected={setSelectedSlot}
                     duration={duration}
-                    timezone={guestTimezone} 
+                    timezone={guestTimezone}
                   />
                 </div>
               )}
