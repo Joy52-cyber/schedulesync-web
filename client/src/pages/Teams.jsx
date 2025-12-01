@@ -87,14 +87,14 @@ export default function Teams() {
         url: `${window.location.origin}/book/${team.booking_token}`,
         token: team.booking_token,
       };
-    } else {
-      // Regular teams use team booking token
-      if (!team.team_booking_token) return null;
-      return {
-        url: `${window.location.origin}/book/team/${team.team_booking_token}`,
-        token: team.team_booking_token,
-      };
-    }
+   } else {
+  // Regular teams use team booking token
+  if (!team.team_booking_token) return null;
+  return {
+    url: `${window.location.origin}/book/${team.team_booking_token}`,
+    token: team.team_booking_token,
+  };
+}
   };
 
   const handleCopyLink = (team) => {

@@ -116,7 +116,6 @@ function App() {
               /book/:username/:eventSlug - Event type booking by username
               /book/:token - Individual member booking (may redirect to Calendly)
             */}
-            <Route path="/book/team/:token" element={<BookingPage isTeamBooking={true} />} />
             <Route path="/book/:username/:eventSlug" element={<BookingPage />} />
             <Route path="/book/:token" element={<BookingPage />} />
             <Route path="/book" element={<Book />} />
