@@ -1,4 +1,4 @@
-﻿
+
 
 // ============ STARTUP DEBUGGING ============
 console.log('========================================');
@@ -4606,7 +4606,7 @@ app.get('/api/admin/fix-working-hours-data', authenticateToken, async (req, res)
 app.get('/api/bookings/:token', async (req, res) => {
   try {
     const { token } = req.params;
-    console.log('🔍 Looking up token:', token, 'Length:', token.length);
+    console.log('?? Looking up token:', token, 'Length:', token.length);
     
     // ========== CHECK 1: Team Booking Token ==========
     const teamResult = await pool.query(
@@ -4621,7 +4621,7 @@ app.get('/api/bookings/:token', async (req, res) => {
     
     if (teamResult.rows.length > 0) {
       const team = teamResult.rows[0];
-      console.log('✅ Team token found:', team.name);
+      console.log('? Team token found:', team.name);
       
       // Get members
       const membersResult = await pool.query(
@@ -4643,7 +4643,7 @@ app.get('/api/bookings/:token', async (req, res) => {
         [team.owner_id]
       );
       
-      console.log('📊 Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
+      console.log('?? Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
       
       return res.json({
         data: {
@@ -4693,11 +4693,11 @@ app.get('/api/bookings/:token', async (req, res) => {
     
     if (memberResult.rows.length > 0) {
       const member = memberResult.rows[0];
-      console.log('✅ Member token found:', member.name || member.user_name);
+      console.log('? Member token found:', member.name || member.user_name);
       
       // Check for external booking link
       if (member.external_booking_link) {
-        console.log('🔗 External link detected:', member.external_booking_link);
+        console.log('?? External link detected:', member.external_booking_link);
         return res.json({
           data: {
             team: {
@@ -4761,7 +4761,7 @@ app.get('/api/bookings/:token', async (req, res) => {
         `SELECT sul.*, 
                 tm.name as member_name, 
                 tm.email as member_email,
-                tm.default_duration,
+                
                 t.name as team_name,
                 t.id as team_id
          FROM single_use_links sul
@@ -4775,7 +4775,7 @@ app.get('/api/bookings/:token', async (req, res) => {
       
       if (singleUseResult.rows.length > 0) {
         const link = singleUseResult.rows[0];
-        console.log('✅ Single-use link found for:', link.member_name);
+        console.log('? Single-use link found for:', link.member_name);
         
         return res.json({
           data: {
@@ -4804,7 +4804,7 @@ app.get('/api/bookings/:token', async (req, res) => {
               tm.id as member_id,
               tm.name as member_name,
               tm.email as member_email,
-              tm.default_duration,
+              
               t.id as team_id,
               t.name as team_name
        FROM booking_tokens bt
@@ -4816,7 +4816,7 @@ app.get('/api/bookings/:token', async (req, res) => {
     
     if (bookingTokenResult.rows.length > 0) {
       const tokenData = bookingTokenResult.rows[0];
-      console.log('✅ Booking token found for:', tokenData.member_name);
+      console.log('? Booking token found for:', tokenData.member_name);
       
       return res.json({
         data: {
@@ -4838,13 +4838,13 @@ app.get('/api/bookings/:token', async (req, res) => {
     }
     
     // ========== Token Not Found ==========
-    console.log('❌ Token not found:', token);
+    console.log('? Token not found:', token);
     return res.status(404).json({ 
       error: 'Invalid booking link' 
     });
     
   } catch (error) {
-    console.error('❌ Booking lookup error:', error);
+    console.error('? Booking lookup error:', error);
     return res.status(500).json({ 
       error: 'Failed to load booking information' 
     });
@@ -4855,7 +4855,7 @@ app.get('/api/bookings/:token', async (req, res) => {
 app.get('/api/book/:token', async (req, res) => {
   try {
     const { token } = req.params;
-    console.log('🔍 Looking up token (via /api/book):', token, 'Length:', token.length);
+    console.log('?? Looking up token (via /api/book):', token, 'Length:', token.length);
     
     // ========== CHECK 1: Team Booking Token ==========
     const teamResult = await pool.query(
@@ -4870,11 +4870,11 @@ app.get('/api/book/:token', async (req, res) => {
     
     if (teamResult.rows.length > 0) {
       const team = teamResult.rows[0];
-      console.log('✅ Team token found:', team.name);
+      console.log('? Team token found:', team.name);
       
       // Get members
       const membersResult = await pool.query(
-        `SELECT tm.id, tm.name, tm.email, tm.booking_token, tm.user_id, tm.default_duration
+        `SELECT tm.id, tm.name, tm.email, tm.booking_token, tm.user_id
          FROM team_members tm
          WHERE tm.team_id = $1 
            AND (tm.is_active = true OR tm.is_active IS NULL)
@@ -4892,7 +4892,7 @@ app.get('/api/book/:token', async (req, res) => {
         [team.owner_id]
       );
       
-      console.log('📊 Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
+      console.log('?? Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
       
       return res.json({
         data: {
@@ -4942,11 +4942,11 @@ app.get('/api/book/:token', async (req, res) => {
     
     if (memberResult.rows.length > 0) {
       const member = memberResult.rows[0];
-      console.log('✅ Member token found:', member.name || member.user_name);
+      console.log('? Member token found:', member.name || member.user_name);
       
       // Check for external booking link
       if (member.external_booking_link) {
-        console.log('🔗 External link detected:', member.external_booking_link);
+        console.log('?? External link detected:', member.external_booking_link);
         return res.json({
           data: {
             team: {
@@ -5010,7 +5010,7 @@ app.get('/api/book/:token', async (req, res) => {
         `SELECT sul.*, 
                 tm.name as member_name, 
                 tm.email as member_email,
-                tm.default_duration,
+                
                 t.name as team_name,
                 t.id as team_id
          FROM single_use_links sul
@@ -5024,7 +5024,7 @@ app.get('/api/book/:token', async (req, res) => {
       
       if (singleUseResult.rows.length > 0) {
         const link = singleUseResult.rows[0];
-        console.log('✅ Single-use link found for:', link.member_name);
+        console.log('? Single-use link found for:', link.member_name);
         
         return res.json({
           data: {
@@ -5053,7 +5053,7 @@ app.get('/api/book/:token', async (req, res) => {
               tm.id as member_id,
               tm.name as member_name,
               tm.email as member_email,
-              tm.default_duration,
+              
               t.id as team_id,
               t.name as team_name
        FROM booking_tokens bt
@@ -5065,7 +5065,7 @@ app.get('/api/book/:token', async (req, res) => {
     
     if (bookingTokenResult.rows.length > 0) {
       const tokenData = bookingTokenResult.rows[0];
-      console.log('✅ Booking token found for:', tokenData.member_name);
+      console.log('? Booking token found for:', tokenData.member_name);
       
       return res.json({
         data: {
@@ -5087,13 +5087,13 @@ app.get('/api/book/:token', async (req, res) => {
     }
     
     // ========== Token Not Found ==========
-    console.log('❌ Token not found:', token);
+    console.log('? Token not found:', token);
     return res.status(404).json({ 
       error: 'Invalid booking link' 
     });
     
   } catch (error) {
-    console.error('❌ Booking lookup error:', error);
+    console.error('? Booking lookup error:', error);
     return res.status(500).json({ 
       error: 'Failed to load booking information' 
     });
@@ -5102,10 +5102,10 @@ app.get('/api/book/:token', async (req, res) => {
 
 // ========== POST: Create booking ==========
 app.post('/api/bookings', async (req, res) => {
-  try {  // ← MAIN TRY BLOCK STARTS HERE
+  try {  // ? MAIN TRY BLOCK STARTS HERE
     const { token, slot, attendee_name, attendee_email, notes } = req.body;
 
-    console.log('📝 Creating booking:', { token, attendee_name, attendee_email });
+    console.log('?? Creating booking:', { token, attendee_name, attendee_email });
 
     if (!token || !slot || !attendee_name || !attendee_email) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -5115,7 +5115,7 @@ app.post('/api/bookings', async (req, res) => {
     let memberResult;
     
     if (token.length === 64) {
-      console.log('🔍 Looking up single-use link for booking...');
+      console.log('?? Looking up single-use link for booking...');
       memberResult = await pool.query(
         `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
                 u.google_access_token, u.google_refresh_token, 
@@ -5132,7 +5132,7 @@ app.post('/api/bookings', async (req, res) => {
         [token]
       );
     } else {
-      console.log('🔍 Looking up regular token for booking...');
+      console.log('?? Looking up regular token for booking...');
       memberResult = await pool.query(
         `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
                 u.google_access_token, u.google_refresh_token,
@@ -5148,15 +5148,15 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     if (memberResult.rows.length === 0) {
-      console.log('❌ Invalid or expired booking token');
+      console.log('? Invalid or expired booking token');
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
     const member = memberResult.rows[0];
     const bookingMode = member.booking_mode || 'individual';
 
-    console.log('📊 Booking mode:', bookingMode);
-    console.log('👤 Member:', member.member_name);
+    console.log('?? Booking mode:', bookingMode);
+    console.log('?? Member:', member.member_name);
 
     let assignedMembers = [];
 
@@ -5164,7 +5164,7 @@ app.post('/api/bookings', async (req, res) => {
     switch (bookingMode) {
       case 'individual':
         assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
-        console.log('👤 Individual mode: Assigning to', member.name);
+        console.log('?? Individual mode: Assigning to', member.name);
         break;
 
       case 'round_robin':
@@ -5181,7 +5181,7 @@ app.post('/api/bookings', async (req, res) => {
         
         if (rrResult.rows.length > 0) {
           assignedMembers = [rrResult.rows[0]];
-          console.log('🔄 Round-robin: Assigning to', rrResult.rows[0].name);
+          console.log('?? Round-robin: Assigning to', rrResult.rows[0].name);
         } else {
           assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
         }
@@ -5209,9 +5209,9 @@ app.post('/api/bookings', async (req, res) => {
         
         if (faResult.rows.length > 0) {
           assignedMembers = [faResult.rows[0]];
-          console.log('⚡ First-available: Assigning to', faResult.rows[0].name);
+          console.log('? First-available: Assigning to', faResult.rows[0].name);
         } else {
-          console.log('⚠️ No available members, falling back to token member');
+          console.log('?? No available members, falling back to token member');
           assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
         }
         break;
@@ -5223,7 +5223,7 @@ app.post('/api/bookings', async (req, res) => {
         );
         
         assignedMembers = collectiveResult.rows;
-        console.log('👥 Collective mode: Assigning to all', assignedMembers.length, 'members');
+        console.log('?? Collective mode: Assigning to all', assignedMembers.length, 'members');
         break;
 
       default:
@@ -5264,10 +5264,10 @@ app.post('/api/bookings', async (req, res) => {
       );
       
       createdBookings.push(bookingResult.rows[0]);
-      console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
+      console.log(`? Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
     }
 
-    console.log(`📊 Created ${createdBookings.length} booking(s)`);
+    console.log(`?? Created ${createdBookings.length} booking(s)`);
        
     // Notify organizer
     if (member.user_id) {
@@ -5280,7 +5280,7 @@ app.post('/api/bookings', async (req, res) => {
         'UPDATE single_use_links SET used = true WHERE token = $1',
         [token]
       );
-      console.log('✅ Single-use link marked as used');
+      console.log('? Single-use link marked as used');
     }
 
     // ========== RESPOND IMMEDIATELY ==========
@@ -5304,7 +5304,7 @@ app.post('/api/bookings', async (req, res) => {
         // Create calendar event with meeting link
         if (member.provider === 'google' && member.google_access_token && member.google_refresh_token) {
           try {
-            console.log('📅 Creating Google Calendar event with Meet link (async)...');
+            console.log('?? Creating Google Calendar event with Meet link (async)...');
             
             const oauth2Client = new google.auth.OAuth2(
               process.env.GOOGLE_CLIENT_ID,
@@ -5368,13 +5368,13 @@ app.post('/api/bookings', async (req, res) => {
               );
             }
 
-            console.log('✅ Google Calendar event created with Meet link:', meetLink);
+            console.log('? Google Calendar event created with Meet link:', meetLink);
           } catch (calendarError) {
-            console.error('❌ Google Calendar event creation failed:', calendarError.message);
+            console.error('? Google Calendar event creation failed:', calendarError.message);
           }
         } else if (member.provider === 'microsoft' && member.microsoft_access_token && member.microsoft_refresh_token) {
           try {
-            console.log('📅 Creating Microsoft Calendar event with Teams link (async)...');
+            console.log('?? Creating Microsoft Calendar event with Teams link (async)...');
 
             const eventResult = await createMicrosoftCalendarEvent(
               member.microsoft_access_token,
@@ -5401,9 +5401,9 @@ app.post('/api/bookings', async (req, res) => {
               );
             }
 
-            console.log('✅ Microsoft Calendar event created with Teams link:', meetLink);
+            console.log('? Microsoft Calendar event created with Teams link:', meetLink);
           } catch (calendarError) {
-            console.error('❌ Microsoft Calendar event creation failed:', calendarError.message);
+            console.error('? Microsoft Calendar event creation failed:', calendarError.message);
           }
         }
 
@@ -5433,7 +5433,7 @@ app.post('/api/bookings', async (req, res) => {
 
           await sendBookingEmail({
             to: attendee_email,
-            subject: '✅ Booking Confirmed - ScheduleSync',
+            subject: '? Booking Confirmed - ScheduleSync',
             html: emailTemplates.bookingConfirmationGuest(bookingWithMeetLink),
             icsAttachment: icsFile,
           });
@@ -5441,29 +5441,29 @@ app.post('/api/bookings', async (req, res) => {
           if (member.member_email || member.email) {
             await sendBookingEmail({
               to: member.member_email || member.email,
-              subject: '📅 New Booking Received - ScheduleSync',
+              subject: '?? New Booking Received - ScheduleSync',
               html: emailTemplates.bookingConfirmationOrganizer(bookingWithMeetLink),
               icsAttachment: icsFile,
             });
           }
           
-          console.log('✅ Confirmation emails sent with Meet link');
+          console.log('? Confirmation emails sent with Meet link');
         } catch (emailError) {
-          console.error('❌ Failed to send emails:', emailError);
+          console.error('? Failed to send emails:', emailError);
         }
         
       } catch (error) {
-        console.error('❌ Background processing error:', error);
+        console.error('? Background processing error:', error);
       }
-    })();  // ← Close IIFE
+    })();  // ? Close IIFE
     
-  } catch (error) {  // ← Main POST endpoint catch
-    console.error('❌ Create booking error:', error);
+  } catch (error) {  // ? Main POST endpoint catch
+    console.error('? Create booking error:', error);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to create booking' });
     }
   }
-});  // ← Close POST endpoint
+});  // ? Close POST endpoint
 
 // ============ BOOKING MANAGEMENT BY TOKEN (NO AUTH REQUIRED) ============
    
@@ -6757,7 +6757,7 @@ console.log('? AI booking created:', booking.id);
 // ========== RESPOND IMMEDIATELY ==========
 res.json({
   type: 'success',
-  message: `? **Meeting confirmed!**\n\n"${bookingData.title || 'Meeting'}" scheduled for **${startTime.toLocaleDateString()}** at **${startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}**\n\n?? Confirmation emails sent to:\n• **${email}** (attendee)\n• **${userEmail}** (you)\n\n?? Calendar invite with Google Meet link will arrive shortly.`,
+  message: `? **Meeting confirmed!**\n\n"${bookingData.title || 'Meeting'}" scheduled for **${startTime.toLocaleDateString()}** at **${startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}**\n\n?? Confirmation emails sent to:\n� **${email}** (attendee)\n� **${userEmail}** (you)\n\n?? Calendar invite with Google Meet link will arrive shortly.`,
   booking: booking
 });
   } catch (error) {
@@ -7602,5 +7602,7 @@ process.on('unhandledRejection', (err) => {
 });
 
 module.exports = app;
+
+
 
 
