@@ -2148,6 +2148,54 @@ app.post('/api/book/auth/google', async (req, res) => {
     res.status(500).json({ error: 'Authentication failed' });
   }
 });
+
+// ============ GOOGLE GUEST OAUTH URL GENERATOR ============
+app.get('/api/book/auth/google/url', async (req, res) => {
+  try {
+    const { bookingToken } = req.query;
+    
+    if (!bookingToken) {
+      return res.status(400).json({ error: 'Booking token required' });
+    }
+
+    // Verify token exists
+    const memberCheck = await pool.query(
+      'SELECT id FROM team_members WHERE booking_token = $1',
+      [bookingToken]
+    );
+
+    if (memberCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      `${process.env.FRONTEND_URL}/oauth/callback/google/guest`
+    );
+
+    const scopes = [
+      'openid',
+      'email',
+      'profile',
+      'https://www.googleapis.com/auth/calendar.readonly',
+    ];
+
+    const authUrl = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: scopes,
+      prompt: 'select_account',
+      state: bookingToken, // Pass booking token in state
+    });
+
+    console.log('🔗 Generated Google guest OAuth URL');
+    res.json({ url: authUrl });
+  } catch (error) {
+    console.error('❌ Error generating Google guest OAuth URL:', error);
+    res.status(500).json({ error: 'Failed to generate OAuth URL' });
+  }
+});
+
 // ============ GUEST MICROSOFT OAUTH (BOOKING PAGE - READ ONLY) ============
 
 app.post('/api/book/auth/microsoft', async (req, res) => {
@@ -2228,52 +2276,6 @@ app.post('/api/book/auth/microsoft', async (req, res) => {
   }
 });
 
-// ============ GOOGLE GUEST OAUTH URL GENERATOR ============
-app.get('/api/book/auth/google/url', async (req, res) => {
-  try {
-    const { bookingToken } = req.query;
-    
-    if (!bookingToken) {
-      return res.status(400).json({ error: 'Booking token required' });
-    }
-
-    // Verify token exists
-    const memberCheck = await pool.query(
-      'SELECT id FROM team_members WHERE booking_token = $1',
-      [bookingToken]
-    );
-
-    if (memberCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Invalid booking token' });
-    }
-
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      `${process.env.FRONTEND_URL}/oauth/callback/google/guest`
-    );
-
-    const scopes = [
-      'openid',
-      'email',
-      'profile',
-      'https://www.googleapis.com/auth/calendar.readonly',
-    ];
-
-    const authUrl = oauth2Client.generateAuthUrl({
-      access_type: 'offline',
-      scope: scopes,
-      prompt: 'select_account',
-      state: bookingToken, // Pass booking token in state
-    });
-
-    console.log('🔗 Generated Google guest OAuth URL');
-    res.json({ url: authUrl });
-  } catch (error) {
-    console.error('❌ Error generating Google guest OAuth URL:', error);
-    res.status(500).json({ error: 'Failed to generate OAuth URL' });
-  }
-});
 
 // ============================================
 // CALENDLY MIGRATION TOOL
