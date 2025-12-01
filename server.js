@@ -3753,61 +3753,64 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         console.error('⚠️ Failed to fetch Microsoft calendar:', error.message);
       }
     }
-    // ========== 5. GET GUEST CALENDAR BUSY TIMES ==========
-let guestBusy = [];
-if (guestAccessToken && guestProvider) {
-  if (guestProvider === 'google') {
-    try {
-      const calendar = google.calendar({ version: 'v3' });
-      const guestAuth = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET,
-        `${process.env.FRONTEND_URL}/oauth/callback/google/guest`
-      );
-      guestAuth.setCredentials({
-        access_token: guestAccessToken,
-        refresh_token: guestRefreshToken
-      });
 
-      const freeBusyResponse = await calendar.freebusy.query({
-        auth: guestAuth,
-        requestBody: {
-          timeMin: now.toISOString(),
-          timeMax: endDate.toISOString(),
-          items: [{ id: 'primary' }],
-        },
-      });
+   // ========== 5. GET GUEST CALENDAR BUSY TIMES ==========
+    let guestBusy = [];  // ← ADD 4 SPACES
+    if (guestAccessToken && guestProvider) {  // ← ADD 4 SPACES
+      if (guestProvider === 'google') {  // ← Already correct (6 spaces)
+        try {
+          const calendar = google.calendar({ version: 'v3' });
+          const guestAuth = new google.auth.OAuth2(
+            process.env.GOOGLE_CLIENT_ID,
+            process.env.GOOGLE_CLIENT_SECRET,
+            `${process.env.FRONTEND_URL}/oauth/callback/google/guest`
+          );
+          guestAuth.setCredentials({
+            access_token: guestAccessToken,
+            refresh_token: guestRefreshToken
+          });
 
-      guestBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
-      console.log('✅ Guest Google calendar loaded:', guestBusy.length, 'busy blocks');
-    } catch (error) {
-      console.error('⚠️ Failed to fetch guest Google calendar:', error.message);
-    }
-  } else if (guestProvider === 'microsoft') {
-    try {
-      console.log('📅 Fetching Microsoft guest calendar...');
-      const events = await getMicrosoftCalendarEvents(
-        guestAccessToken,
-        guestRefreshToken,
-        now.toISOString(),
-        endDate.toISOString()
-      );
+          const freeBusyResponse = await calendar.freebusy.query({
+            auth: guestAuth,
+            requestBody: {
+              timeMin: now.toISOString(),
+              timeMax: endDate.toISOString(),
+              items: [{ id: 'primary' }],
+            },
+          });
 
-      guestBusy = events.map(e => ({
-        start: e.start.dateTime,
-        end: e.end.dateTime
-      }));
-      
-      console.log('✅ Guest Microsoft calendar loaded:', guestBusy.length, 'busy blocks');
-    } catch (error) {
-      console.error('⚠️ Failed to fetch guest Microsoft calendar:', error.message);
-    }
-  } else {
-    console.log('⚠️ Unknown guest provider:', guestProvider);
-  }
-} else if (guestAccessToken && !guestProvider) {
-  console.log('⚠️ Guest access token provided but no provider specified');
-}
+          guestBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
+          console.log('✅ Guest Google calendar loaded:', guestBusy.length, 'busy blocks');
+        } catch (error) {
+          console.error('⚠️ Failed to fetch guest Google calendar:', error.message);
+        }
+      } else if (guestProvider === 'microsoft') {
+        try {
+          console.log('📅 Fetching Microsoft guest calendar...');
+          const events = await getMicrosoftCalendarEvents(
+            guestAccessToken,
+            guestRefreshToken,
+            now.toISOString(),
+            endDate.toISOString()
+          );
+
+          guestBusy = events.map(e => ({
+            start: e.start.dateTime,
+            end: e.end.dateTime
+          }));
+          
+          console.log('✅ Guest Microsoft calendar loaded:', guestBusy.length, 'busy blocks');
+        } catch (error) {
+          console.error('⚠️ Failed to fetch guest Microsoft calendar:', error.message);
+        }
+      } else {
+        console.log('⚠️ Unknown guest provider:', guestProvider);
+      }
+    } else if (guestAccessToken && !guestProvider) {  // ← ADD 4 SPACES
+      console.log('⚠️ Guest access token provided but no provider specified');
+    }  // ← ADD 4 SPACES
+    
+   
     
     // ========== 6. HELPER FUNCTIONS ==========
     const dayNameMap = {
