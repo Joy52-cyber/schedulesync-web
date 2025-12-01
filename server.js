@@ -4741,10 +4741,12 @@ app.get('/api/admin/fix-working-hours-data', authenticateToken, async (req, res)
   }
 });
 
+
+    // ============================================
+// BOOKING ENDPOINTS - COMPLETE AND CLEAN
 // ============================================
-// TEAM BOOKING PAGE (separate from member links)
-// ============================================
-// Add this BEFORE your POST /api/bookings endpoint
+
+// ========== GET: Lookup booking token ==========
 app.get('/api/bookings/:token', async (req, res) => {
   try {
     const { token } = req.params;
@@ -4787,7 +4789,6 @@ app.get('/api/bookings/:token', async (req, res) => {
       
       console.log('📊 Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
       
-      // ✅ CRITICAL: Format response with "member" (singular)
       return res.json({
         data: {
           team: {
@@ -4797,7 +4798,7 @@ app.get('/api/bookings/:token', async (req, res) => {
             booking_mode: team.booking_mode || 'round_robin',
             owner_name: team.owner_name
           },
-          member: membersResult.rows[0] || {  // ← Frontend needs this!
+          member: membersResult.rows[0] || {
             id: null,
             name: team.owner_name || team.name,
             email: team.owner_email,
@@ -4994,6 +4995,189 @@ app.get('/api/bookings/:token', async (req, res) => {
   }
 });
 
+// ========== POST: Create booking ==========
+app.post('/api/bookings', async (req, res) => {
+  try {  // ← MAIN TRY BLOCK STARTS HERE
+    const { token, slot, attendee_name, attendee_email, notes } = req.body;
+
+    console.log('📝 Creating booking:', { token, attendee_name, attendee_email });
+
+    if (!token || !slot || !attendee_name || !attendee_email) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // ========== SUPPORT SINGLE-USE LINKS ==========
+    let memberResult;
+    
+    if (token.length === 64) {
+      console.log('🔍 Looking up single-use link for booking...');
+      memberResult = await pool.query(
+        `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
+                u.google_access_token, u.google_refresh_token, 
+                u.microsoft_access_token, u.microsoft_refresh_token,
+                u.email as member_email, u.name as member_name,
+                'google' as provider
+         FROM single_use_links sul
+         JOIN team_members tm ON sul.member_id = tm.id
+         JOIN teams t ON tm.team_id = t.id 
+         LEFT JOIN users u ON tm.user_id = u.id 
+         WHERE sul.token = $1
+           AND sul.used = false
+           AND sul.expires_at > NOW()`,
+        [token]
+      );
+    } else {
+      console.log('🔍 Looking up regular token for booking...');
+      memberResult = await pool.query(
+        `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
+                u.google_access_token, u.google_refresh_token,
+                u.microsoft_access_token, u.microsoft_refresh_token,
+                u.email as member_email, u.name as member_name,
+                'google' as provider
+         FROM team_members tm 
+         JOIN teams t ON tm.team_id = t.id 
+         LEFT JOIN users u ON tm.user_id = u.id 
+         WHERE tm.booking_token = $1`,
+        [token]
+      );
+    }
+
+    if (memberResult.rows.length === 0) {
+      console.log('❌ Invalid or expired booking token');
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    const member = memberResult.rows[0];
+    const bookingMode = member.booking_mode || 'individual';
+
+    console.log('📊 Booking mode:', bookingMode);
+    console.log('👤 Member:', member.member_name);
+
+    let assignedMembers = [];
+
+    // Determine which team member(s) to assign based on booking mode
+    switch (bookingMode) {
+      case 'individual':
+        assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
+        console.log('👤 Individual mode: Assigning to', member.name);
+        break;
+
+      case 'round_robin':
+        const rrResult = await pool.query(
+          `SELECT tm.id, tm.name, tm.user_id, COUNT(b.id) as booking_count
+           FROM team_members tm
+           LEFT JOIN bookings b ON tm.id = b.member_id
+           WHERE tm.team_id = $1
+           GROUP BY tm.id, tm.name, tm.user_id
+           ORDER BY booking_count ASC, tm.id ASC
+           LIMIT 1`,
+          [member.team_id]
+        );
+        
+        if (rrResult.rows.length > 0) {
+          assignedMembers = [rrResult.rows[0]];
+          console.log('🔄 Round-robin: Assigning to', rrResult.rows[0].name);
+        } else {
+          assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
+        }
+        break;
+
+      case 'first_available':
+        const faResult = await pool.query(
+          `SELECT tm.id, tm.name, tm.user_id
+           FROM team_members tm
+           WHERE tm.team_id = $1
+           AND NOT EXISTS (
+             SELECT 1 FROM bookings b
+             WHERE b.member_id = tm.id
+             AND b.status != 'cancelled'
+             AND (
+               (b.start_time <= $2 AND b.end_time > $2)
+               OR (b.start_time < $3 AND b.end_time >= $3)
+               OR (b.start_time >= $2 AND b.end_time <= $3)
+             )
+           )
+           ORDER BY tm.id ASC
+           LIMIT 1`,
+          [member.team_id, slot.start, slot.end]
+        );
+        
+        if (faResult.rows.length > 0) {
+          assignedMembers = [faResult.rows[0]];
+          console.log('⚡ First-available: Assigning to', faResult.rows[0].name);
+        } else {
+          console.log('⚠️ No available members, falling back to token member');
+          assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
+        }
+        break;
+
+      case 'collective':
+        const collectiveResult = await pool.query(
+          'SELECT id, name, user_id FROM team_members WHERE team_id = $1',
+          [member.team_id]
+        );
+        
+        assignedMembers = collectiveResult.rows;
+        console.log('👥 Collective mode: Assigning to all', assignedMembers.length, 'members');
+        break;
+
+      default:
+        assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
+    }
+
+    // Create booking(s)
+    const createdBookings = [];
+
+    for (const assignedMember of assignedMembers) {
+      // Generate unique manage token for this booking
+      const manageToken = crypto.randomBytes(16).toString('hex');
+      
+      const bookingResult = await pool.query(
+        `INSERT INTO bookings (
+          team_id, member_id, user_id, 
+          attendee_name, attendee_email, 
+          start_time, end_time, 
+          title, notes, 
+          booking_token, status, manage_token
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+        RETURNING *`,
+        [
+          member.team_id,
+          assignedMember.id,
+          assignedMember.user_id,
+          attendee_name,
+          attendee_email,
+          slot.start,
+          slot.end,
+          `Meeting with ${attendee_name}`,
+          notes || '',
+          token,
+          'confirmed',
+          manageToken
+        ]
+      );
+      
+      createdBookings.push(bookingResult.rows[0]);
+      console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
+    }
+
+    console.log(`📊 Created ${createdBookings.length} booking(s)`);
+       
+    // Notify organizer
+    if (member.user_id) {
+      await notifyBookingCreated(createdBookings[0], member.user_id);
+    }
+
+    // Mark single-use link as used
+    if (token.length === 64) {
+      await pool.query(
+        'UPDATE single_use_links SET used = true WHERE token = $1',
+        [token]
+      );
+      console.log('✅ Single-use link marked as used');
+    }
+
     // ========== RESPOND IMMEDIATELY ==========
     res.json({ 
       success: true,
@@ -5007,173 +5191,174 @@ app.get('/api/bookings/:token', async (req, res) => {
     });
 
     // ========== ASYNC: CREATE CALENDAR EVENT & SEND EMAILS ==========
-   // ========== ASYNC: CREATE CALENDAR EVENT & SEND EMAILS ==========
-(async () => {
-  try {
-    let meetLink = null;
-    let calendarEventId = null;
-
-    // Create calendar event with meeting link
-    if (member.provider === 'google' && member.google_access_token && member.google_refresh_token) {
+    (async () => {
       try {
-        console.log('?? Creating Google Calendar event with Meet link (async)...');
-        
-        const oauth2Client = new google.auth.OAuth2(
-          process.env.GOOGLE_CLIENT_ID,
-          process.env.GOOGLE_CLIENT_SECRET,
-          process.env.GOOGLE_REDIRECT_URI
-        );
+        let meetLink = null;
+        let calendarEventId = null;
 
-        oauth2Client.setCredentials({
-          access_token: member.google_access_token,
-          refresh_token: member.google_refresh_token
-        });
+        // Create calendar event with meeting link
+        if (member.provider === 'google' && member.google_access_token && member.google_refresh_token) {
+          try {
+            console.log('📅 Creating Google Calendar event with Meet link (async)...');
+            
+            const oauth2Client = new google.auth.OAuth2(
+              process.env.GOOGLE_CLIENT_ID,
+              process.env.GOOGLE_CLIENT_SECRET,
+              process.env.GOOGLE_REDIRECT_URI
+            );
 
-        const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+            oauth2Client.setCredentials({
+              access_token: member.google_access_token,
+              refresh_token: member.google_refresh_token
+            });
 
-        const event = {
-          summary: `Meeting with ${attendee_name}`,
-          description: notes || 'Scheduled via ScheduleSync',
-          start: {
-            dateTime: slot.start,
-            timeZone: 'UTC',
-          },
-          end: {
-            dateTime: slot.end,
-            timeZone: 'UTC',
-          },
-          attendees: [
-            { email: attendee_email, displayName: attendee_name },
-            { email: member.member_email, displayName: member.member_name }
-          ],
-          conferenceData: {
-            createRequest: {
-              requestId: `schedulesync-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              conferenceSolutionKey: {
-                type: 'hangoutsMeet'
+            const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+            const event = {
+              summary: `Meeting with ${attendee_name}`,
+              description: notes || 'Scheduled via ScheduleSync',
+              start: {
+                dateTime: slot.start,
+                timeZone: 'UTC',
+              },
+              end: {
+                dateTime: slot.end,
+                timeZone: 'UTC',
+              },
+              attendees: [
+                { email: attendee_email, displayName: attendee_name },
+                { email: member.member_email, displayName: member.member_name }
+              ],
+              conferenceData: {
+                createRequest: {
+                  requestId: `schedulesync-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  conferenceSolutionKey: {
+                    type: 'hangoutsMeet'
+                  }
+                }
+              },
+              reminders: {
+                useDefault: false,
+                overrides: [
+                  { method: 'email', minutes: 24 * 60 },
+                  { method: 'popup', minutes: 30 }
+                ]
               }
+            };
+
+            const calendarResponse = await calendar.events.insert({
+              calendarId: 'primary',
+              resource: event,
+              conferenceDataVersion: 1,
+              sendUpdates: 'all'
+            });
+
+            meetLink = calendarResponse.data.hangoutLink || null;
+            calendarEventId = calendarResponse.data.id;
+
+            for (const booking of createdBookings) {
+              await pool.query(
+                `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
+                [meetLink, calendarEventId, booking.id]
+              );
             }
-          },
-          reminders: {
-            useDefault: false,
-            overrides: [
-              { method: 'email', minutes: 24 * 60 },
-              { method: 'popup', minutes: 30 }
-            ]
+
+            console.log('✅ Google Calendar event created with Meet link:', meetLink);
+          } catch (calendarError) {
+            console.error('❌ Google Calendar event creation failed:', calendarError.message);
           }
-        };
+        } else if (member.provider === 'microsoft' && member.microsoft_access_token && member.microsoft_refresh_token) {
+          try {
+            console.log('📅 Creating Microsoft Calendar event with Teams link (async)...');
 
-        const calendarResponse = await calendar.events.insert({
-          calendarId: 'primary',
-          resource: event,
-          conferenceDataVersion: 1,
-          sendUpdates: 'all'
-        });
+            const eventResult = await createMicrosoftCalendarEvent(
+              member.microsoft_access_token,
+              member.microsoft_refresh_token,
+              {
+                title: `Meeting with ${attendee_name}`,
+                description: notes || 'Scheduled via ScheduleSync',
+                startTime: slot.start,
+                endTime: slot.end,
+                attendees: [
+                  { email: attendee_email, name: attendee_name },
+                  { email: member.member_email, name: member.member_name }
+                ]
+              }
+            );
 
-        meetLink = calendarResponse.data.hangoutLink || null;
-        calendarEventId = calendarResponse.data.id;
+            meetLink = eventResult.meetingUrl;
+            calendarEventId = eventResult.id;
 
-        for (const booking of createdBookings) {
-          await pool.query(
-            `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
-            [meetLink, calendarEventId, booking.id]
-          );
+            for (const booking of createdBookings) {
+              await pool.query(
+                `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
+                [meetLink, calendarEventId, booking.id]
+              );
+            }
+
+            console.log('✅ Microsoft Calendar event created with Teams link:', meetLink);
+          } catch (calendarError) {
+            console.error('❌ Microsoft Calendar event creation failed:', calendarError.message);
+          }
         }
 
-        console.log('? Google Calendar event created with Meet link:', meetLink);
-      } catch (calendarError) {
-        console.error('?? Google Calendar event creation failed:', calendarError.message);
-      }
-    } else if (member.provider === 'microsoft' && member.microsoft_access_token && member.microsoft_refresh_token) {
-      try {
-        console.log('?? Creating Microsoft Calendar event with Teams link (async)...');
+        // Send confirmation emails
+        try {
+          const icsFile = generateICS({
+            id: createdBookings[0].id,
+            start_time: createdBookings[0].start_time,
+            end_time: createdBookings[0].end_time,
+            attendee_name: attendee_name,
+            attendee_email: attendee_email,
+            organizer_name: member.member_name || member.name,
+            organizer_email: member.member_email || member.email,
+            team_name: member.team_name,
+            notes: notes,
+          });
 
-        const eventResult = await createMicrosoftCalendarEvent(
-          member.microsoft_access_token,
-          member.microsoft_refresh_token,
-          {
-            title: `Meeting with ${attendee_name}`,
-            description: notes || 'Scheduled via ScheduleSync',
-            startTime: slot.start,
-            endTime: slot.end,
-            attendees: [
-              { email: attendee_email, name: attendee_name },
-              { email: member.member_email, name: member.member_name }
-            ]
+          const bookingWithMeetLink = {
+            ...createdBookings[0],
+            attendee_name,
+            attendee_email,
+            organizer_name: member.member_name || member.name,
+            team_name: member.team_name,
+            notes,
+            meet_link: meetLink,
+          };
+
+          await sendBookingEmail({
+            to: attendee_email,
+            subject: '✅ Booking Confirmed - ScheduleSync',
+            html: emailTemplates.bookingConfirmationGuest(bookingWithMeetLink),
+            icsAttachment: icsFile,
+          });
+
+          if (member.member_email || member.email) {
+            await sendBookingEmail({
+              to: member.member_email || member.email,
+              subject: '📅 New Booking Received - ScheduleSync',
+              html: emailTemplates.bookingConfirmationOrganizer(bookingWithMeetLink),
+              icsAttachment: icsFile,
+            });
           }
-        );
-
-        meetLink = eventResult.meetingUrl;
-        calendarEventId = eventResult.id;
-
-        for (const booking of createdBookings) {
-          await pool.query(
-            `UPDATE bookings SET meet_link = $1, calendar_event_id = $2 WHERE id = $3`,
-            [meetLink, calendarEventId, booking.id]
-          );
+          
+          console.log('✅ Confirmation emails sent with Meet link');
+        } catch (emailError) {
+          console.error('❌ Failed to send emails:', emailError);
         }
-
-        console.log('? Microsoft Calendar event created with Teams link:', meetLink);
-      } catch (calendarError) {
-        console.error('?? Microsoft Calendar event creation failed:', calendarError.message);
+        
+      } catch (error) {
+        console.error('❌ Background processing error:', error);
       }
+    })();  // ← Close IIFE
+    
+  } catch (error) {  // ← Main POST endpoint catch
+    console.error('❌ Create booking error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to create booking' });
     }
-
-    // Send confirmation emails
-    try {
-      const icsFile = generateICS({
-        id: createdBookings[0].id,
-        start_time: createdBookings[0].start_time,
-        end_time: createdBookings[0].end_time,
-        attendee_name: attendee_name,
-        attendee_email: attendee_email,
-        organizer_name: member.member_name || member.name,
-        organizer_email: member.member_email || member.email,
-        team_name: member.team_name,
-        notes: notes,
-      });
-
-      const bookingWithMeetLink = {
-        ...createdBookings[0],
-        attendee_name,
-        attendee_email,
-        organizer_name: member.member_name || member.name,
-        team_name: member.team_name,
-        notes,
-        meet_link: meetLink,
-      };
-
-      await sendBookingEmail({
-        to: attendee_email,
-        subject: '? Booking Confirmed - ScheduleSync',
-        html: emailTemplates.bookingConfirmationGuest(bookingWithMeetLink),
-        icsAttachment: icsFile,
-      });
-
-      if (member.member_email || member.email) {
-        await sendBookingEmail({
-          to: member.member_email || member.email,
-          subject: '?? New Booking Received - ScheduleSync',
-          html: emailTemplates.bookingConfirmationOrganizer(bookingWithMeetLink),
-          icsAttachment: icsFile,
-        });
-      }
-      
-      console.log('? Confirmation emails sent with Meet link');
-    } catch (emailError) {
-      console.error('?? Failed to send emails:', emailError);
-    }
-  } catch (error) {
-    console.error('? Background processing error:', error);
   }
-})();
-} catch (error) {  // This properly closes the main try block
-  console.error('? Create booking error:', error);
-  if (!res.headersSent) {
-    res.status(500).json({ error: 'Failed to create booking' });
-  }
-}
-});
+});  // ← Close POST endpoint
 
 // ============ BOOKING MANAGEMENT BY TOKEN (NO AUTH REQUIRED) ============
    
