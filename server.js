@@ -4337,7 +4337,7 @@ app.get('/api/book/:token', async (req, res) => {
            FROM team_members tm
            JOIN users u ON tm.user_id = u.id
            WHERE tm.team_id = $1 AND tm.is_active = true
-           ORDER BY tm.priority DESC`,
+           ORDER BY tm.id ASC`,
           [link.team_id]
         );
         
@@ -4354,10 +4354,10 @@ app.get('/api/book/:token', async (req, res) => {
       }
     }
     
-    // 2. Check TEAM tokens using team_booking_token
-    console.log('🔑 Checking teams table for token...');
+    // 2. Check TEAM tokens
+    console.log('🔑 Checking teams table...');
     const teamCheck = await pool.query(
-      `SELECT id, name, description, booking_mode, team_booking_token 
+      `SELECT id, name, description, booking_mode 
        FROM teams 
        WHERE team_booking_token = $1`,
       [token]
@@ -4372,9 +4372,11 @@ app.get('/api/book/:token', async (req, res) => {
          FROM team_members tm
          JOIN users u ON tm.user_id = u.id
          WHERE tm.team_id = $1 AND tm.is_active = true
-         ORDER BY tm.priority DESC`,
+         ORDER BY tm.id ASC`,
         [team.id]
       );
+      
+      console.log('   Found members:', membersResult.rows.length);
       
       const memberIds = membersResult.rows.map(m => m.user_id).filter(Boolean);
       let eventTypes = [];
@@ -4387,6 +4389,8 @@ app.get('/api/book/:token', async (req, res) => {
         );
         eventTypes = eventsRes.rows;
       }
+      
+      console.log('   Found event types:', eventTypes.length);
       
       return res.json({
         data: {
@@ -4443,7 +4447,7 @@ app.get('/api/book/:token', async (req, res) => {
       });
     }
     
-    console.log('❌ Token not found anywhere');
+    console.log('❌ Token not found');
     return res.status(404).json({ error: 'Booking link not found' });
     
   } catch (error) {
