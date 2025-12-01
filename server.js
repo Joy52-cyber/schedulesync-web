@@ -868,27 +868,27 @@ app.post('/api/bookings', async (req, res) => {
         [token]
       );
     } else {
-      console.log('?? Looking up regular token...');
-      memberResult = await pool.query(
-        `SELECT tm.*, 
-                t.name as team_name, 
-                t.booking_mode, 
-                t.owner_id,
-                t.id as team_id,
-                u.google_access_token, 
-                u.google_refresh_token,
-                u.microsoft_access_token,
-                u.microsoft_refresh_token,
-                u.provider,
-                u.email as member_email, 
-                u.name as member_name
-         FROM team_members tm 
-         JOIN teams t ON tm.team_id = t.id 
-         LEFT JOIN users u ON tm.user_id = u.id 
-         WHERE tm.booking_token = $1`,
-        [token]
-      );
-    }
+  console.log('🔍 Looking up regular token...');
+  memberResult = await pool.query(
+    `SELECT tm.*, 
+            t.name as team_name, 
+            t.booking_mode, 
+            t.owner_id,
+            t.id as team_id,
+            u.google_access_token, 
+            u.google_refresh_token,
+            u.microsoft_access_token,
+            u.microsoft_refresh_token,
+            u.provider,
+            u.email as member_email, 
+            u.name as member_name
+     FROM team_members tm 
+     JOIN teams t ON tm.team_id = t.id 
+     LEFT JOIN users u ON tm.user_id = u.id 
+     WHERE tm.booking_token = $1`,
+    [token]
+  );
+}
 
     if (memberResult.rows.length === 0) {
       console.log('? Invalid or expired booking token');
