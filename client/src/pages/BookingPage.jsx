@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import {
-  Calendar, User, Clock, MapPin,
+  Calendar, User, Clock, MapPin, Users,
   Sparkles, ArrowRight, ExternalLink, Loader2,
   Ban, ChevronRight, RefreshCw, CheckCircle,
   AlertTriangle, Plus, X
@@ -28,6 +28,7 @@ export default function BookingPage() {
   const [isDirectMemberLink, setIsDirectMemberLink] = useState(false);
   const [isReschedule, setIsReschedule] = useState(false);
   const [rescheduleToken, setRescheduleToken] = useState(null);
+  const [isTeamBooking, setIsTeamBooking] = useState(false);
 
   const [teamInfo, setTeamInfo] = useState(null);
   const [memberInfo, setMemberInfo] = useState(null);
@@ -126,26 +127,95 @@ export default function BookingPage() {
     })();
   }, [searchParams, token, navigate, hasProcessedOAuth]);
 
- const loadBookingInfo = async () => {
-  try {
-    setLoading(true);
-    const response = await bookings.getByToken(token);
-    const payload = response.data?.data || response.data || {};
+  const loadBookingInfo = async () => {
+    try {
+      setLoading(true);
+      const response = await bookings.getByToken(token);
+      const payload = response.data?.data || response.data || {};
 
-    console.log('📦 Booking payload:', payload);
+      console.log('📦 Booking payload:', payload);
 
-    // Handle TEAM bookings (multiple members)
-    if (payload.type === 'team') {
-      console.log('👥 Team booking detected');
+      // Handle TEAM bookings (multiple members)
+      if (payload.type === 'team') {
+        console.log('👥 Team booking detected');
+        setIsTeamBooking(true);
+        setTeamInfo(payload.team);
+        
+        // For team bookings, pick the first active member or let user choose
+        const activeMembers = (payload.members || []).filter(m => m.is_active !== false);
+        if (activeMembers.length > 0) {
+          setMemberInfo(activeMembers[0]); // Use first member for now
+        }
+        
+        const allEventTypes = payload.eventTypes || [];
+        const activeEventTypes = allEventTypes.filter(et => et.is_active !== false);
+        setEventTypes(activeEventTypes);
+        
+        const eventTypeSlug = searchParams.get('type');
+        if (eventTypeSlug) {
+          const selectedEvent = activeEventTypes.find(e => e.slug === eventTypeSlug);
+          if (selectedEvent) {
+            setSelectedEventType(selectedEvent);
+            setStep('calendar-choice');
+          } else {
+            setStep(activeEventTypes.length > 0 ? 'event-select' : 'calendar-choice');
+          }
+        } else {
+          if (activeEventTypes.length === 1) {
+            setSelectedEventType(activeEventTypes[0]);
+            setStep('calendar-choice');
+          } else if (activeEventTypes.length > 1) {
+            setStep('event-select');
+          } else {
+            setStep('calendar-choice');
+          }
+        }
+        
+        setLoading(false);
+        return;
+      }
+
+      // Handle MEMBER bookings (single member) or SINGLE-USE
+      if (!payload.team || !payload.member) {
+        throw new Error('Missing booking information');
+      }
+
+      setIsTeamBooking(false);
+
+      // Check for external booking redirect
+      if (payload.member.external_booking_link && !isReschedule) {
+        setRedirecting(true);
+        setMemberInfo(payload.member);
+        setTimeout(() => { 
+          window.location.href = payload.member.external_booking_link; 
+        }, 1500);
+        return;
+      }
+
       setTeamInfo(payload.team);
+      setMemberInfo(payload.member);
       
-      // For team bookings, pick the first active member or let user choose
-      const activeMembers = (payload.members || []).filter(m => m.is_active !== false);
-      if (activeMembers.length > 0) {
-        setMemberInfo(activeMembers[0]); // Use first member for now
+      const directMemberLink = payload.isDirectLink === true || 
+                               payload.skipEventTypes === true ||
+                               payload.linkType === 'member' ||
+                               payload.type === 'member' ||
+                               isReschedule;
+      
+      setIsDirectMemberLink(directMemberLink);
+      
+      if (directMemberLink) {
+        setEventTypes([]);
+        setSelectedEventType(null);
+        setStep('calendar-choice');
+        return;
       }
       
-      const allEventTypes = payload.eventTypes || [];
+      let allEventTypes = payload.eventTypes || [];
+      if (allEventTypes.length === 0 && !directMemberLink) {
+        const eventTypesRes = await eventTypesAPI.getAll();
+        allEventTypes = eventTypesRes.data.eventTypes || [];
+      }
+      
       const activeEventTypes = allEventTypes.filter(et => et.is_active !== false);
       setEventTypes(activeEventTypes);
       
@@ -168,85 +238,19 @@ export default function BookingPage() {
           setStep('calendar-choice');
         }
       }
-      
-      setLoading(false);
-      return;
-    }
 
-    // Handle MEMBER bookings (single member) or SINGLE-USE
-    if (!payload.team || !payload.member) {
-      throw new Error('Missing booking information');
-    }
-
-    // Check for external booking redirect
-    if (payload.member.external_booking_link && !isReschedule) {
-      setRedirecting(true);
-      setMemberInfo(payload.member);
-      setTimeout(() => { 
-        window.location.href = payload.member.external_booking_link; 
-      }, 1500);
-      return;
-    }
-
-    setTeamInfo(payload.team);
-    setMemberInfo(payload.member);
-    
-    const directMemberLink = payload.isDirectLink === true || 
-                             payload.skipEventTypes === true ||
-                             payload.linkType === 'member' ||
-                             payload.type === 'member' ||
-                             isReschedule;
-    
-    setIsDirectMemberLink(directMemberLink);
-    
-    if (directMemberLink) {
-      setEventTypes([]);
-      setSelectedEventType(null);
-      setStep('calendar-choice');
-      return;
-    }
-    
-    let allEventTypes = payload.eventTypes || [];
-    if (allEventTypes.length === 0 && !directMemberLink) {
-      const eventTypesRes = await eventTypesAPI.getAll();
-      allEventTypes = eventTypesRes.data.eventTypes || [];
-    }
-    
-    const activeEventTypes = allEventTypes.filter(et => et.is_active !== false);
-    setEventTypes(activeEventTypes);
-    
-    const eventTypeSlug = searchParams.get('type');
-    if (eventTypeSlug) {
-      const selectedEvent = activeEventTypes.find(e => e.slug === eventTypeSlug);
-      if (selectedEvent) {
-        setSelectedEventType(selectedEvent);
-        setStep('calendar-choice');
-      } else {
-        setStep(activeEventTypes.length > 0 ? 'event-select' : 'calendar-choice');
+    } catch (err) {
+      console.error('❌ Load booking error:', err);
+      if (err.response?.status === 410 || err.response?.data?.code === 'LINK_USED') {
+        setIsLinkUsed(true);
+        setLoading(false);
+        return;
       }
-    } else {
-      if (activeEventTypes.length === 1) {
-        setSelectedEventType(activeEventTypes[0]);
-        setStep('calendar-choice');
-      } else if (activeEventTypes.length > 1) {
-        setStep('event-select');
-      } else {
-        setStep('calendar-choice');
-      }
-    }
-
-  } catch (err) {
-    console.error('❌ Load booking error:', err);
-    if (err.response?.status === 410 || err.response?.data?.code === 'LINK_USED') {
-      setIsLinkUsed(true);
+      setError(err.response?.data?.error || 'Invalid booking link');
+    } finally {
       setLoading(false);
-      return;
     }
-    setError(err.response?.data?.error || 'Invalid booking link');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const handleSelectEventType = (eventType) => {
     setSelectedEventType(eventType);
@@ -289,8 +293,6 @@ export default function BookingPage() {
     }
   };
 
-
-
   const handleAddAttendee = () => {
     if (!newAttendeeEmail.trim()) return;
     
@@ -318,12 +320,11 @@ export default function BookingPage() {
     if (!selectedSlot) return;
     
     console.log('📤 Submitting booking with data:', {
-    attendee_name: formData.attendee_name,
-    attendee_email: formData.attendee_email,
-    additional_attendees: additionalAttendees,
-    additional_attendees_length: additionalAttendees.length
-  });
-  
+      attendee_name: formData.attendee_name,
+      attendee_email: formData.attendee_email,
+      additional_attendees: additionalAttendees,
+      additional_attendees_length: additionalAttendees.length
+    });
 
     try {
       setSubmitting(true);
@@ -377,6 +378,7 @@ export default function BookingPage() {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 md:p-6 font-sans">
       <div className="bg-white w-full max-w-6xl rounded-[2rem] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] border border-slate-100">
         
+        {/* LEFT SIDEBAR */}
         <div className="md:w-1/3 bg-slate-50 border-r border-slate-200 p-8 flex flex-col relative">
 
           {isReschedule && (
@@ -391,12 +393,33 @@ export default function BookingPage() {
 
           <div className="flex-1 mt-8">
             <div className="mb-6">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-blue-200 mb-4">
-                {avatarLetter}
-              </div>
-              <p className="text-slate-500 font-medium text-sm">Book a meeting with</p>
-              <h2 className="text-2xl font-bold text-slate-900">{memberInfo?.name || memberInfo?.user_name}</h2>
-              <p className="text-slate-400 text-sm mt-1">{teamInfo?.name}</p>
+              {isTeamBooking ? (
+                // TEAM BOOKING UI
+                <>
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-white shadow-lg shadow-purple-200 mb-4">
+                    <Users className="h-8 w-8" />
+                  </div>
+                  <p className="text-slate-500 font-medium text-sm">Book with our team</p>
+                  <h2 className="text-2xl font-bold text-slate-900">{teamInfo?.name}</h2>
+                  <p className="text-slate-400 text-sm mt-1">Team booking</p>
+                  
+                  {/* Team member badge */}
+                  <div className="mt-3 inline-flex items-center gap-2 bg-purple-50 text-purple-700 px-3 py-1.5 rounded-full text-xs font-medium">
+                    <Users className="h-3.5 w-3.5" />
+                    <span>Available team members will be assigned</span>
+                  </div>
+                </>
+              ) : (
+                // INDIVIDUAL BOOKING UI
+                <>
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-blue-200 mb-4">
+                    {avatarLetter}
+                  </div>
+                  <p className="text-slate-500 font-medium text-sm">Book a meeting with</p>
+                  <h2 className="text-2xl font-bold text-slate-900">{memberInfo?.name || memberInfo?.user_name}</h2>
+                  <p className="text-slate-400 text-sm mt-1">{teamInfo?.name}</p>
+                </>
+              )}
             </div>
 
             {selectedEventType ? (
@@ -423,7 +446,13 @@ export default function BookingPage() {
               </div>
             ) : (
               <div className="mt-8 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-                <p className="text-sm text-blue-700">Please select a meeting type from the list to continue.</p>
+                {isTeamBooking ? (
+                  <p className="text-sm text-blue-700">
+                    ✨ <strong>Team Booking:</strong> Select a meeting type to see available times across all team members.
+                  </p>
+                ) : (
+                  <p className="text-sm text-blue-700">Please select a meeting type from the list to continue.</p>
+                )}
               </div>
             )}
           </div>
@@ -433,6 +462,7 @@ export default function BookingPage() {
           </div>
         </div>
 
+        {/* RIGHT CONTENT AREA */}
         <div className="md:w-2/3 bg-white p-6 md:p-10 overflow-y-auto relative">
           
           {step === 'event-select' && (
@@ -468,7 +498,12 @@ export default function BookingPage() {
                   <Sparkles className="h-8 w-8 text-indigo-600" />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900">Check for conflicts?</h2>
-                <p className="text-slate-500 mt-2">Sign in to overlay your calendar availability on top of {memberInfo?.name?.split(' ')[0]}'s schedule.</p>
+                <p className="text-slate-500 mt-2">
+                  {isTeamBooking 
+                    ? `Sign in to overlay your calendar availability on top of the team's schedule.`
+                    : `Sign in to overlay your calendar availability on top of ${memberInfo?.name?.split(' ')[0]}'s schedule.`
+                  }
+                </p>
               </div>
 
               <div className="space-y-4">
