@@ -1,4 +1,4 @@
-﻿// client/src/pages/OAuthCallback.jsx
+// client/src/pages/OAuthCallback.jsx
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
@@ -27,7 +27,7 @@ export default function OAuthCallback({ onLogin }) {
       provider = 'calendly';
     }
 
-    console.log('🔵 OAuthCallback mounted:', {
+    console.log('?? OAuthCallback mounted:', {
       hasCode: !!code,
       state,
       error,
@@ -37,27 +37,27 @@ export default function OAuthCallback({ onLogin }) {
 
     // Handle OAuth error sent back from provider
     if (error) {
-      console.error('❌ OAuth error from provider:', error);
+      console.error('? OAuth error from provider:', error);
       navigate('/login?error=oauth_failed', { replace: true });
       return;
     }
 
     // No code = something went wrong
     if (!code) {
-      console.error('❌ No OAuth code in URL');
+      console.error('? No OAuth code in URL');
       navigate('/login', { replace: true });
       return;
     }
 
     // Already processing any code
     if (isProcessing) {
-      console.log('⚠️ Already processing a request, ignoring duplicate');
+      console.log('?? Already processing a request, ignoring duplicate');
       return;
     }
 
     // This code already processed
     if (processedCodes.has(code)) {
-      console.log('⚠️ This code already processed, redirecting to dashboard');
+      console.log('?? This code already processed, redirecting to dashboard');
       navigate('/dashboard', { replace: true });
       return;
     }
@@ -65,16 +65,18 @@ export default function OAuthCallback({ onLogin }) {
     // Mark as processing IMMEDIATELY
     isProcessing = true;
     processedCodes.add(code);
-    console.log('🔒 Code marked as processing for provider:', provider);
+    console.log('?? Code marked as processing for provider:', provider);
 
     // Clear query string but keep the provider-specific path
     window.history.replaceState({}, '', location.pathname);
 
-    // 1️⃣ Booking flow (guest OAuth for booking pages)
-    if (state?.startsWith('booking:')) {
-      console.log('📋 Booking OAuth flow');
+    // 1?? Booking flow (guest OAuth for booking pages)
+    if (state?.startsWith('guest-booking:')) {
+      console.log('?? Booking OAuth flow');
 
-      const bookingToken = state.split(':')[1];
+      const parts = state.split(':');
+      const bookingToken = parts[1];
+      const provider = parts[2];
 
       // For now we keep the existing behavior:
       // let the booking page decide what to do with provider/code/state.
@@ -85,28 +87,28 @@ export default function OAuthCallback({ onLogin }) {
       return;
     }
 
-    // 2️⃣ Dashboard login / account connect flow
-    console.log('🏠 Dashboard OAuth flow - processing login for:', provider);
+    // 2?? Dashboard login / account connect flow
+    console.log('?? Dashboard OAuth flow - processing login for:', provider);
 
     (async () => {
       try {
         let res;
 
         if (provider === 'google') {
-          console.log('📡 Calling backend /auth/google/callback ...');
+          console.log('?? Calling backend /auth/google/callback ...');
           res = await oauth.handleGoogleCallback(code);
         } else if (provider === 'microsoft') {
-          console.log('📡 Calling backend /auth/microsoft/callback ...');
+          console.log('?? Calling backend /auth/microsoft/callback ...');
           res = await oauth.handleMicrosoftCallback(code);
         } else if (provider === 'calendly') {
-          console.log('📡 Calling backend /auth/calendly/callback ...');
+          console.log('?? Calling backend /auth/calendly/callback ...');
           res = await oauth.handleCalendlyCallback(code);
         } else {
           throw new Error(`Unsupported provider: ${provider}`);
         }
 
         const response = res.data;
-        console.log('✅ Raw OAuth backend response:', response);
+        console.log('? Raw OAuth backend response:', response);
 
         // Normalize token & user shapes from different backends
         let token =
@@ -125,7 +127,7 @@ export default function OAuthCallback({ onLogin }) {
         // Some providers (e.g., Calendly connect) might not return a "user" for app login
         if (!user) {
           console.warn(
-            `⚠️ No user object returned for provider ${provider}. Response:`,
+            `?? No user object returned for provider ${provider}. Response:`,
             response
           );
 
@@ -146,21 +148,21 @@ export default function OAuthCallback({ onLogin }) {
         // we can still proceed; /auth/me should work later.
         if (!token) {
           console.warn(
-            `⚠️ No token in OAuth response for ${provider}, proceeding with user only`
+            `?? No token in OAuth response for ${provider}, proceeding with user only`
           );
         }
 
-        console.log('🔐 Updating app state via onLogin...');
+        console.log('?? Updating app state via onLogin...');
         if (typeof onLogin === 'function') {
           onLogin(token || '', user);
         } else {
-          console.warn('⚠️ onLogin prop is not a function');
+          console.warn('?? onLogin prop is not a function');
         }
 
         // Release lock; navigation is likely handled upstream
         isProcessing = false;
       } catch (err) {
-        console.error('❌ OAuth failed:', {
+        console.error('? OAuth failed:', {
           message: err.message,
           response: err.response?.data,
         });
@@ -179,7 +181,7 @@ export default function OAuthCallback({ onLogin }) {
     })();
 
     return () => {
-      console.log('🧹 OAuthCallback unmounting');
+      console.log('?? OAuthCallback unmounting');
     };
   }, [navigate, searchParams, location, onLogin]);
 
@@ -195,3 +197,5 @@ export default function OAuthCallback({ onLogin }) {
     </div>
   );
 }
+
+

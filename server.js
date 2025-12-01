@@ -1,8 +1,8 @@
-﻿
+
 
 // ============ STARTUP DEBUGGING ============
 console.log('========================================');
-console.log('🚀 SERVER STARTUP INITIATED');
+console.log('?? SERVER STARTUP INITIATED');
 console.log('Time:', new Date().toISOString());
 console.log('Node Version:', process.version);
 console.log('========================================');
@@ -12,11 +12,11 @@ console.log('Loading dotenv...');
 require('dotenv').config();
 
 console.log('Environment Variables Check:');
-console.log('- DATABASE_URL:', process.env.DATABASE_URL ? '✅ Set' : '❌ Missing');
-console.log('- JWT_SECRET:', process.env.JWT_SECRET ? '✅ Set' : '❌ Missing');
-console.log('- GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? '✅ Set' : '❌ Missing');
-console.log('- GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? '✅ Set' : '❌ Missing');
-console.log('- FRONTEND_URL:', process.env.FRONTEND_URL || '❌ Missing');
+console.log('- DATABASE_URL:', process.env.DATABASE_URL ? '? Set' : '? Missing');
+console.log('- JWT_SECRET:', process.env.JWT_SECRET ? '? Set' : '? Missing');
+console.log('- GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? '? Set' : '? Missing');
+console.log('- GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? '? Set' : '? Missing');
+console.log('- FRONTEND_URL:', process.env.FRONTEND_URL || '? Missing');
 console.log('- PORT:', process.env.PORT || '3000');
 console.log('========================================');
 
@@ -26,28 +26,28 @@ console.log('========================================');
 try {
   console.log('Loading express...');
   const express = require('express');
-  console.log('✅ Express loaded');
+  console.log('? Express loaded');
 } catch (e) {
-  console.error('❌ Failed to load express:', e.message);
+  console.error('? Failed to load express:', e.message);
   process.exit(1);
 }
 
 try {
   console.log('Loading other dependencies...');
   const { Resend } = require('resend');
-  console.log('✅ Resend loaded');
+  console.log('? Resend loaded');
   const cors = require('cors');
-  console.log('✅ CORS loaded');
+  console.log('? CORS loaded');
   const { Pool } = require('pg');
-  console.log('✅ PostgreSQL loaded');
+  console.log('? PostgreSQL loaded');
   const jwt = require('jsonwebtoken');
-  console.log('✅ JWT loaded');
+  console.log('? JWT loaded');
   const { google } = require('googleapis');
-  console.log('✅ Google APIs loaded');
+  console.log('? Google APIs loaded');
   const crypto = require('crypto');
-  console.log('✅ Crypto loaded');
+  console.log('? Crypto loaded');
 } catch (e) {
-  console.error('❌ Failed to load dependency:', e.message);
+  console.error('? Failed to load dependency:', e.message);
   process.exit(1);
 }
 
@@ -71,15 +71,15 @@ const { google } = require('googleapis');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
-console.log('✅ AXIOS LOADED:', !!axios, 'Version:', axios.VERSION); // ADD THIS
+console.log('? AXIOS LOADED:', !!axios, 'Version:', axios.VERSION); // ADD THIS
 
 const app = express();
 
 const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
   try {
-    console.log('📤 Attempting to send email to:', to);
-    console.log('🔑 Resend API key exists?', !!process.env.RESEND_API_KEY);
-    console.log('🔑 Resend API key starts with:', process.env.RESEND_API_KEY?.substring(0, 10));
+    console.log('?? Attempting to send email to:', to);
+    console.log('?? Resend API key exists?', !!process.env.RESEND_API_KEY);
+    console.log('?? Resend API key starts with:', process.env.RESEND_API_KEY?.substring(0, 10));
     
     const emailOptions = {
       from: 'ScheduleSync <hello@trucal.xyz>',
@@ -97,14 +97,14 @@ const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
       ];
     }
 
-    console.log('📨 Calling resend.emails.send...');
+    console.log('?? Calling resend.emails.send...');
     const result = await resend.emails.send(emailOptions);
-    console.log('✅ Email sent - FULL RESULT:', JSON.stringify(result, null, 2));
+    console.log('? Email sent - FULL RESULT:', JSON.stringify(result, null, 2));
     return result;
   } catch (error) {
-    console.error('❌ Email error - FULL ERROR:', error);
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error stack:', error.stack);
+    console.error('? Email error - FULL ERROR:', error);
+    console.error('? Error message:', error.message);
+    console.error('? Error stack:', error.stack);
     throw error;
   }
 };
@@ -121,12 +121,12 @@ try {
   isEmailAvailable = emailUtils.isEmailAvailable;
   
   if (isEmailAvailable()) {
-    console.log('✅ Email utilities loaded successfully');
+    console.log('? Email utilities loaded successfully');
   } else {
-    console.log('⚠️ Email utilities available but RESEND_API_KEY not configured');
+    console.log('?? Email utilities available but RESEND_API_KEY not configured');
   }
 } catch (error) {
-  console.log('⚠️ Email utilities not available - emails will not be sent');
+  console.log('?? Email utilities not available - emails will not be sent');
 }
 
 let getAvailableSlots, createCalendarEvent;
@@ -134,9 +134,9 @@ try {
   const calendarUtils = require('./utils/calendar');
   getAvailableSlots = calendarUtils.getAvailableSlots;
   createCalendarEvent = calendarUtils.createCalendarEvent;
-  console.log('✅ Calendar utilities loaded successfully');
+  console.log('? Calendar utilities loaded successfully');
 } catch (error) {
-  console.log('⚠️ Calendar utilities not available - calendar sync disabled');
+  console.log('?? Calendar utilities not available - calendar sync disabled');
 }
 
 // Add this helper function at the top of server.js (after imports)
@@ -221,7 +221,7 @@ async function refreshMicrosoftToken(refreshToken) {
     if (!response.ok) throw new Error('Token refresh failed');
     return await response.json();
   } catch (error) {
-    console.error('❌ Microsoft token refresh error:', error);
+    console.error('? Microsoft token refresh error:', error);
     throw error;
   }
 }
@@ -236,7 +236,7 @@ async function getMicrosoftCalendarEvents(accessToken, refreshToken, startTime, 
     );
 
     if (response.status === 401) {
-      console.log('🔄 Refreshing Microsoft token...');
+      console.log('?? Refreshing Microsoft token...');
       const newTokens = await refreshMicrosoftToken(refreshToken);
       token = newTokens.access_token;
       
@@ -249,7 +249,7 @@ async function getMicrosoftCalendarEvents(accessToken, refreshToken, startTime, 
     const data = await response.json();
     return data.value || [];
   } catch (error) {
-    console.error('❌ Microsoft calendar fetch error:', error);
+    console.error('? Microsoft calendar fetch error:', error);
     return [];
   }
 }
@@ -290,7 +290,7 @@ async function createMicrosoftCalendarEvent(accessToken, refreshToken, eventData
     });
 
     if (response.status === 401) {
-      console.log('🔄 Refreshing Microsoft token...');
+      console.log('?? Refreshing Microsoft token...');
       const newTokens = await refreshMicrosoftToken(refreshToken);
       token = newTokens.access_token;
       
@@ -310,7 +310,7 @@ async function createMicrosoftCalendarEvent(accessToken, refreshToken, eventData
       meetingUrl: createdEvent.onlineMeeting?.joinUrl || null
     };
   } catch (error) {
-    console.error('❌ Microsoft event creation error:', error);
+    console.error('? Microsoft event creation error:', error);
     throw error;
   }
 }
@@ -329,9 +329,9 @@ const pool = new Pool({
 
 pool.connect((err, client, release) => {
   if (err) {
-    console.error('❌ Error connecting to database:', err.stack);
+    console.error('? Error connecting to database:', err.stack);
   } else {
-    console.log('✅ Database connected successfully');
+    console.log('? Database connected successfully');
     release();
   }
 });
@@ -417,7 +417,7 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
-    // ✅ NEW: Event Types Table
+    // ? NEW: Event Types Table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS event_types (
         id SERIAL PRIMARY KEY,
@@ -433,7 +433,7 @@ async function initDB() {
       )
     `);
 
-    // ✅ Blocked Times Table
+    // ? Blocked Times Table
 await pool.query(`
   CREATE TABLE IF NOT EXISTS blocked_times (
     id SERIAL PRIMARY KEY,
@@ -445,7 +445,7 @@ await pool.query(`
   )
 `);
 
-// ✅ Single-Use Links Table
+// ? Single-Use Links Table
 await pool.query(`
   CREATE TABLE IF NOT EXISTS single_use_links (
     id SERIAL PRIMARY KEY,
@@ -457,7 +457,7 @@ await pool.query(`
   )
 `);
 
-// ✅ Team Reminder Settings Table
+// ? Team Reminder Settings Table
 await pool.query(`
   CREATE TABLE IF NOT EXISTS team_reminder_settings (
     id SERIAL PRIMARY KEY,
@@ -471,7 +471,7 @@ await pool.query(`
   )
 `);
 
-// ✅ Booking Reminders Tracking Table
+// ? Booking Reminders Tracking Table
 await pool.query(`
   CREATE TABLE IF NOT EXISTS booking_reminders (
     id SERIAL PRIMARY KEY,
@@ -485,7 +485,7 @@ await pool.query(`
   )
 `);
 
-// ✅ Payments Table
+// ? Payments Table
 await pool.query(`
   CREATE TABLE IF NOT EXISTS payments (
     id SERIAL PRIMARY KEY,
@@ -501,7 +501,7 @@ await pool.query(`
   )
 `);
 
-// ✅ Refunds Table
+// ? Refunds Table
 await pool.query(`
   CREATE TABLE IF NOT EXISTS refunds (
     id SERIAL PRIMARY KEY,
@@ -515,7 +515,7 @@ await pool.query(`
   )
 `);
 
-// ✅ ADD THIS
+// ? ADD THIS
     await pool.query(`
       CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,
@@ -547,16 +547,16 @@ await pool.query(`
   ADD COLUMN IF NOT EXISTS manage_token VARCHAR(255) UNIQUE
 `);
 
-    console.log('✅ Database initialized successfully');
+    console.log('? Database initialized successfully');
   } catch (error) {
-    console.error('❌ Error initializing database:', error);
+    console.error('? Error initializing database:', error);
   }
 }
 
 // Add this right after initDB() function
 async function migrateDatabase() {
   try {
-    console.log('🔄 Running database migrations...');
+    console.log('?? Running database migrations...');
     
     // Add Microsoft columns
     await pool.query(`
@@ -574,7 +574,7 @@ await pool.query(`
     id SERIAL PRIMARY KEY,
     token VARCHAR(255) UNIQUE NOT NULL,
     member_id INTEGER REFERENCES team_members(id) ON DELETE CASCADE,
-    name VARCHAR(100),  -- ← ADD THIS LINE
+    name VARCHAR(100),  -- ? ADD THIS LINE
     used BOOLEAN DEFAULT false,
     created_at TIMESTAMP DEFAULT NOW(),
     expires_at TIMESTAMP DEFAULT NOW() + INTERVAL '24 hours'
@@ -594,9 +594,9 @@ await pool.query(`
   }'::jsonb
 `);
     
-    console.log('✅ Database migrations completed');
+    console.log('? Database migrations completed');
   } catch (error) {
-    console.error('❌ Migration error:', error);
+    console.error('? Migration error:', error);
   }
 }
 
@@ -616,10 +616,10 @@ async function createNotification({ userId, type, title, message, link, bookingI
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [userId, type, title, message, link || null, bookingId || null, metadata ? JSON.stringify(metadata) : null]
     );
- console.log(`✅ Notification: ${title}`);  // ✅ CORRECT - parenthesis before backtick
+ console.log(`? Notification: ${title}`);  // ? CORRECT - parenthesis before backtick
     return result.rows[0];
   } catch (error) {
-    console.error('❌ Notification error:', error);
+    console.error('? Notification error:', error);
     return null;
   }
 }
@@ -628,7 +628,7 @@ async function notifyBookingCreated(booking, organizerId) {
   return createNotification({
     userId: organizerId,
     type: 'booking_created',
-    title: '📅 New Booking Received',
+    title: '?? New Booking Received',
     message: `${booking.attendee_name} scheduled a meeting for ${new Date(booking.start_time).toLocaleDateString()}`,
     link: `/bookings/${booking.id}`,
     bookingId: booking.id,
@@ -639,7 +639,7 @@ async function notifyBookingCancelled(booking, userId) {
   return createNotification({
     userId: userId,
     type: 'booking_cancelled',
-    title: '❌ Booking Cancelled',
+    title: '? Booking Cancelled',
     message: `Meeting with ${booking.attendee_name} has been cancelled`,
     link: `/bookings`,
     bookingId: booking.id,
@@ -651,7 +651,7 @@ async function notifyBookingRescheduled(booking, userId, oldStartTime) {
   return createNotification({
     userId: userId,
     type: 'booking_rescheduled',
-    title: '🔄 Booking Rescheduled',
+    title: '?? Booking Rescheduled',
     message: `Meeting rescheduled to ${newTime.toLocaleDateString()}`,
     link: `/bookings/${booking.id}`,
     bookingId: booking.id,
@@ -662,7 +662,7 @@ async function notifyPaymentReceived(booking, userId, amount, currency) {
   return createNotification({
     userId: userId,
     type: 'payment_received',
-    title: '💰 Payment Received',
+    title: '?? Payment Received',
     message: `${currency.toUpperCase()} ${amount} from ${booking.attendee_name}`,
     link: `/bookings/${booking.id}`,
     bookingId: booking.id,
@@ -690,7 +690,7 @@ setInterval(() => {
 app.get('/api/public/booking/:username/:eventSlug', async (req, res) => {
   try {
     const { username, eventSlug } = req.params;
-    console.log(`📅 Public Event Type request: ${username}/${eventSlug}`);
+    console.log(`?? Public Event Type request: ${username}/${eventSlug}`);
 
     // Find user by username or email prefix
     const userResult = await pool.query(
@@ -703,7 +703,7 @@ app.get('/api/public/booking/:username/:eventSlug', async (req, res) => {
     );
 
     if (userResult.rows.length === 0) {
-      console.log(`❌ User not found: ${username}`);
+      console.log(`? User not found: ${username}`);
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -720,13 +720,13 @@ app.get('/api/public/booking/:username/:eventSlug', async (req, res) => {
     );
 
     if (eventResult.rows.length === 0) {
-      console.log(`❌ Event type not found or inactive: ${eventSlug}`);
+      console.log(`? Event type not found or inactive: ${eventSlug}`);
       return res.status(404).json({ error: 'Event type not found or inactive' });
     }
 
     const eventType = eventResult.rows[0];
 
-    console.log(`✅ Event Type found: ${eventType.title} (${eventType.duration}min)`);
+    console.log(`? Event Type found: ${eventType.title} (${eventType.duration}min)`);
 
     res.json({
       success: true,
@@ -745,7 +745,7 @@ app.get('/api/public/booking/:username/:eventSlug', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('❌ Error fetching Event Type booking info:', error);
+    console.error('? Error fetching Event Type booking info:', error);
     res.status(500).json({ error: 'Failed to load event information' });
   }
 });
@@ -766,7 +766,7 @@ app.post('/api/bookings', async (req, res) => {
       reschedule_token
     } = req.body;
 
-     console.log('🔍 REQUEST BODY DEBUG:', {
+     console.log('?? REQUEST BODY DEBUG:', {
       attendee_name,
       attendee_email,
       additional_attendees,
@@ -775,7 +775,7 @@ app.post('/api/bookings', async (req, res) => {
       additional_attendees_isArray: Array.isArray(additional_attendees)
     });
 
-    console.log('📝 Creating booking:', { 
+    console.log('?? Creating booking:', { 
       token: token?.substring(0, 10) + '...', 
       attendee_name, 
       attendee_email,
@@ -783,9 +783,9 @@ app.post('/api/bookings', async (req, res) => {
       slotData: slot 
     });
 
-    // ✅ STEP 1: VALIDATION
+    // ? STEP 1: VALIDATION
     if (!token || !slot || !attendee_name || !attendee_email) {
-      console.error('❌ Missing required fields:', {
+      console.error('? Missing required fields:', {
         hasToken: !!token,
         hasSlot: !!slot,
         hasName: !!attendee_name,
@@ -795,7 +795,7 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     if (!slot.start || !slot.end) {
-      console.error('❌ Invalid slot data:', slot);
+      console.error('? Invalid slot data:', slot);
       return res.status(400).json({ 
         error: 'Invalid booking slot data',
         debug: { slot }
@@ -811,23 +811,23 @@ app.post('/api/bookings', async (req, res) => {
         throw new Error('Invalid date format');
       }
       
-      console.log('✅ Slot validation passed:', {
+      console.log('? Slot validation passed:', {
         start: startDate.toISOString(),
         end: endDate.toISOString()
       });
     } catch (dateError) {
-      console.error('❌ Invalid slot dates:', dateError.message);
+      console.error('? Invalid slot dates:', dateError.message);
       return res.status(400).json({ 
         error: 'Invalid booking time format',
         details: dateError.message
       });
     }
 
-    // ✅ STEP 2: Look up token (check single-use vs regular)
+    // ? STEP 2: Look up token (check single-use vs regular)
     let memberResult;
     
     if (token.length === 64) {
-      console.log('🔑 Looking up single-use link...');
+      console.log('?? Looking up single-use link...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 t.name as team_name, 
@@ -851,7 +851,7 @@ app.post('/api/bookings', async (req, res) => {
         [token]
       );
     } else {
-      console.log('🔑 Looking up regular token...');
+      console.log('?? Looking up regular token...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 t.name as team_name, 
@@ -874,20 +874,20 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     if (memberResult.rows.length === 0) {
-      console.log('❌ Invalid or expired booking token');
+      console.log('? Invalid or expired booking token');
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
     const member = memberResult.rows[0];
     const bookingMode = member.booking_mode || 'individual';
 
-    console.log('✅ Token found:', {
+    console.log('? Token found:', {
       memberName: member.name || member.member_name,
       teamName: member.team_name,
       mode: bookingMode
     });
 
-    // ✅ STEP 3: Determine assigned members based on booking mode
+    // ? STEP 3: Determine assigned members based on booking mode
     let assignedMembers = [];
 
     switch (bookingMode) {
@@ -897,7 +897,7 @@ app.post('/api/bookings', async (req, res) => {
           name: member.name || member.member_name, 
           user_id: member.user_id 
         }];
-        console.log('👤 Individual mode: Assigning to', assignedMembers[0].name);
+        console.log('?? Individual mode: Assigning to', assignedMembers[0].name);
         break;
 
       case 'round_robin':
@@ -914,7 +914,7 @@ app.post('/api/bookings', async (req, res) => {
         assignedMembers = rrResult.rows.length > 0 
           ? [rrResult.rows[0]] 
           : [{ id: member.id, name: member.name || member.member_name, user_id: member.user_id }];
-        console.log('🔄 Round-robin: Assigning to', assignedMembers[0].name);
+        console.log('?? Round-robin: Assigning to', assignedMembers[0].name);
         break;
 
       case 'first_available':
@@ -939,7 +939,7 @@ app.post('/api/bookings', async (req, res) => {
         assignedMembers = faResult.rows.length > 0 
           ? [faResult.rows[0]] 
           : [{ id: member.id, name: member.name || member.member_name, user_id: member.user_id }];
-        console.log('⚡ First-available: Assigning to', assignedMembers[0].name);
+        console.log('? First-available: Assigning to', assignedMembers[0].name);
         break;
 
       case 'collective':
@@ -948,7 +948,7 @@ app.post('/api/bookings', async (req, res) => {
           [member.team_id]
         );
         assignedMembers = collectiveResult.rows;
-        console.log('👥 Collective mode: Assigning to all', assignedMembers.length, 'members');
+        console.log('?? Collective mode: Assigning to all', assignedMembers.length, 'members');
         break;
 
       default:
@@ -959,13 +959,13 @@ app.post('/api/bookings', async (req, res) => {
         }];
     }
 
-    // ✅ STEP 4: Create booking(s)
+    // ? STEP 4: Create booking(s)
     const createdBookings = [];
 
     for (const assignedMember of assignedMembers) {
       const manageToken = crypto.randomBytes(16).toString('hex');
       
-      console.log(`💾 Creating booking for member ${assignedMember.id}...`);
+      console.log(`?? Creating booking for member ${assignedMember.id}...`);
       
       const bookingResult = await pool.query(
         `INSERT INTO bookings (
@@ -994,22 +994,22 @@ app.post('/api/bookings', async (req, res) => {
       );
       
       createdBookings.push(bookingResult.rows[0]);
-      console.log(`✅ Booking created: ID ${bookingResult.rows[0].id}, manage_token: ${manageToken}`);
+      console.log(`? Booking created: ID ${bookingResult.rows[0].id}, manage_token: ${manageToken}`);
     }
 
-    // ✅ Mark single-use link as used
+    // ? Mark single-use link as used
     if (token.length === 64) {
       await pool.query('UPDATE single_use_links SET used = true WHERE token = $1', [token]);
-      console.log('✅ Single-use link marked as used');
+      console.log('? Single-use link marked as used');
     }
 
-    // ✅ Notify organizer
+    // ? Notify organizer
     if (member.user_id) {
       await notifyBookingCreated(createdBookings[0], member.user_id);
     }
 
-    // ✅ STEP 5: RESPOND IMMEDIATELY
-    console.log('📤 Sending success response');
+    // ? STEP 5: RESPOND IMMEDIATELY
+    console.log('?? Sending success response');
     res.json({ 
       success: true,
       booking: createdBookings[0],
@@ -1021,7 +1021,7 @@ app.post('/api/bookings', async (req, res) => {
         : 'Booking confirmed! Calendar invite will arrive shortly.'
     });
 
-    // ✅ STEP 6: Background processing (calendar event + emails)
+    // ? STEP 6: Background processing (calendar event + emails)
     (async () => {
       try {
         let meetLink = null;
@@ -1030,7 +1030,7 @@ app.post('/api/bookings', async (req, res) => {
         // Create calendar event with meeting link
         if (member.provider === 'google' && member.google_access_token && member.google_refresh_token) {
           try {
-            console.log('📅 Creating Google Calendar event...');
+            console.log('?? Creating Google Calendar event...');
             
             const oauth2Client = new google.auth.OAuth2(
               process.env.GOOGLE_CLIENT_ID,
@@ -1093,13 +1093,13 @@ app.post('/api/bookings', async (req, res) => {
               );
             }
 
-            console.log('✅ Google Calendar event created:', meetLink);
+            console.log('? Google Calendar event created:', meetLink);
           } catch (calendarError) {
-            console.error('⚠️ Calendar creation failed:', calendarError.message);
+            console.error('?? Calendar creation failed:', calendarError.message);
           }
         } else if (member.provider === 'microsoft' && member.microsoft_access_token && member.microsoft_refresh_token) {
           try {
-            console.log('📅 Creating Microsoft Calendar event...');
+            console.log('?? Creating Microsoft Calendar event...');
 
             const eventResult = await createMicrosoftCalendarEvent(
               member.microsoft_access_token,
@@ -1126,14 +1126,14 @@ app.post('/api/bookings', async (req, res) => {
               );
             }
 
-            console.log('✅ Microsoft Calendar event created:', meetLink);
+            console.log('? Microsoft Calendar event created:', meetLink);
           } catch (calendarError) {
-            console.error('⚠️ Microsoft calendar creation failed:', calendarError.message);
+            console.error('?? Microsoft calendar creation failed:', calendarError.message);
           }
         }
         // ========== SEND CONFIRMATION EMAILS ==========
 try {
-  console.log('📧 Preparing to send emails...');
+  console.log('?? Preparing to send emails...');
   
   const manageUrl = `${process.env.FRONTEND_URL}/manage/${createdBookings[0].manage_token}`;
   const assignedMember = {
@@ -1157,7 +1157,7 @@ try {
 
   // 1. Primary attendee email
  await resend.emails.send({
-  from: 'ScheduleSync <bookings@trucal.xyz>',  // ← Change this
+  from: 'ScheduleSync <bookings@trucal.xyz>',  // ? Change this
   to: attendee_email,
     subject: `Booking Confirmed with ${assignedMember.organizer_name}`,
     html: `
@@ -1166,11 +1166,11 @@ try {
         <p>Hi ${attendee_name},</p>
         <p>Your meeting with <strong>${assignedMember.organizer_name}</strong> has been scheduled.</p>
         <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>📅 When:</strong> ${new Date(slot.start).toLocaleString()}</p>
-          <p style="margin: 5px 0;"><strong>⏰ Duration:</strong> ${duration} minutes</p>
-          ${notes ? `<p style="margin: 5px 0;"><strong>📝 Notes:</strong> ${notes}</p>` : ''}
-          ${additional_attendees?.length > 0 ? `<p style="margin: 5px 0;"><strong>👥 Others:</strong> ${additional_attendees.join(', ')}</p>` : ''}
-          ${meetLink ? `<p style="margin: 5px 0;"><strong>🔗 Meet:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ''}
+          <p style="margin: 5px 0;"><strong>?? When:</strong> ${new Date(slot.start).toLocaleString()}</p>
+          <p style="margin: 5px 0;"><strong>? Duration:</strong> ${duration} minutes</p>
+          ${notes ? `<p style="margin: 5px 0;"><strong>?? Notes:</strong> ${notes}</p>` : ''}
+          ${additional_attendees?.length > 0 ? `<p style="margin: 5px 0;"><strong>?? Others:</strong> ${additional_attendees.join(', ')}</p>` : ''}
+          ${meetLink ? `<p style="margin: 5px 0;"><strong>?? Meet:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ''}
         </div>
         <div style="margin: 30px 0;">
           <a href="${manageUrl}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Manage Booking</a>
@@ -1179,14 +1179,14 @@ try {
     `,
     attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
   });
-  console.log('✅ Email sent to primary attendee:', attendee_email);
+  console.log('? Email sent to primary attendee:', attendee_email);
 
   // 2. Additional attendees
   if (additional_attendees && Array.isArray(additional_attendees) && additional_attendees.length > 0) {
-    console.log(`📤 Sending to ${additional_attendees.length} additional attendees...`);
+    console.log(`?? Sending to ${additional_attendees.length} additional attendees...`);
     for (const email of additional_attendees) {
       await resend.emails.send({
-  from: 'ScheduleSync <bookings@trucal.xyz>',  // ← Change this
+  from: 'ScheduleSync <bookings@trucal.xyz>',  // ? Change this
   to: email,
         subject: `Meeting Invitation with ${assignedMember.organizer_name}`,
         html: `
@@ -1194,23 +1194,23 @@ try {
             <h2 style="color: #2563eb;">You're invited!</h2>
             <p><strong>${attendee_name}</strong> has invited you to a meeting with <strong>${assignedMember.organizer_name}</strong>.</p>
             <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <p style="margin: 5px 0;"><strong>📅 When:</strong> ${new Date(slot.start).toLocaleString()}</p>
-              <p style="margin: 5px 0;"><strong>⏰ Duration:</strong> ${duration} minutes</p>
-              ${notes ? `<p style="margin: 5px 0;"><strong>📝 Notes:</strong> ${notes}</p>` : ''}
-              <p style="margin: 5px 0;"><strong>👤 Invited by:</strong> ${attendee_name} (${attendee_email})</p>
-              ${meetLink ? `<p style="margin: 5px 0;"><strong>🔗 Meet:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ''}
+              <p style="margin: 5px 0;"><strong>?? When:</strong> ${new Date(slot.start).toLocaleString()}</p>
+              <p style="margin: 5px 0;"><strong>? Duration:</strong> ${duration} minutes</p>
+              ${notes ? `<p style="margin: 5px 0;"><strong>?? Notes:</strong> ${notes}</p>` : ''}
+              <p style="margin: 5px 0;"><strong>?? Invited by:</strong> ${attendee_name} (${attendee_email})</p>
+              ${meetLink ? `<p style="margin: 5px 0;"><strong>?? Meet:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ''}
             </div>
           </div>
         `,
         attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
       });
-      console.log(`✅ Email sent to: ${email}`);
+      console.log(`? Email sent to: ${email}`);
     }
   }
 
   // 3. Organizer email
   await resend.emails.send({
-  from: 'ScheduleSync <bookings@trucal.xyz>',  // ← Change this
+  from: 'ScheduleSync <bookings@trucal.xyz>',  // ? Change this
   to: assignedMember.email,
     subject: `New Booking: ${attendee_name}`,
     html: `
@@ -1219,31 +1219,31 @@ try {
         <p>Hi ${assignedMember.organizer_name},</p>
         <p>New booking from <strong>${attendee_name}</strong>.</p>
         <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>👤 Primary:</strong> ${attendee_name} (${attendee_email})</p>
-          ${additional_attendees?.length > 0 ? `<p style="margin: 5px 0;"><strong>👥 Others:</strong> ${additional_attendees.join(', ')}</p>` : ''}
-          <p style="margin: 5px 0;"><strong>📅 When:</strong> ${new Date(slot.start).toLocaleString()}</p>
-          <p style="margin: 5px 0;"><strong>⏰ Duration:</strong> ${duration} minutes</p>
-          ${notes ? `<p style="margin: 5px 0;"><strong>📝 Notes:</strong> ${notes}</p>` : ''}
-          ${meetLink ? `<p style="margin: 5px 0;"><strong>🔗 Meet:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ''}
+          <p style="margin: 5px 0;"><strong>?? Primary:</strong> ${attendee_name} (${attendee_email})</p>
+          ${additional_attendees?.length > 0 ? `<p style="margin: 5px 0;"><strong>?? Others:</strong> ${additional_attendees.join(', ')}</p>` : ''}
+          <p style="margin: 5px 0;"><strong>?? When:</strong> ${new Date(slot.start).toLocaleString()}</p>
+          <p style="margin: 5px 0;"><strong>? Duration:</strong> ${duration} minutes</p>
+          ${notes ? `<p style="margin: 5px 0;"><strong>?? Notes:</strong> ${notes}</p>` : ''}
+          ${meetLink ? `<p style="margin: 5px 0;"><strong>?? Meet:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ''}
         </div>
       </div>
     `,
     attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
   });
-  console.log('✅ Email sent to organizer:', assignedMember.email);
-  console.log('✅ All confirmation emails sent');
+  console.log('? Email sent to organizer:', assignedMember.email);
+  console.log('? All confirmation emails sent');
 
 } catch (error) {
-  console.error('❌ Email send failed:', error);
+  console.error('? Email send failed:', error);
 }
 
-      } catch (error) {  // ← ADD THIS - Background processing error
-        console.error('❌ Background processing error:', error);
+      } catch (error) {  // ? ADD THIS - Background processing error
+        console.error('? Background processing error:', error);
       }
-    })();  // ← ADD THIS - Close async IIFE
+    })();  // ? ADD THIS - Close async IIFE
 
-  } catch (error) {  // ← ADD THIS - Main endpoint error handler
-    console.error('❌ Create booking error:', error);
+  } catch (error) {  // ? ADD THIS - Main endpoint error handler
+    console.error('? Create booking error:', error);
     console.error('Stack:', error.stack);
     if (!res.headersSent) {
       res.status(500).json({ 
@@ -1252,7 +1252,7 @@ try {
       });
     }
   }
-});  // ← ADD THIS - Close /api/bookings POST endpoint
+});  // ? ADD THIS - Close /api/bookings POST endpoint
 
        
 // ============ AUTHENTICATION MIDDLEWARE ============
@@ -1297,7 +1297,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 
     res.json({ user: result.rows[0] });
   } catch (error) {
-    console.error('❌ Get Me error:', error);
+    console.error('? Get Me error:', error);
     res.status(500).json({ error: 'Failed to fetch user profile' });
   }
 });
@@ -1308,7 +1308,7 @@ app.get('/api/user/timezone', authenticateToken, async (req, res) => {
     const result = await pool.query('SELECT timezone FROM users WHERE id = $1', [req.user.id]);
     res.json({ timezone: result.rows[0]?.timezone || 'America/New_York' });
   } catch (error) {
-    console.error('❌ Get timezone error:', error);
+    console.error('? Get timezone error:', error);
     res.status(500).json({ error: 'Failed to fetch timezone' });
   }
 });
@@ -1321,7 +1321,7 @@ app.put('/api/user/timezone', authenticateToken, async (req, res) => {
     await pool.query('UPDATE team_members SET timezone = $1 WHERE user_id = $2', [timezone, req.user.id]);
     res.json({ success: true, timezone });
   } catch (error) {
-    console.error('❌ Update timezone error:', error);
+    console.error('? Update timezone error:', error);
     res.status(500).json({ error: 'Failed to update timezone' });
   }
 });
@@ -1380,11 +1380,11 @@ app.get('/api/auth/google/url', (req, res) => {
       prompt: 'select_account',
     });
 
-    console.log('🔗 Generated OAuth URL with redirect:', process.env.GOOGLE_REDIRECT_URI);
+    console.log('?? Generated OAuth URL with redirect:', process.env.GOOGLE_REDIRECT_URI);
 
     res.json({ url: authUrl });
   } catch (error) {
-    console.error('❌ Error generating OAuth URL:', error);
+    console.error('? Error generating OAuth URL:', error);
     res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
 });
@@ -1393,16 +1393,16 @@ app.post('/api/auth/google/callback', async (req, res) => {
   try {
     const { code } = req.body;
 
-    console.log('🔵 OAuth callback received');
+    console.log('?? OAuth callback received');
 
     if (!code) {
-      console.error('❌ No code provided');
+      console.error('? No code provided');
       return res.status(400).json({ error: 'Authorization code required' });
     }
 
     // CRITICAL: Check if code was already processed
     if (processedOAuthCodes.has(code)) {
-      console.log('⚠️ Code already processed, rejecting duplicate request');
+      console.log('?? Code already processed, rejecting duplicate request');
       return res.status(400).json({ 
         error: 'Code already used',
         hint: 'This authorization code has already been exchanged. Please try logging in again.'
@@ -1411,7 +1411,7 @@ app.post('/api/auth/google/callback', async (req, res) => {
 
     // Mark code as being processed IMMEDIATELY
     processedOAuthCodes.set(code, Date.now());
-    console.log('🔒 Code locked for processing');
+    console.log('?? Code locked for processing');
 
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
@@ -1419,22 +1419,22 @@ app.post('/api/auth/google/callback', async (req, res) => {
       process.env.GOOGLE_REDIRECT_URI || `${process.env.FRONTEND_URL}/oauth/callback`
     );
 
-    console.log('📡 Exchanging code for tokens...');
+    console.log('?? Exchanging code for tokens...');
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
-    console.log('✅ Tokens received');
+    console.log('? Tokens received');
 
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const { data: userInfo } = await oauth2.userinfo.get();
     
-    console.log('✅ User info retrieved:', userInfo.email);
+    console.log('? User info retrieved:', userInfo.email);
 
     let userResult = await pool.query('SELECT * FROM users WHERE email = $1', [userInfo.email]);
 
     let user;
     if (userResult.rows.length === 0) {
-      console.log('➕ Creating new user');
+      console.log('? Creating new user');
       const insertResult = await pool.query(
         `INSERT INTO users (google_id, email, name, google_access_token, google_refresh_token, calendar_sync_enabled, provider)
          VALUES ($1, $2, $3, $4, $5, true, 'google') RETURNING *`,
@@ -1442,7 +1442,7 @@ app.post('/api/auth/google/callback', async (req, res) => {
       );
       user = insertResult.rows[0];
     } else {
-      console.log('🔄 Updating existing user');
+      console.log('?? Updating existing user');
       const updateResult = await pool.query(
         `UPDATE users SET google_id = $1, name = $2, google_access_token = $3, google_refresh_token = $4, calendar_sync_enabled = true, provider = 'google'
          WHERE email = $5 RETURNING *`,
@@ -1461,7 +1461,7 @@ app.post('/api/auth/google/callback', async (req, res) => {
       { expiresIn: '30d' }
     );
 
-    console.log('✅ OAuth successful for:', user.email);
+    console.log('? OAuth successful for:', user.email);
 
     res.json({
       success: true,
@@ -1474,7 +1474,7 @@ app.post('/api/auth/google/callback', async (req, res) => {
       token: jwtToken,
     });
   } catch (error) {
-    console.error('❌ OAuth error:', error.message);
+    console.error('? OAuth error:', error.message);
     console.error('Error details:', {
       message: error.message,
       code: error.code,
@@ -1484,7 +1484,7 @@ app.post('/api/auth/google/callback', async (req, res) => {
     // Remove code from processed map on error so user can retry
     if (req.body.code) {
       processedOAuthCodes.delete(req.body.code);
-      console.log('🔓 Code unlocked for retry');
+      console.log('?? Code unlocked for retry');
     }
 
     res.status(500).json({ error: 'Authentication failed' });
@@ -1497,7 +1497,7 @@ app.get('/api/auth/microsoft/url', (req, res) => {
   try {
     // Validate credentials exist
     if (!process.env.MICROSOFT_CLIENT_ID) {
-      console.error('❌ MICROSOFT_CLIENT_ID not configured');
+      console.error('? MICROSOFT_CLIENT_ID not configured');
       return res.status(503).json({ 
         error: 'Microsoft login not configured',
         message: 'Please contact support to enable Microsoft login'
@@ -1512,10 +1512,10 @@ app.get('/api/auth/microsoft/url', (req, res) => {
       `&response_mode=query` +
       `&scope=${encodeURIComponent(MICROSOFT_CONFIG.scopes.join(' '))}` +
       `&prompt=select_account`;
-    console.log('🔗 Generated Microsoft OAuth URL');
+    console.log('?? Generated Microsoft OAuth URL');
     res.json({ url: authUrl });
   } catch (error) {
-    console.error('❌ Error generating Microsoft OAuth URL:', error);
+    console.error('? Error generating Microsoft OAuth URL:', error);
     res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
 });
@@ -1525,18 +1525,18 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
   try {
     const { code } = req.body;
     
-    console.log('🔵 Microsoft OAuth callback received');
+    console.log('?? Microsoft OAuth callback received');
     
     if (!code) {
-      console.error('❌ No authorization code provided');
+      console.error('? No authorization code provided');
       return res.status(400).json({ error: 'Authorization code required' });
     }
 
-    console.log('🔵 Code received:', code.substring(0, 20) + '...');
+    console.log('?? Code received:', code.substring(0, 20) + '...');
 
     // CRITICAL: Check if code was already processed
     if (processedOAuthCodes.has(code)) {
-      console.log('⚠️ Code already processed, rejecting duplicate request');
+      console.log('?? Code already processed, rejecting duplicate request');
       return res.status(400).json({ 
         error: 'Code already used',
         hint: 'This authorization code has already been exchanged. Please try logging in again.'
@@ -1545,17 +1545,17 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
 
     // Mark code as being processed IMMEDIATELY
     processedOAuthCodes.set(code, Date.now());
-    console.log('🔒 Code locked for processing');
+    console.log('?? Code locked for processing');
 
     // Define redirectUri
     const redirectUri = process.env.MICROSOFT_REDIRECT_URI || 
       `${process.env.FRONTEND_URL}/oauth/callback/microsoft`;
     
-    console.log('🔵 Redirect URI:', redirectUri);
-    console.log('🔵 Client ID:', process.env.MICROSOFT_CLIENT_ID);
+    console.log('?? Redirect URI:', redirectUri);
+    console.log('?? Client ID:', process.env.MICROSOFT_CLIENT_ID);
     
     // Exchange code for tokens
-    console.log('📡 Exchanging code for tokens...');
+    console.log('?? Exchanging code for tokens...');
     const tokenResponse = await axios.post(
       'https://login.microsoftonline.com/common/oauth2/v2.0/token',
       new URLSearchParams({
@@ -1570,11 +1570,11 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
       }
     );
 
-    console.log('✅ Tokens received');
+    console.log('? Tokens received');
     const { access_token, refresh_token } = tokenResponse.data;
 
     // Get user info
-    console.log('📡 Getting Microsoft user info...');
+    console.log('?? Getting Microsoft user info...');
     const userResponse = await axios.get('https://graph.microsoft.com/v1.0/me', {
       headers: { Authorization: `Bearer ${access_token}` }
     });
@@ -1583,7 +1583,7 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
     const email = microsoftUser.mail || microsoftUser.userPrincipalName;
     const microsoftId = microsoftUser.id;
 
-    console.log('✅ User info retrieved:', email);
+    console.log('? User info retrieved:', email);
 
     // Check if user exists
     let user = await pool.query(
@@ -1593,7 +1593,7 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
 
     if (user.rows.length === 0) {
       // NEW USER - First login
-      console.log('➕ Creating new Microsoft user');
+      console.log('? Creating new Microsoft user');
       user = await pool.query(
         `INSERT INTO users (
           email, name, microsoft_id, microsoft_access_token, 
@@ -1606,14 +1606,14 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
           access_token, 
           refresh_token, 
           'microsoft',
-          false,  // ✅ false = needs onboarding
+          false,  // ? false = needs onboarding
           true    // Microsoft users get calendar sync enabled
         ]
       );
-      console.log('✅ New user created:', user.rows[0].id);
+      console.log('? New user created:', user.rows[0].id);
     } else {
       // EXISTING USER - Second+ login
-      console.log('🔄 Updating existing Microsoft user');
+      console.log('?? Updating existing Microsoft user');
       user = await pool.query(
         `UPDATE users SET 
           microsoft_id = $1,
@@ -1624,7 +1624,7 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
         WHERE id = $5 RETURNING *`,
         [microsoftId, access_token, refresh_token, 'microsoft', user.rows[0].id]
       );
-      console.log('✅ User updated:', user.rows[0].id);
+      console.log('? User updated:', user.rows[0].id);
     }
 
     // Link any pending team memberships
@@ -1642,9 +1642,9 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
       { expiresIn: '30d' }
     );
 
-    console.log('✅ Microsoft OAuth successful for:', email);
+    console.log('? Microsoft OAuth successful for:', email);
 
-    // ✅ RETURN onboarding_completed
+    // ? RETURN onboarding_completed
     res.json({
       success: true,
       user: {
@@ -1652,14 +1652,14 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
         email: finalUser.email,
         name: finalUser.name,
         calendar_sync_enabled: finalUser.calendar_sync_enabled,
-        onboarding_completed: finalUser.onboarding_completed || false  // ✅ KEY FIELD
+        onboarding_completed: finalUser.onboarding_completed || false  // ? KEY FIELD
       },
       token: jwtToken,
     });
 
   } catch (error) {
-    console.error('❌ Microsoft OAuth error:', error.message);
-    console.error('❌ Error details:', {
+    console.error('? Microsoft OAuth error:', error.message);
+    console.error('? Error details:', {
       message: error.message,
       response: error.response?.data,
       status: error.response?.status,
@@ -1669,7 +1669,7 @@ app.post('/api/auth/microsoft/callback', async (req, res) => {
     // Remove code from processed map on error so user can retry
     if (req.body.code) {
       processedOAuthCodes.delete(req.body.code);
-      console.log('🔓 Code unlocked for retry');
+      console.log('?? Code unlocked for retry');
     }
 
     // Send detailed error for debugging
@@ -1688,7 +1688,7 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password, name } = req.body;
 
-    console.log('📝 Registration attempt:', email);
+    console.log('?? Registration attempt:', email);
 
     // Validate input
     if (!email || !password || !name) {
@@ -1735,12 +1735,12 @@ app.post('/api/auth/register', async (req, res) => {
       try {
         await sendBookingEmail({
           to: email,
-          subject: '✉️ Verify Your Email - ScheduleSync',
+          subject: '?? Verify Your Email - ScheduleSync',
           html: emailTemplates.emailVerification(user, verificationToken),
         });
-        console.log('✅ Verification email sent to:', email);
+        console.log('? Verification email sent to:', email);
       } catch (emailError) {
-        console.error('⚠️ Failed to send verification email:', emailError);
+        console.error('?? Failed to send verification email:', emailError);
       }
     }
 
@@ -1751,7 +1751,7 @@ app.post('/api/auth/register', async (req, res) => {
       { expiresIn: '30d' }
     );
 
-    console.log('✅ User registered:', user.email);
+    console.log('? User registered:', user.email);
 
     res.json({
       success: true,
@@ -1761,7 +1761,7 @@ app.post('/api/auth/register', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Registration error:', error);
+    console.error('? Registration error:', error);
     res.status(500).json({ error: 'Registration failed' });
   }
 });
@@ -1771,7 +1771,7 @@ app.get('/api/auth/verify-email', async (req, res) => {
   try {
     const { token } = req.query;
 
-    console.log('📧 Email verification attempt');
+    console.log('?? Email verification attempt');
 
     if (!token) {
       return res.status(400).json({ error: 'Verification token required' });
@@ -1802,7 +1802,7 @@ app.get('/api/auth/verify-email', async (req, res) => {
       [user.id]
     );
 
-    console.log('✅ Email verified for:', user.email);
+    console.log('? Email verified for:', user.email);
 
     res.json({ 
       success: true, 
@@ -1810,7 +1810,7 @@ app.get('/api/auth/verify-email', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Email verification error:', error);
+    console.error('? Email verification error:', error);
     res.status(500).json({ error: 'Email verification failed' });
   }
 });
@@ -1820,7 +1820,7 @@ app.post('/api/auth/resend-verification', async (req, res) => {
   try {
     const { email } = req.body;
 
-    console.log('📧 Resending verification email to:', email);
+    console.log('?? Resending verification email to:', email);
 
     // Find user
     const result = await pool.query(
@@ -1850,10 +1850,10 @@ app.post('/api/auth/resend-verification', async (req, res) => {
     if (sendBookingEmail) {
       await sendBookingEmail({
         to: email,
-        subject: '✉️ Verify Your Email - ScheduleSync',
+        subject: '?? Verify Your Email - ScheduleSync',
         html: emailTemplates.emailVerification(user, verificationToken),
       });
-      console.log('✅ Verification email resent to:', email);
+      console.log('? Verification email resent to:', email);
     }
 
     res.json({ 
@@ -1862,7 +1862,7 @@ app.post('/api/auth/resend-verification', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Resend verification error:', error);
+    console.error('? Resend verification error:', error);
     res.status(500).json({ error: 'Failed to resend verification email' });
   }
 });
@@ -1871,7 +1871,7 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password, rememberMe } = req.body;
 
-    console.log('🔐 Login attempt:', email);
+    console.log('?? Login attempt:', email);
 
     // Validate input
     if (!email || !password) {
@@ -1908,7 +1908,7 @@ app.post('/api/auth/login', async (req, res) => {
       { expiresIn: rememberMe ? '90d' : '30d' }
     );
 
-    console.log('✅ Login successful:', user.email);
+    console.log('? Login successful:', user.email);
 
     res.json({
       success: true,
@@ -1922,7 +1922,7 @@ app.post('/api/auth/login', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Login error:', error);
+    console.error('? Login error:', error);
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -1932,7 +1932,7 @@ app.post('/api/auth/login', async (req, res) => {
 app.post('/api/auth/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
-    console.log('🔑 Password reset request received for:', email);
+    console.log('?? Password reset request received for:', email);
 
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
@@ -1943,7 +1943,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     
     // Security: Always return success to prevent email enumeration
     if (result.rows.length === 0) {
-      console.log('⚠️ Reset requested for non-existent email:', email);
+      console.log('?? Reset requested for non-existent email:', email);
       return res.json({ 
         success: true, 
         message: 'If that email exists, a reset link has been sent.' 
@@ -1954,7 +1954,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     // CASE 1: OAuth User (Google Login) - Send "Use Google" Reminder
     if (!user.password_hash) {
-      console.log('ℹ️ OAuth account detected. Sending "Use Google" reminder to:', email);
+      console.log('?? OAuth account detected. Sending "Use Google" reminder to:', email);
       
       const oauthHtml = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
@@ -1971,10 +1971,10 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       if (sendBookingEmail) {
         await sendBookingEmail({
           to: email,
-          subject: '🔔 Sign in method reminder - ScheduleSync',
+          subject: '?? Sign in method reminder - ScheduleSync',
           html: oauthHtml,
         });
-        console.log('✅ OAuth reminder email sent');
+        console.log('? OAuth reminder email sent');
       }
 
       return res.json({ 
@@ -1995,7 +1995,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     // Construct Link
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    console.log('🔗 Generated Reset URL:', resetUrl);
+    console.log('?? Generated Reset URL:', resetUrl);
 
     // HTML Email Template
     const emailHtml = `
@@ -2015,12 +2015,12 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     if (sendBookingEmail) {
       await sendBookingEmail({
         to: email,
-        subject: '🔑 Reset Your Password - ScheduleSync',
+        subject: '?? Reset Your Password - ScheduleSync',
         html: emailHtml,
       });
-      console.log('✅ Reset email sent successfully to:', email);
+      console.log('? Reset email sent successfully to:', email);
     } else {
-      console.error('❌ sendBookingEmail function is missing! Check imports.');
+      console.error('? sendBookingEmail function is missing! Check imports.');
     }
 
     res.json({ 
@@ -2029,7 +2029,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Forgot password CRITICAL error:', error);
+    console.error('? Forgot password CRITICAL error:', error);
     res.status(500).json({ error: 'Failed to process request' });
   }
 });
@@ -2043,13 +2043,13 @@ app.get('/api/auth/create-test-user', async (req, res) => {
     const testPassword = 'test1234';
     const testName = 'Test User';
 
-    console.log('🧪 Creating test user...');
+    console.log('?? Creating test user...');
 
     // Check if test user already exists
     const existingUser = await pool.query('SELECT * FROM users WHERE email = $1', [testEmail]);
     
     if (existingUser.rows.length > 0) {
-      console.log('✅ Test user already exists');
+      console.log('? Test user already exists');
       
       // Generate JWT token
       const user = existingUser.rows[0];
@@ -2088,7 +2088,7 @@ app.get('/api/auth/create-test-user', async (req, res) => {
       { expiresIn: '30d' }
     );
 
-    console.log('✅ Test user created:', user.email);
+    console.log('? Test user created:', user.email);
 
     res.json({
       success: true,
@@ -2099,7 +2099,7 @@ app.get('/api/auth/create-test-user', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Create test user error:', error);
+    console.error('? Create test user error:', error);
     res.status(500).json({ error: 'Failed to create test user' });
   }
 });
@@ -2136,7 +2136,7 @@ app.post('/api/book/auth/google', async (req, res) => {
     const grantedScopes = tokens.scope || '';
     const hasCalendarAccess = grantedScopes.includes('calendar.readonly');
 
-    console.log('✅ Guest Google OAuth successful:', { email: userInfo.email, hasCalendarAccess });
+    console.log('? Guest Google OAuth successful:', { email: userInfo.email, hasCalendarAccess });
 
     res.json({
       success: true,
@@ -2148,7 +2148,7 @@ app.post('/api/book/auth/google', async (req, res) => {
       provider: 'google'
     });
   } catch (error) {
-    console.error('❌ Guest Google OAuth error:', error);
+    console.error('? Guest Google OAuth error:', error);
     res.status(500).json({ error: 'Authentication failed' });
   }
 });
@@ -2188,23 +2188,23 @@ app.get('/api/book/auth/google/url', async (req, res) => {
       access_type: 'offline',
       scope: scopes,
       prompt: 'select_account',
-      state: bookingToken,
+      state: guest-booking:${bookingToken}:google,
     });
 
-    console.log('🔗 Generated Google guest OAuth URL');
+    console.log('?? Generated Google guest OAuth URL');
     res.json({ url: authUrl });
   } catch (error) {
-    console.error('❌ Error generating Google guest OAuth URL:', error);
+    console.error('? Error generating Google guest OAuth URL:', error);
     res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
 });
 
-// Microsoft URL Generator ← ADD THIS!
+// Microsoft URL Generator ? ADD THIS!
 app.get('/api/book/auth/microsoft/url', async (req, res) => {
   try {
     const { bookingToken } = req.query;
     
-    console.log('🔗 Microsoft guest OAuth URL request:', bookingToken);
+    console.log('?? Microsoft guest OAuth URL request:', bookingToken);
     
     if (!bookingToken) {
       return res.status(400).json({ error: 'Booking token required' });
@@ -2235,13 +2235,13 @@ app.get('/api/book/auth/microsoft/url', async (req, res) => {
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&response_mode=query` +
       `&scope=${encodeURIComponent(scopes.join(' '))}` +
-      `&state=${bookingToken}` +
+      `&state=guest-booking:${bookingToken}:microsoft` +
       `&prompt=select_account`;
     
-    console.log('✅ Microsoft guest OAuth URL generated');
+    console.log('? Microsoft guest OAuth URL generated');
     res.json({ url: authUrl });
   } catch (error) {
-    console.error('❌ Error generating Microsoft guest OAuth URL:', error);
+    console.error('? Error generating Microsoft guest OAuth URL:', error);
     res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
 });
@@ -2251,7 +2251,7 @@ app.post('/api/book/auth/microsoft', async (req, res) => {
   try {
     const { code, bookingToken } = req.body;
     
-    console.log('🔵 Guest Microsoft OAuth request received');
+    console.log('?? Guest Microsoft OAuth request received');
     
     if (!code || !bookingToken) {
       return res.status(400).json({ error: 'Missing required parameters' });
@@ -2268,7 +2268,7 @@ app.post('/api/book/auth/microsoft', async (req, res) => {
 
     const redirectUri = `${process.env.FRONTEND_URL}/oauth/callback/microsoft/guest`;
     
-    console.log('📡 Exchanging Microsoft code for guest tokens...');
+    console.log('?? Exchanging Microsoft code for guest tokens...');
     console.log('Redirect URI:', redirectUri);
     
     const tokenResponse = await axios.post(
@@ -2296,7 +2296,7 @@ app.post('/api/book/auth/microsoft', async (req, res) => {
     const email = microsoftUser.mail || microsoftUser.userPrincipalName;
     const hasCalendarAccess = scope && scope.includes('Calendars.Read');
 
-    console.log('✅ Guest Microsoft OAuth successful:', { email, hasCalendarAccess });
+    console.log('? Guest Microsoft OAuth successful:', { email, hasCalendarAccess });
 
     res.json({
       success: true,
@@ -2309,7 +2309,7 @@ app.post('/api/book/auth/microsoft', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Guest Microsoft OAuth error:', error.message);
+    console.error('? Guest Microsoft OAuth error:', error.message);
     console.error('Error details:', error.response?.data);
     res.status(500).json({ 
       error: 'Microsoft authentication failed',
@@ -2337,7 +2337,7 @@ app.post('/api/import/calendly', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Calendly API key is required' });
     }
 
-    console.log('🔄 Starting Calendly import for user:', userId);
+    console.log('?? Starting Calendly import for user:', userId);
 
     const calendlyHeaders = {
       'Authorization': `Bearer ${api_key}`,
@@ -2376,9 +2376,9 @@ app.post('/api/import/calendly', authenticateToken, async (req, res) => {
         headers: calendlyHeaders,
       });
       calendlyUser = userResponse.data.resource;
-      console.log('✅ Calendly user fetched:', calendlyUser.email);
+      console.log('? Calendly user fetched:', calendlyUser.email);
     } catch (error) {
-      console.error('❌ Failed to fetch Calendly user:', error.response?.data || error.message);
+      console.error('? Failed to fetch Calendly user:', error.response?.data || error.message);
       return res.status(401).json({ 
         error: 'Invalid Calendly API key or insufficient permissions' 
       });
@@ -2395,7 +2395,7 @@ app.post('/api/import/calendly', authenticateToken, async (req, res) => {
         );
 
         const eventTypes = eventTypesResponse.data.collection || [];
-        console.log(`📅 Found ${eventTypes.length} event types`);
+        console.log(`?? Found ${eventTypes.length} event types`);
 
         for (const et of eventTypes) {
           // Skip if not active
@@ -2436,9 +2436,9 @@ app.post('/api/import/calendly', authenticateToken, async (req, res) => {
           results.event_types++;
         }
 
-        console.log(`✅ Imported ${results.event_types} event types`);
+        console.log(`? Imported ${results.event_types} event types`);
       } catch (error) {
-        console.error('❌ Event types import error:', error.response?.data || error.message);
+        console.error('? Event types import error:', error.response?.data || error.message);
         results.warnings.push('Failed to import some event types');
       }
     }
@@ -2465,7 +2465,7 @@ app.post('/api/import/calendly', authenticateToken, async (req, res) => {
           });
 
           const scheduleRules = scheduleDetailResponse.data.resource.rules || [];
-          console.log(`⏰ Found ${scheduleRules.length} availability rules`);
+          console.log(`? Found ${scheduleRules.length} availability rules`);
 
           // Convert Calendly rules to ScheduleSync format
           const workingHours = {
@@ -2510,10 +2510,10 @@ app.post('/api/import/calendly', authenticateToken, async (req, res) => {
           );
 
           results.availability_rules = scheduleRules.length;
-          console.log(`✅ Imported availability rules`);
+          console.log(`? Imported availability rules`);
         }
       } catch (error) {
-        console.error('❌ Availability import error:', error.response?.data || error.message);
+        console.error('? Availability import error:', error.response?.data || error.message);
         results.warnings.push('Failed to import availability settings');
       }
     }
@@ -2532,7 +2532,7 @@ app.post('/api/import/calendly', authenticateToken, async (req, res) => {
         );
 
         const bookings = bookingsResponse.data.collection || [];
-        console.log(`📊 Found ${bookings.length} past bookings`);
+        console.log(`?? Found ${bookings.length} past bookings`);
 
         for (const booking of bookings) {
           // Get invitee details
@@ -2591,9 +2591,9 @@ app.post('/api/import/calendly', authenticateToken, async (req, res) => {
           results.bookings++;
         }
 
-        console.log(`✅ Imported ${results.bookings} past bookings`);
+        console.log(`? Imported ${results.bookings} past bookings`);
       } catch (error) {
-        console.error('❌ Bookings import error:', error.response?.data || error.message);
+        console.error('? Bookings import error:', error.response?.data || error.message);
         results.warnings.push('Failed to import some past bookings');
       }
     }
@@ -2601,14 +2601,14 @@ app.post('/api/import/calendly', authenticateToken, async (req, res) => {
     // ====================================
     // RESPONSE
     // ====================================
-    console.log('✅ Calendly import complete:', results);
+    console.log('? Calendly import complete:', results);
 
     res.json({
       success: true,
       ...results,
     });
   } catch (error) {
-    console.error('❌ Calendly import error:', error);
+    console.error('? Calendly import error:', error);
     res.status(500).json({ 
       error: 'Import failed. Please check your API key and try again.' 
     });
@@ -2650,7 +2650,7 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
       [req.user.id]
     );
     
-    console.log('📋 Teams loaded:', result.rows.map(t => ({ 
+    console.log('?? Teams loaded:', result.rows.map(t => ({ 
       id: t.id, 
       name: t.name, 
       booking_token: t.booking_token,
@@ -2695,7 +2695,7 @@ app.put('/api/teams/:id', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const { name, description, booking_mode } = req.body;
 
-    console.log('⚙️ Updating team settings:', { teamId, booking_mode });
+    console.log('?? Updating team settings:', { teamId, booking_mode });
 
     // Verify ownership
     const ownerCheck = await pool.query(
@@ -2724,7 +2724,7 @@ app.put('/api/teams/:id', authenticateToken, async (req, res) => {
       [name, description, booking_mode, teamId]
     );
 
-    console.log('✅ Team settings updated');
+    console.log('? Team settings updated');
     res.json({ team: result.rows[0] });
   } catch (error) {
     console.error('Update team error:', error);
@@ -2742,7 +2742,7 @@ app.post('/api/teams', authenticateToken, async (req, res) => {
     const userName = req.user.name;
     const userEmail = req.user.email;
     
-    console.log('➕ Creating new team:', name);
+    console.log('? Creating new team:', name);
 
     if (!name || name.trim() === '') {
       return res.status(400).json({ error: 'Team name is required' });
@@ -2778,7 +2778,7 @@ app.post('/api/teams', authenticateToken, async (req, res) => {
       [team.id, userId, userEmail, userName, memberToken, userId]
     );
 
-    console.log('✅ Team created:', team.id);
+    console.log('? Team created:', team.id);
 
     res.json({ 
       success: true,
@@ -2787,7 +2787,7 @@ app.post('/api/teams', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Create team error:', error);
+    console.error('? Create team error:', error);
     res.status(500).json({ error: 'Failed to create team' });
   }
 });
@@ -2882,7 +2882,7 @@ app.patch('/api/teams/:teamId/members/:memberId/status', authenticateToken, asyn
       return res.status(404).json({ error: 'Member not found' });
     }
 
-    console.log(`✅ Member ${memberId} status updated to ${is_active ? 'active' : 'inactive'}`);
+    console.log(`? Member ${memberId} status updated to ${is_active ? 'active' : 'inactive'}`);
     res.json({ success: true, member: result.rows[0] });
   } catch (error) {
     console.error('Update member status error:', error);
@@ -2904,7 +2904,7 @@ app.put('/api/teams/:teamId/members/:memberId', authenticateToken, async (req, r
       timezone,
     } = req.body;
 
-    console.log('⚙️ Updating member settings:', { memberId, teamId });
+    console.log('?? Updating member settings:', { memberId, teamId });
 
     // Verify ownership
     const teamCheck = await pool.query(
@@ -2942,11 +2942,11 @@ app.put('/api/teams/:teamId/members/:memberId', authenticateToken, async (req, r
       return res.status(404).json({ error: 'Team member not found' });
     }
 
-    console.log('✅ Member settings updated:', memberId);
+    console.log('? Member settings updated:', memberId);
     res.json({ member: result.rows[0] });
 
   } catch (error) {
-    console.error('❌ Update member settings error:', error);
+    console.error('? Update member settings error:', error);
     res.status(500).json({ error: 'Failed to update team member settings' });
   }
 });
@@ -3005,7 +3005,7 @@ app.post('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
     if (sendEmail && sendTeamInvitation) {
       try {
         await sendTeamInvitation(email, team.name, bookingUrl, req.user.name || req.user.email);
-        console.log(`✅ Invitation email sent to ${email}`);
+        console.log(`? Invitation email sent to ${email}`);
       } catch (emailError) {
         console.error('Failed to send invitation email:', emailError);
       }
@@ -3048,7 +3048,7 @@ app.put('/api/teams/:teamId/members/:memberId/external-link', authenticateToken,
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Member not found' });
 
-    console.log(`✅ External link updated for member ${memberId}`);
+    console.log(`? External link updated for member ${memberId}`);
     res.json({ member: result.rows[0] });
   } catch (error) {
     console.error('Update external link error:', error);
@@ -3085,7 +3085,7 @@ app.put('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, r
       send_to_guest,
     ]);
 
-    console.log(`✅ Updated reminder settings for team ${teamId}`);
+    console.log(`? Updated reminder settings for team ${teamId}`);
     res.json({ settings: result.rows[0] });
   } catch (err) {
     console.error('Error updating reminder settings:', err);
@@ -3135,8 +3135,8 @@ app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async
     const { booking_price, currency, payment_required } = req.body;
     const userId = req.user.id;
 
-    console.log('💰 Updating pricing for member:', memberId);
-    console.log('📥 Received data:', { booking_price, currency, payment_required });
+    console.log('?? Updating pricing for member:', memberId);
+    console.log('?? Received data:', { booking_price, currency, payment_required });
 
     // Verify ownership
     const teamCheck = await pool.query(
@@ -3163,7 +3163,7 @@ app.put('/api/teams/:teamId/members/:memberId/pricing', authenticateToken, async
       return res.status(404).json({ error: 'Member not found' });
     }
 
-    console.log('✅ Pricing updated:', result.rows[0]);
+    console.log('? Pricing updated:', result.rows[0]);
 
     res.json({ 
       success: true, 
@@ -3189,7 +3189,7 @@ app.get('/api/team-members/:id/availability', authenticateToken, async (req, res
     const memberId = parseInt(req.params.id);
     const userId = req.user.id;
 
-    console.log('📋 Getting availability for member:', memberId);
+    console.log('?? Getting availability for member:', memberId);
 
     // Get team member and verify ownership
     const memberResult = await pool.query(
@@ -3256,7 +3256,7 @@ app.put('/api/team-members/:id/availability', authenticateToken, async (req, res
   blocked_times 
 } = req.body;
 
-    console.log('⚙️ Updating availability for member:', memberId);
+    console.log('?? Updating availability for member:', memberId);
 
     // Verify ownership
     const memberResult = await pool.query(
@@ -3277,12 +3277,12 @@ app.put('/api/team-members/:id/availability', authenticateToken, async (req, res
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // ✅ VALIDATE AND FIX working_hours structure
+    // ? VALIDATE AND FIX working_hours structure
     const validatedWorkingHours = {};
     for (const [day, settings] of Object.entries(working_hours)) {
       if (settings.slots) {
         // Frontend sent wrong format with 'slots' array, fix it
-        console.log(`⚠️ Fixing invalid working_hours for ${day}`);
+        console.log(`?? Fixing invalid working_hours for ${day}`);
         validatedWorkingHours[day] = {
           enabled: settings.enabled || false,
           start: "09:00",
@@ -3315,17 +3315,17 @@ app.put('/api/team-members/:id/availability', authenticateToken, async (req, res
     await pool.query('DELETE FROM blocked_times WHERE team_member_id = $1', [memberId]);
 
     // Handle blocked times
-console.log('🔧 Processing blocked times:', blocked_times);
+console.log('?? Processing blocked times:', blocked_times);
 
 if (blocked_times && blocked_times.length > 0) {
-  console.log(`📝 Saving ${blocked_times.length} blocked time(s)`);
+  console.log(`?? Saving ${blocked_times.length} blocked time(s)`);
   
   for (const block of blocked_times) {
     console.log('Processing block:', block);
     
     // Skip blocks with temp IDs and no dates
     if (!block.start_time || !block.end_time) {
-      console.log('⚠️ Skipping block - missing dates');
+      console.log('?? Skipping block - missing dates');
       continue;
     }
     
@@ -3333,7 +3333,7 @@ if (blocked_times && blocked_times.length > 0) {
     const startTime = new Date(block.start_time).toISOString();
     const endTime = new Date(block.end_time).toISOString();
     
-    console.log('📅 Inserting blocked time:', {
+    console.log('?? Inserting blocked time:', {
       memberId,
       startTime,
       endTime,
@@ -3346,16 +3346,16 @@ if (blocked_times && blocked_times.length > 0) {
          VALUES ($1, $2, $3, $4)`,
         [memberId, startTime, endTime, block.reason || null]
       );
-      console.log('✅ Blocked time inserted');
+      console.log('? Blocked time inserted');
     } catch (blockError) {
-      console.error('❌ Failed to insert blocked time:', blockError);
+      console.error('? Failed to insert blocked time:', blockError);
     }
   }
 } else {
-  console.log('ℹ️ No blocked times to save');
+  console.log('?? No blocked times to save');
 }
 
-    console.log('✅ Availability settings updated');
+    console.log('? Availability settings updated');
     res.json({ success: true, message: 'Availability settings updated' });
   } catch (error) {
     console.error('Update availability error:', error);
@@ -3472,20 +3472,20 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
   try {
     const { token } = req.params;
    const { 
-  guestAccessToken,           // ← No colon, no undefined
-  guestRefreshToken,          // ← No colon, no undefined
-  guestProvider,              // ← No colon, no undefined
-  duration = 30,              // ← Use = for default values
+  guestAccessToken,           // ? No colon, no undefined
+  guestRefreshToken,          // ? No colon, no undefined
+  guestProvider,              // ? No colon, no undefined
+  duration = 30,              // ? Use = for default values
   timezone = 'America/New_York'
 } = req.body;
 
-    console.log('📅 Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
+    console.log('?? Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
 
     // ========== 1. GET MEMBER & SETTINGS ==========
     let memberResult;
     
     if (token.length === 64) {
-      console.log('🔑 Looking up single-use link...');
+      console.log('?? Looking up single-use link...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 tm.buffer_time,
@@ -3510,7 +3510,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         [token]
       );
     } else {
-      console.log('🔑 Looking up regular token...');
+      console.log('?? Looking up regular token...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 tm.buffer_time,
@@ -3539,7 +3539,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
 
     const member = memberResult.rows[0];
     
-    // ✅ CRITICAL: Validate and sanitize working_hours
+    // ? CRITICAL: Validate and sanitize working_hours
     let workingHours;
     try {
       // Parse if string
@@ -3555,7 +3555,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       if (workingHours) {
         const firstDay = Object.keys(workingHours)[0];
         if (workingHours[firstDay]?.slots) {
-          console.warn('⚠️ Detected invalid working_hours format (has slots property)');
+          console.warn('?? Detected invalid working_hours format (has slots property)');
           workingHours = null;
         }
       }
@@ -3575,7 +3575,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
                 !daySettings.end ||
                 typeof daySettings.start !== 'string' ||
                 typeof daySettings.end !== 'string') {
-              console.warn(`⚠️ Invalid ${day} settings:`, daySettings);
+              console.warn(`?? Invalid ${day} settings:`, daySettings);
               isValid = false;
               break;
             }
@@ -3583,7 +3583,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
             // Validate time format (HH:MM)
             const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
             if (!timeRegex.test(daySettings.start) || !timeRegex.test(daySettings.end)) {
-              console.warn(`⚠️ Invalid time format for ${day}:`, { start: daySettings.start, end: daySettings.end });
+              console.warn(`?? Invalid time format for ${day}:`, { start: daySettings.start, end: daySettings.end });
               isValid = false;
               break;
             }
@@ -3596,13 +3596,13 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       }
 
     } catch (parseError) {
-      console.error('❌ Failed to parse working_hours:', parseError.message);
+      console.error('? Failed to parse working_hours:', parseError.message);
       workingHours = null;
     }
 
     // Use defaults if working_hours is invalid
     if (!workingHours) {
-      console.log('⚙️ Using default working hours (9 AM - 5 PM, Mon-Fri)');
+      console.log('?? Using default working hours (9 AM - 5 PM, Mon-Fri)');
       workingHours = {
         monday: { enabled: true, start: '09:00', end: '17:00' },
         tuesday: { enabled: true, start: '09:00', end: '17:00' },
@@ -3620,7 +3620,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     const horizonDays = member.booking_horizon_days || 30;
     const dailyCap = member.daily_booking_cap || null;
 
-    console.log('⚙️ Settings loaded:', {
+    console.log('?? Settings loaded:', {
       buffer: bufferTime,
       leadTime: leadTimeHours,
       horizon: horizonDays,
@@ -3679,9 +3679,9 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         });
 
         organizerBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
-        console.log('✅ Google calendar loaded:', organizerBusy.length, 'busy blocks');
+        console.log('? Google calendar loaded:', organizerBusy.length, 'busy blocks');
       } catch (error) {
-        console.error('⚠️ Failed to fetch Google calendar:', error.message);
+        console.error('?? Failed to fetch Google calendar:', error.message);
       }
     } else if (member.provider === 'microsoft' && member.microsoft_access_token && member.microsoft_refresh_token) {
       try {
@@ -3697,16 +3697,16 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
           end: e.end.dateTime
         }));
         
-        console.log('✅ Microsoft calendar loaded:', organizerBusy.length, 'busy blocks');
+        console.log('? Microsoft calendar loaded:', organizerBusy.length, 'busy blocks');
       } catch (error) {
-        console.error('⚠️ Failed to fetch Microsoft calendar:', error.message);
+        console.error('?? Failed to fetch Microsoft calendar:', error.message);
       }
     }
 
    // ========== 5. GET GUEST CALENDAR BUSY TIMES ==========
-    let guestBusy = [];  // ← ADD 4 SPACES
-    if (guestAccessToken && guestProvider) {  // ← ADD 4 SPACES
-      if (guestProvider === 'google') {  // ← Already correct (6 spaces)
+    let guestBusy = [];  // ? ADD 4 SPACES
+    if (guestAccessToken && guestProvider) {  // ? ADD 4 SPACES
+      if (guestProvider === 'google') {  // ? Already correct (6 spaces)
         try {
           const calendar = google.calendar({ version: 'v3' });
           const guestAuth = new google.auth.OAuth2(
@@ -3729,13 +3729,13 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
           });
 
           guestBusy = freeBusyResponse.data.calendars?.primary?.busy || [];
-          console.log('✅ Guest Google calendar loaded:', guestBusy.length, 'busy blocks');
+          console.log('? Guest Google calendar loaded:', guestBusy.length, 'busy blocks');
         } catch (error) {
-          console.error('⚠️ Failed to fetch guest Google calendar:', error.message);
+          console.error('?? Failed to fetch guest Google calendar:', error.message);
         }
       } else if (guestProvider === 'microsoft') {
         try {
-          console.log('📅 Fetching Microsoft guest calendar...');
+          console.log('?? Fetching Microsoft guest calendar...');
           const events = await getMicrosoftCalendarEvents(
             guestAccessToken,
             guestRefreshToken,
@@ -3748,16 +3748,16 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
             end: e.end.dateTime
           }));
           
-          console.log('✅ Guest Microsoft calendar loaded:', guestBusy.length, 'busy blocks');
+          console.log('? Guest Microsoft calendar loaded:', guestBusy.length, 'busy blocks');
         } catch (error) {
-          console.error('⚠️ Failed to fetch guest Microsoft calendar:', error.message);
+          console.error('?? Failed to fetch guest Microsoft calendar:', error.message);
         }
       } else {
-        console.log('⚠️ Unknown guest provider:', guestProvider);
+        console.log('?? Unknown guest provider:', guestProvider);
       }
-    } else if (guestAccessToken && !guestProvider) {  // ← ADD 4 SPACES
-      console.log('⚠️ Guest access token provided but no provider specified');
-    }  // ← ADD 4 SPACES
+    } else if (guestAccessToken && !guestProvider) {  // ? ADD 4 SPACES
+      console.log('?? Guest access token provided but no provider specified');
+    }  // ? ADD 4 SPACES
     
    
     
@@ -3790,7 +3790,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         const [endHour, endMin] = daySettings.end.split(':').map(Number);
         
         if (isNaN(startHour) || isNaN(startMin) || isNaN(endHour) || isNaN(endMin)) {
-          console.warn(`⚠️ Invalid time format for ${dayName}`);
+          console.warn(`?? Invalid time format for ${dayName}`);
           return false;
         }
 
@@ -3799,7 +3799,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
 
         return slotTime >= startTime && slotTime < endTime;
       } catch (error) {
-        console.error('❌ Error in isWithinWorkingHours:', error);
+        console.error('? Error in isWithinWorkingHours:', error);
         return false;
       }
     };
@@ -3861,7 +3861,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     const latestBookable = new Date(now);
     latestBookable.setDate(latestBookable.getDate() + horizonDays);
 
-    console.log('⏰ Time window:', {
+    console.log('? Time window:', {
       earliest: earliestBookable.toISOString(),
       latest: latestBookable.toISOString()
     });
@@ -3884,7 +3884,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       const [endHour, endMin] = daySettings.end.split(':').map(Number);
 
       if (isNaN(startHour) || isNaN(endHour)) {
-        console.warn(`⚠️ Skipping ${dayName} - invalid time format`);
+        console.warn(`?? Skipping ${dayName} - invalid time format`);
         continue;
       }
 
@@ -4007,8 +4007,8 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       slotsByDate[dateKey].push(slot);
     });
 
-    console.log(`✅ Generated ${slots.length} slots across ${Object.keys(slotsByDate).length} days`);
-    console.log(`✅ Available: ${slots.filter(s => s.status === 'available').length}`);
+    console.log(`? Generated ${slots.length} slots across ${Object.keys(slotsByDate).length} days`);
+    console.log(`? Available: ${slots.filter(s => s.status === 'available').length}`);
 
     res.json({
       slots: slotsByDate,
@@ -4028,7 +4028,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Slots generation error:', error);
+    console.error('? Slots generation error:', error);
     console.error('Error stack:', error.stack);
     res.status(500).json({ 
       error: 'Failed to generate slots',
@@ -4046,7 +4046,7 @@ app.get('/api/my-booking-link', authenticateToken, async (req, res) => {
     const userEmail = req.user.email;
     const userName = req.user.name;
 
-    console.log('📎 Getting personal booking link for:', userEmail);
+    console.log('?? Getting personal booking link for:', userEmail);
 
     // Check if user already has a personal team
     let personalTeam = await pool.query(
@@ -4056,7 +4056,7 @@ app.get('/api/my-booking-link', authenticateToken, async (req, res) => {
 
     // Create personal team if it doesn't exist
     if (personalTeam.rows.length === 0) {
-      console.log('➕ Creating personal team for:', userName);
+      console.log('? Creating personal team for:', userName);
       
       const teamBookingToken = crypto.randomBytes(16).toString('hex');
       const teamResult = await pool.query(
@@ -4082,7 +4082,7 @@ app.get('/api/my-booking-link', authenticateToken, async (req, res) => {
 
     // Add user as member if not already OR regenerate token if it's malformed
     if (memberResult.rows.length === 0) {
-      console.log('➕ Adding user as member of their personal team');
+      console.log('? Adding user as member of their personal team');
       
       const bookingToken = crypto.randomBytes(16).toString('hex');
       const insertResult = await pool.query(
@@ -4091,13 +4091,13 @@ app.get('/api/my-booking-link', authenticateToken, async (req, res) => {
         [team.id, userId, userEmail, userName, bookingToken, userId]
       );
       memberResult = insertResult;
-      console.log('✅ Created member with token:', bookingToken);
+      console.log('? Created member with token:', bookingToken);
     } else {
       const member = memberResult.rows[0];
       
       // Check if token is valid (32 hex characters)
       if (!member.booking_token || member.booking_token.length !== 32 || !/^[a-f0-9]{32}$/i.test(member.booking_token)) {
-        console.log('🔄 Regenerating invalid booking token for member:', member.id);
+        console.log('?? Regenerating invalid booking token for member:', member.id);
         const newBookingToken = crypto.randomBytes(16).toString('hex');
         
         const updateResult = await pool.query(
@@ -4105,15 +4105,15 @@ app.get('/api/my-booking-link', authenticateToken, async (req, res) => {
           [newBookingToken, member.id]
         );
         memberResult = updateResult;
-        console.log('✅ Updated member with new token:', newBookingToken);
+        console.log('? Updated member with new token:', newBookingToken);
       }
     }
 
     const member = memberResult.rows[0];
     const bookingUrl = `${process.env.FRONTEND_URL}/book/${member.booking_token}`;
 
-    console.log('✅ Personal booking link generated:', bookingUrl);
-    console.log('📋 Token:', member.booking_token);
+    console.log('? Personal booking link generated:', bookingUrl);
+    console.log('?? Token:', member.booking_token);
 
     res.json({
       success: true,
@@ -4126,7 +4126,7 @@ app.get('/api/my-booking-link', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error generating personal booking link:', error);
+    console.error('? Error generating personal booking link:', error);
     res.status(500).json({ error: 'Failed to generate booking link' });
   }
 });
@@ -4140,7 +4140,7 @@ app.post('/api/bookings/:id/cancel', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const { reason } = req.body;
 
-    console.log('❌ Canceling booking:', bookingId);
+    console.log('? Canceling booking:', bookingId);
 
     // Verify ownership
     const bookingCheck = await pool.query(
@@ -4174,20 +4174,20 @@ app.post('/api/bookings/:id/cancel', authenticateToken, async (req, res) => {
       [reason, bookingId]
     );
 
-    console.log('✅ Booking cancelled successfully');
+    console.log('? Booking cancelled successfully');
 
     // TODO: Send cancellation email
-   console.log('✅ Booking cancelled successfully');
+   console.log('? Booking cancelled successfully');
 
     try {
       await sendBookingEmail({
         to: booking.attendee_email,
-        subject: '❌ Booking Cancelled - ScheduleSync',
+        subject: '? Booking Cancelled - ScheduleSync',
         html: emailTemplates.bookingCancellation(booking, reason),
       });
-      console.log('✅ Cancellation email sent');
+      console.log('? Cancellation email sent');
     } catch (emailError) {
-      console.error('⚠️ Failed to send cancellation email:', emailError);
+      console.error('?? Failed to send cancellation email:', emailError);
     }
 
     res.json({ 
@@ -4196,7 +4196,7 @@ app.post('/api/bookings/:id/cancel', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Cancel booking error:', error);
+    console.error('? Cancel booking error:', error);
     res.status(500).json({ error: 'Failed to cancel booking' });
   }
 });
@@ -4208,7 +4208,7 @@ app.post('/api/bookings/:id/reschedule', authenticateToken, async (req, res) => 
     const userId = req.user.id;
     const { newStartTime, newEndTime } = req.body;
 
-    console.log('🔄 Rescheduling booking:', bookingId);
+    console.log('?? Rescheduling booking:', bookingId);
 
     if (!newStartTime || !newEndTime) {
       return res.status(400).json({ error: 'New start and end times are required' });
@@ -4249,7 +4249,7 @@ app.post('/api/bookings/:id/reschedule', authenticateToken, async (req, res) => 
 
     const updatedBooking = updateResult.rows[0];
 
-    console.log('✅ Booking rescheduled successfully');
+    console.log('? Booking rescheduled successfully');
 
     // Notify organizer
     if (booking.member_user_id) {
@@ -4272,7 +4272,7 @@ app.post('/api/bookings/:id/reschedule', authenticateToken, async (req, res) => 
 
       await sendBookingEmail({
         to: booking.attendee_email,
-        subject: '🔄 Booking Rescheduled - ScheduleSync',
+        subject: '?? Booking Rescheduled - ScheduleSync',
         html: emailTemplates.bookingReschedule(
           {
             ...updatedBooking,
@@ -4283,9 +4283,9 @@ app.post('/api/bookings/:id/reschedule', authenticateToken, async (req, res) => 
         ),
         icsAttachment: icsFile,
       });
-      console.log('✅ Reschedule email sent');
+      console.log('? Reschedule email sent');
     } catch (emailError) {
-      console.error('⚠️ Failed to send reschedule email:', emailError);
+      console.error('?? Failed to send reschedule email:', emailError);
     }
 
     res.json({ 
@@ -4295,7 +4295,7 @@ app.post('/api/bookings/:id/reschedule', authenticateToken, async (req, res) => 
     });
 
   } catch (error) {
-    console.error('❌ Reschedule booking error:', error);
+    console.error('? Reschedule booking error:', error);
     res.status(500).json({ error: 'Failed to reschedule booking' });
   }
 });
@@ -4422,7 +4422,7 @@ try {
 app.post('/api/single-use-links', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { name } = req.body;  // ✅ EXTRACT NAME FROM REQUEST
+    const { name } = req.body;  // ? EXTRACT NAME FROM REQUEST
 
     // Get user's member_id
     const memberResult = await pool.query(
@@ -4438,14 +4438,14 @@ app.post('/api/single-use-links', authenticateToken, async (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    // ✅ INSERT WITH NAME COLUMN
+    // ? INSERT WITH NAME COLUMN
     await pool.query(
       `INSERT INTO single_use_links (token, member_id, name, expires_at) 
        VALUES ($1, $2, $3, $4)`,
       [token, memberId, name || null, expiresAt]
     );
 
-    console.log('✅ Single-use link created:', { token, name, expires_at: expiresAt });
+    console.log('? Single-use link created:', { token, name, expires_at: expiresAt });
     
     res.json({ 
       success: true, 
@@ -4454,7 +4454,7 @@ app.post('/api/single-use-links', authenticateToken, async (req, res) => {
       expires_at: expiresAt 
     });
   } catch (error) {
-    console.error('❌ Generate single-use link error:', error);
+    console.error('? Generate single-use link error:', error);
     res.status(500).json({ error: 'Failed to generate single-use link' });
   }
 });
@@ -4475,7 +4475,7 @@ app.get('/api/single-use-links/recent', authenticateToken, async (req, res) => {
 
     const memberId = memberResult.rows[0].id;
 
-    // ✅ SELECT NAME COLUMN
+    // ? SELECT NAME COLUMN
     const result = await pool.query(
       `SELECT token, name, used, created_at, expires_at 
        FROM single_use_links 
@@ -4487,7 +4487,7 @@ app.get('/api/single-use-links/recent', authenticateToken, async (req, res) => {
 
     res.json({ links: result.rows });
   } catch (error) {
-    console.error('❌ Get recent single-use links error:', error);
+    console.error('? Get recent single-use links error:', error);
     res.status(500).json({ error: 'Failed to fetch links' });
   }
 });
@@ -4515,7 +4515,7 @@ app.get('/api/bookings', authenticateToken, async (req, res) => {
 app.get('/api/book/:token', async (req, res) => {
   try {
     const { token } = req.params;
-    console.log('🔍 Looking up token:', token);
+    console.log('?? Looking up token:', token);
     
     // 1. Check single-use links (64 chars)
     if (token.length === 64) {
@@ -4553,7 +4553,7 @@ app.get('/api/book/:token', async (req, res) => {
     }
     
     // 2. Check TEAM tokens
-    console.log('🔑 Checking teams table...');
+    console.log('?? Checking teams table...');
     const teamCheck = await pool.query(
       `SELECT id, name, description, booking_mode 
        FROM teams 
@@ -4562,7 +4562,7 @@ app.get('/api/book/:token', async (req, res) => {
     );
     
     if (teamCheck.rows.length > 0) {
-      console.log('✅ Team found:', teamCheck.rows[0].name);
+      console.log('? Team found:', teamCheck.rows[0].name);
       const team = teamCheck.rows[0];
       
       const membersResult = await pool.query(
@@ -4606,7 +4606,7 @@ app.get('/api/book/:token', async (req, res) => {
     }
     
     // 3. Check MEMBER tokens
-    console.log('🔑 Checking team_members table...');
+    console.log('?? Checking team_members table...');
     const memberCheck = await pool.query(
       `SELECT tm.*, t.name as team_name, t.description as team_description, 
        u.name as member_name, u.email as member_email, u.id as user_id
@@ -4618,7 +4618,7 @@ app.get('/api/book/:token', async (req, res) => {
     );
     
     if (memberCheck.rows.length > 0) {
-      console.log('✅ Member found');
+      console.log('? Member found');
       const member = memberCheck.rows[0];
       
       let eventTypes = [];
@@ -4645,18 +4645,18 @@ app.get('/api/book/:token', async (req, res) => {
       });
     }
     
-    console.log('❌ Token not found');
+    console.log('? Token not found');
     return res.status(404).json({ error: 'Booking link not found' });
     
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('? Error:', error);
     res.status(500).json({ error: 'Failed to fetch booking details' });
   }
 });
 // ============ FIX WORKING HOURS DATA (ONE-TIME ADMIN ENDPOINT) ============
 app.get('/api/admin/fix-working-hours-data', authenticateToken, async (req, res) => {
   try {
-    console.log('🔧 Starting working_hours data migration...');
+    console.log('?? Starting working_hours data migration...');
     
     const members = await pool.query('SELECT id, working_hours FROM team_members');
     let fixed = 0;
@@ -4680,7 +4680,7 @@ app.get('/api/admin/fix-working-hours-data', authenticateToken, async (req, res)
           }
           
           if (needsFix) {
-            console.log(`⚠️ Fixing member ${member.id} - Found 'slots' property`);
+            console.log(`?? Fixing member ${member.id} - Found 'slots' property`);
             
             // Replace with correct default structure
             await pool.query(
@@ -4701,7 +4701,7 @@ app.get('/api/admin/fix-working-hours-data', authenticateToken, async (req, res)
           }
         } else if (!current) {
           // Member has no working_hours at all, set defaults
-          console.log(`➕ Setting defaults for member ${member.id}`);
+          console.log(`? Setting defaults for member ${member.id}`);
           await pool.query(
             `UPDATE team_members SET working_hours = $1 WHERE id = $2`,
             [JSON.stringify({
@@ -4717,12 +4717,12 @@ app.get('/api/admin/fix-working-hours-data', authenticateToken, async (req, res)
           fixed++;
         }
       } catch (memberError) {
-        console.error(`❌ Error processing member ${member.id}:`, memberError);
+        console.error(`? Error processing member ${member.id}:`, memberError);
         errors++;
       }
     }
 
-    console.log('✅ Data migration complete');
+    console.log('? Data migration complete');
     console.log(`   - Fixed: ${fixed}`);
     console.log(`   - Already correct: ${alreadyGood}`);
     console.log(`   - Errors: ${errors}`);
@@ -4735,7 +4735,7 @@ app.get('/api/admin/fix-working-hours-data', authenticateToken, async (req, res)
       total: members.rows.length
     });
   } catch (error) {
-    console.error('❌ Data migration error:', error);
+    console.error('? Data migration error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -4747,7 +4747,7 @@ app.get('/api/book/team/:token', async (req, res) => {
   try {
     const { token } = req.params;
     
-    console.log('🔍 Looking up team by team_booking_token:', token);
+    console.log('?? Looking up team by team_booking_token:', token);
     
     // Find team by team_booking_token
     const teamResult = await pool.query(
@@ -4761,12 +4761,12 @@ app.get('/api/book/team/:token', async (req, res) => {
     );
 
     if (teamResult.rows.length === 0) {
-      console.log('❌ Team not found for token:', token);
+      console.log('? Team not found for token:', token);
       return res.status(404).json({ error: 'Team not found' });
     }
 
     const team = teamResult.rows[0];
-    console.log('✅ Found team:', team.name, 'ID:', team.id);
+    console.log('? Found team:', team.name, 'ID:', team.id);
 
     // Get all ACTIVE members (exclude those with external booking links for team scheduling)
     const membersResult = await pool.query(
@@ -4787,7 +4787,7 @@ app.get('/api/book/team/:token', async (req, res) => {
       [team.id]
     );
 
-    console.log('👥 Available members for booking:', membersResult.rows.length);
+    console.log('?? Available members for booking:', membersResult.rows.length);
 
     if (membersResult.rows.length === 0) {
       return res.status(404).json({ 
@@ -4805,7 +4805,7 @@ app.get('/api/book/team/:token', async (req, res) => {
       [team.owner_id]
     );
 
-    console.log('📅 Event types found:', eventTypesResult.rows.length);
+    console.log('?? Event types found:', eventTypesResult.rows.length);
 
     res.json({
       data: {
@@ -4836,7 +4836,7 @@ app.get('/api/book/team/:token', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Get team booking page error:', error);
+    console.error('? Get team booking page error:', error);
     res.status(500).json({ error: 'Failed to load team booking page' });
   }
 });
@@ -4847,7 +4847,7 @@ app.post('/api/bookings', async (req, res) => {
   try {
     const { token, slot, attendee_name, attendee_email, notes } = req.body;
 
-    console.log('📝 Creating booking:', { token, attendee_name, attendee_email });
+    console.log('?? Creating booking:', { token, attendee_name, attendee_email });
 
     if (!token || !slot || !attendee_name || !attendee_email) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -4857,7 +4857,7 @@ app.post('/api/bookings', async (req, res) => {
     let memberResult;
     
     if (token.length === 64) {
-      console.log('🔑 Looking up single-use link for booking...');
+      console.log('?? Looking up single-use link for booking...');
       memberResult = await pool.query(
         `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
                 u.google_access_token, u.google_refresh_token, 
@@ -4872,7 +4872,7 @@ app.post('/api/bookings', async (req, res) => {
         [token]
       );
     } else {
-      console.log('🔑 Looking up regular token for booking...');
+      console.log('?? Looking up regular token for booking...');
       memberResult = await pool.query(
         `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
                 u.google_access_token, u.google_refresh_token, 
@@ -4886,15 +4886,15 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     if (memberResult.rows.length === 0) {
-      console.log('❌ Invalid or expired booking token');
+      console.log('? Invalid or expired booking token');
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
     const member = memberResult.rows[0];
     const bookingMode = member.booking_mode || 'individual';
 
-    console.log('🎯 Booking mode:', bookingMode);
-    console.log('👤 Member:', member.member_name);
+    console.log('?? Booking mode:', bookingMode);
+    console.log('?? Member:', member.member_name);
 
     let assignedMembers = [];
 
@@ -4902,7 +4902,7 @@ app.post('/api/bookings', async (req, res) => {
     switch (bookingMode) {
       case 'individual':
         assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
-        console.log('👤 Individual mode: Assigning to', member.name);
+        console.log('?? Individual mode: Assigning to', member.name);
         break;
 
       case 'round_robin':
@@ -4919,7 +4919,7 @@ app.post('/api/bookings', async (req, res) => {
         
         if (rrResult.rows.length > 0) {
           assignedMembers = [rrResult.rows[0]];
-          console.log('🔄 Round-robin: Assigning to', rrResult.rows[0].name);
+          console.log('?? Round-robin: Assigning to', rrResult.rows[0].name);
         } else {
           assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
         }
@@ -4947,9 +4947,9 @@ app.post('/api/bookings', async (req, res) => {
         
         if (faResult.rows.length > 0) {
           assignedMembers = [faResult.rows[0]];
-          console.log('⚡ First-available: Assigning to', faResult.rows[0].name);
+          console.log('? First-available: Assigning to', faResult.rows[0].name);
         } else {
-          console.log('⚠️ No available members, falling back to token member');
+          console.log('?? No available members, falling back to token member');
           assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
         }
         break;
@@ -4961,7 +4961,7 @@ app.post('/api/bookings', async (req, res) => {
         );
         
         assignedMembers = collectiveResult.rows;
-        console.log('👥 Collective mode: Assigning to all', assignedMembers.length, 'members');
+        console.log('?? Collective mode: Assigning to all', assignedMembers.length, 'members');
         break;
 
       default:
@@ -5004,11 +5004,11 @@ const bookingResult = await Promise.race([
     ]
   ),
   new Promise((_, reject) => 
-    setTimeout(() => reject(new Error('⏱️ Database INSERT timeout after 10 seconds')), 10000)
+    setTimeout(() => reject(new Error('?? Database INSERT timeout after 10 seconds')), 10000)
   )
 ]).catch(error => {
-  console.error('❌ Database INSERT failed:', error.message);
-  console.error('📊 Parameters:', {
+  console.error('? Database INSERT failed:', error.message);
+  console.error('?? Parameters:', {
     team_id: member.team_id,
     member_id: assignedMember.id,
     user_id: assignedMember.user_id,
@@ -5020,10 +5020,10 @@ const bookingResult = await Promise.race([
   throw error;
 });
   createdBookings.push(bookingResult.rows[0]);
-  console.log(`✅ Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
+  console.log(`? Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
 }
 
-console.log(`✅ Created ${createdBookings.length} booking(s)`);
+console.log(`? Created ${createdBookings.length} booking(s)`);
      
 // Notify organizer
 if (member.user_id) {
@@ -5036,7 +5036,7 @@ if (token.length === 64) {
     'UPDATE single_use_links SET used = true WHERE token = $1',
     [token]
   );
-  console.log('✅ Single-use link marked as used');
+  console.log('? Single-use link marked as used');
 }
 
     // ========== RESPOND IMMEDIATELY ==========
@@ -5061,7 +5061,7 @@ if (token.length === 64) {
     // Create calendar event with meeting link
     if (member.provider === 'google' && member.google_access_token && member.google_refresh_token) {
       try {
-        console.log('📅 Creating Google Calendar event with Meet link (async)...');
+        console.log('?? Creating Google Calendar event with Meet link (async)...');
         
         const oauth2Client = new google.auth.OAuth2(
           process.env.GOOGLE_CLIENT_ID,
@@ -5125,13 +5125,13 @@ if (token.length === 64) {
           );
         }
 
-        console.log('✅ Google Calendar event created with Meet link:', meetLink);
+        console.log('? Google Calendar event created with Meet link:', meetLink);
       } catch (calendarError) {
-        console.error('⚠️ Google Calendar event creation failed:', calendarError.message);
+        console.error('?? Google Calendar event creation failed:', calendarError.message);
       }
     } else if (member.provider === 'microsoft' && member.microsoft_access_token && member.microsoft_refresh_token) {
       try {
-        console.log('📅 Creating Microsoft Calendar event with Teams link (async)...');
+        console.log('?? Creating Microsoft Calendar event with Teams link (async)...');
 
         const eventResult = await createMicrosoftCalendarEvent(
           member.microsoft_access_token,
@@ -5158,9 +5158,9 @@ if (token.length === 64) {
           );
         }
 
-        console.log('✅ Microsoft Calendar event created with Teams link:', meetLink);
+        console.log('? Microsoft Calendar event created with Teams link:', meetLink);
       } catch (calendarError) {
-        console.error('⚠️ Microsoft Calendar event creation failed:', calendarError.message);
+        console.error('?? Microsoft Calendar event creation failed:', calendarError.message);
       }
     }
 
@@ -5190,7 +5190,7 @@ if (token.length === 64) {
 
       await sendBookingEmail({
         to: attendee_email,
-        subject: '✅ Booking Confirmed - ScheduleSync',
+        subject: '? Booking Confirmed - ScheduleSync',
         html: emailTemplates.bookingConfirmationGuest(bookingWithMeetLink),
         icsAttachment: icsFile,
       });
@@ -5198,22 +5198,22 @@ if (token.length === 64) {
       if (member.member_email || member.email) {
         await sendBookingEmail({
           to: member.member_email || member.email,
-          subject: '📅 New Booking Received - ScheduleSync',
+          subject: '?? New Booking Received - ScheduleSync',
           html: emailTemplates.bookingConfirmationOrganizer(bookingWithMeetLink),
           icsAttachment: icsFile,
         });
       }
       
-      console.log('✅ Confirmation emails sent with Meet link');
+      console.log('? Confirmation emails sent with Meet link');
     } catch (emailError) {
-      console.error('⚠️ Failed to send emails:', emailError);
+      console.error('?? Failed to send emails:', emailError);
     }
   } catch (error) {
-    console.error('❌ Background processing error:', error);
+    console.error('? Background processing error:', error);
   }
 })();
 } catch (error) {  // This properly closes the main try block
-  console.error('❌ Create booking error:', error);
+  console.error('? Create booking error:', error);
   if (!res.headersSent) {
     res.status(500).json({ error: 'Failed to create booking' });
   }
@@ -5228,7 +5228,7 @@ app.get('/api/bookings/manage/:token', async (req, res) => {
   try {
     const { token } = req.params;
     
-    console.log('📋 Getting booking for management:', token);
+    console.log('?? Getting booking for management:', token);
     
     const result = await pool.query(
       `SELECT b.*, 
@@ -5241,7 +5241,7 @@ app.get('/api/bookings/manage/:token', async (req, res) => {
        FROM bookings b
        JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE b.manage_token = $1`,   // ✅ CORRECT - uses booking-specific token
+       WHERE b.manage_token = $1`,   // ? CORRECT - uses booking-specific token
       [token]
     );
     
@@ -5276,7 +5276,7 @@ app.get('/api/bookings/manage/:token', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Get booking by token error:', error);
+    console.error('? Get booking by token error:', error);
     res.status(500).json({ error: 'Failed to get booking' });
   }
 });
@@ -5287,7 +5287,7 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
     const { token } = req.params;
     const { newStartTime, newEndTime } = req.body;
 
-    console.log('🔄 Rescheduling booking via token:', token);
+    console.log('?? Rescheduling booking via token:', token);
 
     if (!newStartTime || !newEndTime) {
       return res.status(400).json({ error: 'New start and end times are required' });
@@ -5300,7 +5300,7 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
         FROM bookings b
         JOIN teams t ON b.team_id = t.id
         LEFT JOIN team_members tm ON b.member_id = tm.id
-        WHERE b.manage_token = $1 AND b.status = 'confirmed'`, // ✅ FIXED: Added backtick here
+        WHERE b.manage_token = $1 AND b.status = 'confirmed'`, // ? FIXED: Added backtick here
       [token]
     );
    
@@ -5334,7 +5334,7 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
     
     const updatedBooking = updateResult.rows[0];
 
-    console.log('✅ Booking rescheduled successfully');
+    console.log('? Booking rescheduled successfully');
 
     // Send reschedule emails
     try {
@@ -5353,7 +5353,7 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
       // Email to guest
       await sendBookingEmail({
         to: booking.attendee_email,
-        subject: '🔄 Booking Rescheduled - ScheduleSync',
+        subject: '?? Booking Rescheduled - ScheduleSync',
         html: emailTemplates.bookingReschedule(
           {
             ...updatedBooking,
@@ -5371,7 +5371,7 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
       if (booking.member_email) {
         await sendBookingEmail({
           to: booking.member_email,
-          subject: '🔄 Booking Rescheduled by Guest - ScheduleSync',
+          subject: '?? Booking Rescheduled by Guest - ScheduleSync',
           html: emailTemplates.bookingReschedule(
             {
               ...updatedBooking,
@@ -5385,9 +5385,9 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
         });
       }
 
-      console.log('✅ Reschedule emails sent');
+      console.log('? Reschedule emails sent');
     } catch (emailError) {
-      console.error('⚠️ Failed to send reschedule email:', emailError);
+      console.error('?? Failed to send reschedule email:', emailError);
     }
 
     res.json({ 
@@ -5401,7 +5401,7 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Reschedule booking error:', error);
+    console.error('? Reschedule booking error:', error);
     res.status(500).json({ error: 'Failed to reschedule booking' });
   }
 });
@@ -5412,7 +5412,7 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
     const { token } = req.params;
     const { reason } = req.body;
 
-    console.log('❌ Canceling booking via token:', token);
+    console.log('? Canceling booking via token:', token);
 
     // Get booking by token
     const bookingCheck = await pool.query(
@@ -5437,11 +5437,11 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
        SET status = 'cancelled',
            notes = COALESCE(notes, '') || E'\n\nCancellation reason: ' || COALESCE($1, 'No reason provided'),
            updated_at = NOW()
-       WHERE manage_token = $2`, // ✅ FIXED: Added backtick and changed $3 to $2
+       WHERE manage_token = $2`, // ? FIXED: Added backtick and changed $3 to $2
       [reason, token]
     );
 
-    console.log('✅ Booking cancelled successfully');
+    console.log('? Booking cancelled successfully');
 
     // Notify organizer
     if (booking.member_user_id) {
@@ -5453,7 +5453,7 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
       // Email to guest
       await sendBookingEmail({
         to: booking.attendee_email,
-        subject: '❌ Booking Cancelled - ScheduleSync',
+        subject: '? Booking Cancelled - ScheduleSync',
         html: emailTemplates.bookingCancellation(
           {
             ...booking,
@@ -5468,7 +5468,7 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
       if (booking.member_email) {
         await sendBookingEmail({
           to: booking.member_email,
-          subject: '❌ Booking Cancelled by Guest - ScheduleSync',
+          subject: '? Booking Cancelled by Guest - ScheduleSync',
           html: emailTemplates.bookingCancellation(
             {
               ...booking,
@@ -5479,9 +5479,9 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
         });
       }
 
-      console.log('✅ Cancellation emails sent');
+      console.log('? Cancellation emails sent');
     } catch (emailError) {
-      console.error('⚠️ Failed to send cancellation email:', emailError);
+      console.error('?? Failed to send cancellation email:', emailError);
     }
 
     res.json({ 
@@ -5490,7 +5490,7 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Cancel booking error:', error);
+    console.error('? Cancel booking error:', error);
     res.status(500).json({ error: 'Failed to cancel booking' });
   }
 });
@@ -5620,7 +5620,7 @@ app.put('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, r
       [reminder_enabled, reminder_hours_before, teamId]
     );
 
-    console.log(`✅ Updated reminder settings for team ${teamId} (${team.name})`);
+    console.log(`? Updated reminder settings for team ${teamId} (${team.name})`);
 
     res.json({
       success: true,
@@ -5640,7 +5640,7 @@ app.put('/api/teams/:teamId/reminder-settings', authenticateToken, async (req, r
 
 app.post('/api/admin/send-reminders', authenticateToken, async (req, res) => {
   try {
-    console.log('🔔 Manual reminder check triggered by user:', req.user.email);
+    console.log('?? Manual reminder check triggered by user:', req.user.email);
     await checkAndSendReminders();
     res.json({ success: true, message: 'Reminder check completed' });
   } catch (error) {
@@ -5680,7 +5680,7 @@ app.get('/api/book/:token/pricing', async (req, res) => {
     const member = memberResult.rows[0];
 
     // DEBUG: Log what we get from database
-    console.log('💰 Pricing endpoint - Raw DB value:', {
+    console.log('?? Pricing endpoint - Raw DB value:', {
       payment_required: member.payment_required,
       type: typeof member.payment_required,
       value: member.payment_required,
@@ -5692,12 +5692,12 @@ app.get('/api/book/:token/pricing', async (req, res) => {
     res.json({
       price: parseFloat(member.booking_price) || 0,
       currency: member.currency || 'USD',
-      paymentRequired: !!member.payment_required,  // ← Double negation for truthy check
+      paymentRequired: !!member.payment_required,  // ? Double negation for truthy check
       memberName: member.name,
       teamName: member.team_name,
     });
   } catch (error) {
-    console.error('❌ Get pricing error:', error);
+    console.error('? Get pricing error:', error);
     res.status(500).json({ error: 'Failed to get pricing' });
   }
 });
@@ -5744,7 +5744,7 @@ app.post('/api/payments/create-intent', async (req, res) => {
       },
     });
 
-    console.log('✅ Payment intent created:', paymentIntent.id);
+    console.log('? Payment intent created:', paymentIntent.id);
 
     res.json({
       clientSecret: paymentIntent.client_secret,
@@ -5753,7 +5753,7 @@ app.post('/api/payments/create-intent', async (req, res) => {
       currency: member.currency || 'USD',
     });
   } catch (error) {
-    console.error('❌ Create payment intent error:', error);
+    console.error('? Create payment intent error:', error);
     res.status(500).json({ error: 'Failed to create payment intent' });
   }
 });
@@ -5763,7 +5763,7 @@ app.post('/api/payments/confirm-booking', async (req, res) => {
   try {
     const { paymentIntentId, bookingToken, slot, attendeeName, attendeeEmail, notes } = req.body;
 
-    console.log('💳 Confirming payment and creating booking:', paymentIntentId);
+    console.log('?? Confirming payment and creating booking:', paymentIntentId);
 
     // Verify payment was successful
     const paymentIntent = await stripeService.getPaymentIntent(paymentIntentId);
@@ -5825,7 +5825,7 @@ app.post('/api/payments/confirm-booking', async (req, res) => {
       ]
     );
 
-    console.log('✅ Booking created with payment:', booking.id);
+    console.log('? Booking created with payment:', booking.id);
 
     // Notify organizer
     if (member.user_id) {
@@ -5861,7 +5861,7 @@ app.post('/api/payments/confirm-booking', async (req, res) => {
 
         await sendBookingEmail({
           to: attendeeEmail,
-          subject: '✅ Payment Confirmed & Booking Complete - ScheduleSync',
+          subject: '? Payment Confirmed & Booking Complete - ScheduleSync',
           html: emailTemplates.bookingConfirmationGuestWithPayment(bookingWithPayment),
           icsAttachment: icsFile,
         });
@@ -5869,15 +5869,15 @@ app.post('/api/payments/confirm-booking', async (req, res) => {
         if (member.member_email || member.email) {
           await sendBookingEmail({
             to: member.member_email || member.email,
-            subject: '💰 New Paid Booking Received - ScheduleSync',
+            subject: '?? New Paid Booking Received - ScheduleSync',
             html: emailTemplates.bookingConfirmationOrganizerWithPayment(bookingWithPayment),
             icsAttachment: icsFile,
           });
         }
 
-        console.log('✅ Payment confirmation emails sent');
+        console.log('? Payment confirmation emails sent');
       } catch (emailError) {
-        console.error('⚠️ Failed to send emails:', emailError);
+        console.error('?? Failed to send emails:', emailError);
       }
     })();
 
@@ -5893,7 +5893,7 @@ app.post('/api/payments/confirm-booking', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('❌ Confirm booking error:', error);
+    console.error('? Confirm booking error:', error);
     res.status(500).json({ error: 'Failed to confirm booking' });
   }
 });
@@ -5904,7 +5904,7 @@ app.post('/api/payments/refund', authenticateToken, async (req, res) => {
     const { bookingId, reason } = req.body;
     const userId = req.user.id;
 
-    console.log('💸 Processing refund for booking:', bookingId);
+    console.log('?? Processing refund for booking:', bookingId);
 
     // Get booking with payment info
     const bookingResult = await pool.query(
@@ -5957,7 +5957,7 @@ app.post('/api/payments/refund', authenticateToken, async (req, res) => {
       [bookingId, refund.id, refund.amount / 100, refund.currency, refund.status, reason]
     );
 
-    console.log('✅ Refund processed:', refund.id);
+    console.log('? Refund processed:', refund.id);
 
     res.json({
       success: true,
@@ -5969,7 +5969,7 @@ app.post('/api/payments/refund', authenticateToken, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('❌ Refund error:', error);
+    console.error('? Refund error:', error);
     res.status(500).json({ error: 'Failed to process refund' });
   }
 });
@@ -5988,34 +5988,34 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
   try {
     const event = stripeService.constructWebhookEvent(req.body, signature);
 
-    console.log('🔔 Stripe webhook event:', event.type);
+    console.log('?? Stripe webhook event:', event.type);
 
     switch (event.type) {
       case 'payment_intent.succeeded':
         // Payment was successful
         const paymentIntent = event.data.object;
-        console.log('✅ Payment succeeded:', paymentIntent.id);
+        console.log('? Payment succeeded:', paymentIntent.id);
         break;
 
       case 'payment_intent.payment_failed':
         // Payment failed
         const failedPayment = event.data.object;
-        console.log('❌ Payment failed:', failedPayment.id);
+        console.log('? Payment failed:', failedPayment.id);
         break;
 
       case 'charge.refunded':
         // Refund processed
         const refund = event.data.object;
-        console.log('💸 Refund processed:', refund.id);
+        console.log('?? Refund processed:', refund.id);
         break;
 
       default:
-        console.log('ℹ️ Unhandled event type:', event.type);
+        console.log('?? Unhandled event type:', event.type);
     }
 
     res.json({ received: true });
   } catch (error) {
-    console.error('❌ Webhook error:', error);
+    console.error('? Webhook error:', error);
     res.status(400).send(`Webhook Error: ${error.message}`);
   }
 });
@@ -6174,7 +6174,7 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const userEmail = req.user.email;
 
-    console.log('🤖 AI Scheduling request:', message);
+    console.log('?? AI Scheduling request:', message);
 
     // Validate message
     if (!message || typeof message !== 'string' || message.trim() === '') {
@@ -6262,8 +6262,8 @@ Return JSON structure:
 }
 
 Examples:
-- "2 pm monday december 1" → date: "2025-12-01", time: "14:00"
-- "tomorrow at 3pm" → calculate tomorrow's date, time: "15:00"
+- "2 pm monday december 1" ? date: "2025-12-01", time: "14:00"
+- "tomorrow at 3pm" ? calculate tomorrow's date, time: "15:00"
 
 For "show bookings" intent, set action to "list".
 For "find time" or vague scheduling, set action to "suggest_slots".
@@ -6315,7 +6315,7 @@ If missing info, set intent to "clarify".`,
       });
     }
 
-    console.log('🎯 Parsed intent:', parsedIntent);
+    console.log('?? Parsed intent:', parsedIntent);
 
 
 
@@ -6408,7 +6408,7 @@ If missing info, set intent to "clarify".`,
     });
 
   } catch (error) {
-    console.error('❌ AI scheduling error:', error);
+    console.error('? AI scheduling error:', error);
     res.status(500).json({ 
       type: 'error',
       message: 'Sorry, I encountered an error. Please try again.' 
@@ -6423,7 +6423,7 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
     const userName = req.user.name;
     const userEmail = req.user.email;
 
-    console.log('✅ Confirming AI booking:', bookingData);
+    console.log('? Confirming AI booking:', bookingData);
 
     // ========== VALIDATE EMAIL ==========
     const email = bookingData.attendees?.[0] || '';
@@ -6433,7 +6433,7 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
     if (!email || !emailRegex.test(email)) {
       return res.status(400).json({ 
         type: 'error',
-        message: '❌ Please provide a valid email address for the attendee.' 
+        message: '? Please provide a valid email address for the attendee.' 
       });
     }
 
@@ -6444,7 +6444,7 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
     if (disposableDomains.includes(emailDomain)) {
       return res.status(400).json({ 
         type: 'error',
-        message: '⚠️ Temporary email addresses are not allowed. Please use a permanent email address.' 
+        message: '?? Temporary email addresses are not allowed. Please use a permanent email address.' 
       });
     }
 
@@ -6491,32 +6491,32 @@ const bookingResult = await pool.query(
   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
   RETURNING *`,
   [
-    member.team_id,          // ✅
-    member.id,               // ✅ FIXED (was assignedMember.id)
-    member.user_id,          // ✅ FIXED (was assignedMember.user_id)
-    attendeeName,            // ✅ FIXED (was attendee_name)
-    email,                   // ✅ (already defined earlier)
-    startTime.toISOString(), // ✅ FIXED (was slot.start)
-    endTime.toISOString(),   // ✅ FIXED (was slot.end)
-    bookingData.title || `Meeting with ${attendeeName}`, // ✅ FIXED
-    bookingData.notes || '', // ✅ FIXED (was notes)
-    member.booking_token,    // ✅ FIXED (was token)
-    'confirmed',             // ✅
-    manageToken              // ✅
+    member.team_id,          // ?
+    member.id,               // ? FIXED (was assignedMember.id)
+    member.user_id,          // ? FIXED (was assignedMember.user_id)
+    attendeeName,            // ? FIXED (was attendee_name)
+    email,                   // ? (already defined earlier)
+    startTime.toISOString(), // ? FIXED (was slot.start)
+    endTime.toISOString(),   // ? FIXED (was slot.end)
+    bookingData.title || `Meeting with ${attendeeName}`, // ? FIXED
+    bookingData.notes || '', // ? FIXED (was notes)
+    member.booking_token,    // ? FIXED (was token)
+    'confirmed',             // ?
+    manageToken              // ?
   ]
 );
 
 const booking = bookingResult.rows[0];
-console.log('✅ AI booking created:', booking.id);
+console.log('? AI booking created:', booking.id);
 
 // ========== RESPOND IMMEDIATELY ==========
 res.json({
   type: 'success',
-  message: `✅ **Meeting confirmed!**\n\n"${bookingData.title || 'Meeting'}" scheduled for **${startTime.toLocaleDateString()}** at **${startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}**\n\n📧 Confirmation emails sent to:\n• **${email}** (attendee)\n• **${userEmail}** (you)\n\n📅 Calendar invite with Google Meet link will arrive shortly.`,
+  message: `? **Meeting confirmed!**\n\n"${bookingData.title || 'Meeting'}" scheduled for **${startTime.toLocaleDateString()}** at **${startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}**\n\n?? Confirmation emails sent to:\n� **${email}** (attendee)\n� **${userEmail}** (you)\n\n?? Calendar invite with Google Meet link will arrive shortly.`,
   booking: booking
 });
   } catch (error) {
-    console.error('❌ AI booking confirmation error:', error);
+    console.error('? AI booking confirmation error:', error);
     res.status(500).json({ 
       type: 'error',
       message: 'Failed to create booking. Please try again.' 
@@ -6569,7 +6569,7 @@ const requireAdmin = (req, res, next) => {
   const adminEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(',') : [];
   // Check if the current logged-in user's email is in the allowed list
   if (!adminEmails.includes(req.user.email)) {
-    console.warn(`⚠️ Unauthorized admin access attempt by: ${req.user.email}`);
+    console.warn(`?? Unauthorized admin access attempt by: ${req.user.email}`);
     return res.status(403).json({ error: 'Access denied: Admins only' });
   }
   next();
@@ -6578,7 +6578,7 @@ const requireAdmin = (req, res, next) => {
 // 1. GET ALL USERS (for the admin list)
 app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    console.log('👮 Admin fetching user list...');
+    console.log('?? Admin fetching user list...');
     const result = await pool.query(`
       SELECT 
         u.id, 
@@ -6594,7 +6594,7 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) =>
     `);
     res.json({ users: result.rows });
   } catch (error) {
-    console.error('❌ Admin get users error:', error);
+    console.error('? Admin get users error:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
@@ -6609,7 +6609,7 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, 
       return res.status(400).json({ error: 'You cannot delete your own admin account.' });
     }
 
-    console.log(`🚨 ADMIN ACTION: User ${req.user.email} is deleting user ID ${targetId}`);
+    console.log(`?? ADMIN ACTION: User ${req.user.email} is deleting user ID ${targetId}`);
 
     // Perform delete
     // Note: Because your initDB uses "ON DELETE CASCADE", this will automatically 
@@ -6623,14 +6623,14 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, 
       return res.status(404).json({ error: 'User not found' });
     }
     
-    console.log(`✅ User ${result.rows[0].email} deleted successfully.`);
+    console.log(`? User ${result.rows[0].email} deleted successfully.`);
     res.json({ 
       success: true, 
       message: `User ${result.rows[0].email} and all associated data have been deleted.` 
     });
 
   } catch (error) {
-    console.error('❌ Admin delete user error:', error);
+    console.error('? Admin delete user error:', error);
     res.status(500).json({ error: 'Failed to delete user' });
   }
 });
@@ -6638,7 +6638,7 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, 
 // ============ MIGRATION HELPER (Run once then delete) ============
 app.get('/api/admin/migrate-event-types', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    console.log('🔄 seeding default event types...');
+    console.log('?? seeding default event types...');
     
     // Get all users
     const users = await pool.query('SELECT id FROM users');
@@ -6783,10 +6783,10 @@ if (process.env.NODE_ENV === 'production') {
   
   // Verify dist exists
   if (!fs.existsSync(distPath)) {
-    console.error('❌ dist-built folder not found!');
+    console.error('? dist-built folder not found!');
     console.error('Expected path:', distPath);
   } else {
-    console.log('✅ Serving static files from:', distPath);
+    console.log('? Serving static files from:', distPath);
   }
   
   app.use(express.static(distPath));
@@ -6800,7 +6800,7 @@ app.get('/api/auth/microsoft/url', (req, res) => {
   try {
     // Validate credentials exist
     if (!process.env.MICROSOFT_CLIENT_ID) {
-      console.error('❌ MICROSOFT_CLIENT_ID not configured');
+      console.error('? MICROSOFT_CLIENT_ID not configured');
       return res.status(503).json({ 
         error: 'Microsoft login not configured',
         message: 'Please contact support to enable Microsoft login'
@@ -6815,12 +6815,12 @@ app.get('/api/auth/microsoft/url', (req, res) => {
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&response_mode=query` +
       `&scope=${encodeURIComponent(MICROSOFT_CONFIG.scopes.join(' '))}` +
-      `&prompt=select_account`;  // ✅ ADD THIS - only shows account picker, not consent
+      `&prompt=select_account`;  // ? ADD THIS - only shows account picker, not consent
     
-    console.log('🔗 Generated Microsoft OAuth URL');
+    console.log('?? Generated Microsoft OAuth URL');
     res.json({ url: authUrl });
   } catch (error) {
-    console.error('❌ Error generating Microsoft OAuth URL:', error);
+    console.error('? Error generating Microsoft OAuth URL:', error);
     res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
 });
@@ -6859,12 +6859,12 @@ function reminderEmailTemplate(booking, hoursBefore) {
     hour12: true 
   });
 
-  // ✅ CRITICAL FIX: Create manage URL with manage_token, not booking.id
+  // ? CRITICAL FIX: Create manage URL with manage_token, not booking.id
   const manageUrl = booking.manage_token 
     ? `${process.env.FRONTEND_URL}/manage/${booking.manage_token}`
     : null;
 
-  console.log('📧 REMINDER - Booking data:', {
+  console.log('?? REMINDER - Booking data:', {
     id: booking.id,
     manage_token: booking.manage_token,
     generated_url: manageUrl
@@ -6887,7 +6887,7 @@ function reminderEmailTemplate(booking, hoursBefore) {
               <!-- Header -->
               <tr>
                 <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
-                  <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 600;">⏰ Meeting Reminder</h1>
+                  <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 600;">? Meeting Reminder</h1>
                   <p style="margin: 10px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 16px;">
                     Your meeting starts in ${hoursBefore} hour${hoursBefore !== 1 ? 's' : ''}
                   </p>
@@ -6900,7 +6900,7 @@ function reminderEmailTemplate(booking, hoursBefore) {
                   
                   <!-- Greeting -->
                   <p style="margin: 0 0 20px 0; font-size: 16px; color: #333; line-height: 1.6;">
-                    Hi ${booking.guest_name || booking.host_name || 'there'} 👋
+                    Hi ${booking.guest_name || booking.host_name || 'there'} ??
                   </p>
                   
                   <p style="margin: 0 0 30px 0; font-size: 16px; color: #555; line-height: 1.6;">
@@ -6919,18 +6919,18 @@ function reminderEmailTemplate(booking, hoursBefore) {
                         
                         <!-- Date -->
                         <p style="margin: 0 0 10px 0; font-size: 15px; color: #555;">
-                          <strong style="color: #667eea;">📅 Date:</strong> ${dateStr}
+                          <strong style="color: #667eea;">?? Date:</strong> ${dateStr}
                         </p>
                         
                         <!-- Time -->
                         <p style="margin: 0 0 10px 0; font-size: 15px; color: #555;">
-                          <strong style="color: #667eea;">🕐 Time:</strong> ${timeStr} - ${endTimeStr}${booking.timezone ? ` (${booking.timezone})` : ''}
+                          <strong style="color: #667eea;">?? Time:</strong> ${timeStr} - ${endTimeStr}${booking.timezone ? ` (${booking.timezone})` : ''}
                         </p>
                         
                         <!-- Attendees -->
                         ${booking.host_name && booking.guest_name ? `
                           <p style="margin: 0; font-size: 15px; color: #555;">
-                            <strong style="color: #667eea;">👥 With:</strong> ${booking.guest_name === (booking.guest_name || booking.host_name) ? booking.host_name : booking.guest_name}
+                            <strong style="color: #667eea;">?? With:</strong> ${booking.guest_name === (booking.guest_name || booking.host_name) ? booking.host_name : booking.guest_name}
                           </p>
                         ` : ''}
                         
@@ -6944,7 +6944,7 @@ function reminderEmailTemplate(booking, hoursBefore) {
                       <tr>
                         <td align="center">
                           <a href="${booking.meeting_url}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);">
-                            🔗 Join Meeting
+                            ?? Join Meeting
                           </a>
                         </td>
                       </tr>
@@ -6956,7 +6956,7 @@ function reminderEmailTemplate(booking, hoursBefore) {
                     <tr>
                       <td style="padding: 15px;">
                         <p style="margin: 0; font-size: 14px; color: #2e7d32; line-height: 1.5;">
-                          💡 <strong>Tip:</strong> Join a few minutes early to test your audio and video!
+                          ?? <strong>Tip:</strong> Join a few minutes early to test your audio and video!
                         </p>
                       </td>
                     </tr>
@@ -6993,10 +6993,10 @@ function reminderEmailTemplate(booking, hoursBefore) {
 async function checkAndSendReminders() {
   const now = new Date();
   lastReminderRun = now;
-  console.log('⏰ Running reminder check at', now.toISOString());
+  console.log('? Running reminder check at', now.toISOString());
 
   try {
-    // ✅ CRITICAL: Include manage_token in the SELECT query
+    // ? CRITICAL: Include manage_token in the SELECT query
     const query = `
       SELECT
         b.id,
@@ -7030,7 +7030,7 @@ async function checkAndSendReminders() {
 
     const result = await pool.query(query);
     if (result.rowCount === 0) {
-      console.log('ℹ️ No bookings eligible for reminders right now');
+      console.log('?? No bookings eligible for reminders right now');
       return;
     }
 
@@ -7043,12 +7043,12 @@ async function checkAndSendReminders() {
 
       if (diffHours <= hoursBefore && diffHours > 0) {
         console.log(
-          `📧 Sending reminder for booking ${row.id} (team ${row.team_id}) diff=${diffHours.toFixed(
+          `?? Sending reminder for booking ${row.id} (team ${row.team_id}) diff=${diffHours.toFixed(
             2
           )}h window=${hoursBefore}h`
         );
 
-        // ✅ CRITICAL: Pass manage_token to the template
+        // ? CRITICAL: Pass manage_token to the template
         const bookingForTemplate = {
           id: row.id,
           start_time: row.start_time,
@@ -7060,7 +7060,7 @@ async function checkAndSendReminders() {
           host_name: row.host_name,
           meeting_url: row.meeting_url,
           timezone: row.timezone,
-          manage_token: row.manage_token, // ✅ ADDED THIS
+          manage_token: row.manage_token, // ? ADDED THIS
         };
 
         const html = reminderEmailTemplate(bookingForTemplate, hoursBefore);
@@ -7075,7 +7075,7 @@ async function checkAndSendReminders() {
 
         if (recipients.length === 0) {
           console.log(
-            `⚠️ No recipients for booking ${row.id}, skipping reminder`
+            `?? No recipients for booking ${row.id}, skipping reminder`
           );
           continue;
         }
@@ -7092,32 +7092,32 @@ async function checkAndSendReminders() {
           [row.id]
         );
 
-        console.log(`✅ Reminder sent and marked for booking ${row.id}`);
+        console.log(`? Reminder sent and marked for booking ${row.id}`);
       } else {
         console.log(
-          `⏭ Skipping ${row.id}, diffHours=${diffHours.toFixed(
+          `? Skipping ${row.id}, diffHours=${diffHours.toFixed(
             2
           )} window=${hoursBefore}h`
         );
       }
     }
   } catch (err) {
-    console.error('❌ Error in reminder engine:', err);
+    console.error('? Error in reminder engine:', err);
   }
 }
 
 // Run every 5 minutes
 cron.schedule(REMINDER_CRON, () => {
   checkAndSendReminders().catch((err) =>
-    console.error('❌ Unhandled reminder cron error:', err)
+    console.error('? Unhandled reminder cron error:', err)
   );
 });
 
 // Check once on startup after 60 seconds
 setTimeout(() => {
-  console.log('🔔 Running initial reminder check on startup...');
+  console.log('?? Running initial reminder check on startup...');
   checkAndSendReminders().catch((err) =>
-    console.error('❌ Startup reminder check error:', err)
+    console.error('? Startup reminder check error:', err)
   );
 }, 60000);
 
@@ -7134,7 +7134,7 @@ app.put('/api/users/profile', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const { username, timezone, availability } = req.body;
 
-    console.log('🚀 Processing onboarding for user:', userId);
+    console.log('?? Processing onboarding for user:', userId);
 
     // 1. Update User Timezone
     if (timezone) {
@@ -7212,12 +7212,12 @@ app.put('/api/users/profile', authenticateToken, async (req, res) => {
     }
 
     await client.query('COMMIT');
-    console.log('✅ Onboarding complete for:', userId);
+    console.log('? Onboarding complete for:', userId);
     res.json({ success: true, username });
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('❌ Onboarding error:', error);
+    console.error('? Onboarding error:', error);
     
     // Handle duplicate username error (Postgres unique constraint violation code 23505)
     if (error.code === '23505') { 
@@ -7336,7 +7336,7 @@ app.use((err, req, res, next) => {
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`?? Server running on port ${PORT}`);
 });
 
 // ============ GRACEFUL SHUTDOWN ============
@@ -7357,3 +7357,5 @@ process.on('unhandledRejection', (err) => {
 });
 
 module.exports = app;
+
+
