@@ -51,6 +51,7 @@ export default function BookingPage() {
     
   const [selectedSlot, setSelectedSlot] = useState(null);
 
+  // Detect guest timezone
   useEffect(() => {
     try {
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -62,6 +63,7 @@ export default function BookingPage() {
     }
   }, []);
 
+  // Check for reschedule mode
   useEffect(() => {
     const rescheduleParam = searchParams.get('reschedule');
     if (rescheduleParam) {
@@ -71,6 +73,7 @@ export default function BookingPage() {
     loadBookingInfo();
   }, [token]);
 
+  // Handle OAuth callback
   useEffect(() => {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
@@ -78,6 +81,7 @@ export default function BookingPage() {
     if (!code || !state?.startsWith('guest-booking:') || !token || hasProcessedOAuth) return;
 
     setHasProcessedOAuth(true);
+    console.log('🔄 Processing OAuth callback...');
 
     (async () => {
       try {
@@ -92,6 +96,7 @@ export default function BookingPage() {
         }
         
         const data = response.data;
+        console.log('✅ OAuth successful:', data.email);
         
         setGuestCalendar({
           signedIn: true,
@@ -109,6 +114,38 @@ export default function BookingPage() {
           attendee_email: data.email || prev.attendee_email,
         }));
 
+        // ✅ RESTORE SAVED STATE FROM LOCALSTORAGE
+        const savedState = localStorage.getItem('schedulesync_oauth_return');
+        console.log('📦 Saved state:', savedState);
+        
+        if (savedState) {
+          try {
+            const state = JSON.parse(savedState);
+            console.log('🔄 Restoring state:', state);
+            
+            // Restore event type if it was saved
+            if (state.eventTypeId && eventTypes.length > 0) {
+              const eventType = eventTypes.find(et => et.id === state.eventTypeId);
+              if (eventType) {
+                console.log('✅ Restored event type:', eventType.title);
+                setSelectedEventType(eventType);
+              }
+            }
+            
+            // Restore step
+            if (state.step) {
+              console.log('✅ Restored step:', state.step);
+              setStep(state.step);
+            }
+            
+            // Clean up
+            localStorage.removeItem('schedulesync_oauth_return');
+          } catch (err) {
+            console.error('Failed to restore state:', err);
+          }
+        }
+
+        // Clean URL
         const typeParam = searchParams.get('type');
         const rescheduleParam = searchParams.get('reschedule');
         let newUrl = `/book/${token}`;
@@ -118,13 +155,20 @@ export default function BookingPage() {
         if (params.toString()) newUrl += `?${params.toString()}`;
         
         navigate(newUrl, { replace: true });
-        setStep('form');
+        
+        // If no saved state or state restoration, default to form
+        if (!savedState) {
+          setStep('form');
+        }
+        
       } catch (err) {
-        console.error('Guest OAuth failed:', err);
+        console.error('❌ Guest OAuth failed:', err);
+        setError('Failed to connect calendar. Please try again.');
         setHasProcessedOAuth(false);
+        setStep('calendar-choice');
       }
     })();
-  }, [searchParams, token, navigate, hasProcessedOAuth]);
+  }, [searchParams, token, navigate, hasProcessedOAuth, eventTypes]);
 
   const loadBookingInfo = async () => {
     try {
@@ -208,29 +252,41 @@ export default function BookingPage() {
   };
 
   const handleCalendarConnect = async (provider) => {
-  try {
-    // ✅ Use backend endpoints to generate OAuth URLs
-    let response;
-    
-    if (provider === 'google') {
-      response = await oauth.getGoogleGuestUrl(token);
-    } else if (provider === 'microsoft') {
-      response = await oauth.getMicrosoftGuestUrl(token);
+    try {
+      // ✅ SAVE CURRENT STATE BEFORE OAUTH REDIRECT
+      if (selectedEventType) {
+        const stateToSave = {
+          token: token,
+          eventTypeId: selectedEventType.id,
+          eventTypeSlug: selectedEventType.slug,
+          step: 'form', // After OAuth, go directly to form/slot selection
+          timestamp: Date.now()
+        };
+        
+        console.log('💾 Saving state before OAuth:', stateToSave);
+        localStorage.setItem('schedulesync_oauth_return', JSON.stringify(stateToSave));
+      }
+      
+      // Generate OAuth URL and redirect
+      let response;
+      
+      if (provider === 'google') {
+        response = await oauth.getGoogleGuestUrl(token);
+      } else if (provider === 'microsoft') {
+        response = await oauth.getMicrosoftGuestUrl(token);
+      }
+      
+      const authUrl = response.data.url;
+      console.log('🔗 Redirecting to OAuth:', authUrl);
+      
+      // Redirect to the auth URL
+      window.location.href = authUrl;
+      
+    } catch (error) {
+      console.error('❌ OAuth URL generation failed:', error);
+      setError('Failed to connect calendar. Please try again.');
     }
-    
-    const authUrl = response.data.url;
-    console.log('🔗 Redirecting to OAuth:', authUrl);
-    
-    // Redirect to the auth URL
-    window.location.href = authUrl;
-    
-  } catch (error) {
-    console.error('❌ OAuth URL generation failed:', error);
-    alert('Failed to connect calendar. Please try again.');
-  }
-};
-
-
+  };
 
   const handleAddAttendee = () => {
     if (!newAttendeeEmail.trim()) return;
@@ -310,6 +366,7 @@ export default function BookingPage() {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 md:p-6 font-sans">
       <div className="bg-white w-full max-w-6xl rounded-[2rem] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] border border-slate-100">
         
+        {/* Left Sidebar */}
         <div className="md:w-1/3 bg-slate-50 border-r border-slate-200 p-8 flex flex-col relative">
 
           {isReschedule && (
@@ -366,8 +423,10 @@ export default function BookingPage() {
           </div>
         </div>
 
+        {/* Right Content Area */}
         <div className="md:w-2/3 bg-white p-6 md:p-10 overflow-y-auto relative">
           
+          {/* Event Type Selection */}
           {step === 'event-select' && (
             <FadeIn className="max-w-xl mx-auto">
               <h2 className="text-2xl font-bold text-slate-900 mb-2">Select a Meeting Type</h2>
@@ -394,6 +453,7 @@ export default function BookingPage() {
             </FadeIn>
           )}
 
+          {/* Calendar Connection Choice */}
           {step === 'calendar-choice' && (
             <FadeIn className="max-w-lg mx-auto py-8">
               <div className="text-center mb-8">
@@ -453,6 +513,7 @@ export default function BookingPage() {
             </FadeIn>
           )}
 
+          {/* Booking Form */}
           {step === 'form' && (
             <FadeIn className="h-full flex flex-col">
               {guestCalendar?.signedIn && (
