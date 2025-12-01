@@ -126,44 +126,26 @@ export default function BookingPage() {
     })();
   }, [searchParams, token, navigate, hasProcessedOAuth]);
 
-  const loadBookingInfo = async () => {
-    try {
-      setLoading(true);
-      const response = await bookings.getByToken(token);
-      const payload = response.data?.data || response.data || {};
+ const loadBookingInfo = async () => {
+  try {
+    setLoading(true);
+    const response = await bookings.getByToken(token);
+    const payload = response.data?.data || response.data || {};
 
-      if (!payload.team || !payload.member) throw new Error('Missing info');
+    console.log('📦 Booking payload:', payload);
 
-      if (payload.member.external_booking_link && !isReschedule) {
-        setRedirecting(true);
-        setMemberInfo(payload.member);
-        setTimeout(() => { window.location.href = payload.member.external_booking_link; }, 1500);
-        return;
-      }
-
+    // Handle TEAM bookings (multiple members)
+    if (payload.type === 'team') {
+      console.log('👥 Team booking detected');
       setTeamInfo(payload.team);
-      setMemberInfo(payload.member);
       
-      const directMemberLink = payload.isDirectLink === true || 
-                               payload.skipEventTypes === true ||
-                               payload.linkType === 'member' ||
-                               isReschedule;
-      
-      setIsDirectMemberLink(directMemberLink);
-      
-      if (directMemberLink) {
-        setEventTypes([]);
-        setSelectedEventType(null);
-        setStep('calendar-choice');
-        return;
+      // For team bookings, pick the first active member or let user choose
+      const activeMembers = (payload.members || []).filter(m => m.is_active !== false);
+      if (activeMembers.length > 0) {
+        setMemberInfo(activeMembers[0]); // Use first member for now
       }
       
-      let allEventTypes = payload.eventTypes || [];
-      if (allEventTypes.length === 0 && !directMemberLink) {
-        const eventTypesRes = await eventTypesAPI.getAll();
-        allEventTypes = eventTypesRes.data.eventTypes || [];
-      }
-      
+      const allEventTypes = payload.eventTypes || [];
       const activeEventTypes = allEventTypes.filter(et => et.is_active !== false);
       setEventTypes(activeEventTypes);
       
@@ -186,18 +168,85 @@ export default function BookingPage() {
           setStep('calendar-choice');
         }
       }
-
-    } catch (err) {
-      if (err.response?.status === 410 || err.response?.data?.code === 'LINK_USED') {
-        setIsLinkUsed(true);
-        setLoading(false);
-        return;
-      }
-      setError(err.response?.data?.error || 'Invalid booking link');
-    } finally {
+      
       setLoading(false);
+      return;
     }
-  };
+
+    // Handle MEMBER bookings (single member) or SINGLE-USE
+    if (!payload.team || !payload.member) {
+      throw new Error('Missing booking information');
+    }
+
+    // Check for external booking redirect
+    if (payload.member.external_booking_link && !isReschedule) {
+      setRedirecting(true);
+      setMemberInfo(payload.member);
+      setTimeout(() => { 
+        window.location.href = payload.member.external_booking_link; 
+      }, 1500);
+      return;
+    }
+
+    setTeamInfo(payload.team);
+    setMemberInfo(payload.member);
+    
+    const directMemberLink = payload.isDirectLink === true || 
+                             payload.skipEventTypes === true ||
+                             payload.linkType === 'member' ||
+                             payload.type === 'member' ||
+                             isReschedule;
+    
+    setIsDirectMemberLink(directMemberLink);
+    
+    if (directMemberLink) {
+      setEventTypes([]);
+      setSelectedEventType(null);
+      setStep('calendar-choice');
+      return;
+    }
+    
+    let allEventTypes = payload.eventTypes || [];
+    if (allEventTypes.length === 0 && !directMemberLink) {
+      const eventTypesRes = await eventTypesAPI.getAll();
+      allEventTypes = eventTypesRes.data.eventTypes || [];
+    }
+    
+    const activeEventTypes = allEventTypes.filter(et => et.is_active !== false);
+    setEventTypes(activeEventTypes);
+    
+    const eventTypeSlug = searchParams.get('type');
+    if (eventTypeSlug) {
+      const selectedEvent = activeEventTypes.find(e => e.slug === eventTypeSlug);
+      if (selectedEvent) {
+        setSelectedEventType(selectedEvent);
+        setStep('calendar-choice');
+      } else {
+        setStep(activeEventTypes.length > 0 ? 'event-select' : 'calendar-choice');
+      }
+    } else {
+      if (activeEventTypes.length === 1) {
+        setSelectedEventType(activeEventTypes[0]);
+        setStep('calendar-choice');
+      } else if (activeEventTypes.length > 1) {
+        setStep('event-select');
+      } else {
+        setStep('calendar-choice');
+      }
+    }
+
+  } catch (err) {
+    console.error('❌ Load booking error:', err);
+    if (err.response?.status === 410 || err.response?.data?.code === 'LINK_USED') {
+      setIsLinkUsed(true);
+      setLoading(false);
+      return;
+    }
+    setError(err.response?.data?.error || 'Invalid booking link');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleSelectEventType = (eventType) => {
     setSelectedEventType(eventType);
