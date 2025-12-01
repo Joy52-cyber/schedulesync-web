@@ -207,38 +207,28 @@ export default function BookingPage() {
     setStep('calendar-choice');
   };
 
-  const handleCalendarConnect = (provider) => {
-    const currentUrl = window.location.origin + window.location.pathname;
-    const redirectUri = currentUrl;
-    const state = `guest-booking:${token}:${provider}`;
+  const handleCalendarConnect = async (provider) => {
+  try {
+    // ✅ Use backend endpoints to generate OAuth URLs
+    let response;
     
     if (provider === 'google') {
-      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-      const scope = 'openid email profile https://www.googleapis.com/auth/calendar.readonly';
-      const params = new URLSearchParams({
-        client_id: clientId, 
-        redirect_uri: redirectUri, 
-        response_type: 'code',
-        scope: scope, 
-        access_type: 'offline', 
-        prompt: 'select_account', 
-        state: state,
-      });
-      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+      response = await oauth.getGoogleGuestUrl(token);
     } else if (provider === 'microsoft') {
-      const clientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
-      const scope = 'openid email profile Calendars.Read';
-      const params = new URLSearchParams({
-        client_id: clientId, 
-        redirect_uri: redirectUri, 
-        response_type: 'code',
-        scope: scope, 
-        response_mode: 'query', 
-        state: state,
-      });
-      window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
+      response = await oauth.getMicrosoftGuestUrl(token);
     }
-  };
+    
+    const authUrl = response.data.url;
+    console.log('🔗 Redirecting to OAuth:', authUrl);
+    
+    // Redirect to the auth URL
+    window.location.href = authUrl;
+    
+  } catch (error) {
+    console.error('❌ OAuth URL generation failed:', error);
+    alert('Failed to connect calendar. Please try again.');
+  }
+};
 
 
 

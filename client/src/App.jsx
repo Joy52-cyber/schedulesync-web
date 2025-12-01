@@ -85,6 +85,10 @@ function InnerApp() {
           <Route path="/oauth/callback/microsoft" element={<LoginWrapper Component={OAuthCallback} />} />
           <Route path="/oauth/callback/calendly" element={<LoginWrapper Component={OAuthCallback} />} />
 
+          {/* ✅ ADD THESE TWO LINES - Guest OAuth Callbacks */}
+<Route path="/oauth/callback/google/guest" element={<OAuthCallback />} />
+<Route path="/oauth/callback/microsoft/guest" element={<OAuthCallback />} />
+
           {/* Onboarding */}
           <Route path="/onboarding" element={
             <ProtectedRoute>
