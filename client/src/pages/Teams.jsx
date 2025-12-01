@@ -87,11 +87,11 @@ export default function Teams() {
         url: `${window.location.origin}/book/${team.booking_token}`,
         token: team.booking_token,
       };
-   } else {
+  } else {
   // Regular teams use team booking token
   if (!team.team_booking_token) return null;
   return {
-    url: `${window.location.origin}/book/${team.team_booking_token}`,
+    url: `${window.location.origin}/book/${team.team_booking_token}`, // ✅ No /team/
     token: team.team_booking_token,
   };
 }
