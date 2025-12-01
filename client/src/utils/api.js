@@ -142,17 +142,20 @@ export const calendar = {
 // OAUTH (Google + Microsoft + Calendly)
 // ============================================
 export const oauth = {
-  // ✅ UPDATED: Add URL generators for both providers
+  // ✅ ADD THESE:
   getGoogleGuestUrl: (bookingToken) =>
     api.get(`/api/book/auth/google/url?bookingToken=${bookingToken}`),
   
   getMicrosoftGuestUrl: (bookingToken) =>
     api.get(`/api/book/auth/microsoft/url?bookingToken=${bookingToken}`),
   
-  // Callback handlers
+  // KEEP EXISTING:
   guestGoogleAuth: (code, bookingToken) =>
     api.post('/api/book/auth/google', { code, bookingToken }),
   
+  handleMicrosoftCallback: (code) =>
+    api.post('/api/auth/microsoft/callback', { code }),
+    
   handleMicrosoftGuestCallback: (code, bookingToken) =>
     api.post('/api/book/auth/microsoft', { code, bookingToken }),
 };

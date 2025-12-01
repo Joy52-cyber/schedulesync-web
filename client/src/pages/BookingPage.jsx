@@ -268,28 +268,23 @@ export default function BookingPage() {
 
   const handleCalendarConnect = async (provider) => {
   try {
+    setError('');
+    console.log('🔗 Initiating OAuth for:', provider);
+    
+    let response;
     if (provider === 'google') {
-      const currentUrl = window.location.origin + window.location.pathname;
-      const redirectUri = currentUrl;
-      const state = `guest-booking:${token}:google`;
-      
-      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-      const scope = 'openid email profile https://www.googleapis.com/auth/calendar.readonly';
-      const params = new URLSearchParams({
-        client_id: clientId, 
-        redirect_uri: redirectUri, 
-        response_type: 'code',
-        scope: scope, 
-        access_type: 'offline', 
-        prompt: 'select_account', 
-        state: state,
-      });
-      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-      
+      response = await oauth.getGoogleGuestUrl(token);
     } else if (provider === 'microsoft') {
-      // ✅ UPDATED: Use backend endpoint to get OAuth URL
-      const response = await oauth.getMicrosoftGuestUrl(token);
+      response = await oauth.getMicrosoftGuestUrl(token);
+    }
+    
+    console.log('📍 OAuth URL response:', response?.data);
+    
+    if (response?.data?.url) {
+      console.log('✅ Redirecting to:', response.data.url);
       window.location.href = response.data.url;
+    } else {
+      throw new Error('No URL in response');
     }
   } catch (error) {
     console.error('❌ Failed to initiate OAuth:', error);
