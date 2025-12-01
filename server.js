@@ -4518,15 +4518,16 @@ app.get('/api/book/:token', async (req, res) => {
     console.log('?? Looking up token:', token);
     
     // 1. Check single-use links (64 chars)
-    if (token.length === 64) {
-      const singleUseCheck = await pool.query(
-        `SELECT sul.token, sul.name as link_name, sul.team_id,
-                t.name as team_name, t.description, t.booking_mode
-         FROM single_use_links sul
-         JOIN teams t ON sul.team_id = t.id
-         WHERE sul.token = $1 AND sul.used = false AND sul.expires_at > NOW()`,
-        [token]
-      );
+if (token.length === 64) {
+  const singleUseCheck = await pool.query(
+    `SELECT sul.token, sul.name as link_name, tm.team_id,
+            t.name as team_name, t.description, t.booking_mode
+     FROM single_use_links sul
+     JOIN team_members tm ON sul.member_id = tm.id
+     JOIN teams t ON tm.team_id = t.id
+     WHERE sul.token = $1 AND sul.used = false AND sul.expires_at > NOW()`,
+    [token]
+  );
       
       if (singleUseCheck.rows.length > 0) {
         const link = singleUseCheck.rows[0];
