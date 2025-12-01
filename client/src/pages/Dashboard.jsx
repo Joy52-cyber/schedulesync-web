@@ -52,8 +52,7 @@ export default function Dashboard() {
   const [showSingleUseModal, setShowSingleUseModal] = useState(false);
   const [copiedSingleUse, setCopiedSingleUse] = useState('');
   const [linkName, setLinkName] = useState('');
-  const [showCalendlyBanner, setShowCalendlyBanner] = useState(true);
-
+ 
   useEffect(() => {
     loadAllData();
   }, []);
@@ -270,59 +269,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* CALENDLY IMPORT BANNER - PROMINENT PLACEMENT */}
-            {showCalendlyBanner && (
-              <div className="bg-gradient-to-r from-purple-50 via-pink-50 to-purple-50 rounded-2xl border-2 border-purple-300 p-5 shadow-lg relative overflow-hidden">
-                <button
-                  onClick={() => setShowCalendlyBanner(false)}
-                  className="absolute top-3 right-3 p-1 hover:bg-white/50 rounded-lg transition-colors"
-                >
-                  <X className="h-4 w-4 text-purple-600" />
-                </button>
-                
-                <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-                  <div className="flex-shrink-0">
-                    <div className="h-14 w-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
-                      <Upload className="h-7 w-7 text-white" />
-                    </div>
-                  </div>
-                  
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-purple-900 mb-1 flex items-center gap-2">
-                      Coming from Calendly? 
-                      <span className="text-sm bg-purple-600 text-white px-2 py-0.5 rounded-full font-semibold">NEW</span>
-                    </h3>
-                    <p className="text-purple-700 text-sm mb-3">
-                      Import your event types, availability, and booking history in just 2 minutes. Zero manual setup required!
-                    </p>
-                    <div className="flex flex-wrap gap-2 text-xs text-purple-600">
-                      <span className="flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Event Types
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Availability
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Past Bookings
-                      </span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => navigate('/import/calendly')}
-                    className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover:shadow-xl transition-all flex items-center justify-center gap-2 whitespace-nowrap"
-                  >
-                    <Upload className="h-5 w-5" />
-                    Start Import
-                    <ArrowRight className="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
-            )}
-
+            
             {/* Booking Link */}
             {bookingLink ? (
               <div className="bg-blue-50/50 rounded-2xl border border-blue-200 p-5 shadow-sm">

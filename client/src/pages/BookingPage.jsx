@@ -73,60 +73,66 @@ export default function BookingPage() {
   }, [token]);
 
   useEffect(() => {
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
-    
-    if (!code || !state?.startsWith('guest-booking:') || !token || hasProcessedOAuth) return;
+  const code = searchParams.get('code');
+  const state = searchParams.get('state');
+  
+  // ✅ UPDATED: Handle both Google (with state prefix) and Microsoft (state = token)
+  const isGoogleCallback = state?.startsWith('guest-booking:');
+  const isMicrosoftCallback = code && state && !isGoogleCallback;
+  
+  if (!code || (!isGoogleCallback && !isMicrosoftCallback) || hasProcessedOAuth) return;
 
-    setHasProcessedOAuth(true);
+  setHasProcessedOAuth(true);
 
-    (async () => {
-      try {
-        setError('');
+  (async () => {
+    try {
+      setError('');
+      
+      let response;
+      if (isGoogleCallback) {
         const provider = state.split(':')[2] || 'google';
-        
-        let response;
-        if (provider === 'microsoft') {
-          response = await oauth.handleMicrosoftCallback(code);
-        } else {
-          response = await oauth.guestGoogleAuth(code, token);
-        }
-        
-        const data = response.data;
-        
-        setGuestCalendar({
-          signedIn: true,
-          hasCalendarAccess: data.hasCalendarAccess || false,
-          provider: provider,
-          email: data.email || '',
-          name: data.name || '',
-          accessToken: data.accessToken,
-          refreshToken: data.refreshToken,
-        });
-
-        setFormData((prev) => ({
-          ...prev,
-          attendee_name: data.name || prev.attendee_name,
-          attendee_email: data.email || prev.attendee_email,
-        }));
-
-        const typeParam = searchParams.get('type');
-        const rescheduleParam = searchParams.get('reschedule');
-        let newUrl = `/book/${token}`;
-        const params = new URLSearchParams();
-        if (typeParam) params.set('type', typeParam);
-        if (rescheduleParam) params.set('reschedule', rescheduleParam);
-        if (params.toString()) newUrl += `?${params.toString()}`;
-        
-        navigate(newUrl, { replace: true });
-        setStep('form');
-      } catch (err) {
-        console.error('Guest OAuth failed:', err);
-        setHasProcessedOAuth(false);
+        response = await oauth.guestGoogleAuth(code, token);
+      } else if (isMicrosoftCallback) {
+        // Microsoft passes booking token in state parameter
+        const bookingToken = state;
+        response = await oauth.handleMicrosoftGuestCallback(code, bookingToken);
       }
-    })();
-  }, [searchParams, token, navigate, hasProcessedOAuth]);
+      
+      const data = response.data;
+      
+      setGuestCalendar({
+        signedIn: true,
+        hasCalendarAccess: data.hasCalendarAccess || false,
+        provider: data.provider || (isGoogleCallback ? 'google' : 'microsoft'),
+        email: data.email || '',
+        name: data.name || '',
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+      });
 
+      setFormData((prev) => ({
+        ...prev,
+        attendee_name: data.name || prev.attendee_name,
+        attendee_email: data.email || prev.attendee_email,
+      }));
+
+      const typeParam = searchParams.get('type');
+      const rescheduleParam = searchParams.get('reschedule');
+      let newUrl = `/book/${token}`;
+      const params = new URLSearchParams();
+      if (typeParam) params.set('type', typeParam);
+      if (rescheduleParam) params.set('reschedule', rescheduleParam);
+      if (params.toString()) newUrl += `?${params.toString()}`;
+      
+      navigate(newUrl, { replace: true });
+      setStep('form');
+    } catch (err) {
+      console.error('Guest OAuth failed:', err);
+      setError('Failed to connect calendar. Please try again.');
+      setHasProcessedOAuth(false);
+    }
+  })();
+}, [searchParams, token, navigate, hasProcessedOAuth]);
   const loadBookingInfo = async () => {
     try {
       setLoading(true);
@@ -260,12 +266,13 @@ export default function BookingPage() {
     setStep('calendar-choice');
   };
 
-  const handleCalendarConnect = (provider) => {
-    const currentUrl = window.location.origin + window.location.pathname;
-    const redirectUri = currentUrl;
-    const state = `guest-booking:${token}:${provider}`;
-    
+  const handleCalendarConnect = async (provider) => {
+  try {
     if (provider === 'google') {
+      const currentUrl = window.location.origin + window.location.pathname;
+      const redirectUri = currentUrl;
+      const state = `guest-booking:${token}:google`;
+      
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
       const scope = 'openid email profile https://www.googleapis.com/auth/calendar.readonly';
       const params = new URLSearchParams({
@@ -278,20 +285,17 @@ export default function BookingPage() {
         state: state,
       });
       window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+      
     } else if (provider === 'microsoft') {
-      const clientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
-      const scope = 'openid email profile Calendars.Read';
-      const params = new URLSearchParams({
-        client_id: clientId, 
-        redirect_uri: redirectUri, 
-        response_type: 'code',
-        scope: scope, 
-        response_mode: 'query', 
-        state: state,
-      });
-      window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
+      // ✅ UPDATED: Use backend endpoint to get OAuth URL
+      const response = await oauth.getMicrosoftGuestUrl(token);
+      window.location.href = response.data.url;
     }
-  };
+  } catch (error) {
+    console.error('❌ Failed to initiate OAuth:', error);
+    setError('Failed to connect calendar. Please try again.');
+  }
+};
 
   const handleAddAttendee = () => {
     if (!newAttendeeEmail.trim()) return;

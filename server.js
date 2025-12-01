@@ -2149,6 +2149,86 @@ app.post('/api/book/auth/google', async (req, res) => {
   }
 });
 
+// ============ GUEST MICROSOFT OAUTH (BOOKING PAGE - READ ONLY) ============
+
+app.post('/api/book/auth/microsoft', async (req, res) => {
+  try {
+    const { code, bookingToken } = req.body;
+    
+    console.log('🔵 Guest Microsoft OAuth request received');
+    
+    if (!code || !bookingToken) {
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+
+    // Verify booking token
+    const memberCheck = await pool.query(
+      'SELECT * FROM team_members WHERE booking_token = $1',
+      [bookingToken]
+    );
+
+    if (memberCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    // Exchange code for tokens
+    const redirectUri = `${process.env.FRONTEND_URL}/oauth/callback/microsoft/guest`;
+    console.log('📡 Exchanging Microsoft code for guest tokens...');
+    console.log('Redirect URI:', redirectUri);
+    
+    const tokenResponse = await axios.post(
+      'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+      new URLSearchParams({
+        client_id: process.env.MICROSOFT_CLIENT_ID,
+        client_secret: process.env.MICROSOFT_CLIENT_SECRET,
+        code: code,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+        scope: 'openid profile email Calendars.Read offline_access'
+      }),
+      {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      }
+    );
+
+    const { access_token, refresh_token, scope } = tokenResponse.data;
+
+    // Get user info
+    const userResponse = await axios.get('https://graph.microsoft.com/v1.0/me', {
+      headers: { Authorization: `Bearer ${access_token}` }
+    });
+
+    const microsoftUser = userResponse.data;
+    const email = microsoftUser.mail || microsoftUser.userPrincipalName;
+    
+    // Check if calendar access was granted
+    const hasCalendarAccess = scope && scope.includes('Calendars.Read');
+
+    console.log('✅ Guest Microsoft OAuth successful:', { 
+      email, 
+      hasCalendarAccess 
+    });
+
+    res.json({
+      success: true,
+      email: email,
+      name: microsoftUser.displayName,
+      hasCalendarAccess,
+      accessToken: access_token,
+      refreshToken: refresh_token,
+      provider: 'microsoft'
+    });
+
+  } catch (error) {
+    console.error('❌ Guest Microsoft OAuth error:', error.message);
+    console.error('Error details:', error.response?.data);
+    res.status(500).json({ 
+      error: 'Microsoft authentication failed',
+      details: error.response?.data?.error_description || error.message
+    });
+  }
+});
+
 // ============================================
 // CALENDLY MIGRATION TOOL
 // ============================================

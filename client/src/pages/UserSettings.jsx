@@ -14,8 +14,10 @@ import {
   RefreshCw,
   ExternalLink,
   Unlink,
+  Upload,
 } from 'lucide-react';
 import api, { auth, timezone as timezoneApi, reminders as remindersApi, calendar as calendarApi } from '../utils/api';
+
 
 export default function UserSettings() {
   const [loading, setLoading] = useState(true);
@@ -459,6 +461,79 @@ export default function UserSettings() {
                       </div>
                     </div>
                   </div>
+
+                  {/* CALENDAR CONNECTIONS TAB */}
+{activeTab === 'calendars' && (
+  <div className="p-8">
+    <div className="mb-6">
+      <h2 className="text-xl font-bold text-gray-900">Calendar Connections</h2>
+      <p className="text-sm text-gray-500 mt-1">
+        Connect your calendars to prevent double bookings and improve scheduling suggestions.
+      </p>
+    </div>
+
+    {calendarLoading ? (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    ) : (
+      <div className="space-y-4 max-w-2xl">
+        {/* Google Calendar Card */}
+        {/* ... existing Google card ... */}
+
+        {/* Microsoft Calendar Card */}
+        {/* ... existing Microsoft card ... */}
+
+        {/* ✅ ADD THIS NEW CALENDLY CARD */}
+        <div className="border-2 border-purple-300 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 hover:border-purple-400 transition-colors">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Upload className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="font-bold text-gray-900 text-lg">Import from Calendly</h3>
+                  <span className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full font-semibold">
+                    NEW
+                  </span>
+                </div>
+                <p className="text-sm text-purple-700 mb-2">
+                  Migrate your event types, availability, and booking history in 2 minutes
+                </p>
+                <div className="flex flex-wrap gap-2 text-xs text-purple-600">
+                  <span className="flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    Event Types
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    Availability
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    Past Bookings
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => window.location.href = '/import/calendly'}
+              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-medium flex items-center gap-2 whitespace-nowrap"
+            >
+              <Upload className="h-4 w-4" />
+              Start Import
+            </button>
+          </div>
+        </div>
+
+        {/* Info Box */}
+        {/* ... existing info box ... */}
+      </div>
+    )}
+  </div>
+)}
 
                   {/* Info Box */}
                   <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
