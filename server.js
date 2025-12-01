@@ -4625,14 +4625,14 @@ app.get('/api/bookings/:token', async (req, res) => {
       
       // Get members
       const membersResult = await pool.query(
-        `SELECT tm.id, tm.name, tm.email, tm.booking_token, tm.user_id, tm.default_duration
-         FROM team_members tm
-         WHERE tm.team_id = $1 
-           AND (tm.is_active = true OR tm.is_active IS NULL)
-           AND (tm.external_booking_link IS NULL OR tm.external_booking_link = '')
-         ORDER BY tm.created_at ASC`,
-        [team.id]
-      );
+  `SELECT tm.id, tm.name, tm.email, tm.booking_token, tm.user_id
+   FROM team_members tm
+   WHERE tm.team_id = $1 
+     AND (tm.is_active = true OR tm.is_active IS NULL)
+     AND (tm.external_booking_link IS NULL OR tm.external_booking_link = '')
+   ORDER BY tm.created_at ASC`,
+  [team.id]
+);
       
       // Get event types
       const eventTypesResult = await pool.query(
