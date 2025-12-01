@@ -4598,12 +4598,11 @@ app.get('/api/admin/fix-working-hours-data', authenticateToken, async (req, res)
   }
 });
 
-
-    // ============================================
-// BOOKING ENDPOINTS - COMPLETE AND CLEAN
+// ============================================
+// BOOKING LOOKUP ENDPOINTS - BOTH PATHS
 // ============================================
 
-// ========== GET: Lookup booking token ==========
+// Primary endpoint: /api/bookings/:token
 app.get('/api/bookings/:token', async (req, res) => {
   try {
     const { token } = req.params;
@@ -4852,10 +4851,253 @@ app.get('/api/bookings/:token', async (req, res) => {
   }
 });
 
-app.get('/api/book/:token', (req, res, next) => {
-  console.log('🔀 Redirecting /api/book to /api/bookings');
-  req.url = `/api/bookings/${req.params.token}`;
-  next('route');
+// Legacy endpoint: /api/book/:token (duplicate logic for backwards compatibility)
+app.get('/api/book/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    console.log('🔍 Looking up token (via /api/book):', token, 'Length:', token.length);
+    
+    // ========== CHECK 1: Team Booking Token ==========
+    const teamResult = await pool.query(
+      `SELECT t.*, 
+              u.name as owner_name,
+              u.email as owner_email
+       FROM teams t
+       LEFT JOIN users u ON t.owner_id = u.id
+       WHERE t.team_booking_token = $1`,
+      [token]
+    );
+    
+    if (teamResult.rows.length > 0) {
+      const team = teamResult.rows[0];
+      console.log('✅ Team token found:', team.name);
+      
+      // Get members
+      const membersResult = await pool.query(
+        `SELECT tm.id, tm.name, tm.email, tm.booking_token, tm.user_id, tm.default_duration
+         FROM team_members tm
+         WHERE tm.team_id = $1 
+           AND (tm.is_active = true OR tm.is_active IS NULL)
+           AND (tm.external_booking_link IS NULL OR tm.external_booking_link = '')
+         ORDER BY tm.created_at ASC`,
+        [team.id]
+      );
+      
+      // Get event types
+      const eventTypesResult = await pool.query(
+        `SELECT id, title, name, duration, description, is_active, color, slug
+         FROM event_types 
+         WHERE user_id = $1 AND is_active = true 
+         ORDER BY duration ASC`,
+        [team.owner_id]
+      );
+      
+      console.log('📊 Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
+      
+      return res.json({
+        data: {
+          team: {
+            id: team.id,
+            name: team.name,
+            description: team.description,
+            booking_mode: team.booking_mode || 'round_robin',
+            owner_name: team.owner_name
+          },
+          member: membersResult.rows[0] || {
+            id: null,
+            name: team.owner_name || team.name,
+            email: team.owner_email,
+            default_duration: 30
+          },
+          members: membersResult.rows,
+          eventTypes: eventTypesResult.rows.map(et => ({
+            id: et.id,
+            title: et.title || et.name,
+            name: et.name || et.title,
+            duration: et.duration,
+            description: et.description,
+            color: et.color,
+            slug: et.slug,
+            is_active: true
+          })),
+          isTeamBooking: true,
+          skipEventTypes: false
+        }
+      });
+    }
+    
+    // ========== CHECK 2: Member Booking Token ==========
+    const memberResult = await pool.query(
+      `SELECT tm.*, 
+              t.name as team_name, 
+              t.id as team_id,
+              u.name as user_name,
+              u.email as user_email
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       LEFT JOIN users u ON tm.user_id = u.id
+       WHERE tm.booking_token = $1`,
+      [token]
+    );
+    
+    if (memberResult.rows.length > 0) {
+      const member = memberResult.rows[0];
+      console.log('✅ Member token found:', member.name || member.user_name);
+      
+      // Check for external booking link
+      if (member.external_booking_link) {
+        console.log('🔗 External link detected:', member.external_booking_link);
+        return res.json({
+          data: {
+            team: {
+              id: member.team_id,
+              name: member.team_name
+            },
+            member: {
+              id: member.id,
+              name: member.name || member.user_name,
+              email: member.email || member.user_email,
+              external_booking_link: member.external_booking_link,
+              default_duration: member.default_duration || 30
+            },
+            eventTypes: [],
+            isDirectLink: false
+          }
+        });
+      }
+      
+      // Get event types for this member's team
+      const eventTypesResult = await pool.query(
+        `SELECT id, title, name, duration, description, is_active, color, slug
+         FROM event_types 
+         WHERE team_id = $1 AND is_active = true 
+         ORDER BY duration ASC`,
+        [member.team_id]
+      );
+      
+      return res.json({
+        data: {
+          team: {
+            id: member.team_id,
+            name: member.team_name
+          },
+          member: {
+            id: member.id,
+            name: member.name || member.user_name,
+            email: member.email || member.user_email,
+            default_duration: member.default_duration || 30,
+            user_id: member.user_id
+          },
+          eventTypes: eventTypesResult.rows.map(et => ({
+            id: et.id,
+            title: et.title || et.name,
+            name: et.name || et.title,
+            duration: et.duration,
+            description: et.description,
+            color: et.color,
+            slug: et.slug,
+            is_active: true
+          })),
+          isDirectLink: false,
+          skipEventTypes: false
+        }
+      });
+    }
+    
+    // ========== CHECK 3: Single-Use Link Token ==========
+    if (token.length === 64) {
+      const singleUseResult = await pool.query(
+        `SELECT sul.*, 
+                tm.name as member_name, 
+                tm.email as member_email,
+                tm.default_duration,
+                t.name as team_name,
+                t.id as team_id
+         FROM single_use_links sul
+         JOIN team_members tm ON sul.member_id = tm.id
+         JOIN teams t ON tm.team_id = t.id
+         WHERE sul.token = $1
+           AND sul.used = false
+           AND sul.expires_at > NOW()`,
+        [token]
+      );
+      
+      if (singleUseResult.rows.length > 0) {
+        const link = singleUseResult.rows[0];
+        console.log('✅ Single-use link found for:', link.member_name);
+        
+        return res.json({
+          data: {
+            team: {
+              id: link.team_id,
+              name: link.team_name
+            },
+            member: {
+              id: link.member_id,
+              name: link.member_name,
+              email: link.member_email,
+              default_duration: link.default_duration || 30
+            },
+            eventTypes: [],
+            isDirectLink: true,
+            skipEventTypes: true,
+            isSingleUse: true
+          }
+        });
+      }
+    }
+    
+    // ========== CHECK 4: booking_tokens Table ==========
+    const bookingTokenResult = await pool.query(
+      `SELECT bt.*,
+              tm.id as member_id,
+              tm.name as member_name,
+              tm.email as member_email,
+              tm.default_duration,
+              t.id as team_id,
+              t.name as team_name
+       FROM booking_tokens bt
+       JOIN team_members tm ON bt.member_id = tm.id
+       JOIN teams t ON tm.team_id = t.id
+       WHERE bt.token = $1 AND bt.is_active = true`,
+      [token]
+    );
+    
+    if (bookingTokenResult.rows.length > 0) {
+      const tokenData = bookingTokenResult.rows[0];
+      console.log('✅ Booking token found for:', tokenData.member_name);
+      
+      return res.json({
+        data: {
+          team: {
+            id: tokenData.team_id,
+            name: tokenData.team_name
+          },
+          member: {
+            id: tokenData.member_id,
+            name: tokenData.member_name,
+            email: tokenData.member_email,
+            default_duration: tokenData.default_duration || 30
+          },
+          eventTypes: [],
+          isDirectLink: true,
+          skipEventTypes: true
+        }
+      });
+    }
+    
+    // ========== Token Not Found ==========
+    console.log('❌ Token not found:', token);
+    return res.status(404).json({ 
+      error: 'Invalid booking link' 
+    });
+    
+  } catch (error) {
+    console.error('❌ Booking lookup error:', error);
+    return res.status(500).json({ 
+      error: 'Failed to load booking information' 
+    });
+  }
 });
 
 // ========== POST: Create booking ==========
