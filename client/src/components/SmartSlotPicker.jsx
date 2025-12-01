@@ -76,14 +76,14 @@ export default function SmartSlotPicker({
   try {
     setLoading(true);
     
-    // ✅ Use timezone prop instead of detecting again
     console.log('🌍 Using timezone:', timezone);
     
     const response = await bookings.getSlots(bookingToken, {
       guestAccessToken: guestCalendar?.accessToken,
       guestRefreshToken: guestCalendar?.refreshToken,
+      guestProvider: guestCalendar?.provider,  // ← ADD THIS LINE
       duration: duration,
-      timezone: timezone  // ✅ Use the prop
+      timezone: timezone
     });
 
     const slotsData = response.data;

@@ -104,16 +104,11 @@ export const bookings = {
   list: (params) => api.get('/bookings', { params }),
   getAll: (params) => api.get('/bookings', { params }),
   getByToken: (token) => api.get(`/book/${token}`),
-  getSlots: (token, data) =>
-    api.post(`/book/${token}/slots-with-status`, data),
+  getSlots: (token, data) => api.post(`/book/${token}/slots-with-status`, data),
   create: (payload) => api.post('/bookings', payload),
-
-  getManagementDetails: (token) =>
-    api.get(`/bookings/manage/${token}`),
-  rescheduleByToken: (token, data) =>
-    api.post(`/bookings/manage/${token}/reschedule`, data),
-  cancelByToken: (token, reason) =>
-    api.post(`/bookings/manage/${token}/cancel`, { reason }),
+  getManagementDetails: (token) => api.get(`/bookings/manage/${token}`),
+  rescheduleByToken: (token, data) => api.post(`/bookings/manage/${token}/reschedule`, data),
+  cancelByToken: (token, reason) => api.post(`/bookings/manage/${token}/cancel`, { reason }),
 };
 
 // ============================================
