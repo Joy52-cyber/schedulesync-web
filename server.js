@@ -2253,12 +2253,18 @@ app.get('/api/book/auth/google/url', async (req, res) => {
       return res.status(400).json({ error: 'Booking token required' });
     }
 
+    // ✅ CHECK BOTH TEAM AND MEMBER TOKENS
     const memberCheck = await pool.query(
       'SELECT id FROM team_members WHERE booking_token = $1',
       [bookingToken]
     );
+    
+    const teamCheck = await pool.query(
+      'SELECT id FROM teams WHERE team_booking_token = $1',
+      [bookingToken]
+    );
 
-    if (memberCheck.rows.length === 0) {
+    if (memberCheck.rows.length === 0 && teamCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
@@ -2282,10 +2288,10 @@ app.get('/api/book/auth/google/url', async (req, res) => {
       state: `guest-booking:${bookingToken}:google`,
     });
 
-    console.log('?? Generated Google guest OAuth URL');
+    console.log('✅ Generated Google guest OAuth URL');
     res.json({ url: authUrl });
   } catch (error) {
-    console.error('? Error generating Google guest OAuth URL:', error);
+    console.error('❌ Error generating Google guest OAuth URL:', error);
     res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
 });
@@ -2295,18 +2301,24 @@ app.get('/api/book/auth/microsoft/url', async (req, res) => {
   try {
     const { bookingToken } = req.query;
     
-    console.log('?? Microsoft guest OAuth URL request:', bookingToken);
+    console.log('🔍 Microsoft guest OAuth URL request:', bookingToken);
     
     if (!bookingToken) {
       return res.status(400).json({ error: 'Booking token required' });
     }
 
+    // ✅ CHECK BOTH TEAM AND MEMBER TOKENS
     const memberCheck = await pool.query(
       'SELECT id FROM team_members WHERE booking_token = $1',
       [bookingToken]
     );
+    
+    const teamCheck = await pool.query(
+      'SELECT id FROM teams WHERE team_booking_token = $1',
+      [bookingToken]
+    );
 
-    if (memberCheck.rows.length === 0) {
+    if (memberCheck.rows.length === 0 && teamCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
@@ -2329,10 +2341,10 @@ app.get('/api/book/auth/microsoft/url', async (req, res) => {
       `&state=guest-booking:${bookingToken}:microsoft` +
       `&prompt=select_account`;
     
-    console.log('? Microsoft guest OAuth URL generated');
+    console.log('✅ Microsoft guest OAuth URL generated');
     res.json({ url: authUrl });
   } catch (error) {
-    console.error('? Error generating Microsoft guest OAuth URL:', error);
+    console.error('❌ Error generating Microsoft guest OAuth URL:', error);
     res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
 });
