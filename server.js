@@ -3522,21 +3522,21 @@ function getMatchColor(score) {
 app.post('/api/book/:token/slots-with-status', async (req, res) => {
   try {
     const { token } = req.params;
-   const { 
-  guestAccessToken,           // ? No colon, no undefined
-  guestRefreshToken,          // ? No colon, no undefined
-  guestProvider,              // ? No colon, no undefined
-  duration = 30,              // ? Use = for default values
-  timezone = 'America/New_York'
-} = req.body;
+    const { 
+      guestAccessToken,
+      guestRefreshToken,
+      guestProvider,
+      duration = 30,
+      timezone = 'America/New_York'
+    } = req.body;
 
-    console.log('?? Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
+    console.log('📅 Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
 
     // ========== 1. GET MEMBER & SETTINGS ==========
     let memberResult;
     
     if (token.length === 64) {
-      console.log('?? Looking up single-use link...');
+      console.log('🔍 Looking up single-use link...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 tm.buffer_time,
@@ -3561,27 +3561,67 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         [token]
       );
     } else {
-      console.log('?? Looking up regular token...');
-      memberResult = await pool.query(
-        `SELECT tm.*, 
-                tm.buffer_time,
-                tm.working_hours,
-                tm.lead_time_hours,
-                tm.booking_horizon_days,
-                tm.daily_booking_cap,
-                u.google_access_token, 
-                u.google_refresh_token,
-                u.microsoft_access_token,
-                u.microsoft_refresh_token,
-                u.provider,
-                u.name as organizer_name,
-                t.id as team_id
-         FROM team_members tm
-         LEFT JOIN users u ON tm.user_id = u.id
-         LEFT JOIN teams t ON tm.team_id = t.id
-         WHERE tm.booking_token = $1`,
+      // ✅ ADD THIS: First check if it's a TEAM token
+      console.log('🔍 Checking if team token...');
+      const teamCheck = await pool.query(
+        `SELECT t.id as team_id, t.booking_mode
+         FROM teams t
+         WHERE t.team_booking_token = $1`,
         [token]
       );
+
+      if (teamCheck.rows.length > 0) {
+        // Team token found - use the first active member
+        const teamData = teamCheck.rows[0];
+        console.log('✅ Team token detected, loading first active member...');
+        
+        memberResult = await pool.query(
+          `SELECT tm.*, 
+                  tm.buffer_time,
+                  tm.working_hours,
+                  tm.lead_time_hours,
+                  tm.booking_horizon_days,
+                  tm.daily_booking_cap,
+                  u.google_access_token, 
+                  u.google_refresh_token,
+                  u.microsoft_access_token,
+                  u.microsoft_refresh_token,
+                  u.provider,
+                  u.name as organizer_name,
+                  t.id as team_id
+           FROM team_members tm
+           LEFT JOIN users u ON tm.user_id = u.id
+           LEFT JOIN teams t ON tm.team_id = t.id
+           WHERE tm.team_id = $1
+             AND (tm.is_active = true OR tm.is_active IS NULL)
+           ORDER BY tm.id ASC
+           LIMIT 1`,
+          [teamData.team_id]
+        );
+      } else {
+        // Not a team token, check regular member token
+        console.log('🔍 Looking up regular member token...');
+        memberResult = await pool.query(
+          `SELECT tm.*, 
+                  tm.buffer_time,
+                  tm.working_hours,
+                  tm.lead_time_hours,
+                  tm.booking_horizon_days,
+                  tm.daily_booking_cap,
+                  u.google_access_token, 
+                  u.google_refresh_token,
+                  u.microsoft_access_token,
+                  u.microsoft_refresh_token,
+                  u.provider,
+                  u.name as organizer_name,
+                  t.id as team_id
+           FROM team_members tm
+           LEFT JOIN users u ON tm.user_id = u.id
+           LEFT JOIN teams t ON tm.team_id = t.id
+           WHERE tm.booking_token = $1`,
+          [token]
+        );
+      }
     }
 
     if (memberResult.rows.length === 0) {
@@ -3589,6 +3629,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     }
 
     const member = memberResult.rows[0];
+    
     
     // ? CRITICAL: Validate and sanitize working_hours
     let workingHours;
