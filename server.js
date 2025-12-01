@@ -4995,6 +4995,12 @@ app.get('/api/bookings/:token', async (req, res) => {
   }
 });
 
+app.get('/api/book/:token', (req, res, next) => {
+  console.log('🔀 Redirecting /api/book to /api/bookings');
+  req.url = `/api/bookings/${req.params.token}`;
+  next('route');
+});
+
 // ========== POST: Create booking ==========
 app.post('/api/bookings', async (req, res) => {
   try {  // ← MAIN TRY BLOCK STARTS HERE
