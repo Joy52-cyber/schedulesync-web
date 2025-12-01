@@ -1,203 +1,161 @@
-// client/src/pages/OAuthCallback.jsx
-import { useEffect } from 'react';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
-import { oauth } from '../utils/api';
+// client/src/App.jsx
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 
-// CRITICAL: Module-level guard survives component re-renders
-const processedCodes = new Set();
-let isProcessing = false;
+// Layouts
+import Layout from './components/Layout';
+import ProtectedRoute from './components/ProtectedRoute';
 
-export default function OAuthCallback({ onLogin }) {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const location = useLocation();
+// Auth / Marketing pages
+import Landing from './pages/Landing';
+import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import VerifyEmail from './pages/VerifyEmail';
+import OAuthCallback from './pages/OAuthCallback';
+import OnboardingWizard from './pages/OnboardingWizard';
+import AdminPanel from './pages/AdminPanel';
 
-  useEffect(() => {
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
-    const error = searchParams.get('error');
+// Dashboard Pages
+import Dashboard from './pages/Dashboard';
+import Bookings from './pages/Bookings';
+import EventTypes from './pages/EventTypes';
+import EventTypeForm from './pages/EventTypeForm';
+import EventTypeDetail from './pages/EventTypeDetail';
+import Availability from './pages/Availability';
+import CalendlyMigration from './pages/CalendlyMigration';
 
-    // Detect provider from path
-    const path = location.pathname || '';
-    let provider = 'google';
-    if (path.includes('microsoft')) {
-      provider = 'microsoft';
-    } else if (path.includes('calendly')) {
-      provider = 'calendly';
-    }
+// Team
+import Teams from './pages/Teams';
+import TeamSettings from './pages/TeamSettings';
+import TeamMembers from './pages/TeamMembers';
+import MemberAvailability from './pages/MemberAvailability';
 
-    console.log('🔵 OAuthCallback mounted:', {
-      hasCode: !!code,
-      state,
-      error,
-      provider,
-      path,
+// Settings
+import UserSettings from './pages/UserSettings';
+import CalendarSettings from './pages/CalendarSettings';
+
+// Guest
+import BookingPage from './pages/BookingPage';
+import ManageBooking from './pages/ManageBooking';
+import PaymentStatus from './pages/PaymentStatus';
+import Book from './pages/Book';
+import BookingConfirmation from './components/BookingConfirmation';
+
+// ======================
+// Login Wrapper (now can use useNavigate)
+// ======================
+function LoginWrapper({ Component }) {
+  const { login } = useAuth();
+  const navigate = useNavigate(); // ✅ Now this works inside Router context
+
+  const handleLogin = (token, user) => {
+    console.log('🔐 LoginWrapper received:', { 
+      token: token?.substring(0, 20) + '...', 
+      user: user?.email 
     });
+    
+    login(token, user);
+    // Use React Router navigation instead of hard redirect
+    navigate('/dashboard', { replace: true });
+  };
 
-    // Handle OAuth error sent back from provider
-    if (error) {
-      console.error('❌ OAuth error from provider:', error);
-      navigate('/login?error=oauth_failed', { replace: true });
-      return;
-    }
+  return <Component onLogin={handleLogin} />;
+}
 
-    // No code = something went wrong
-    if (!code) {
-      console.error('❌ No OAuth code in URL');
-      navigate('/login', { replace: true });
-      return;
-    }
-
-    // Already processing any code
-    if (isProcessing) {
-      console.log('⚠️ Already processing a request, ignoring duplicate');
-      return;
-    }
-
-    // This code already processed
-    if (processedCodes.has(code)) {
-      console.log('⚠️ This code already processed, redirecting to dashboard');
-      navigate('/dashboard', { replace: true });
-      return;
-    }
-
-    // Mark as processing IMMEDIATELY
-    isProcessing = true;
-    processedCodes.add(code);
-    console.log('🔒 Code marked as processing for provider:', provider);
-
-    // Clear query string but keep the provider-specific path
-    window.history.replaceState({}, '', location.pathname);
-
-    // 1️⃣ Booking flow (guest OAuth for booking pages)
-    if (state?.startsWith('guest-booking:')) {
-      console.log('📋 Booking OAuth flow');
-
-      const parts = state.split(':');
-      const bookingToken = parts[1];
-      const provider = parts[2];
-
-      // Get stored return URL or fallback to token-based URL
-      const returnUrl = sessionStorage.getItem('booking-oauth-return-url') || `/book/${bookingToken}`;
-      sessionStorage.removeItem('booking-oauth-return-url');
-
-      console.log('🔙 Redirecting back to:', returnUrl);
-
-      isProcessing = false; // Release lock
-      navigate(`${returnUrl}?code=${code}&state=${state}`, {
-        replace: true,
-      });
-      return;
-    }
-
-    // 2️⃣ Dashboard login / account connect flow
-    console.log('🏠 Dashboard OAuth flow - processing login for:', provider);
-
-    (async () => {
-      try {
-        let res;
-
-        if (provider === 'google') {
-          console.log('📡 Calling backend /auth/google/callback ...');
-          res = await oauth.handleGoogleCallback(code);
-        } else if (provider === 'microsoft') {
-          console.log('📡 Calling backend /auth/microsoft/callback ...');
-          res = await oauth.handleMicrosoftCallback(code);
-        } else if (provider === 'calendly') {
-          console.log('📡 Calling backend /auth/calendly/callback ...');
-          res = await oauth.handleCalendlyCallback(code);
-        } else {
-          throw new Error(`Unsupported provider: ${provider}`);
-        }
-
-        const response = res.data;
-        console.log('✅ Raw OAuth backend response:', response);
-
-        // Normalize token & user shapes from different backends
-        let token =
-          response?.token ??
-          response?.accessToken ??
-          response?.jwt ??
-          response?.data?.token ??
-          null;
-
-        let user =
-          response?.user ??
-          response?.data?.user ??
-          response?.currentUser ??
-          null;
-
-        // Some providers (e.g., Calendly connect) might not return a "user" for app login
-        if (!user) {
-          console.warn(
-            `⚠️ No user object returned for provider ${provider}. Response:`,
-            response
-          );
-
-          isProcessing = false;
-          processedCodes.delete(code);
-
-          const msg =
-            response?.message ||
-            response?.error ||
-            'Authentication failed. Please sign in again.';
-          navigate(`/login?error=${encodeURIComponent(msg)}`, {
-            replace: true,
-          });
-          return;
-        }
-
-        // If token is missing but backend uses httpOnly cookies,
-        // we can still proceed; /auth/me should work later.
-        if (!token) {
-          console.warn(
-            `⚠️ No token in OAuth response for ${provider}, proceeding with user only`
-          );
-        }
-
-        console.log('🔐 Updating app state via onLogin...');
-        if (typeof onLogin === 'function') {
-          onLogin(token || '', user);
-        } else {
-          console.warn('⚠️ onLogin prop is not a function');
-        }
-
-        // Release lock; navigation is likely handled upstream
-        isProcessing = false;
-      } catch (err) {
-        console.error('❌ OAuth failed:', {
-          message: err.message,
-          response: err.response?.data,
-        });
-
-        isProcessing = false;
-        processedCodes.delete(code);
-
-        const errorMsg =
-          err.response?.data?.hint ||
-          err.response?.data?.error ||
-          'Authentication failed. Please try again.';
-        navigate(`/login?error=${encodeURIComponent(errorMsg)}`, {
-          replace: true,
-        });
-      }
-    })();
-
-    return () => {
-      console.log('🧹 OAuthCallback unmounting');
-    };
-  }, [navigate, searchParams, location, onLogin]);
-
+// ======================
+// Inner App (inside Router context)
+// ======================
+function InnerApp() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
-      <div className="text-center">
-        <Loader2 className="h-12 w-12 text-white animate-spin mx-auto mb-4" />
-        <p className="text-white text-lg font-medium">Signing you in...</p>
-        <p className="text-white text-sm mt-2 opacity-80">
-          This should only take a moment
-        </p>
-      </div>
-    </div>
+    <AuthProvider>
+      <NotificationProvider>
+        <Routes>
+          {/* Marketing / Auth */}
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Landing defaultLoginOpen />} />
+          <Route path="/register" element={<LoginWrapper Component={Register} />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+
+          {/* OAuth Callbacks */}
+          <Route path="/oauth/callback" element={<LoginWrapper Component={OAuthCallback} />} />
+          <Route path="/oauth/callback/microsoft" element={<LoginWrapper Component={OAuthCallback} />} />
+          <Route path="/oauth/callback/calendly" element={<LoginWrapper Component={OAuthCallback} />} />
+
+          {/* Onboarding */}
+          <Route path="/onboarding" element={
+            <ProtectedRoute>
+              <OnboardingWizard />
+            </ProtectedRoute>
+          } />
+
+          {/* Admin */}
+          <Route path="/admin" element={
+            <ProtectedRoute>
+              <AdminPanel />
+            </ProtectedRoute>
+          } />
+
+          {/* DEBUG: Test route */}
+          <Route path="/test-booking" element={<div style={{padding: '20px', background: 'green', color: 'white'}}>✅ ROUTING WORKS! This is a test route.</div>} />
+          
+          {/* Public Guest Routes */}
+          <Route path="/book/:username/:eventSlug" element={<BookingPage />} />
+          <Route path="/book/:token" element={<BookingPage />} />
+          <Route path="/book" element={<Book />} />
+          <Route path="/manage/:token" element={<ManageBooking />} />
+          <Route path="/payment/status" element={<PaymentStatus />} />
+          <Route path="/booking-success" element={<BookingConfirmation />} />
+          <Route path="/booking-confirmation" element={<BookingConfirmation />} />
+          <Route path="/import/calendly" element={<CalendlyMigration />} />
+
+          {/* Protected App Layout */}
+          <Route element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/bookings" element={<Bookings />} />
+            <Route path="/availability" element={<Availability />} />
+            
+            {/* Event Types */}
+            <Route path="/events" element={<EventTypes />} />
+            <Route path="/events/new" element={<EventTypeForm />} />
+            <Route path="/events/:id" element={<EventTypeDetail />} />
+            <Route path="/events/:id/edit" element={<EventTypeForm />} />
+
+            {/* Teams */}
+            <Route path="/teams" element={<Teams />} />
+            <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
+            <Route path="/teams/:teamId/members" element={<TeamMembers />} />
+            <Route path="/teams/:teamId/members/:memberId/availability" element={<MemberAvailability />} />
+
+            {/* Settings */}
+            <Route path="/settings" element={<UserSettings />} />
+            <Route path="/settings/calendar" element={<CalendarSettings />} />
+          </Route>
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </NotificationProvider>
+    </AuthProvider>
   );
 }
+
+// ======================
+// Main App Component
+// ======================
+function App() {
+  return (
+    <Router>
+      <InnerApp />
+    </Router>
+  );
+}
+
+export default App;
