@@ -2103,7 +2103,6 @@ app.get('/api/auth/create-test-user', async (req, res) => {
 });
 
 // ============ GUEST OAUTH (BOOKING PAGE - READ ONLY) ============
-
 app.post('/api/book/auth/google', async (req, res) => {
   try {
     const { code, bookingToken } = req.body;
@@ -2121,7 +2120,7 @@ app.post('/api/book/auth/google', async (req, res) => {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      `${process.env.FRONTEND_URL}/oauth/callback`
+      `${process.env.FRONTEND_URL}/oauth/callback/google/guest` // ✅ STATIC REDIRECT
     );
 
     const { tokens } = await oauth2Client.getToken(code);
@@ -2133,7 +2132,7 @@ app.post('/api/book/auth/google', async (req, res) => {
     const grantedScopes = tokens.scope || '';
     const hasCalendarAccess = grantedScopes.includes('calendar.readonly');
 
-    console.log('✅ Guest OAuth successful:', { email: userInfo.email, hasCalendarAccess });
+    console.log('✅ Guest Google OAuth successful:', { email: userInfo.email, hasCalendarAccess });
 
     res.json({
       success: true,
@@ -2142,13 +2141,13 @@ app.post('/api/book/auth/google', async (req, res) => {
       hasCalendarAccess,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
+      provider: 'google'
     });
   } catch (error) {
-    console.error('❌ Guest OAuth error:', error);
+    console.error('❌ Guest Google OAuth error:', error);
     res.status(500).json({ error: 'Authentication failed' });
   }
 });
-
 // ============ GUEST MICROSOFT OAUTH (BOOKING PAGE - READ ONLY) ============
 
 app.post('/api/book/auth/microsoft', async (req, res) => {
@@ -2226,6 +2225,53 @@ app.post('/api/book/auth/microsoft', async (req, res) => {
       error: 'Microsoft authentication failed',
       details: error.response?.data?.error_description || error.message
     });
+  }
+});
+
+// ============ GOOGLE GUEST OAUTH URL GENERATOR ============
+app.get('/api/book/auth/google/url', async (req, res) => {
+  try {
+    const { bookingToken } = req.query;
+    
+    if (!bookingToken) {
+      return res.status(400).json({ error: 'Booking token required' });
+    }
+
+    // Verify token exists
+    const memberCheck = await pool.query(
+      'SELECT id FROM team_members WHERE booking_token = $1',
+      [bookingToken]
+    );
+
+    if (memberCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid booking token' });
+    }
+
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      `${process.env.FRONTEND_URL}/oauth/callback/google/guest`
+    );
+
+    const scopes = [
+      'openid',
+      'email',
+      'profile',
+      'https://www.googleapis.com/auth/calendar.readonly',
+    ];
+
+    const authUrl = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: scopes,
+      prompt: 'select_account',
+      state: bookingToken, // Pass booking token in state
+    });
+
+    console.log('🔗 Generated Google guest OAuth URL');
+    res.json({ url: authUrl });
+  } catch (error) {
+    console.error('❌ Error generating Google guest OAuth URL:', error);
+    res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
 });
 
