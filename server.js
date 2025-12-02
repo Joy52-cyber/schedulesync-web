@@ -6689,28 +6689,46 @@ For "find time" or vague scheduling, set action to "suggest_slots".
 For specific time/date provided, set action to "create".
 If missing info, set intent to "clarify".`;
 
-    // Call Google Gemini API
-    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+ // Corrected test endpoint with proper syntax:
+app.get('/api/test/gemini', authenticateToken, async (req, res) => {
+  try {
+    console.log('Testing Gemini API...');
+    console.log('API Key exists:', !!process.env.GEMINI_API_KEY);
+    console.log('API Key length:', process.env.GEMINI_API_KEY?.length);
+    console.log('API Key prefix:', process.env.GEMINI_API_KEY?.substring(0, 15));
+    
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         contents: [
-          ...formattedHistory,
           {
             role: 'user',
-            parts: [{ text: `${systemInstruction}\n\nUser message: ${message.trim()}` }]
+            parts: [{ text: "Say 'Gemini API test successful' if you can read this." }]
           }
         ],
         generationConfig: {
           temperature: 0.1,
-          topK: 1,
-          topP: 0.8,
-          maxOutputTokens: 1500,
+          maxOutputTokens: 100,
         }
       })
     });
+    
+    const data = await response.json();
+    console.log('Gemini response:', data);
+    
+    res.json({
+      success: response.ok,
+      status: response.status,
+      data: data
+    });
+  } catch (error) {
+    console.error('Gemini test error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
     if (!geminiResponse.ok) {
       console.error('Gemini API error:', geminiResponse.status, geminiResponse.statusText);
