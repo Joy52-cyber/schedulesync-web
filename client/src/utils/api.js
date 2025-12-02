@@ -194,6 +194,30 @@ export const ai = {
 };
 
 // ============================================
+// AI SCHEDULER (Alias for AISchedulerChat component)
+// ============================================
+export const aiScheduler = {
+  sendMessage: async (message, history = []) => {
+    return api.post('/ai/schedule', {
+      message,
+      conversationHistory: history
+    });
+  },
+
+  confirmBooking: async (bookingData) => {
+    return api.post('/ai/schedule/confirm', bookingData);
+  },
+
+  suggestTimes: async (duration = 30, attendeeEmail = null, notes = null) => {
+    return api.post('/ai/suggest', {
+      duration,
+      attendeeEmail,
+      notes
+    });
+  }
+};
+
+// ============================================
 // SINGLE-USE LINKS
 // ============================================
 export const singleUseLinks = {

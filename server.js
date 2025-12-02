@@ -6830,6 +6830,45 @@ app.post('/api/ai/schedule/confirm', authenticateToken, async (req, res) => {
 
     console.log('? Confirming AI booking:', bookingData);
 
+    // AI Suggest Times endpoint
+app.post('/api/ai/suggest', authenticateToken, async (req, res) => {
+  try {
+    const { duration = 30, attendeeEmail = null, notes = null } = req.body;
+    const userId = req.user.id;
+
+    console.log('🤖 AI suggest times request:', { duration, attendeeEmail });
+
+    // Get user's personal booking token
+    const memberResult = await pool.query(
+      `SELECT tm.booking_token FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       WHERE tm.user_id = $1 AND t.name LIKE '%Personal%' LIMIT 1`,
+      [userId]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(400).json({ 
+        error: 'No booking link found. Please complete onboarding first.' 
+      });
+    }
+
+    const bookingToken = memberResult.rows[0].booking_token;
+
+    res.json({
+      success: true,
+      message: 'Use the booking token to fetch available slots',
+      bookingToken,
+      duration,
+      attendeeEmail,
+      notes
+    });
+  } catch (error) {
+    console.error('❌ AI suggest error:', error);
+    res.status(500).json({ error: 'Failed to suggest times' });
+  }
+});
+
+
     // ========== VALIDATE EMAIL ==========
     const email = bookingData.attendees?.[0] || '';
     
