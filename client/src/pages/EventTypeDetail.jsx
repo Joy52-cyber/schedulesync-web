@@ -214,21 +214,7 @@ export default function EventTypeDetail() {
                 </div>
               </div>
 
-              {event.price && event.price > 0 && (
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-50 rounded-lg">
-                    <DollarSign className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Price</p>
-                    <p className="font-semibold text-gray-900">
-                      ${event.price} {event.currency || 'USD'}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+              
 
           {/* Advanced Settings Card */}
 {(event.buffer_before > 0 || event.buffer_after > 0 || event.max_bookings_per_day || event.require_approval) && (
