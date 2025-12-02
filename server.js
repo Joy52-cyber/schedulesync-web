@@ -4860,14 +4860,17 @@ app.get('/api/bookings/:token', async (req, res) => {
         });
       }
       
-      // Get event types for this member's team
-      const eventTypesResult = await pool.query(
-        `SELECT id, title, duration, description, is_active, color, slug
-         FROM event_types 
-         WHERE team_id = $1 AND is_active = true 
-         ORDER BY duration ASC`,
-        [member.team_id]
-      );
+      // Get event types for this member
+let eventTypesResult = { rows: [] };
+if (member.user_id) {
+  eventTypesResult = await pool.query(
+    `SELECT id, title, duration, description, is_active, color, slug
+     FROM event_types 
+     WHERE user_id = $1 AND is_active = true 
+     ORDER BY duration ASC`,
+    [member.user_id]  // ✅ Use member.user_id, not member.team_id
+  );
+}
       
       return res.json({
         data: {
