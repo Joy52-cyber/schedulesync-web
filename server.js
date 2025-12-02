@@ -146,16 +146,21 @@ async function callAnthropicWithRetry(requestBody, retries = 2) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": process.env.ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01"
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal
-      });
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: requestBody.contents[0].parts[0].text }]
+      }
+    ]
+  }),
+  signal: controller.signal
+});
 
       clearTimeout(timeout);
       return response;
@@ -6677,27 +6682,27 @@ For specific time/date provided, set action to "create".
 If missing info, set intent to "clarify".`;
 
     // Call Google Gemini API - CONSISTENT VARIABLE NAME
-   const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-    method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          ...formattedHistory,
-          {
-            role: 'user',
-            parts: [{ text: `${systemInstruction}\n\nUser message: ${message.trim()}` }]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          topK: 1,
-          topP: 0.8,
-          maxOutputTokens: 1500,
-        }
-      })
-    });
+  const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    contents: [
+      ...formattedHistory,
+      {
+        role: 'user',
+        parts: [{ text: `${systemInstruction}\n\nUser message: ${message.trim()}` }]
+      }
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      topK: 1,
+      topP: 0.8,
+      maxOutputTokens: 1500,
+    }
+  })
+});
 
     // Error handling - SAME VARIABLE NAME
     if (!geminiResponse.ok) {
