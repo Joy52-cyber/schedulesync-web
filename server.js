@@ -4207,16 +4207,17 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       const endOfDay = new Date(date);
       endOfDay.setHours(23, 59, 59, 999);
 
-      const bookingsResult = await pool.query(
-        `SELECT start_time, end_time 
-         FROM bookings 
-         WHERE host_user_id = $1 
-           AND event_type_id = $2
-           AND status != 'cancelled'
-           AND start_time >= $3 
-           AND start_time < $4`,
-        [host.id, eventType.id, startOfDay.toISOString(), endOfDay.toISOString()]
-      );
+    const publicBookingsResult = await pool.query(
+  `SELECT start_time, end_time 
+   FROM bookings 
+   WHERE host_user_id = $1 
+     AND event_type_id = $2
+     AND status != 'cancelled'
+     AND start_time >= $3 
+     AND start_time < $4`,
+  [host.id, eventType.id, startOfDay.toISOString(), endOfDay.toISOString()]
+);
+
 
       const existingBookings = bookingsResult.rows;
       console.log(`📊 Found ${existingBookings.length} existing bookings`);
@@ -4278,17 +4279,33 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
           }
         }
       }
-
       console.log(`✅ Generated ${slots.length} available slots for public booking`);
 
-      // Return in format SmartSlotPicker expects
+// Return in SmartSlotPicker format
       return res.json({
-        success: true,
-        available: slots,
-        date: date,
-        timezone: timezone
-      });
+  slots: {
+    [date]: slots.map(slot => ({
+      start: slot.start,
+      end: slot.end,
+      status: 'available',
+      time: new Date(slot.start).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: timezone
+      }),
+      matchScore: null,
+      matchColor: 'gray',
+      matchLabel: 'Available'
+    }))
+  },
+  summary: {
+    availableSlots: slots.length,
+    settings: {
+      horizonDays: 30
     }
+  }
+});
 
     // ========== 1. GET MEMBER & SETTINGS ==========
     let memberResult;
