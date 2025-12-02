@@ -856,6 +856,226 @@ app.get('/api/public/booking/:username/:eventSlug', async (req, res) => {
   }
 });
 
+// ============================================
+// PUBLIC EVENT TYPE AVAILABLE SLOTS
+// ============================================
+app.get('/api/public/available-slots', async (req, res) => {
+  try {
+    const { username, event_slug, date, timezone = 'UTC' } = req.query;
+
+    console.log('🔍 Fetching public available slots:', { username, event_slug, date, timezone });
+
+    if (!username || !event_slug || !date) {
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+
+    // ========== FIND USER ==========
+    const userResult = await pool.query(
+      `SELECT id, name, email, google_access_token, google_refresh_token, 
+              microsoft_access_token, microsoft_refresh_token, provider 
+       FROM users 
+       WHERE LOWER(username) = LOWER($1) 
+          OR LOWER(email) LIKE LOWER($2)
+       LIMIT 1`,
+      [username, `${username}%`]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const host = userResult.rows[0];
+
+    // ========== FIND EVENT TYPE ==========
+    const eventResult = await pool.query(
+      `SELECT id, duration, buffer_before, buffer_after, max_bookings_per_day 
+       FROM event_types 
+       WHERE user_id = $1 
+         AND LOWER(slug) = LOWER($2) 
+         AND is_active = true`,
+      [host.id, event_slug]
+    );
+
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Event type not found or inactive' });
+    }
+
+    const eventType = eventResult.rows[0];
+    const duration = eventType.duration;
+    const bufferBefore = eventType.buffer_before || 0;
+    const bufferAfter = eventType.buffer_after || 0;
+
+    console.log('✅ Event type found:', { duration, bufferBefore, bufferAfter });
+
+    // ========== GET HOST'S CALENDAR EVENTS ==========
+    let calendarEvents = [];
+
+    try {
+      if (host.provider === 'google' && host.google_access_token) {
+        console.log('📅 Fetching Google Calendar events...');
+        
+        const oauth2Client = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET,
+          process.env.GOOGLE_REDIRECT_URI
+        );
+
+        oauth2Client.setCredentials({
+          access_token: host.google_access_token,
+          refresh_token: host.google_refresh_token
+        });
+
+        const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+        
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const response = await calendar.events.list({
+          calendarId: 'primary',
+          timeMin: startOfDay.toISOString(),
+          timeMax: endOfDay.toISOString(),
+          singleEvents: true,
+          orderBy: 'startTime'
+        });
+
+        calendarEvents = response.data.items || [];
+        console.log(`✅ Found ${calendarEvents.length} Google Calendar events`);
+        
+      } else if (host.provider === 'microsoft' && host.microsoft_access_token) {
+        console.log('📅 Fetching Microsoft Calendar events...');
+        
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+        
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const response = await fetch(
+          `https://graph.microsoft.com/v1.0/me/calendarview?startdatetime=${startOfDay.toISOString()}&enddatetime=${endOfDay.toISOString()}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${host.microsoft_access_token}`
+            }
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          calendarEvents = data.value || [];
+          console.log(`✅ Found ${calendarEvents.length} Microsoft Calendar events`);
+        }
+      }
+    } catch (calendarError) {
+      console.error('⚠️ Calendar fetch failed:', calendarError.message);
+      // Continue with empty calendar (show all slots as available)
+    }
+
+    // ========== GET EXISTING BOOKINGS ==========
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const bookingsResult = await pool.query(
+      `SELECT start_time, end_time 
+       FROM bookings 
+       WHERE host_user_id = $1 
+         AND event_type_id = $2
+         AND status != 'cancelled'
+         AND start_time >= $3 
+         AND start_time < $4`,
+      [host.id, eventType.id, startOfDay.toISOString(), endOfDay.toISOString()]
+    );
+
+    const existingBookings = bookingsResult.rows;
+    console.log(`📊 Found ${existingBookings.length} existing bookings`);
+
+    // ========== GENERATE TIME SLOTS ==========
+    const slots = [];
+    const startHour = 9;  // 9 AM
+    const endHour = 17;   // 5 PM
+    const intervalMinutes = 30; // Generate slots every 30 minutes
+
+    for (let hour = startHour; hour < endHour; hour++) {
+      for (let minute = 0; minute < 60; minute += intervalMinutes) {
+        const slotStart = new Date(date);
+        slotStart.setHours(hour, minute, 0, 0);
+        
+        const slotEnd = new Date(slotStart.getTime() + duration * 60000);
+        
+        // Skip if slot end goes past working hours
+        if (slotEnd.getHours() >= endHour || (slotEnd.getHours() === endHour && slotEnd.getMinutes() > 0)) {
+          continue;
+        }
+
+        // Check if slot conflicts with calendar events
+        let hasConflict = false;
+
+        // Check calendar events
+        for (const event of calendarEvents) {
+          const eventStart = new Date(event.start?.dateTime || event.start?.date);
+          const eventEnd = new Date(event.end?.dateTime || event.end?.date);
+          
+          // Add buffers
+          const slotStartWithBuffer = new Date(slotStart.getTime() - bufferBefore * 60000);
+          const slotEndWithBuffer = new Date(slotEnd.getTime() + bufferAfter * 60000);
+          
+          if (
+            (slotStartWithBuffer < eventEnd && slotEndWithBuffer > eventStart)
+          ) {
+            hasConflict = true;
+            break;
+          }
+        }
+
+        // Check existing bookings
+        if (!hasConflict) {
+          for (const booking of existingBookings) {
+            const bookingStart = new Date(booking.start_time);
+            const bookingEnd = new Date(booking.end_time);
+            
+            const slotStartWithBuffer = new Date(slotStart.getTime() - bufferBefore * 60000);
+            const slotEndWithBuffer = new Date(slotEnd.getTime() + bufferAfter * 60000);
+            
+            if (
+              (slotStartWithBuffer < bookingEnd && slotEndWithBuffer > bookingStart)
+            ) {
+              hasConflict = true;
+              break;
+            }
+          }
+        }
+
+        // Add slot if no conflict
+        if (!hasConflict) {
+          slots.push({
+            start: slotStart.toISOString(),
+            end: slotEnd.toISOString()
+          });
+        }
+      }
+    }
+
+    console.log(`✅ Generated ${slots.length} available slots`);
+
+    res.json({
+      success: true,
+      slots: slots,
+      date: date,
+      timezone: timezone
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching public available slots:', error);
+    res.status(500).json({ error: 'Failed to fetch available slots' });
+  }
+});
+
+
 // ============ PUBLIC BOOKING CREATION ENDPOINT ============
 // Add this to server.js after the /api/public/booking/:username/:eventSlug endpoint
 
