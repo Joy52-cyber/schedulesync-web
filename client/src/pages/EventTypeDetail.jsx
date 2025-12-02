@@ -3,7 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Clock, MapPin, Edit, Trash2, Loader2, 
   Copy, Check, ExternalLink, Globe,
-  Shield, Calendar, Users, Sparkles, Video, Phone,
+  Shield, Calendar, Sparkles, Video, Phone,
   Building2, Link as LinkIcon
 } from 'lucide-react';
 import { events, auth } from '../utils/api';
@@ -191,7 +191,7 @@ export default function EventTypeDetail() {
               <p className="text-gray-400 italic mb-6">No description provided.</p>
             )}
               
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4 border-t border-gray-100">
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-50 rounded-lg">
                   <Clock className="h-5 w-5 text-blue-600" />
@@ -209,55 +209,57 @@ export default function EventTypeDetail() {
                 <div>
                   <p className="text-xs text-gray-500">Location</p>
                   <p className="font-semibold text-gray-900 truncate">
-                    {event.location || 'Not set'}
+                    {event.location || 'Auto-generated'}
                   </p>
                 </div>
               </div>
-
-              
+            </div>
+          </div>
 
           {/* Advanced Settings Card */}
-{(event.buffer_before > 0 || event.buffer_after > 0 || event.max_bookings_per_day || event.require_approval) && (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-      <Shield className="h-5 w-5 text-gray-600" />
-      Booking Rules
-    </h2>
-    
-    <div className="space-y-3">
-      {event.buffer_before > 0 && (
-        <div className="flex items-center justify-between py-2 border-b border-gray-100">
-          <span className="text-gray-600">Buffer before</span>
-          <span className="font-medium text-gray-900">{event.buffer_before} min</span>
-        </div>
-      )}
-      
-      {event.buffer_after > 0 && (
-        <div className="flex items-center justify-between py-2 border-b border-gray-100">
-          <span className="text-gray-600">Buffer after</span>
-          <span className="font-medium text-gray-900">{event.buffer_after} min</span>
-        </div>
-      )}
+          {(event.buffer_before > 0 || event.buffer_after > 0 || event.max_bookings_per_day || event.require_approval) && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Shield className="h-5 w-5 text-gray-600" />
+                Booking Rules
+              </h2>
+              
+              <div className="space-y-3">
+                {event.buffer_before > 0 && (
+                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-600">Buffer before</span>
+                    <span className="font-medium text-gray-900">{event.buffer_before} min</span>
+                  </div>
+                )}
+                
+                {event.buffer_after > 0 && (
+                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-600">Buffer after</span>
+                    <span className="font-medium text-gray-900">{event.buffer_after} min</span>
+                  </div>
+                )}
 
-      {event.max_bookings_per_day && (
-        <div className="flex items-center justify-between py-2 border-b border-gray-100">
-          <span className="text-gray-600">Max bookings per day</span>
-          <span className="font-medium text-gray-900">{event.max_bookings_per_day}</span>
-        </div>
-      )}
+                {event.max_bookings_per_day && (
+                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-600">Max bookings per day</span>
+                    <span className="font-medium text-gray-900">{event.max_bookings_per_day}</span>
+                  </div>
+                )}
 
-      {event.require_approval && (
-        <div className="flex items-center justify-between py-2">
-          <span className="text-gray-600">Require approval</span>
-          <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">
-            Yes
-          </span>
+                {event.require_approval && (
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-gray-600">Require approval</span>
+                    <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">
+                      Yes
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
         </div>
-      )}
-    </div>
-  </div>
-)}
-</div>
+        
         {/* Sidebar */}
         <div className="space-y-6">
           
