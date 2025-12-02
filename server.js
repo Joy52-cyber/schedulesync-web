@@ -6570,7 +6570,303 @@ app.delete('/api/notifications/:id', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete' });
   }
 });
+// ============ COMPLETE AI SCHEDULING ENDPOINT WITH FIXED VARIABLE NAMES ============
 
+app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
+  try {
+    const { message, conversationHistory = [] } = req.body;
+    const userId = req.user.id;
+    const userEmail = req.user.email;
+
+    console.log('🤖 AI Scheduling request:', message);
+
+    // Validate message
+    if (!message || typeof message !== 'string' || message.trim() === '') {
+      return res.status(400).json({
+        type: 'error',
+        message: 'Please enter a message'
+      });
+    }
+
+    // Get user's teams and bookings for context
+    const teamsResult = await pool.query(
+      `SELECT t.*, COUNT(tm.id) as member_count
+       FROM teams t
+       LEFT JOIN team_members tm ON t.id = tm.team_id
+       WHERE t.owner_id = $1
+       GROUP BY t.id`,
+      [userId]
+    );
+
+    const bookingsResult = await pool.query(
+      `SELECT b.*, tm.name as organizer_name, t.name as team_name
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND b.start_time > NOW()
+         AND b.status = 'confirmed'
+       ORDER BY b.start_time ASC
+       LIMIT 10`,
+      [userId]
+    );
+
+    // Provide complete booking details to AI
+    const userContext = {
+      email: userEmail,
+      teams: teamsResult.rows.map(t => ({ 
+        id: t.id, 
+        name: t.name, 
+        members: t.member_count 
+      })),
+      upcomingBookings: bookingsResult.rows.map(b => ({
+        id: b.id,
+        attendee_name: b.attendee_name,
+        attendee_email: b.attendee_email,
+        attendee_phone: b.attendee_phone,
+        start: b.start_time,
+        end: b.end_time,
+        duration: b.duration,
+        meet_link: b.meet_link,
+        notes: b.notes,
+        status: b.status,
+        team_name: b.team_name,
+        organizer: b.organizer_name
+      }))
+    };
+
+    // Format conversation history
+    const formattedHistory = conversationHistory.slice(-5).map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.content || '' }]
+    })).filter(msg => msg.parts[0].text.trim() !== '');
+
+    // System instruction
+    const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
+
+User context: ${JSON.stringify(userContext)}
+
+**IMPORTANT: Current date/time is ${new Date().toISOString()}**
+**When parsing dates:**
+- "Monday December 1" means the NEXT occurrence of Monday, December 1
+- Always use year 2025 or later for future dates
+- "2 pm" = "14:00" in 24-hour format
+- If only day/month given, assume current year or next year if date has passed
+
+Return JSON structure:
+{
+  "intent": "create_meeting" | "show_bookings" | "find_time" | "cancel_booking" | "reschedule" | "check_availability" | "clarify",
+  "confidence": 0-100,
+  "extracted": {
+    "title": "string or null",
+    "attendees": ["email@example.com"],
+    "date": "YYYY-MM-DD (always use 2025 or later)",
+    "time": "HH:MM in 24-hour format", 
+    "duration_minutes": number or null,
+    "notes": "string or null",
+    "time_window": "tomorrow morning" | "next week" | "this afternoon" etc
+  },
+  "missing_fields": ["field1", "field2"],
+  "clarifying_question": "What time works best for you?",
+  "action": "create" | "list" | "suggest_slots" | "cancel" | null
+}
+
+For "show bookings" intent, set action to "list".
+For "find time" or vague scheduling, set action to "suggest_slots".
+For specific time/date provided, set action to "create".
+If missing info, set intent to "clarify".`;
+
+    // Call Google Gemini API - CONSISTENT VARIABLE NAME
+    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [
+          ...formattedHistory,
+          {
+            role: 'user',
+            parts: [{ text: `${systemInstruction}\n\nUser message: ${message.trim()}` }]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          topK: 1,
+          topP: 0.8,
+          maxOutputTokens: 1500,
+        }
+      })
+    });
+
+    // Error handling - SAME VARIABLE NAME
+    if (!geminiResponse.ok) {
+      console.error('Gemini API error:', geminiResponse.status, geminiResponse.statusText);
+      const errorText = await geminiResponse.text();
+      console.error('Gemini error body:', errorText);
+      return res.status(500).json({
+        type: 'error',
+        message: 'AI service temporarily unavailable. Please try again.'
+      });
+    }
+
+    const geminiData = await geminiResponse.json();
+
+    if (!geminiData || !geminiData.candidates || !geminiData.candidates[0] || !geminiData.candidates[0].content) {
+      console.error('Invalid Gemini response:', geminiData);
+      return res.status(500).json({
+        type: 'error',
+        message: 'AI service temporarily unavailable.'
+      });
+    }
+
+    const aiText = geminiData.candidates[0].content.parts[0].text;
+    
+    // Parse JSON response
+    let parsedIntent;
+    try {
+      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return res.json({
+          type: 'error',
+          message: 'I had trouble understanding that. Could you rephrase?'
+        });
+      }
+      parsedIntent = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      console.error('Failed to parse AI JSON:', e.message);
+      return res.json({
+        type: 'error',
+        message: 'I had trouble understanding that. Could you rephrase?'
+      });
+    }
+
+    console.log('🤖 Parsed intent:', parsedIntent);
+
+    // Handle different intents
+    if (parsedIntent.intent === 'show_bookings' || parsedIntent.action === 'list') {
+      if (userContext.upcomingBookings.length === 0) {
+        return res.json({
+          type: 'info',
+          message: '📅 You have no upcoming bookings scheduled.'
+        });
+      }
+
+      // Format bookings with complete details
+      const bookingsList = userContext.upcomingBookings.map((booking, index) => {
+        const startDate = new Date(booking.start);
+        const endDate = new Date(booking.end);
+        
+        return `${index + 1}. **${booking.attendee_name}** ${booking.attendee_email ? `(${booking.attendee_email})` : ''}
+📞 ${booking.attendee_phone || 'No phone'}
+📅 ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit' 
+        })} - ${endDate.toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit' 
+        })}
+⏱️ ${booking.duration || 30} minutes
+🏢 ${booking.team_name || 'Personal'}
+🔗 ${booking.meet_link || 'No meeting link'}
+📝 ${booking.notes || 'No notes'}
+✅ Status: ${booking.status}`;
+      }).join('\n\n');
+
+      return res.json({
+        type: 'list',
+        message: `Here are your upcoming bookings:\n\n${bookingsList}`,
+        data: { bookings: userContext.upcomingBookings }
+      });
+    }
+
+    // Handle other intents (find_time, create_meeting, etc.)
+    if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slots') {
+      return res.json({
+        type: 'slots',
+        message: 'Let me find the best available times. I\'ll analyze your calendar and suggest optimal slots.',
+        needsSlots: true,
+        searchParams: parsedIntent.extracted
+      });
+    }
+
+    // Email validation function
+    const validateEmail = (email) => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
+    };
+
+    if (parsedIntent.intent === 'create_meeting') {
+      // Email validation
+      if (parsedIntent.extracted.attendees && parsedIntent.extracted.attendees.length > 0) {
+        const invalidEmails = parsedIntent.extracted.attendees.filter(email => !validateEmail(email));
+        if (invalidEmails.length > 0) {
+          return res.json({
+            type: 'clarify',
+            message: `❌ Invalid email address(es): **${invalidEmails.join(', ')}**\n\nPlease provide valid email addresses. Example: john@company.com`,
+            data: parsedIntent
+          });
+        }
+      }
+
+      // Required field validation
+      if (!parsedIntent.extracted.date || !parsedIntent.extracted.time) {
+        return res.json({
+          type: 'clarify',
+          message: '📅 I need both a date and time to schedule your meeting. When would you like to meet?',
+          data: parsedIntent
+        });
+      }
+
+      if (!parsedIntent.extracted.attendees || parsedIntent.extracted.attendees.length === 0) {
+        return res.json({
+          type: 'clarify',
+          message: '👥 Who should I invite to this meeting? Please provide their email address.',
+          data: parsedIntent
+        });
+      }
+
+      // Check missing fields
+      const missing = parsedIntent.missing_fields || [];
+      if (missing.length > 0) {
+        return res.json({
+          type: 'clarify',
+          message: parsedIntent.clarifying_question || `I need a bit more information. What ${missing.join(' and ')} would work for you?`,
+          data: parsedIntent
+        });
+      }
+
+      // All validation passed
+      return res.json({
+        type: 'confirmation',
+        message: `✅ Ready to schedule "${parsedIntent.extracted.title || 'Meeting'}" for **${parsedIntent.extracted.date} at ${parsedIntent.extracted.time}**?\n\n👥 Attendees: ${parsedIntent.extracted.attendees.join(', ')}\n⏱️ Duration: ${parsedIntent.extracted.duration_minutes || 30} minutes\n📝 Notes: ${parsedIntent.extracted.notes || 'None'}\n\nClick confirm to create the booking.`,
+        data: { 
+          bookingData: {
+            title: parsedIntent.extracted.title,
+            date: parsedIntent.extracted.date,
+            time: parsedIntent.extracted.time,
+            duration: parsedIntent.extracted.duration_minutes || 30,
+            attendees: parsedIntent.extracted.attendees,
+            notes: parsedIntent.extracted.notes
+          }
+        }
+      });
+    }
+
+    // Default response
+    return res.json({
+      type: 'clarify',
+      message: parsedIntent.clarifying_question || 'How can I help you with your scheduling today? You can ask me to show bookings, find available times, or schedule a new meeting.'
+    });
+
+  } catch (error) {
+    console.error('🚨 AI scheduling error:', error);
+    res.status(500).json({
+      type: 'error',
+      message: 'Something went wrong. Please try again.'
+    });
+  }
+});
 
 
 
