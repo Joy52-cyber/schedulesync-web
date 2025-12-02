@@ -72,6 +72,8 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
 console.log('? AXIOS LOADED:', !!axios, 'Version:', axios.VERSION); // ADD THIS
+const { trackChatGptUsage, getCurrentUsage } = require('./middleware/usage-limits');
+
 
 const app = express();
 
@@ -7725,7 +7727,7 @@ app.get('/api/chatgpt/team-members', authenticateToken, async (req, res) => {
 // =============================================================================
 
 // Get user's current JWT token for ChatGPT integration
-app.get('/api/user/jwt-token', authenticateToken, async (req, res) => {
+app.get('/api/user/jwt-token', authenticateToken, trackChatGptUsage, async (req, res) => {
   try {
     const user_id = req.user.id;
     
@@ -7786,7 +7788,7 @@ app.get('/api/user/jwt-token', authenticateToken, async (req, res) => {
 });
 
 // Refresh JWT token (if user needs a new one)
-app.post('/api/user/refresh-chatgpt-token', authenticateToken, async (req, res) => {
+app.post('/api/user/refresh-chatgpt-token', authenticateToken, trackChatGptUsage, async (req, res) => {
   try {
     const user_id = req.user.id;
     
@@ -7826,7 +7828,7 @@ app.post('/api/user/refresh-chatgpt-token', authenticateToken, async (req, res) 
 });
 
 // Test ChatGPT connection (verify token works)
-app.get('/api/user/test-chatgpt-connection', authenticateToken, async (req, res) => {
+app.get('/api/user/test-chatgpt-connection', authenticateToken, trackChatGptUsage, async (req, res) => {
   try {
     const user_id = req.user.id;
     
@@ -7902,6 +7904,11 @@ app.get('/api/user/test-chatgpt-connection', authenticateToken, async (req, res)
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+app.get('/api/usage', authenticateToken, getCurrentUsage, (req, res) => {
+  res.json(req.userUsage);
+});
+
 
 // Get ChatGPT setup instructions
 app.get('/api/user/chatgpt-setup-guide', (req, res) => {
