@@ -6571,16 +6571,14 @@ app.delete('/api/notifications/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// ============ AI SCHEDULING ASSISTANT ============
-
-// ============ AI SCHEDULING ASSISTANT (USING GEMINI) WITH EMAIL VALIDATION ============
-
-// Email validation function (add this at the top of your server.js)
+// ============ COMPLETE AI SCHEDULING ASSISTANT (USING GEMINI) ============
+// Add email validation function at the top of your server.js
 const validateEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
 
+// ============ MAIN AI SCHEDULING ENDPOINT ============
 app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
   try {
     const { message, conversationHistory = [] } = req.body;
@@ -6689,47 +6687,30 @@ For "find time" or vague scheduling, set action to "suggest_slots".
 For specific time/date provided, set action to "create".
 If missing info, set intent to "clarify".`;
 
- // Corrected test endpoint with proper syntax:
-app.get('/api/test/gemini', authenticateToken, async (req, res) => {
-  try {
-    console.log('Testing Gemini API...');
-    console.log('API Key exists:', !!process.env.GEMINI_API_KEY);
-    console.log('API Key length:', process.env.GEMINI_API_KEY?.length);
-    console.log('API Key prefix:', process.env.GEMINI_API_KEY?.substring(0, 15));
-    
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+    // Call Google Gemini API - FIXED URL AND CONSISTENT VARIABLE NAME
+    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         contents: [
+          ...formattedHistory,
           {
             role: 'user',
-            parts: [{ text: "Say 'Gemini API test successful' if you can read this." }]
+            parts: [{ text: `${systemInstruction}\n\nUser message: ${message.trim()}` }]
           }
         ],
         generationConfig: {
           temperature: 0.1,
-          maxOutputTokens: 100,
+          topK: 1,
+          topP: 0.8,
+          maxOutputTokens: 1500,
         }
       })
     });
-    
-    const data = await response.json();
-    console.log('Gemini response:', data);
-    
-    res.json({
-      success: response.ok,
-      status: response.status,
-      data: data
-    });
-  } catch (error) {
-    console.error('Gemini test error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
+    // FIXED: Consistent variable name throughout
     if (!geminiResponse.ok) {
       console.error('Gemini API error:', geminiResponse.status, geminiResponse.statusText);
       const errorText = await geminiResponse.text();
@@ -6892,7 +6873,7 @@ app.get('/api/test/gemini', authenticateToken, async (req, res) => {
   }
 });
 
-// Test Gemini API connection
+// ============ GEMINI API TEST ENDPOINT ============
 app.get('/api/test/gemini', authenticateToken, async (req, res) => {
   try {
     console.log('Testing Gemini API...');
@@ -6900,7 +6881,7 @@ app.get('/api/test/gemini', authenticateToken, async (req, res) => {
     console.log('API Key length:', process.env.GEMINI_API_KEY?.length);
     console.log('API Key prefix:', process.env.GEMINI_API_KEY?.substring(0, 15));
     
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -6918,7 +6899,7 @@ app.get('/api/test/gemini', authenticateToken, async (req, res) => {
         }
       })
     });
-
+    
     const data = await response.json();
     console.log('Gemini response:', data);
     
