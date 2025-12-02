@@ -7026,7 +7026,221 @@ if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slot
   }
 });
 
+// ============ CHATGPT INTEGRATION ENDPOINTS ============
 
+// ChatGPT OAuth verification
+app.post('/api/chatgpt/auth', async (req, res) => {
+  try {
+    const { chatgpt_user_id, access_token } = req.body;
+    
+    // Verify the access token (you'd implement your own JWT verification)
+    const decoded = jwt.verify(access_token, process.env.JWT_SECRET);
+    
+    res.json({
+      success: true,
+      user_id: decoded.id,
+      email: decoded.email,
+      name: decoded.name
+    });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid authentication' });
+  }
+});
+
+// Get user's generic booking link
+app.get('/api/chatgpt/booking-link', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get user's personal team and booking token
+    const result = await pool.query(`
+      SELECT tm.booking_token, t.name as team_name
+      FROM team_members tm
+      JOIN teams t ON tm.team_id = t.id
+      WHERE tm.user_id = $1 AND t.name LIKE '%Personal%'
+      LIMIT 1
+    `, [userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No booking link found' });
+    }
+    
+    const bookingUrl = `${process.env.FRONTEND_URL}/book/${result.rows[0].booking_token}`;
+    
+    res.json({
+      url: bookingUrl,
+      token: result.rows[0].booking_token,
+      team_name: result.rows[0].team_name
+    });
+  } catch (error) {
+    console.error('Get booking link error:', error);
+    res.status(500).json({ error: 'Failed to get booking link' });
+  }
+});
+
+// Create temporary booking link
+app.post('/api/chatgpt/temporary-link', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { invitee_name, duration = 30, expiry_hours = 24, max_uses = 1 } = req.body;
+    
+    // Get user's member_id
+    const memberResult = await pool.query(
+      'SELECT id FROM team_members WHERE user_id = $1 LIMIT 1',
+      [userId]
+    );
+    
+    if (memberResult.rows.length === 0) {
+      return res.status(400).json({ error: 'No team membership found' });
+    }
+    
+    const memberId = memberResult.rows[0].id;
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + (expiry_hours * 60 * 60 * 1000));
+    
+    // Create temporary link
+    await pool.query(`
+      INSERT INTO single_use_links (token, member_id, name, expires_at, max_uses) 
+      VALUES ($1, $2, $3, $4, $5)
+    `, [token, memberId, invitee_name, expiresAt, max_uses]);
+    
+    const bookingUrl = `${process.env.FRONTEND_URL}/book/${token}`;
+    
+    res.json({
+      url: bookingUrl,
+      token: token,
+      invitee_name: invitee_name,
+      expires_at: expiresAt,
+      max_uses: max_uses
+    });
+  } catch (error) {
+    console.error('Create temporary link error:', error);
+    res.status(500).json({ error: 'Failed to create temporary link' });
+  }
+});
+
+// Suggest optimal meeting times
+app.post('/api/chatgpt/suggest-times', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { duration = 30, days_ahead = 7, preferred_times, participants } = req.body;
+    
+    // Use your existing slot generation logic
+    // This would call your slots API internally
+    const memberResult = await pool.query(
+      'SELECT booking_token FROM team_members WHERE user_id = $1 LIMIT 1',
+      [userId]
+    );
+    
+    if (memberResult.rows.length === 0) {
+      return res.status(400).json({ error: 'No booking token found' });
+    }
+    
+    // Generate slots (you can reuse your existing logic)
+    const suggestions = [
+      {
+        date: "2024-12-03",
+        time: "2:00 PM",
+        score: 95,
+        reason: "Optimal afternoon slot"
+      },
+      {
+        date: "2024-12-04", 
+        time: "10:00 AM",
+        score: 88,
+        reason: "Good morning focus time"
+      }
+    ];
+    
+    res.json({
+      suggestions: suggestions,
+      duration: duration,
+      booking_token: memberResult.rows[0].booking_token
+    });
+  } catch (error) {
+    console.error('Suggest times error:', error);
+    res.status(500).json({ error: 'Failed to suggest times' });
+  }
+});
+
+// Autonomous booking
+app.post('/api/chatgpt/book-meeting', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { 
+      title, 
+      start_time, 
+      end_time, 
+      attendee_email, 
+      attendee_name,
+      notes 
+    } = req.body;
+    
+    // Get user's booking token
+    const memberResult = await pool.query(
+      'SELECT id, booking_token FROM team_members WHERE user_id = $1 LIMIT 1',
+      [userId]
+    );
+    
+    if (memberResult.rows.length === 0) {
+      return res.status(400).json({ error: 'No team membership found' });
+    }
+    
+    const member = memberResult.rows[0];
+    
+    // Create booking directly
+    const manageToken = crypto.randomBytes(16).toString('hex');
+    
+    const bookingResult = await pool.query(`
+      INSERT INTO bookings (
+        member_id, user_id, attendee_name, attendee_email,
+        start_time, end_time, title, notes, status, manage_token
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'confirmed', $9)
+      RETURNING *
+    `, [
+      member.id, userId, attendee_name, attendee_email,
+      start_time, end_time, title, notes, manageToken
+    ]);
+    
+    const booking = bookingResult.rows[0];
+    
+    // Send confirmation emails (async)
+    // ... your existing email logic ...
+    
+    res.json({
+      success: true,
+      booking_id: booking.id,
+      manage_url: `${process.env.FRONTEND_URL}/manage/${manageToken}`,
+      message: `Meeting "${title}" booked successfully with ${attendee_name}`
+    });
+    
+  } catch (error) {
+    console.error('Book meeting error:', error);
+    res.status(500).json({ error: 'Failed to book meeting' });
+  }
+});
+
+// Get team members
+app.get('/api/chatgpt/team-members', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const result = await pool.query(`
+      SELECT tm.name, tm.email, tm.booking_token, t.name as team_name
+      FROM team_members tm
+      JOIN teams t ON tm.team_id = t.id
+      WHERE t.owner_id = $1
+      ORDER BY tm.created_at ASC
+    `, [userId]);
+    
+    res.json({
+      team_members: result.rows
+    });
+  } catch (error) {
+    console.error('Get team members error:', error);
+    res.status(500).json({ error: 'Failed to get team members' });
+  }
+});
 
 // ============ ADMIN PANEL ROUTES ============
 
