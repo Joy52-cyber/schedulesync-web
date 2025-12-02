@@ -17,6 +17,14 @@ import {
   Ticket,
   X,
   ExternalLink,
+  Bot,
+  RefreshCw,
+  TestTube,
+  Download,
+  BookOpen,
+  Shield,
+  Zap,
+  Key,
 } from 'lucide-react';
 
 import api, {
@@ -50,6 +58,16 @@ export default function Dashboard() {
   const [copiedSingleUse, setCopiedSingleUse] = useState('');
   const [linkName, setLinkName] = useState('');
 
+  // ChatGPT Integration State
+  const [chatgptToken, setChatgptToken] = useState('');
+  const [chatgptTokenExpiry, setChatgptTokenExpiry] = useState('');
+  const [chatgptSetupStatus, setChatgptSetupStatus] = useState(null);
+  const [chatgptLoading, setChatgptLoading] = useState(false);
+  const [chatgptTokenCopied, setChatgptTokenCopied] = useState(false);
+  const [refreshingChatgptToken, setRefreshingChatgptToken] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
+
   useEffect(() => {
     loadAllData();
   }, []);
@@ -61,6 +79,7 @@ export default function Dashboard() {
       loadUserTimezone(),
       loadUserProfile(),
       loadSingleUseLinks(),
+      loadChatGptToken(),
     ]);
     setLoading(false);
   };
@@ -109,6 +128,93 @@ export default function Dashboard() {
       setSingleUseLinksData(response.data.links || []);
     } catch (error) {
       console.error('Load single-use links error:', error);
+    }
+  };
+
+  // ChatGPT Integration Functions
+  const loadChatGptToken = async () => {
+    setChatgptLoading(true);
+    try {
+      const response = await api.get('/user/jwt-token');
+      if (response.data.jwt_token) {
+        setChatgptToken(response.data.jwt_token);
+        setChatgptTokenExpiry(response.data.expires_in || '90 days');
+        setChatgptSetupStatus(response.data.setup_status);
+      }
+    } catch (error) {
+      console.error('ChatGPT token load error:', error);
+      // Don't show error notification for optional feature
+    } finally {
+      setChatgptLoading(false);
+    }
+  };
+
+  const handleCopyChatGptToken = async () => {
+    try {
+      await navigator.clipboard.writeText(chatgptToken);
+      setChatgptTokenCopied(true);
+      notify.success('ChatGPT token copied to clipboard! 🤖');
+      setTimeout(() => setChatgptTokenCopied(false), 2000);
+    } catch (error) {
+      console.error('Error copying ChatGPT token:', error);
+      notify.error('Could not copy token. Please select and copy manually.');
+    }
+  };
+
+  const handleRefreshChatGptToken = async () => {
+    setRefreshingChatgptToken(true);
+    try {
+      const response = await api.post('/user/refresh-chatgpt-token');
+      if (response.data.jwt_token) {
+        setChatgptToken(response.data.jwt_token);
+        setChatgptTokenExpiry(response.data.expires_in || '90 days');
+        notify.success('ChatGPT token refreshed successfully! 🔄');
+      }
+    } catch (error) {
+      console.error('Error refreshing ChatGPT token:', error);
+      notify.error('Could not refresh ChatGPT token');
+    } finally {
+      setRefreshingChatgptToken(false);
+    }
+  };
+
+  const handleTestChatGptConnection = async () => {
+    setTestingConnection(true);
+    try {
+      const response = await api.get('/user/test-chatgpt-connection');
+      if (response.data.connection_status === 'READY') {
+        notify.success('✅ ChatGPT connection ready! All tests passed.');
+      } else {
+        notify.warning('⚠️ Some issues found. Check your ScheduleSync setup.');
+        console.log('Test results:', response.data.tests);
+      }
+    } catch (error) {
+      console.error('Error testing ChatGPT connection:', error);
+      notify.error('❌ Connection test failed');
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const handleDownloadSchema = async () => {
+    try {
+      const response = await fetch('/api/user/chatgpt-openapi-schema');
+      const schema = await response.json();
+      
+      const blob = new Blob([JSON.stringify(schema, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'schedulesync-chatgpt-api-schema.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      notify.success('📄 API schema downloaded!');
+    } catch (error) {
+      console.error('Error downloading schema:', error);
+      notify.error('Could not download API schema');
     }
   };
 
@@ -276,6 +382,163 @@ export default function Dashboard() {
                 Change
                 <ChevronRight className="h-4 w-4" />
               </button>
+            </div>
+
+            {/* ChatGPT Integration Section */}
+            <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-2xl border-2 border-indigo-200 p-6 shadow-lg">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Bot className="h-7 w-7 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                      ChatGPT Integration
+                      <Sparkles className="h-5 w-5 text-yellow-500" />
+                    </h2>
+                    <p className="text-sm text-gray-600">Connect your ScheduleSync to ChatGPT for AI-powered scheduling</p>
+                  </div>
+                </div>
+                
+                {chatgptSetupStatus?.has_booking_setup && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg border border-green-200">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span className="text-sm font-medium">Ready for ChatGPT</span>
+                  </div>
+                )}
+              </div>
+
+              {/* JWT Token Section */}
+              <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/50 p-5 mb-5 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Key className="h-5 w-5 text-indigo-600" />
+                    Your API Token
+                  </h3>
+                  <button
+                    onClick={handleRefreshChatGptToken}
+                    disabled={refreshingChatgptToken}
+                    className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium flex items-center gap-1 transition-all disabled:opacity-50"
+                  >
+                    {refreshingChatgptToken ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    Refresh
+                  </button>
+                </div>
+
+                {chatgptLoading ? (
+                  <div className="flex items-center gap-2 p-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                    <span className="text-sm text-gray-600">Loading token...</span>
+                  </div>
+                ) : chatgptToken ? (
+                  <div className="space-y-3">
+                    <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-xs break-all border">
+                      {chatgptToken}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-gray-500 flex items-center gap-4">
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          Expires in: {chatgptTokenExpiry}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Shield className="h-3 w-3" />
+                          Use as Bearer Token
+                        </span>
+                      </div>
+                      <button
+                        onClick={handleCopyChatGptToken}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium flex items-center gap-2 transition-all shadow-sm"
+                      >
+                        {chatgptTokenCopied ? (
+                          <>
+                            <Check className="h-4 w-4" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-4 w-4" />
+                            Copy Token
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <Bot className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500">ChatGPT integration not available</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  onClick={handleTestChatGptConnection}
+                  disabled={testingConnection || !chatgptToken}
+                  className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                >
+                  {testingConnection ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Testing...
+                    </>
+                  ) : (
+                    <>
+                      <TestTube className="h-4 w-4" />
+                      Test Connection
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={handleDownloadSchema}
+                  disabled={!chatgptToken}
+                  className="px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Schema
+                </button>
+
+                <button
+                  onClick={() => setShowInstructions(true)}
+                  className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all shadow-sm"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  Setup Guide
+                </button>
+              </div>
+
+              {/* Quick Setup Steps */}
+              <div className="mt-5 p-4 bg-white/60 backdrop-blur-sm rounded-lg border border-white/50">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-yellow-500" />
+                  Quick Setup
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-xs">1</div>
+                    <span className="text-gray-700">Copy token above</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-xs">2</div>
+                    <span className="text-gray-700">Create ChatGPT GPT</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-xs">3</div>
+                    <span className="text-gray-700">Import our API schema</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center font-bold text-xs">✓</div>
+                    <span className="text-gray-700">Start scheduling!</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Side-by-Side: Booking Link + Single-Use Links */}
@@ -578,6 +841,129 @@ export default function Dashboard() {
             >
               Done
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Setup Instructions Modal */}
+      {showInstructions && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 relative">
+            <button onClick={() => setShowInstructions(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <X className="h-5 w-5 text-gray-500" />
+            </button>
+
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                <Bot className="h-8 w-8 text-indigo-600" />
+                ChatGPT Integration Setup Guide
+              </h3>
+              <p className="text-gray-600">Follow these steps to connect your ScheduleSync to ChatGPT</p>
+            </div>
+
+            <div className="space-y-6">
+              {/* Step 1 */}
+              <div className="border border-gray-200 rounded-xl p-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold">1</div>
+                  <div className="flex-1">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2">Copy Your JWT Token</h4>
+                    <p className="text-gray-600 mb-3">Use the token from the section above. Click "Copy Token" to copy it to your clipboard.</p>
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                      <p className="text-sm text-yellow-800"><strong>Note:</strong> This token expires in 90 days. You can refresh it anytime.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="border border-gray-200 rounded-xl p-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold">2</div>
+                  <div className="flex-1">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2">Create ChatGPT Custom GPT</h4>
+                    <p className="text-gray-600 mb-3">Go to ChatGPT and create a new custom GPT.</p>
+                    <a href="https://chat.openai.com/gpts/discovery" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors">
+                      <ExternalLink className="h-4 w-4" />
+                      Open ChatGPT GPTs
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="border border-gray-200 rounded-xl p-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold">3</div>
+                  <div className="flex-1">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2">Configure Your GPT</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Name:</label>
+                        <div className="bg-gray-50 p-2 rounded font-mono text-sm">AI Meeting Booker</div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Description:</label>
+                        <div className="bg-gray-50 p-2 rounded font-mono text-sm">The fastest way to a confirmed meeting</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 4 */}
+              <div className="border border-gray-200 rounded-xl p-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold">4</div>
+                  <div className="flex-1">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2">Add API Actions</h4>
+                    <p className="text-gray-600 mb-3">Import our API schema and configure authentication.</p>
+                    <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600">
+                      <li>Click "Actions" in your GPT configuration</li>
+                      <li>Click "Create new action"</li>
+                      <li>Download and import our API schema (button above)</li>
+                      <li>Set Authentication to "Bearer"</li>
+                      <li>Paste your JWT token as the Bearer token</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 5 */}
+              <div className="border border-gray-200 rounded-xl p-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">✓</div>
+                  <div className="flex-1">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2">Test Your Integration</h4>
+                    <p className="text-gray-600 mb-3">Try these commands in your ChatGPT:</p>
+                    <div className="space-y-2">
+                      {[
+                        '"What\'s my booking link?"',
+                        '"Create a temp link for John"',
+                        '"Find meeting times for next week"',
+                        '"Who\'s on my team?"'
+                      ].map((command, idx) => (
+                        <div key={idx} className="bg-gray-50 p-2 rounded font-mono text-sm">{command}</div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-500">
+                  Need help? Test your connection above or contact support.
+                </div>
+                <button
+                  onClick={() => setShowInstructions(false)}
+                  className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors"
+                >
+                  Got it!
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

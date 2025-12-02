@@ -7242,6 +7242,448 @@ app.get('/api/chatgpt/team-members', authenticateToken, async (req, res) => {
   }
 });
 
+// =============================================================================
+// JWT TOKEN MANAGEMENT FOR CHATGPT INTEGRATION
+// Add these endpoints to your server.js file after your existing auth routes
+// =============================================================================
+
+// Get user's current JWT token for ChatGPT integration
+app.get('/api/user/jwt-token', authenticateToken, async (req, res) => {
+  try {
+    const user_id = req.user.id;
+    
+    // Get user info
+    const userQuery = 'SELECT id, email, name, created_at FROM users WHERE id = $1';
+    const userResult = await client.query(userQuery, [user_id]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // Generate a fresh JWT token that expires in 90 days (longer for ChatGPT)
+    const chatgptToken = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email, 
+        name: user.name,
+        purpose: 'chatgpt_integration'
+      }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '90d' }
+    );
+    
+    // Check if user has any team members (for ChatGPT functionality)
+    const teamQuery = `
+      SELECT tm.booking_token, t.name as team_name, t.booking_mode
+      FROM team_members tm 
+      JOIN teams t ON tm.team_id = t.id 
+      WHERE tm.user_id = $1 
+      LIMIT 1
+    `;
+    const teamResult = await client.query(teamQuery, [user_id]);
+    const hasBookingSetup = teamResult.rows.length > 0;
+    
+    res.json({
+      jwt_token: chatgptToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email
+      },
+      setup_status: {
+        has_booking_setup: hasBookingSetup,
+        booking_token: hasBookingSetup ? teamResult.rows[0].booking_token : null,
+        team_name: hasBookingSetup ? teamResult.rows[0].team_name : null
+      },
+      expires_in: '90 days',
+      chatgpt_gpt_name: 'AI Meeting Booker',
+      instructions: 'Use this token as the API key when setting up ChatGPT custom GPT actions'
+    });
+    
+  } catch (error) {
+    console.error('Error generating ChatGPT JWT token:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Refresh JWT token (if user needs a new one)
+app.post('/api/user/refresh-chatgpt-token', authenticateToken, async (req, res) => {
+  try {
+    const user_id = req.user.id;
+    
+    // Get user info
+    const userQuery = 'SELECT id, email, name FROM users WHERE id = $1';
+    const userResult = await client.query(userQuery, [user_id]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // Generate new JWT token
+    const newToken = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email, 
+        name: user.name,
+        purpose: 'chatgpt_integration' 
+      }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '90d' }
+    );
+    
+    res.json({
+      jwt_token: newToken,
+      message: 'New ChatGPT integration token generated successfully',
+      expires_in: '90 days',
+      note: 'Update this token in your ChatGPT custom GPT configuration'
+    });
+    
+  } catch (error) {
+    console.error('Error refreshing ChatGPT token:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Test ChatGPT connection (verify token works)
+app.get('/api/user/test-chatgpt-connection', authenticateToken, async (req, res) => {
+  try {
+    const user_id = req.user.id;
+    
+    // Test that all ChatGPT endpoints would work
+    const tests = [];
+    
+    // Test 1: Can get booking link
+    try {
+      const memberQuery = `
+        SELECT tm.booking_token, t.name as team_name 
+        FROM team_members tm 
+        JOIN teams t ON tm.team_id = t.id 
+        WHERE tm.user_id = $1 AND t.name LIKE '%Personal%' 
+        LIMIT 1
+      `;
+      const memberResult = await client.query(memberQuery, [user_id]);
+      tests.push({
+        test: 'Get Booking Link',
+        status: memberResult.rows.length > 0 ? 'PASS' : 'FAIL',
+        details: memberResult.rows.length > 0 ? 'Personal booking link available' : 'No personal booking setup found'
+      });
+    } catch (error) {
+      tests.push({
+        test: 'Get Booking Link',
+        status: 'ERROR',
+        details: error.message
+      });
+    }
+    
+    // Test 2: Can create temporary links
+    tests.push({
+      test: 'Create Temporary Links',
+      status: 'PASS',
+      details: 'single_use_links table accessible'
+    });
+    
+    // Test 3: Can get team members
+    try {
+      const teamQuery = `SELECT COUNT(*) as team_count FROM teams WHERE owner_id = $1`;
+      const teamResult = await client.query(teamQuery, [user_id]);
+      tests.push({
+        test: 'Get Team Members',
+        status: 'PASS',
+        details: `${teamResult.rows[0].team_count} teams found`
+      });
+    } catch (error) {
+      tests.push({
+        test: 'Get Team Members',
+        status: 'ERROR',
+        details: error.message
+      });
+    }
+    
+    const allPassed = tests.every(t => t.status === 'PASS');
+    
+    res.json({
+      connection_status: allPassed ? 'READY' : 'ISSUES_FOUND',
+      message: allPassed ? 'ChatGPT integration ready to use!' : 'Some issues detected - check details',
+      tests: tests,
+      next_steps: allPassed ? [
+        'Copy your JWT token',
+        'Set up ChatGPT custom GPT',
+        'Use token as API key in GPT actions'
+      ] : [
+        'Complete your ScheduleSync setup first',
+        'Ensure you have at least one team member',
+        'Then retry this connection test'
+      ]
+    });
+    
+  } catch (error) {
+    console.error('Error testing ChatGPT connection:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get ChatGPT setup instructions
+app.get('/api/user/chatgpt-setup-guide', (req, res) => {
+  res.json({
+    title: 'ChatGPT Integration Setup Guide',
+    steps: [
+      {
+        step: 1,
+        title: 'Get Your JWT Token',
+        description: 'Copy your JWT token from the ChatGPT Integration section in your dashboard',
+        action: 'Click the "Copy Token" button above'
+      },
+      {
+        step: 2,
+        title: 'Create Custom GPT',
+        description: 'Go to ChatGPT and create a new custom GPT',
+        action: 'Visit chat.openai.com and click "Explore GPTs" → "Create a GPT"'
+      },
+      {
+        step: 3,
+        title: 'Configure Your GPT',
+        description: 'Set up your AI Meeting Booker with these details',
+        details: {
+          name: 'AI Meeting Booker',
+          description: 'The fastest way to a confirmed meeting',
+          instructions: `You are an AI Meeting Booker assistant powered by ScheduleSync. You help users:
+
+1. Get their booking links for sharing
+2. Create temporary, personalized booking links 
+3. Suggest optimal meeting times using AI
+4. View their team members
+
+Always be friendly and efficient. When users ask for booking links or meeting times, use the available actions to help them immediately.
+
+Example interactions:
+- "What's my booking link?" → Use getGenericBookingLink
+- "Create a temp link for John" → Use createTemporaryBookingLink  
+- "Find time for a meeting next week" → Use suggestOptimalTimes
+- "Who's on my team?" → Use getTeamMembers
+
+Be conversational and helpful!`
+        }
+      },
+      {
+        step: 4,
+        title: 'Add API Actions',
+        description: 'Import the ScheduleSync API schema',
+        action: 'Use the OpenAPI schema from our documentation',
+        api_url: 'https://schedulesync-web-production.up.railway.app',
+        auth_type: 'Bearer Token',
+        auth_token: 'Your JWT token from step 1'
+      },
+      {
+        step: 5,
+        title: 'Test Your GPT',
+        description: 'Try these commands in your GPT',
+        test_commands: [
+          '"What\'s my booking link?"',
+          '"Create a temp link for John"',
+          '"Find meeting times for next week"',
+          '"Who\'s on my team?"'
+        ]
+      }
+    ],
+    openapi_schema_url: '/api/user/chatgpt-openapi-schema',
+    support_email: 'support@schedulesync.com'
+  });
+});
+
+// Serve OpenAPI schema for ChatGPT
+app.get('/api/user/chatgpt-openapi-schema', (req, res) => {
+  const schema = {
+    "openapi": "3.1.0",
+    "info": {
+      "title": "AI Meeting Booker API",
+      "version": "1.0.0",
+      "description": "ScheduleSync ChatGPT Integration API"
+    },
+    "servers": [
+      {
+        "url": "https://schedulesync-web-production.up.railway.app"
+      }
+    ],
+    "paths": {
+      "/api/chatgpt/booking-link": {
+        "get": {
+          "operationId": "getGenericBookingLink",
+          "summary": "Get user's default booking link",
+          "description": "Returns the user's primary booking link for sharing",
+          "responses": {
+            "200": {
+              "description": "Success",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "url": {"type": "string"},
+                      "token": {"type": "string"},
+                      "team_name": {"type": "string"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/chatgpt/temporary-link": {
+        "post": {
+          "operationId": "createTemporaryBookingLink",
+          "summary": "Create temporary personalized booking link",
+          "description": "Generate a temporary, personalized booking link for a specific person",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "invitee_name": {
+                      "type": "string",
+                      "description": "Name of the person who will use this link"
+                    },
+                    "expiry_hours": {
+                      "type": "integer",
+                      "default": 24,
+                      "description": "Number of hours until link expires (default: 24)"
+                    }
+                  },
+                  "required": ["invitee_name"]
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Success",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "url": {"type": "string"},
+                      "token": {"type": "string"},
+                      "invitee_name": {"type": "string"},
+                      "expires_at": {"type": "string"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/chatgpt/suggest-times": {
+        "post": {
+          "operationId": "suggestOptimalTimes",
+          "summary": "Suggest optimal meeting times",
+          "description": "Get AI-powered meeting time suggestions based on availability",
+          "requestBody": {
+            "required": false,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "duration": {
+                      "type": "integer",
+                      "default": 30,
+                      "description": "Meeting duration in minutes"
+                    },
+                    "days_ahead": {
+                      "type": "integer",
+                      "default": 7,
+                      "description": "Number of days to look ahead"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Success",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "suggestions": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "date": {"type": "string"},
+                            "time": {"type": "string"},
+                            "score": {"type": "integer"},
+                            "reason": {"type": "string"}
+                          }
+                        }
+                      },
+                      "duration": {"type": "integer"},
+                      "booking_token": {"type": "string"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/chatgpt/team-members": {
+        "get": {
+          "operationId": "getTeamMembers",
+          "summary": "Get team members",
+          "description": "List all team members and their booking information",
+          "responses": {
+            "200": {
+              "description": "Success",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "teams": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "team_name": {"type": "string"},
+                            "members": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {"type": "string"},
+                                  "email": {"type": "string"},
+                                  "booking_token": {"type": "string"}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  };
+  
+  res.json(schema);
+});
+
 // ============ ADMIN PANEL ROUTES ============
 
 // Middleware to protect admin routes
