@@ -4090,7 +4090,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
 
     console.log('📅 Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
 
-      // 🔥 DETECT PUBLIC BOOKING PSEUDO-TOKEN (ADD THIS BLOCK)
+    // 🔥 DETECT PUBLIC BOOKING PSEUDO-TOKEN (ADD THIS BLOCK)
     if (token && token.startsWith('public:')) {
       const parts = token.split(':');
       const username = parts[1];
