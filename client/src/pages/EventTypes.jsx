@@ -44,14 +44,14 @@ export default function EventTypes() {
   };
 
   const copyToClipboard = (e, event) => {
-    e.stopPropagation();
-    const username = user?.username || user?.email?.split('@')[0] || 'user';
-    const link = `${window.location.origin}/${username}/${event.slug}`;
-    
-    navigator.clipboard.writeText(link);
-    setCopiedId(event.id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
+  e.stopPropagation();
+  const username = user?.username || user?.email?.split('@')[0] || 'user';
+  const link = `${window.location.origin}/book/${username}/${event.slug}`;  // ✅ ADD /book
+  
+  navigator.clipboard.writeText(link);
+  setCopiedId(event.id);
+  setTimeout(() => setCopiedId(null), 2000);
+};
 
   const getColorClass = (color) => {
     const map = {

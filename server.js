@@ -4618,6 +4618,35 @@ app.delete('/api/event-types/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// 5. Toggle event type active status
+app.patch('/api/event-types/:id/toggle', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { active } = req.body;  // ✅ Frontend sends 'active', not 'is_active'
+
+    const result = await pool.query(
+      `UPDATE event_types 
+       SET is_active = $1 
+       WHERE id = $2 AND user_id = $3 
+       RETURNING *`,
+      [active, id, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Event type not found' });
+    }
+
+    res.json({ 
+      success: true, 
+      eventType: result.rows[0],
+      message: 'Event type status updated'
+    });
+  } catch (error) {
+    console.error('❌ Toggle event type error:', error);
+    res.status(500).json({ error: 'Failed to toggle event type status' });
+  }
+});
+
 // ONE-TIME MIGRATION (Remove after running)
 // ============================================
  app.get('/api/admin/migrate-single-use-names', async (req, res) => {

@@ -82,9 +82,9 @@ export default function EventTypeDetail() {
   };
 
   const getBookingLink = () => {
-    const username = user?.username || user?.email?.split('@')[0] || 'user';
-    return `${window.location.origin}/${username}/${event?.slug || ''}`;
-  };
+  const username = user?.username || user?.email?.split('@')[0] || 'user';
+  return `${window.location.origin}/book/${username}/${event?.slug || ''}`;  // ✅ ADD /book
+};
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(getBookingLink());
