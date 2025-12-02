@@ -4750,164 +4750,18 @@ app.get('/api/admin/fix-working-hours-data', authenticateToken, async (req, res)
 app.get('/api/bookings/:token', async (req, res) => {
   try {
     const { token } = req.params;
-    console.log('?? Looking up token:', token, 'Length:', token.length);
+    console.log('🔍 Looking up token:', token, 'Length:', token.length);
     
-    // ========== CHECK 1: Team Booking Token ==========
-    const teamResult = await pool.query(
-      `SELECT t.*, 
-              u.name as owner_name,
-              u.email as owner_email
-       FROM teams t
-       LEFT JOIN users u ON t.owner_id = u.id
-       WHERE t.team_booking_token = $1`,
-      [token]
-    );
-    
-    if (teamResult.rows.length > 0) {
-      const team = teamResult.rows[0];
-      console.log('? Team token found:', team.name);
-      
-      // Get members
-      const membersResult = await pool.query(
-  `SELECT tm.id, tm.name, tm.email, tm.booking_token, tm.user_id
-   FROM team_members tm
-   WHERE tm.team_id = $1 
-     AND (tm.is_active = true OR tm.is_active IS NULL)
-     AND (tm.external_booking_link IS NULL OR tm.external_booking_link = '')
-   ORDER BY tm.created_at ASC`,
-  [team.id]
-);
-      
-      // Get event types
-      const eventTypesResult = await pool.query(
-        `SELECT id, title, duration, description, is_active, color, slug
-         FROM event_types 
-         WHERE user_id = $1 AND is_active = true 
-         ORDER BY duration ASC`,
-        [team.owner_id]
-      );
-      
-      console.log('?? Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
-      
-     return res.json({
-    data: {
-      team: {
-        id: team.id,
-        name: team.name,
-        description: team.description,
-        booking_mode: team.booking_mode || 'round_robin',
-        owner_name: team.owner_name
-      },
-      member: membersResult.rows[0] || {
-        id: null,
-        name: team.owner_name || team.name,
-        email: team.owner_email,
-        default_duration: 30
-      },
-      members: membersResult.rows,
-      eventTypes: eventTypesResult.rows.map(et => ({
-        id: et.id,
-        title: et.title,           // ? CHANGED
-        name: et.title,             // ? CHANGED
-        duration: et.duration,
-        description: et.description,
-        color: et.color,
-        slug: et.slug,
-        is_active: true
-      })),
-      isTeamBooking: true,
-      skipEventTypes: false
-    }
-  });
-}
-    // ========== CHECK 2: Member Booking Token ==========
-    const memberResult = await pool.query(
-      `SELECT tm.*, 
-              t.name as team_name, 
-              t.id as team_id,
-              u.name as user_name,
-              u.email as user_email
-       FROM team_members tm
-       JOIN teams t ON tm.team_id = t.id
-       LEFT JOIN users u ON tm.user_id = u.id
-       WHERE tm.booking_token = $1`,
-      [token]
-    );
-    
-    if (memberResult.rows.length > 0) {
-      const member = memberResult.rows[0];
-      console.log('? Member token found:', member.name || member.user_name);
-      
-      // Check for external booking link
-      if (member.external_booking_link) {
-        console.log('?? External link detected:', member.external_booking_link);
-        return res.json({
-          data: {
-            team: {
-              id: member.team_id,
-              name: member.team_name
-            },
-            member: {
-              id: member.id,
-              name: member.name || member.user_name,
-              email: member.email || member.user_email,
-              external_booking_link: member.external_booking_link,
-              default_duration: member.default_duration || 30
-            },
-            eventTypes: [],
-            isDirectLink: false
-          }
-        });
-      }
-      
-      // Get event types for this member
-let eventTypesResult = { rows: [] };
-if (member.user_id) {
-  eventTypesResult = await pool.query(
-    `SELECT id, title, duration, description, is_active, color, slug
-     FROM event_types 
-     WHERE user_id = $1 AND is_active = true 
-     ORDER BY duration ASC`,
-    [member.user_id]  // ✅ Use member.user_id, not member.team_id
-  );
-}
-      
-      return res.json({
-        data: {
-          team: {
-            id: member.team_id,
-            name: member.team_name
-          },
-          member: {
-            id: member.id,
-            name: member.name || member.user_name,
-            email: member.email || member.user_email,
-            default_duration: member.default_duration || 30,
-            user_id: member.user_id
-          },
-          eventTypes: eventTypesResult.rows.map(et => ({
-            id: et.id,
-            title: et.title,
-            name: et.title,
-            duration: et.duration,
-            description: et.description,
-            color: et.color,
-            slug: et.slug,
-            is_active: true
-          })),
-          isDirectLink: false,
-          skipEventTypes: false
-        }
-      });
-    }
-    
-    // ========== CHECK 3: Single-Use Link Token ==========
+    // ========== CHECK 1: Single-Use Link (64 chars) - PRIORITY! ==========
     if (token.length === 64) {
+      console.log('🔍 Checking single-use link...');
       const singleUseResult = await pool.query(
         `SELECT sul.*, 
+                tm.id as member_id,
                 tm.name as member_name, 
                 tm.email as member_email,
-                
+                tm.default_duration,
+                tm.user_id,
                 t.name as team_name,
                 t.id as team_id
          FROM single_use_links sul
@@ -4921,7 +4775,7 @@ if (member.user_id) {
       
       if (singleUseResult.rows.length > 0) {
         const link = singleUseResult.rows[0];
-        console.log('? Single-use link found for:', link.member_name);
+        console.log('✅ Single-use link found for:', link.member_name);
         
         return res.json({
           data: {
@@ -4933,7 +4787,8 @@ if (member.user_id) {
               id: link.member_id,
               name: link.member_name,
               email: link.member_email,
-              default_duration: link.default_duration || 30
+              default_duration: link.default_duration || 30,
+              user_id: link.user_id
             },
             eventTypes: [],
             isDirectLink: true,
@@ -4941,69 +4796,13 @@ if (member.user_id) {
             isSingleUse: true
           }
         });
+      } else {
+        console.log('❌ Single-use link expired or already used');
+        return res.status(404).json({ error: 'This link has expired or been used' });
       }
     }
     
-    // ========== CHECK 4: booking_tokens Table ==========
-    const bookingTokenResult = await pool.query(
-      `SELECT bt.*,
-              tm.id as member_id,
-              tm.name as member_name,
-              tm.email as member_email,
-              
-              t.id as team_id,
-              t.name as team_name
-       FROM booking_tokens bt
-       JOIN team_members tm ON bt.member_id = tm.id
-       JOIN teams t ON tm.team_id = t.id
-       WHERE bt.token = $1 AND bt.is_active = true`,
-      [token]
-    );
-    
-    if (bookingTokenResult.rows.length > 0) {
-      const tokenData = bookingTokenResult.rows[0];
-      console.log('? Booking token found for:', tokenData.member_name);
-      
-      return res.json({
-        data: {
-          team: {
-            id: tokenData.team_id,
-            name: tokenData.team_name
-          },
-          member: {
-            id: tokenData.member_id,
-            name: tokenData.member_name,
-            email: tokenData.member_email,
-            default_duration: tokenData.default_duration || 30
-          },
-          eventTypes: [],
-          isDirectLink: true,
-          skipEventTypes: true
-        }
-      });
-    }
-    
-    // ========== Token Not Found ==========
-    console.log('? Token not found:', token);
-    return res.status(404).json({ 
-      error: 'Invalid booking link' 
-    });
-    
-  } catch (error) {
-    console.error('? Booking lookup error:', error);
-    return res.status(500).json({ 
-      error: 'Failed to load booking information' 
-    });
-  }
-});
-
-// Legacy endpoint: /api/book/:token (duplicate logic for backwards compatibility)
-app.get('/api/book/:token', async (req, res) => {
-  try {
-    const { token } = req.params;
-    console.log('?? Looking up token (via /api/book):', token, 'Length:', token.length);
-    
-    // ========== CHECK 1: Team Booking Token ==========
+    // ========== CHECK 2: Team Booking Token ==========
     const teamResult = await pool.query(
       `SELECT t.*, 
               u.name as owner_name,
@@ -5016,9 +4815,8 @@ app.get('/api/book/:token', async (req, res) => {
     
     if (teamResult.rows.length > 0) {
       const team = teamResult.rows[0];
-      console.log('? Team token found:', team.name);
+      console.log('✅ Team token found:', team.name);
       
-      // Get members
       const membersResult = await pool.query(
         `SELECT tm.id, tm.name, tm.email, tm.booking_token, tm.user_id
          FROM team_members tm
@@ -5029,7 +4827,6 @@ app.get('/api/book/:token', async (req, res) => {
         [team.id]
       );
       
-      // Get event types
       const eventTypesResult = await pool.query(
         `SELECT id, title, duration, description, is_active, color, slug
          FROM event_types 
@@ -5038,7 +4835,7 @@ app.get('/api/book/:token', async (req, res) => {
         [team.owner_id]
       );
       
-      console.log('?? Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
+      console.log('📊 Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
       
       return res.json({
         data: {
@@ -5072,7 +4869,7 @@ app.get('/api/book/:token', async (req, res) => {
       });
     }
     
-    // ========== CHECK 2: Member Booking Token ==========
+    // ========== CHECK 3: Member Booking Token ==========
     const memberResult = await pool.query(
       `SELECT tm.*, 
               t.name as team_name, 
@@ -5088,11 +4885,10 @@ app.get('/api/book/:token', async (req, res) => {
     
     if (memberResult.rows.length > 0) {
       const member = memberResult.rows[0];
-      console.log('? Member token found:', member.name || member.user_name);
+      console.log('✅ Member token found:', member.name || member.user_name);
       
-      // Check for external booking link
       if (member.external_booking_link) {
-        console.log('?? External link detected:', member.external_booking_link);
+        console.log('🔗 External link detected:', member.external_booking_link);
         return res.json({
           data: {
             team: {
@@ -5112,7 +4908,218 @@ app.get('/api/book/:token', async (req, res) => {
         });
       }
       
-      // Get event types for this member's team
+      let eventTypesResult = { rows: [] };
+      if (member.user_id) {
+        eventTypesResult = await pool.query(
+          `SELECT id, title, duration, description, is_active, color, slug
+           FROM event_types 
+           WHERE user_id = $1 AND is_active = true 
+           ORDER BY duration ASC`,
+          [member.user_id]
+        );
+      }
+      
+      return res.json({
+        data: {
+          team: {
+            id: member.team_id,
+            name: member.team_name
+          },
+          member: {
+            id: member.id,
+            name: member.name || member.user_name,
+            email: member.email || member.user_email,
+            default_duration: member.default_duration || 30,
+            user_id: member.user_id
+          },
+          eventTypes: eventTypesResult.rows.map(et => ({
+            id: et.id,
+            title: et.title,
+            name: et.title,
+            duration: et.duration,
+            description: et.description,
+            color: et.color,
+            slug: et.slug,
+            is_active: true
+          })),
+          isDirectLink: false,
+          skipEventTypes: false
+        }
+      });
+    }
+    
+    // ========== Token Not Found ==========
+    console.log('❌ Token not found:', token);
+    return res.status(404).json({ error: 'Invalid booking link' });
+    
+  } catch (error) {
+    console.error('❌ Booking lookup error:', error);
+    return res.status(500).json({ error: 'Failed to load booking information' });
+  }
+});
+
+// Legacy endpoint: /api/book/:token (exact duplicate for backwards compatibility)
+app.get('/api/book/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    console.log('🔍 Looking up token (via /api/book):', token, 'Length:', token.length);
+    
+    // ========== CHECK 1: Single-Use Link (64 chars) - PRIORITY! ==========
+    if (token.length === 64) {
+      console.log('🔍 Checking single-use link...');
+      const singleUseResult = await pool.query(
+        `SELECT sul.*, 
+                tm.id as member_id,
+                tm.name as member_name, 
+                tm.email as member_email,
+                tm.default_duration,
+                tm.user_id,
+                t.name as team_name,
+                t.id as team_id
+         FROM single_use_links sul
+         JOIN team_members tm ON sul.member_id = tm.id
+         JOIN teams t ON tm.team_id = t.id
+         WHERE sul.token = $1
+           AND sul.used = false
+           AND sul.expires_at > NOW()`,
+        [token]
+      );
+      
+      if (singleUseResult.rows.length > 0) {
+        const link = singleUseResult.rows[0];
+        console.log('✅ Single-use link found for:', link.member_name);
+        
+        return res.json({
+          data: {
+            team: {
+              id: link.team_id,
+              name: link.team_name
+            },
+            member: {
+              id: link.member_id,
+              name: link.member_name,
+              email: link.member_email,
+              default_duration: link.default_duration || 30,
+              user_id: link.user_id
+            },
+            eventTypes: [],
+            isDirectLink: true,
+            skipEventTypes: true,
+            isSingleUse: true
+          }
+        });
+      } else {
+        console.log('❌ Single-use link expired or already used');
+        return res.status(404).json({ error: 'This link has expired or been used' });
+      }
+    }
+    
+    // ========== CHECK 2: Team Booking Token ==========
+    const teamResult = await pool.query(
+      `SELECT t.*, 
+              u.name as owner_name,
+              u.email as owner_email
+       FROM teams t
+       LEFT JOIN users u ON t.owner_id = u.id
+       WHERE t.team_booking_token = $1`,
+      [token]
+    );
+    
+    if (teamResult.rows.length > 0) {
+      const team = teamResult.rows[0];
+      console.log('✅ Team token found:', team.name);
+      
+      const membersResult = await pool.query(
+        `SELECT tm.id, tm.name, tm.email, tm.booking_token, tm.user_id
+         FROM team_members tm
+         WHERE tm.team_id = $1 
+           AND (tm.is_active = true OR tm.is_active IS NULL)
+           AND (tm.external_booking_link IS NULL OR tm.external_booking_link = '')
+         ORDER BY tm.created_at ASC`,
+        [team.id]
+      );
+      
+      const eventTypesResult = await pool.query(
+        `SELECT id, title, duration, description, is_active, color, slug
+         FROM event_types 
+         WHERE user_id = $1 AND is_active = true 
+         ORDER BY duration ASC`,
+        [team.owner_id]
+      );
+      
+      console.log('📊 Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
+      
+      return res.json({
+        data: {
+          team: {
+            id: team.id,
+            name: team.name,
+            description: team.description,
+            booking_mode: team.booking_mode || 'round_robin',
+            owner_name: team.owner_name
+          },
+          member: membersResult.rows[0] || {
+            id: null,
+            name: team.owner_name || team.name,
+            email: team.owner_email,
+            default_duration: 30
+          },
+          members: membersResult.rows,
+          eventTypes: eventTypesResult.rows.map(et => ({
+            id: et.id,
+            title: et.title,
+            name: et.title,
+            duration: et.duration,
+            description: et.description,
+            color: et.color,
+            slug: et.slug,
+            is_active: true
+          })),
+          isTeamBooking: true,
+          skipEventTypes: false
+        }
+      });
+    }
+    
+    // ========== CHECK 3: Member Booking Token ==========
+    const memberResult = await pool.query(
+      `SELECT tm.*, 
+              t.name as team_name, 
+              t.id as team_id,
+              u.name as user_name,
+              u.email as user_email
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       LEFT JOIN users u ON tm.user_id = u.id
+       WHERE tm.booking_token = $1`,
+      [token]
+    );
+    
+    if (memberResult.rows.length > 0) {
+      const member = memberResult.rows[0];
+      console.log('✅ Member token found:', member.name || member.user_name);
+      
+      if (member.external_booking_link) {
+        console.log('🔗 External link detected:', member.external_booking_link);
+        return res.json({
+          data: {
+            team: {
+              id: member.team_id,
+              name: member.team_name
+            },
+            member: {
+              id: member.id,
+              name: member.name || member.user_name,
+              email: member.email || member.user_email,
+              external_booking_link: member.external_booking_link,
+              default_duration: member.default_duration || 30
+            },
+            eventTypes: [],
+            isDirectLink: false
+          }
+        });
+      }
+      
       const eventTypesResult = await pool.query(
         `SELECT id, title, duration, description, is_active, color, slug
          FROM event_types 
@@ -5150,124 +5157,85 @@ app.get('/api/book/:token', async (req, res) => {
       });
     }
     
-    // ========== CHECK 3: Single-Use Link Token ==========
-    if (token.length === 64) {
-      const singleUseResult = await pool.query(
-        `SELECT sul.*, 
-                tm.name as member_name, 
-                tm.email as member_email,
-                
-                t.name as team_name,
-                t.id as team_id
-         FROM single_use_links sul
-         JOIN team_members tm ON sul.member_id = tm.id
-         JOIN teams t ON tm.team_id = t.id
-         WHERE sul.token = $1
-           AND sul.used = false
-           AND sul.expires_at > NOW()`,
-        [token]
-      );
-      
-      if (singleUseResult.rows.length > 0) {
-        const link = singleUseResult.rows[0];
-        console.log('? Single-use link found for:', link.member_name);
-        
-        return res.json({
-          data: {
-            team: {
-              id: link.team_id,
-              name: link.team_name
-            },
-            member: {
-              id: link.member_id,
-              name: link.member_name,
-              email: link.member_email,
-              default_duration: link.default_duration || 30
-            },
-            eventTypes: [],
-            isDirectLink: true,
-            skipEventTypes: true,
-            isSingleUse: true
-          }
-        });
-      }
-    }
-    
-    // ========== CHECK 4: booking_tokens Table ==========
-    const bookingTokenResult = await pool.query(
-      `SELECT bt.*,
-              tm.id as member_id,
-              tm.name as member_name,
-              tm.email as member_email,
-              
-              t.id as team_id,
-              t.name as team_name
-       FROM booking_tokens bt
-       JOIN team_members tm ON bt.member_id = tm.id
-       JOIN teams t ON tm.team_id = t.id
-       WHERE bt.token = $1 AND bt.is_active = true`,
-      [token]
-    );
-    
-    if (bookingTokenResult.rows.length > 0) {
-      const tokenData = bookingTokenResult.rows[0];
-      console.log('? Booking token found for:', tokenData.member_name);
-      
-      return res.json({
-        data: {
-          team: {
-            id: tokenData.team_id,
-            name: tokenData.team_name
-          },
-          member: {
-            id: tokenData.member_id,
-            name: tokenData.member_name,
-            email: tokenData.member_email,
-            default_duration: tokenData.default_duration || 30
-          },
-          eventTypes: [],
-          isDirectLink: true,
-          skipEventTypes: true
-        }
-      });
-    }
-    
     // ========== Token Not Found ==========
-    console.log('? Token not found:', token);
-    return res.status(404).json({ 
-      error: 'Invalid booking link' 
-    });
+    console.log('❌ Token not found:', token);
+    return res.status(404).json({ error: 'Invalid booking link' });
     
   } catch (error) {
-    console.error('? Booking lookup error:', error);
-    return res.status(500).json({ 
-      error: 'Failed to load booking information' 
-    });
+    console.error('❌ Booking lookup error:', error);
+    return res.status(500).json({ error: 'Failed to load booking information' });
   }
 });
 
-// ========== POST: Create booking ==========
+// ========== POST: Create Booking ==========
 app.post('/api/bookings', async (req, res) => {
-  try {  // ? MAIN TRY BLOCK STARTS HERE
-    const { token, slot, attendee_name, attendee_email, notes } = req.body;
+  try {
+    const { 
+      token, 
+      slot, 
+      attendee_name, 
+      attendee_email, 
+      notes,
+      additional_attendees = []
+    } = req.body;
 
-    console.log('?? Creating booking:', { token, attendee_name, attendee_email });
+    console.log('🔧 Creating booking:', { 
+      token: token?.substring(0, 10) + '...', 
+      attendee_name, 
+      attendee_email,
+      hasSlot: !!slot
+    });
 
+    // ========== VALIDATION ==========
     if (!token || !slot || !attendee_name || !attendee_email) {
+      console.error('❌ Missing required fields');
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // ========== SUPPORT SINGLE-USE LINKS ==========
+    if (!slot.start || !slot.end) {
+      console.error('❌ Invalid slot data:', slot);
+      return res.status(400).json({ error: 'Invalid booking slot data' });
+    }
+
+    try {
+      const startDate = new Date(slot.start);
+      const endDate = new Date(slot.end);
+      
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        throw new Error('Invalid date format');
+      }
+      
+      console.log('✅ Slot validation passed:', {
+        start: startDate.toISOString(),
+        end: endDate.toISOString()
+      });
+    } catch (dateError) {
+      console.error('❌ Invalid slot dates:', dateError.message);
+      return res.status(400).json({ 
+        error: 'Invalid booking time format',
+        details: dateError.message
+      });
+    }
+
+    // ========== LOOK UP TOKEN ==========
     let memberResult;
     
+    // CHECK 1: Single-use link (64 chars)
     if (token.length === 64) {
-      console.log('?? Looking up single-use link for booking...');
+      console.log('🔍 Looking up single-use link...');
       memberResult = await pool.query(
-        `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
-                u.google_access_token, u.google_refresh_token, 
-                u.microsoft_access_token, u.microsoft_refresh_token,
-                u.email as member_email, u.name as member_name,
-                'google' as provider
+        `SELECT tm.*, 
+                t.name as team_name, 
+                t.booking_mode, 
+                t.owner_id, 
+                t.id as team_id,
+                u.google_access_token, 
+                u.google_refresh_token,
+                u.microsoft_access_token,
+                u.microsoft_refresh_token,
+                u.provider,
+                u.email as member_email, 
+                u.name as member_name
          FROM single_use_links sul
          JOIN team_members tm ON sul.member_id = tm.id
          JOIN teams t ON tm.team_id = t.id 
@@ -5278,39 +5246,91 @@ app.post('/api/bookings', async (req, res) => {
         [token]
       );
     } else {
-      console.log('?? Looking up regular token for booking...');
-      memberResult = await pool.query(
-        `SELECT tm.*, t.name as team_name, t.booking_mode, t.owner_id, 
-                u.google_access_token, u.google_refresh_token,
-                u.microsoft_access_token, u.microsoft_refresh_token,
-                u.email as member_email, u.name as member_name,
-                'google' as provider
-         FROM team_members tm 
-         JOIN teams t ON tm.team_id = t.id 
-         LEFT JOIN users u ON tm.user_id = u.id 
-         WHERE tm.booking_token = $1`,
+      // CHECK 2: Team token
+      console.log('🔍 Checking if team token...');
+      const teamCheck = await pool.query(
+        `SELECT t.id as team_id, t.booking_mode
+         FROM teams t
+         WHERE t.team_booking_token = $1`,
         [token]
       );
+
+      if (teamCheck.rows.length > 0) {
+        const teamData = teamCheck.rows[0];
+        console.log('✅ Team token detected, loading first active member...');
+        
+        memberResult = await pool.query(
+          `SELECT tm.*, 
+                  t.name as team_name, 
+                  t.booking_mode, 
+                  t.owner_id,
+                  t.id as team_id,
+                  u.google_access_token, 
+                  u.google_refresh_token,
+                  u.microsoft_access_token,
+                  u.microsoft_refresh_token,
+                  u.provider,
+                  u.email as member_email, 
+                  u.name as member_name
+           FROM team_members tm 
+           JOIN teams t ON tm.team_id = t.id 
+           LEFT JOIN users u ON tm.user_id = u.id 
+           WHERE tm.team_id = $1
+             AND (tm.is_active = true OR tm.is_active IS NULL)
+           ORDER BY tm.id ASC
+           LIMIT 1`,
+          [teamData.team_id]
+        );
+      } else {
+        // CHECK 3: Regular member token
+        console.log('🔍 Looking up regular token...');
+        memberResult = await pool.query(
+          `SELECT tm.*, 
+                  t.name as team_name, 
+                  t.booking_mode, 
+                  t.owner_id,
+                  t.id as team_id,
+                  u.google_access_token, 
+                  u.google_refresh_token,
+                  u.microsoft_access_token,
+                  u.microsoft_refresh_token,
+                  u.provider,
+                  u.email as member_email, 
+                  u.name as member_name
+           FROM team_members tm 
+           JOIN teams t ON tm.team_id = t.id 
+           LEFT JOIN users u ON tm.user_id = u.id 
+           WHERE tm.booking_token = $1`,
+          [token]
+        );
+      }
     }
 
     if (memberResult.rows.length === 0) {
-      console.log('? Invalid or expired booking token');
+      console.log('❌ Invalid or expired booking token');
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
     const member = memberResult.rows[0];
     const bookingMode = member.booking_mode || 'individual';
 
-    console.log('?? Booking mode:', bookingMode);
-    console.log('?? Member:', member.member_name);
+    console.log('✅ Token found:', {
+      memberName: member.name || member.member_name,
+      teamName: member.team_name,
+      mode: bookingMode
+    });
 
+    // ========== DETERMINE ASSIGNED MEMBERS ==========
     let assignedMembers = [];
 
-    // Determine which team member(s) to assign based on booking mode
     switch (bookingMode) {
       case 'individual':
-        assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
-        console.log('?? Individual mode: Assigning to', member.name);
+        assignedMembers = [{ 
+          id: member.id, 
+          name: member.name || member.member_name, 
+          user_id: member.user_id 
+        }];
+        console.log('👤 Individual mode: Assigning to', assignedMembers[0].name);
         break;
 
       case 'round_robin':
@@ -5324,13 +5344,10 @@ app.post('/api/bookings', async (req, res) => {
            LIMIT 1`,
           [member.team_id]
         );
-        
-        if (rrResult.rows.length > 0) {
-          assignedMembers = [rrResult.rows[0]];
-          console.log('?? Round-robin: Assigning to', rrResult.rows[0].name);
-        } else {
-          assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
-        }
+        assignedMembers = rrResult.rows.length > 0 
+          ? [rrResult.rows[0]] 
+          : [{ id: member.id, name: member.name || member.member_name, user_id: member.user_id }];
+        console.log('🔄 Round-robin: Assigning to', assignedMembers[0].name);
         break;
 
       case 'first_available':
@@ -5352,14 +5369,10 @@ app.post('/api/bookings', async (req, res) => {
            LIMIT 1`,
           [member.team_id, slot.start, slot.end]
         );
-        
-        if (faResult.rows.length > 0) {
-          assignedMembers = [faResult.rows[0]];
-          console.log('? First-available: Assigning to', faResult.rows[0].name);
-        } else {
-          console.log('?? No available members, falling back to token member');
-          assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
-        }
+        assignedMembers = faResult.rows.length > 0 
+          ? [faResult.rows[0]] 
+          : [{ id: member.id, name: member.name || member.member_name, user_id: member.user_id }];
+        console.log('⚡ First-available: Assigning to', assignedMembers[0].name);
         break;
 
       case 'collective':
@@ -5367,21 +5380,25 @@ app.post('/api/bookings', async (req, res) => {
           'SELECT id, name, user_id FROM team_members WHERE team_id = $1',
           [member.team_id]
         );
-        
         assignedMembers = collectiveResult.rows;
-        console.log('?? Collective mode: Assigning to all', assignedMembers.length, 'members');
+        console.log('👥 Collective mode: Assigning to all', assignedMembers.length, 'members');
         break;
 
       default:
-        assignedMembers = [{ id: member.id, name: member.name, user_id: member.user_id }];
+        assignedMembers = [{ 
+          id: member.id, 
+          name: member.name || member.member_name, 
+          user_id: member.user_id 
+        }];
     }
 
-    // Create booking(s)
+    // ========== CREATE BOOKING(S) ==========
     const createdBookings = [];
 
     for (const assignedMember of assignedMembers) {
-      // Generate unique manage token for this booking
       const manageToken = crypto.randomBytes(16).toString('hex');
+      
+      console.log(`📝 Creating booking for member ${assignedMember.id}...`);
       
       const bookingResult = await pool.query(
         `INSERT INTO bookings (
@@ -5410,26 +5427,22 @@ app.post('/api/bookings', async (req, res) => {
       );
       
       createdBookings.push(bookingResult.rows[0]);
-      console.log(`? Booking created for ${assignedMember.name}:`, bookingResult.rows[0].id);
+      console.log(`✅ Booking created: ID ${bookingResult.rows[0].id}, manage_token: ${manageToken}`);
     }
 
-    console.log(`?? Created ${createdBookings.length} booking(s)`);
-       
-    // Notify organizer
+    // ========== MARK SINGLE-USE LINK AS USED ==========
+    if (token.length === 64) {
+      await pool.query('UPDATE single_use_links SET used = true WHERE token = $1', [token]);
+      console.log('✅ Single-use link marked as used');
+    }
+
+    // ========== NOTIFY ORGANIZER ==========
     if (member.user_id) {
       await notifyBookingCreated(createdBookings[0], member.user_id);
     }
 
-    // Mark single-use link as used
-    if (token.length === 64) {
-      await pool.query(
-        'UPDATE single_use_links SET used = true WHERE token = $1',
-        [token]
-      );
-      console.log('? Single-use link marked as used');
-    }
-
     // ========== RESPOND IMMEDIATELY ==========
+    console.log('✅ Sending success response');
     res.json({ 
       success: true,
       booking: createdBookings[0],
@@ -5438,7 +5451,7 @@ app.post('/api/bookings', async (req, res) => {
       meet_link: null,
       message: bookingMode === 'collective' 
         ? `Booking confirmed with all ${createdBookings.length} team members!`
-        : 'Booking confirmed! Calendar invite with Google Meet link will arrive shortly.'
+        : 'Booking confirmed! Calendar invite will arrive shortly.'
     });
 
     // ========== ASYNC: CREATE CALENDAR EVENT & SEND EMAILS ==========
