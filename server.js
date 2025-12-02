@@ -146,7 +146,8 @@ async function callAnthropicWithRetry(requestBody, retries = 2) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -6677,8 +6678,9 @@ For specific time/date provided, set action to "create".
 If missing info, set intent to "clarify".`;
 
     // Call Google Gemini API - CONSISTENT VARIABLE NAME
-    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-      method: 'POST',
+   const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+
+    method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
