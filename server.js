@@ -1520,7 +1520,7 @@ function getTimezoneOffset(timezone) {
     res.status(500).json({ error: 'Failed to get calendar status' });
   }
 });
-
+}
 // ============ ORGANIZER OAUTH (DASHBOARD LOGIN WITH CALENDAR ACCESS) ============
 
 app.get('/api/auth/google/url', (req, res) => {
