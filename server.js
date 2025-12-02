@@ -432,21 +432,7 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
-    // ? NEW: Event Types Table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS event_types (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        title VARCHAR(255) NOT NULL,
-        slug VARCHAR(255) NOT NULL,
-        duration INTEGER NOT NULL DEFAULT 30,
-        description TEXT,
-        color VARCHAR(50) DEFAULT 'blue',
-        is_active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(user_id, slug)
-      )
-    `);
+  
 
     // ? Blocked Times Table
 await pool.query(`
@@ -596,6 +582,8 @@ await pool.query(`
   )
 `);
 
+
+
     await pool.query(`
   ALTER TABLE team_members
   ADD COLUMN IF NOT EXISTS working_hours JSONB DEFAULT '{
@@ -615,8 +603,53 @@ await pool.query(`
   }
 }
 
-// Call it after initDB()
-initDB().then(() => migrateDatabase());
+
+await pool.query(`
+      ALTER TABLE team_members
+      ADD COLUMN IF NOT EXISTS working_hours JSONB DEFAULT '{
+        "monday": {"enabled": true, "start": "09:00", "end": "17:00"},
+        "tuesday": {"enabled": true, "start": "09:00", "end": "17:00"},
+        "wednesday": {"enabled": true, "start": "09:00", "end": "17:00"},
+        "thursday": {"enabled": true, "start": "09:00", "end": "17:00"},
+        "friday": {"enabled": true, "start": "09:00", "end": "17:00"},
+        "saturday": {"enabled": false, "start": "09:00", "end": "17:00"},
+        "sunday": {"enabled": false, "start": "09:00", "end": "17:00"}
+      }'::jsonb
+    `);
+    
+    console.log('✅ Database migrations completed');
+  } catch (error) {
+    console.error('❌ Migration error:', error);
+  }
+}
+
+// ============ EVENT TYPES COLUMN MIGRATION (For Existing Databases) ============
+async function migrateEventTypesColumns() {
+  try {
+    console.log('🔄 Checking Event Types columns...');
+    
+    // Add new columns if they don't exist (safe for existing databases)
+    await pool.query(`
+      ALTER TABLE event_types 
+      ADD COLUMN IF NOT EXISTS location VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS location_type VARCHAR(50) DEFAULT 'google_meet',
+      ADD COLUMN IF NOT EXISTS buffer_before INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS buffer_after INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS max_bookings_per_day INTEGER,
+      ADD COLUMN IF NOT EXISTS require_approval BOOLEAN DEFAULT false
+    `);
+    
+    console.log('✅ Event Types columns updated');
+  } catch (error) {
+    console.error('❌ Event Types migration error:', error);
+  }
+}
+
+// Initialize database with proper promise chain
+initDB()
+  .then(() => migrateDatabase())
+  .then(() => migrateEventTypesColumns());
+
 
 // ============ OAUTH CODE TRACKING (PREVENT DOUBLE USE) ============
 

@@ -2,9 +2,33 @@
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Clock, MapPin, Edit, Trash2, Loader2, 
-  Copy, Check, ExternalLink, Globe
+  Copy, Check, ExternalLink, Globe,
+  Shield, Calendar, Users, Sparkles, Video, Phone,
+  Building2, Link as LinkIcon
 } from 'lucide-react';
 import { events, auth } from '../utils/api';
+
+// Location type icons
+const locationIcons = {
+  google_meet: Video,
+  zoom: Video,
+  phone: Phone,
+  in_person: Building2,
+  custom: LinkIcon,
+};
+
+// Color mapping
+const colorClasses = {
+  blue: 'bg-blue-500',
+  purple: 'bg-purple-500',
+  green: 'bg-green-500',
+  red: 'bg-red-500',
+  orange: 'bg-orange-500',
+  pink: 'bg-pink-500',
+  indigo: 'bg-indigo-500',
+  yellow: 'bg-yellow-500',
+  gray: 'bg-gray-500',
+};
 
 export default function EventTypeDetail() {
   const navigate = useNavigate();
@@ -36,7 +60,7 @@ export default function EventTypeDetail() {
     setLoading(true);
     try {
       const response = await events.getAll();
-      const list = response.data.event_types || response.data || [];
+      const list = response.data.eventTypes || response.data.event_types || response.data || [];
       const found = list.find(e => String(e.id) === String(id));
       if (found) setEvent(found);
       else navigate('/events');
@@ -48,17 +72,17 @@ export default function EventTypeDetail() {
   };
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure? This deletes the booking page forever.')) return;
+    if (!confirm(`Delete "${event.title}"? This cannot be undone.`)) return;
     try {
       await events.delete(id);
       navigate('/events');
     } catch (error) {
-      alert('Failed to delete');
+      alert('Failed to delete: ' + error.message);
     }
   };
 
   const getBookingLink = () => {
-    const username = user?.username || 'user';
+    const username = user?.username || user?.email?.split('@')[0] || 'user';
     return `${window.location.origin}/${username}/${event?.slug || ''}`;
   };
 
@@ -68,30 +92,81 @@ export default function EventTypeDetail() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (loading || !event) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" /></div>;
+  const toggleActive = async () => {
+    try {
+      await events.update(id, { is_active: !event.is_active });
+      setEvent({ ...event, is_active: !event.is_active });
+    } catch (error) {
+      alert('Failed to update status');
+    }
+  };
+
+  const LocationIcon = event?.location_type 
+    ? locationIcons[event.location_type] || MapPin 
+    : MapPin;
+
+  if (loading || !event) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin text-blue-600 h-8 w-8" />
+      </div>
+    );
+  }
+
+  const colorClass = colorClasses[event.color] || colorClasses.blue;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-5xl mx-auto px-4 py-8">
+      {/* Header */}
       <div className="mb-6">
-        <button onClick={() => navigate('/events')} className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4">
+        <button 
+          onClick={() => navigate('/events')} 
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+        >
           <ArrowLeft className="h-4 w-4" /> Back to Event Types
         </button>
         
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+          <div className="flex-1">
             <div className="flex items-center gap-3">
-              {/* Color Dot */}
-              <div className={`w-4 h-4 rounded-full bg-${event.color || 'blue'}-500`} />
+              <div className={`w-3 h-3 rounded-full ${colorClass}`} />
               <h1 className="text-3xl font-bold text-gray-900">{event.title}</h1>
+              {event.is_active ? (
+                <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
+                  Active
+                </span>
+              ) : (
+                <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-semibold rounded-full">
+                  Inactive
+                </span>
+              )}
             </div>
-            <p className="text-gray-500 mt-1 ml-7">/{event.slug}</p>
+            <p className="text-gray-500 mt-2 text-sm">
+              <span className="text-gray-400">/{event.slug}</span>
+            </p>
           </div>
 
           <div className="flex gap-2">
-            <button onClick={() => navigate(`/events/${id}/edit`, { state: { event } })} className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium">
+            <button 
+              onClick={toggleActive}
+              className={`px-4 py-2 border rounded-xl font-medium transition-colors ${
+                event.is_active 
+                  ? 'border-gray-300 text-gray-700 hover:bg-gray-50' 
+                  : 'border-green-200 text-green-700 hover:bg-green-50'
+              }`}
+            >
+              {event.is_active ? 'Disable' : 'Enable'}
+            </button>
+            <button 
+              onClick={() => navigate(`/events/${id}/edit`, { state: { event } })} 
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
+            >
               <Edit className="h-4 w-4" /> Edit
             </button>
-            <button onClick={handleDelete} className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-xl hover:bg-red-50 font-medium">
+            <button 
+              onClick={handleDelete} 
+              className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-xl hover:bg-red-50 font-medium transition-colors"
+            >
               <Trash2 className="h-4 w-4" />
             </button>
           </div>
@@ -102,29 +177,106 @@ export default function EventTypeDetail() {
         
         {/* Main Details */}
         <div className="lg:col-span-2 space-y-6">
+          
+          {/* Overview Card */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Event Details</h2>
-            <div className="space-y-4">
-              <p className="text-gray-600">{event.description || 'No description provided.'}</p>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-blue-600" />
+              Event Overview
+            </h2>
+            
+            {event.description ? (
+              <p className="text-gray-600 mb-6">{event.description}</p>
+            ) : (
+              <p className="text-gray-400 italic mb-6">No description provided.</p>
+            )}
               
-              <div className="flex gap-6 pt-4 border-t border-gray-100">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-gray-400" />
-                  <span className="font-medium">{event.duration} min</span>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4 border-t border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-50 rounded-lg">
+                  <Clock className="h-5 w-5 text-blue-600" />
                 </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5 text-gray-400" />
-                  <span className="font-medium">{event.location || 'No location'}</span>
+                <div>
+                  <p className="text-xs text-gray-500">Duration</p>
+                  <p className="font-semibold text-gray-900">{event.duration} min</p>
                 </div>
               </div>
+
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-50 rounded-lg">
+                  <LocationIcon className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Location</p>
+                  <p className="font-semibold text-gray-900 truncate">
+                    {event.location || 'Not set'}
+                  </p>
+                </div>
+              </div>
+
+              {event.price && event.price > 0 && (
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-50 rounded-lg">
+                    <DollarSign className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Price</p>
+                    <p className="font-semibold text-gray-900">
+                      ${event.price} {event.currency || 'USD'}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
 
-        {/* Sharing Sidebar */}
+          {/* Advanced Settings Card */}
+{(event.buffer_before > 0 || event.buffer_after > 0 || event.max_bookings_per_day || event.require_approval) && (
+  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+      <Shield className="h-5 w-5 text-gray-600" />
+      Booking Rules
+    </h2>
+    
+    <div className="space-y-3">
+      {event.buffer_before > 0 && (
+        <div className="flex items-center justify-between py-2 border-b border-gray-100">
+          <span className="text-gray-600">Buffer before</span>
+          <span className="font-medium text-gray-900">{event.buffer_before} min</span>
+        </div>
+      )}
+      
+      {event.buffer_after > 0 && (
+        <div className="flex items-center justify-between py-2 border-b border-gray-100">
+          <span className="text-gray-600">Buffer after</span>
+          <span className="font-medium text-gray-900">{event.buffer_after} min</span>
+        </div>
+      )}
+
+      {event.max_bookings_per_day && (
+        <div className="flex items-center justify-between py-2 border-b border-gray-100">
+          <span className="text-gray-600">Max bookings per day</span>
+          <span className="font-medium text-gray-900">{event.max_bookings_per_day}</span>
+        </div>
+      )}
+
+      {event.require_approval && (
+        <div className="flex items-center justify-between py-2">
+          <span className="text-gray-600">Require approval</span>
+          <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">
+            Yes
+          </span>
+        </div>
+      )}
+    </div>
+  </div>
+)}
+        {/* Sidebar */}
         <div className="space-y-6">
-          <div className="bg-blue-50 rounded-2xl border border-blue-100 p-6">
-            <h2 className="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
+          
+          {/* Share Card */}
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border border-blue-200 p-6">
+            <h2 className="text-lg font-semibold text-blue-900 mb-2 flex items-center gap-2">
               <Globe className="h-5 w-5" /> Share Event
             </h2>
             <p className="text-sm text-blue-700 mb-4">
@@ -134,23 +286,55 @@ export default function EventTypeDetail() {
             <div className="space-y-3">
               <button 
                 onClick={handleCopyLink}
-                className="w-full flex items-center justify-between px-4 py-3 bg-white border border-blue-200 rounded-xl hover:border-blue-300 transition-all text-blue-800 font-medium"
+                className="w-full flex items-center justify-between px-4 py-3 bg-white border border-blue-200 rounded-xl hover:border-blue-300 transition-all text-blue-800 font-medium shadow-sm"
               >
-                <span>Copy Link</span>
-                {copied ? <Check className="h-5 w-5 text-green-600" /> : <Copy className="h-5 w-5" />}
+                <span className="text-sm">{copied ? 'Copied!' : 'Copy Link'}</span>
+                {copied ? (
+                  <Check className="h-5 w-5 text-green-600" />
+                ) : (
+                  <Copy className="h-5 w-5" />
+                )}
               </button>
 
               <a 
                 href={getBookingLink()} 
                 target="_blank" 
                 rel="noreferrer"
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-md transition-colors"
               >
                 <ExternalLink className="h-4 w-4" />
                 Preview Page
               </a>
             </div>
+
+            <div className="mt-4 pt-4 border-t border-blue-200">
+              <p className="text-xs text-blue-600 break-all font-mono">
+                {getBookingLink()}
+              </p>
+            </div>
           </div>
+
+          {/* Stats Card (Future) */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-gray-600" />
+              Booking Stats
+            </h2>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Total Bookings</span>
+                <span className="font-bold text-2xl text-gray-900">0</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">This month</span>
+                <span className="font-semibold text-gray-700">0</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mt-4 italic">
+              Coming soon: View detailed booking analytics
+            </p>
+          </div>
+
         </div>
 
       </div>

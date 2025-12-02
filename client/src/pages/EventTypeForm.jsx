@@ -1,14 +1,9 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
-  ArrowLeft,
-  Clock,
-  MapPin,
-  FileText,
-  Loader2,
-  Save,
-  Link as LinkIcon,
-  Palette
+  ArrowLeft, Clock, MapPin, FileText, Loader2, Save,
+  Link as LinkIcon, Palette, Shield,
+  Video, Phone, Building2, Globe, Zap, AlertCircle
 } from 'lucide-react';
 import { events } from '../utils/api';
 
@@ -20,24 +15,50 @@ export default function EventTypeForm() {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   
   const [formData, setFormData] = useState({
     title: '',
-    slug: '', // URL identifier
+    slug: '',
     description: '',
     duration: 30,
     location: '',
-    color: 'blue', // Visual distinction
-    is_active: true
+    location_type: 'google_meet',
+    color: 'blue',
+    is_active: true,
+    
+    // Advanced settings
+    buffer_before: 0,
+    buffer_after: 0,
+    max_bookings_per_day: null,
+    require_approval: false,
+    
   });
 
   const colors = [
-    { name: 'blue', hex: 'bg-blue-500' },
-    { name: 'purple', hex: 'bg-purple-500' },
-    { name: 'green', hex: 'bg-green-500' },
-    { name: 'red', hex: 'bg-red-500' },
-    { name: 'orange', hex: 'bg-orange-500' },
-    { name: 'gray', hex: 'bg-gray-500' },
+    { name: 'blue', hex: '#3B82F6', bg: 'bg-blue-500' },
+    { name: 'purple', hex: '#A855F7', bg: 'bg-purple-500' },
+    { name: 'green', hex: '#10B981', bg: 'bg-green-500' },
+    { name: 'red', hex: '#EF4444', bg: 'bg-red-500' },
+    { name: 'orange', hex: '#F97316', bg: 'bg-orange-500' },
+    { name: 'pink', hex: '#EC4899', bg: 'bg-pink-500' },
+    { name: 'indigo', hex: '#6366F1', bg: 'bg-indigo-500' },
+    { name: 'yellow', hex: '#EAB308', bg: 'bg-yellow-500' },
+  ];
+
+  const locationTypes = [
+    { value: 'google_meet', label: 'Google Meet', icon: Video, auto: true },
+    { value: 'zoom', label: 'Zoom', icon: Video, auto: false },
+    { value: 'phone', label: 'Phone Call', icon: Phone, auto: false },
+    { value: 'in_person', label: 'In Person', icon: Building2, auto: false },
+    { value: 'custom', label: 'Custom Link', icon: Globe, auto: false },
+  ];
+
+  const templates = [
+    { name: '15-min Quick Chat', duration: 15, slug: 'quick-chat', description: 'Brief introductory conversation' },
+    { name: '30-min Meeting', duration: 30, slug: 'meeting', description: 'Standard meeting for discussions' },
+    { name: '60-min Consultation', duration: 60, slug: 'consultation', description: 'In-depth consultation session' },
+    { name: '45-min Discovery Call', duration: 45, slug: 'discovery', description: 'Learn about needs and goals' },
   ];
 
   useEffect(() => {
@@ -57,16 +78,27 @@ export default function EventTypeForm() {
       description: event.description || '',
       duration: event.duration || 30,
       location: event.location || '',
+      location_type: event.location_type || 'google_meet',
       color: event.color || 'blue',
-      is_active: event.is_active !== false
+      is_active: event.is_active !== false,
+      buffer_before: event.buffer_before || 0,
+      buffer_after: event.buffer_after || 0,
+      max_bookings_per_day: event.max_bookings_per_day || null,
+      require_approval: event.require_approval || false,
+      price: event.price || 0,
+      currency: event.currency || 'USD',
     });
+    
+    if (event.buffer_before || event.buffer_after || event.max_bookings_per_day || event.require_approval) {
+      setShowAdvanced(true);
+    }
   };
 
   const loadEventTypeFromList = async () => {
     setLoading(true);
     try {
       const response = await events.getAll();
-      const list = response.data.event_types || response.data || [];
+      const list = response.data.eventTypes || response.data.event_types || response.data || [];
       const event = list.find(e => String(e.id) === String(id));
       
       if (event) {
@@ -83,10 +115,8 @@ export default function EventTypeForm() {
     }
   };
 
-  // Auto-generate slug from title if slug is empty
   const handleTitleChange = (e) => {
     const title = e.target.value;
-    // If slug was empty or matched the old title slugified, update it
     if (!formData.slug || formData.slug === slugify(formData.title)) {
       setFormData(prev => ({ ...prev, title, slug: slugify(title) }));
     } else {
@@ -99,9 +129,21 @@ export default function EventTypeForm() {
       .toString()
       .toLowerCase()
       .trim()
-      .replace(/\s+/g, '-')     // Replace spaces with -
-      .replace(/[^\w-]+/g, '')  // Remove non-word chars
-      .replace(/--+/g, '-');    // Replace multiple - with single -
+      .replace(/\s+/g, '-')
+      .replace(/[^\w-]+/g, '')
+      .replace(/--+/g, '-')
+      .replace(/(^-|-$)/g, '');
+  };
+
+  const applyTemplate = (template) => {
+    if (!confirm(`Apply template "${template.name}"? This will overwrite some fields.`)) return;
+    setFormData(prev => ({
+      ...prev,
+      title: template.name,
+      slug: template.slug,
+      duration: template.duration,
+      description: template.description,
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -116,6 +158,10 @@ export default function EventTypeForm() {
         title: formData.title.trim(),
         slug: formData.slug.trim(),
         location: formData.location.trim(),
+        buffer_before: parseInt(formData.buffer_before) || 0,
+        buffer_after: parseInt(formData.buffer_after) || 0,
+        max_bookings_per_day: formData.max_bookings_per_day ? parseInt(formData.max_bookings_per_day) : null,
+        price: parseFloat(formData.price) || 0,
       };
 
       if (isEditing) {
@@ -132,133 +178,313 @@ export default function EventTypeForm() {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" /></div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin text-blue-600 h-8 w-8" />
+      </div>
+    );
+  }
+
+  const selectedLocationType = locationTypes.find(t => t.value === formData.location_type);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="mb-8">
-        <button onClick={() => navigate('/events')} className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4">
+        <button 
+          onClick={() => navigate('/events')} 
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+        >
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
-        <h1 className="text-3xl font-bold text-gray-900">{isEditing ? 'Edit Event Type' : 'Create Event Type'}</h1>
-        <p className="text-gray-600 mt-2">Define the rules and settings for this meeting template.</p>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {isEditing ? 'Edit Event Type' : 'Create Event Type'}
+        </h1>
+        <p className="text-gray-600 mt-2">
+          {isEditing 
+            ? 'Update the settings for this meeting template.'
+            : 'Define a new meeting template with custom settings.'}
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-6">
-        
-        {/* Title & Slug Section */}
-        <div className="space-y-4">
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-              <FileText className="h-4 w-4 text-gray-400" /> Event Name *
-            </label>
-            <input
-              type="text"
-              value={formData.title}
-              onChange={handleTitleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., 15 Minute Discovery Call"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-              <LinkIcon className="h-4 w-4 text-gray-400" /> URL Slug *
-            </label>
-            <div className="flex items-center">
-              <span className="px-4 py-3 bg-gray-50 border border-r-0 border-gray-300 rounded-l-xl text-gray-500 text-sm">
-                /
-              </span>
-              <input
-                type="text"
-                value={formData.slug}
-                onChange={(e) => setFormData({ ...formData, slug: slugify(e.target.value) })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-r-xl focus:ring-2 focus:ring-blue-500"
-                placeholder="discovery-call"
-                required
-              />
-            </div>
-            <p className="text-xs text-gray-500 mt-1">This will be the link you share with invitees.</p>
-          </div>
-        </div>
-
-        {/* Color Picker */}
-        <div>
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-3">
-            <Palette className="h-4 w-4 text-gray-400" /> Event Color
-          </label>
-          <div className="flex gap-3">
-            {colors.map((c) => (
+      {/* Quick Templates */}
+      {!isEditing && (
+        <div className="bg-blue-50 rounded-2xl border border-blue-200 p-6 mb-6">
+          <h3 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
+            <Zap className="h-4 w-4" />
+            Quick Start Templates
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {templates.map((template, idx) => (
               <button
-                key={c.name}
+                key={idx}
                 type="button"
-                onClick={() => setFormData({ ...formData, color: c.name })}
-                className={`w-8 h-8 rounded-full ${c.hex} transition-all ${
-                  formData.color === c.name ? 'ring-4 ring-offset-2 ring-gray-200 scale-110' : 'hover:scale-105'
-                }`}
-                aria-label={`Select ${c.name}`}
-              />
+                onClick={() => applyTemplate(template)}
+                className="p-3 bg-white border border-blue-200 rounded-xl hover:border-blue-400 hover:shadow-sm transition-all text-left"
+              >
+                <p className="font-semibold text-gray-900 text-sm">{template.name}</p>
+                <p className="text-xs text-gray-500 mt-1">{template.duration} min</p>
+              </button>
             ))}
           </div>
         </div>
+      )}
 
-        <div className="border-t border-gray-100 my-4"></div>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        
+        {/* Basic Information */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+            <FileText className="h-5 w-5 text-blue-600" />
+            Basic Information
+          </h2>
 
-        {/* Duration & Location */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-              <Clock className="h-4 w-4 text-gray-400" /> Duration *
-            </label>
-            <select
-              value={formData.duration}
-              onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-            >
-              <option value={15}>15 min</option>
-              <option value={30}>30 min</option>
-              <option value={45}>45 min</option>
-              <option value={60}>60 min</option>
-              <option value={90}>1.5 hrs</option>
-            </select>
-          </div>
+          <div className="space-y-5">
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                Event Name *
+              </label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={handleTitleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g., 30-Minute Strategy Session"
+                required
+              />
+            </div>
 
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-              <MapPin className="h-4 w-4 text-gray-400" /> Location
-            </label>
-            <input
-              type="text"
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g. Google Meet"
-            />
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                <LinkIcon className="h-4 w-4 text-gray-400" /> 
+                URL Slug *
+              </label>
+              <div className="flex items-center">
+                <span className="px-4 py-3 bg-gray-50 border border-r-0 border-gray-300 rounded-l-xl text-gray-500 text-sm font-medium">
+                  yourname/
+                </span>
+                <input
+                  type="text"
+                  value={formData.slug}
+                  onChange={(e) => setFormData({ ...formData, slug: slugify(e.target.value) })}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-r-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="strategy-session"
+                  required
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1.5">This will be the shareable booking link.</p>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Description
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                rows={3}
+                placeholder="What should invitees know about this meeting?"
+              />
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-3">
+                <Palette className="h-4 w-4 text-gray-400" /> 
+                Event Color
+              </label>
+              <div className="flex gap-3">
+                {colors.map((c) => (
+                  <button
+                    key={c.name}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, color: c.name })}
+                    className={`w-10 h-10 rounded-full ${c.bg} transition-all ${
+                      formData.color === c.name 
+                        ? 'ring-4 ring-offset-2 ring-gray-300 scale-110' 
+                        : 'hover:scale-105 opacity-70 hover:opacity-100'
+                    }`}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Description */}
-        <div>
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-            Description
-          </label>
-          <textarea
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-            rows={3}
-            placeholder="Instructions for your invitee..."
+        {/* Meeting Details */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+            <Clock className="h-5 w-5 text-purple-600" />
+            Meeting Details
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                <Clock className="h-4 w-4 text-gray-400" /> 
+                Duration *
+              </label>
+              <select
+                value={formData.duration}
+                onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value={15}>15 minutes</option>
+                <option value={30}>30 minutes</option>
+                <option value={45}>45 minutes</option>
+                <option value={60}>1 hour</option>
+                <option value={90}>1.5 hours</option>
+                <option value={120}>2 hours</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                <MapPin className="h-4 w-4 text-gray-400" /> 
+                Location Type
+              </label>
+              <select
+                value={formData.location_type}
+                onChange={(e) => setFormData({ ...formData, location_type: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {locationTypes.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label} {type.auto ? '(Auto)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {!selectedLocationType?.auto && (
+            <div className="mt-5">
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Location Details
+              </label>
+              <input
+                type="text"
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder={
+                  formData.location_type === 'phone' ? 'Phone number or instructions' :
+                  formData.location_type === 'zoom' ? 'Zoom meeting link' :
+                  formData.location_type === 'in_person' ? 'Address or meeting place' :
+                  'Enter custom location or link'
+                }
+              />
+            </div>
+          )}
+        </div>
+
+        {showAdvanced && (
+  <div className="px-6 pb-6 space-y-5 border-t border-gray-100 pt-6">
+    
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div>
+        <label className="text-sm font-medium text-gray-700 mb-2 block">
+          Buffer Before (minutes)
+        </label>
+        <input
+          type="number"
+          min="0"
+          max="60"
+          value={formData.buffer_before}
+          onChange={(e) => setFormData({ ...formData, buffer_before: e.target.value })}
+          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+          placeholder="0"
+        />
+        <p className="text-xs text-gray-500 mt-1.5">Time before the meeting starts</p>
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-gray-700 mb-2 block">
+          Buffer After (minutes)
+        </label>
+        <input
+          type="number"
+          min="0"
+          max="60"
+          value={formData.buffer_after}
+          onChange={(e) => setFormData({ ...formData, buffer_after: e.target.value })}
+          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+          placeholder="0"
+        />
+        <p className="text-xs text-gray-500 mt-1.5">Time after the meeting ends</p>
+      </div>
+    </div>
+
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div>
+        <label className="text-sm font-medium text-gray-700 mb-2 block">
+          Max Bookings Per Day
+        </label>
+        <input
+          type="number"
+          min="1"
+          value={formData.max_bookings_per_day || ''}
+          onChange={(e) => setFormData({ ...formData, max_bookings_per_day: e.target.value })}
+          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+          placeholder="Unlimited"
+        />
+        <p className="text-xs text-gray-500 mt-1.5">Leave empty for unlimited bookings</p>
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-gray-700 mb-2 block">
+          Booking Approval
+        </label>
+        <label className="flex items-center gap-3 p-4 border border-gray-300 rounded-xl cursor-pointer hover:bg-gray-50">
+          <input
+            type="checkbox"
+            checked={formData.require_approval}
+            onChange={(e) => setFormData({ ...formData, require_approval: e.target.checked })}
+            className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
           />
-        </div>
+          <span className="text-sm text-gray-700">Require manual approval</span>
+        </label>
+      </div>
+    </div>
 
+    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
+      <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+      <div>
+        <p className="text-sm font-medium text-blue-900">Advanced Settings Info</p>
+        <p className="text-xs text-blue-700 mt-1">
+          Buffer times prevent back-to-back meetings. Booking limits help manage your availability.
+        </p>
+      </div>
+    </div>
+  </div>
+)}
+        
         {/* Actions */}
-        <div className="flex gap-4 pt-4">
-          <button type="button" onClick={() => navigate('/events')} className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold">
+        <div className="flex gap-4">
+          <button 
+            type="button" 
+            onClick={() => navigate('/events')} 
+            className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+          >
             Cancel
           </button>
-          <button type="submit" disabled={saving} className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold disabled:opacity-50">
-            {saving ? <Loader2 className="animate-spin h-5 w-5" /> : <><Save className="h-5 w-5" /> Save Event Type</>}
+          <button 
+            type="submit" 
+            disabled={saving} 
+            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="animate-spin h-5 w-5" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-5 w-5" />
+                {isEditing ? 'Update Event Type' : 'Create Event Type'}
+              </>
+            )}
           </button>
         </div>
       </form>
