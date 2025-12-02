@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Plus, Edit, Clock, MapPin, Copy, Check, 
   ExternalLink, Loader2, Video, Phone, Building2, 
-  Globe, Sparkles, TrendingUp
+  Globe, Sparkles, TrendingUp, Calendar  // ✅ ADD THIS
 } from 'lucide-react';
 import { events, auth } from '../utils/api';
 
