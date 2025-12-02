@@ -279,6 +279,14 @@ export const timezone = {
     api.post('/timezones/convert', { fromTimezone, toTimezone, datetime }),
 };
 
+export const chatgptIntegration = {
+  getToken: () => api.get('/user/jwt-token'),
+  refreshToken: () => api.post('/user/refresh-chatgpt-token'),
+  testConnection: () => api.get('/user/test-chatgpt-connection'),
+  getSetupGuide: () => api.get('/user/chatgpt-setup-guide'),
+  getSchema: () => api.get('/user/chatgpt-openapi-schema'),
+};
+
 // ============================================
 // USER
 // ============================================
@@ -369,6 +377,8 @@ api.analytics = analytics;
 api.notifications = notifications;
 api.timezone = timezone;
 api.user = user;
+api.chatgptIntegration = chatgptIntegration;
+
 
 // Default export
 export default api;

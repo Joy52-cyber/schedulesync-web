@@ -31,6 +31,7 @@ import api, {
   auth,
   timezone as timezoneApi,
   singleUseLinks,
+  chatgptIntegration,
 } from '../utils/api';
 import AISchedulerChat from '../components/AISchedulerChat';
 import { useNotification } from '../contexts/NotificationContext';
@@ -135,8 +136,8 @@ export default function Dashboard() {
   const loadChatGptToken = async () => {
     setChatgptLoading(true);
     try {
-      const response = await api.get('/user/jwt-token');
-      if (response.data.jwt_token) {
+      const response = await chatgptIntegration.getToken();
+    if (response.data.jwt_token) {
         setChatgptToken(response.data.jwt_token);
         setChatgptTokenExpiry(response.data.expires_in || '90 days');
         setChatgptSetupStatus(response.data.setup_status);
@@ -164,8 +165,8 @@ export default function Dashboard() {
   const handleRefreshChatGptToken = async () => {
     setRefreshingChatgptToken(true);
     try {
-      const response = await api.post('/user/refresh-chatgpt-token');
-      if (response.data.jwt_token) {
+     const response = await chatgptIntegration.refreshToken();
+    if (response.data.jwt_token) {
         setChatgptToken(response.data.jwt_token);
         setChatgptTokenExpiry(response.data.expires_in || '90 days');
         notify.success('ChatGPT token refreshed successfully! 🔄');
@@ -181,8 +182,8 @@ export default function Dashboard() {
   const handleTestChatGptConnection = async () => {
     setTestingConnection(true);
     try {
-      const response = await api.get('/user/test-chatgpt-connection');
-      if (response.data.connection_status === 'READY') {
+      const response = await chatgptIntegration.testConnection();
+    if (response.data.connection_status === 'READY') {
         notify.success('✅ ChatGPT connection ready! All tests passed.');
       } else {
         notify.warning('⚠️ Some issues found. Check your ScheduleSync setup.');
