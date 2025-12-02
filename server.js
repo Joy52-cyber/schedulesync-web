@@ -838,6 +838,62 @@ app.post('/api/bookings', async (req, res) => {
       });
     }
 
+    // 🔥 ADD EMAIL VALIDATION HERE (AFTER line ~1530)
+    // Enhanced email validation function
+    async function validateEmailExists(email) {
+      try {
+        // 1. Format validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          return { valid: false, reason: 'Invalid format' };
+        }
+
+        // 2. Block fake domains
+        const domain = email.split('@')[1].toLowerCase();
+        const blockedDomains = ['test.com', 'example.com', 'fake.com', 'invalid.com', 'temporary.com'];
+        if (blockedDomains.includes(domain)) {
+          return { valid: false, reason: 'Please use a real email address' };
+        }
+
+        // 3. DNS validation
+        const dns = require('dns');
+        return new Promise((resolve) => {
+          dns.resolveMx(domain, (err, addresses) => {
+            if (err || !addresses || addresses.length === 0) {
+              resolve({ valid: false, reason: 'Email domain does not exist' });
+            } else {
+              resolve({ valid: true });
+            }
+          });
+        });
+      } catch (error) {
+        return { valid: false, reason: 'Validation error' };
+      }
+    }
+
+    // Validate primary attendee email
+    const emailCheck = await validateEmailExists(attendee_email);
+    if (!emailCheck.valid) {
+      return res.status(400).json({ 
+        error: `❌ Invalid email: ${attendee_email}`,
+        details: emailCheck.reason,
+        hint: 'Please provide a real email address to receive booking confirmations'
+      });
+    }
+
+    // Validate additional attendees if provided
+    if (additional_attendees && additional_attendees.length > 0) {
+      for (const email of additional_attendees) {
+        const additionalCheck = await validateEmailExists(email);
+        if (!additionalCheck.valid) {
+          return res.status(400).json({ 
+            error: `❌ Invalid additional attendee email: ${email}`,
+            details: additionalCheck.reason
+          });
+        }
+      }
+    }
+
     // ========== STEP 2: LOOK UP TOKEN ==========
     let memberResult;
     
@@ -1186,6 +1242,8 @@ app.post('/api/bookings', async (req, res) => {
             console.error('?? Microsoft calendar creation failed:', calendarError.message);
           }
         }
+
+
         // ========== SEND CONFIRMATION EMAILS ==========
 try {
   console.log('?? Preparing to send emails...');
@@ -6779,14 +6837,116 @@ If missing info, set intent to "clarify".`;
     }
 
     // Handle other intents (find_time, create_meeting, etc.)
-    if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slots') {
-      return res.json({
-        type: 'slots',
-        message: 'Let me find the best available times. I\'ll analyze your calendar and suggest optimal slots.',
-        needsSlots: true,
-        searchParams: parsedIntent.extracted
-      });
+if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slots') {
+  try {
+    return res.json({
+      type: 'slots',
+      message: 'Let me find the best available times. I\'ll analyze your calendar and suggest optimal slots.',
+      needsSlots: true,
+      searchParams: parsedIntent.extracted,
+      useEnhancedFormatting: true // Flag for frontend
+    });
+  } catch (error) {
+    return res.json({
+      type: 'error', 
+      message: 'Sorry, I had trouble checking your availability.'
+    });
+  }
+}
+
+    
+  // Enhanced slot formatting function
+  function formatAvailableSlots(slots) {
+    if (!slots || slots.length === 0) {
+      return "❌ **No available slots found.** Try a different time range or check your availability settings.";
     }
+
+    // Group slots by date
+    const slotsByDate = {};
+    slots.forEach(slot => {
+      const date = new Date(slot.start);
+      const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      if (!slotsByDate[dateKey]) {
+        slotsByDate[dateKey] = {
+          date: date,
+          slots: []
+        };
+      }
+      slotsByDate[dateKey].slots.push(slot);
+    });
+
+    // Generate formatted response
+    let response = "🗓️ **Perfect! I found some great times for you:**\n\n";
+
+    Object.keys(slotsByDate).forEach(dateKey => {
+      const dayData = slotsByDate[dateKey];
+      const date = dayData.date;
+      
+      // Add day name and date
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+      const monthDay = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+      
+      response += `📅 **${dayName}, ${monthDay}**\n`;
+      
+      // Add slots for this day
+      dayData.slots.forEach(slot => {
+        const time = new Date(slot.start).toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit',
+          hour12: true 
+        });
+        
+        // Get time context
+        const hour = new Date(slot.start).getHours();
+        let timeContext = '';
+        let emoji = '🕰️';
+        
+        if (hour >= 9 && hour < 12) {
+          timeContext = 'Morning focus time';
+          emoji = '🌅';
+        } else if (hour >= 12 && hour < 14) {
+          timeContext = 'Lunch break';
+          emoji = '🍽️';
+        } else if (hour >= 14 && hour < 17) {
+          timeContext = 'Afternoon productivity';
+          emoji = '💼';
+        } else if (hour >= 17 && hour < 19) {
+          timeContext = 'End of workday';
+          emoji = '🕰️';
+        } else if (hour >= 19 && hour < 21) {
+          timeContext = 'Prime dinner time';
+          emoji = '🍽️';
+        } else if (hour >= 21) {
+          timeContext = 'Late evening';
+          emoji = '🌙';
+        } else {
+          timeContext = 'Early morning';
+          emoji = '🌅';
+        }
+        
+
+
+        // Get match quality emoji
+        const matchEmoji = slot.matchScore >= 90 ? '⭐' : 
+                          slot.matchScore >= 80 ? '🌟' : 
+                          slot.matchScore >= 70 ? '✨' : '💫';
+        
+        response += `   ${emoji} **${time}** • ${matchEmoji} ${slot.matchLabel || 'Available'} • ${timeContext}\n`;
+      });
+      
+      response += '\n';
+    });
+
+    response += `✨ **All times show optimal availability!**\n\n`;
+    response += `👆 **Just tell me which time works best and I'll book it for you:**\n`;
+    response += `*Example: "Book 6:30 PM on Tuesday" or "Schedule the Monday 8:00 PM slot"*`;
+
+    return response;
+  }
+
+
+
 
     // Email validation function
     const validateEmail = (email) => {
