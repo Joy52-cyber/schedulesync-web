@@ -7099,11 +7099,11 @@ app.post('/api/chatgpt/temporary-link', authenticateToken, async (req, res) => {
     const expiresAt = new Date(Date.now() + (expiry_hours * 60 * 60 * 1000));
     
     // Create temporary link
-    await pool.query(`
-      INSERT INTO single_use_links (token, member_id, name, expires_at, max_uses) 
-      VALUES ($1, $2, $3, $4, $5)
-    `, [token, memberId, invitee_name, expiresAt, max_uses]);
-    
+   await pool.query(`
+  INSERT INTO single_use_links (token, member_id, name, expires_at) 
+  VALUES ($1, $2, $3, $4)
+`, [token, memberId, invitee_name, expiresAt]);
+
     const bookingUrl = `${process.env.FRONTEND_URL}/book/${token}`;
     
     res.json({
@@ -7111,7 +7111,7 @@ app.post('/api/chatgpt/temporary-link', authenticateToken, async (req, res) => {
       token: token,
       invitee_name: invitee_name,
       expires_at: expiresAt,
-      max_uses: max_uses
+    
     });
   } catch (error) {
     console.error('Create temporary link error:', error);
