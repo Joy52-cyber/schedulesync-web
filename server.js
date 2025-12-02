@@ -583,27 +583,6 @@ await pool.query(`
 `);
 
 
-
-    await pool.query(`
-  ALTER TABLE team_members
-  ADD COLUMN IF NOT EXISTS working_hours JSONB DEFAULT '{
-    "monday": {"enabled": true, "start": "09:00", "end": "17:00"},
-    "tuesday": {"enabled": true, "start": "09:00", "end": "17:00"},
-    "wednesday": {"enabled": true, "start": "09:00", "end": "17:00"},
-    "thursday": {"enabled": true, "start": "09:00", "end": "17:00"},
-    "friday": {"enabled": true, "start": "09:00", "end": "17:00"},
-    "saturday": {"enabled": false, "start": "09:00", "end": "17:00"},
-    "sunday": {"enabled": false, "start": "09:00", "end": "17:00"}
-  }'::jsonb
-`);
-    
-    console.log('? Database migrations completed');
-  } catch (error) {
-    console.error('? Migration error:', error);
-  }
-}
-
-
 await pool.query(`
       ALTER TABLE team_members
       ADD COLUMN IF NOT EXISTS working_hours JSONB DEFAULT '{
