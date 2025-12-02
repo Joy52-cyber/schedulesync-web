@@ -1482,12 +1482,12 @@ function getTimezoneOffset(timezone) {
   return tzOffsets[timezone] || 0;
 
   // ============ CALENDAR STATUS ENDPOINT ============
-app.get('/api/calendar/status', authenticateToken, async (req, res) => {
+  app.get('/api/calendar/status', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
     const result = await pool.query(
-      `SELECT calendar_sync_enabled, provider, 
+      `SELECT calendar_sync_enabled, provider, email,
               google_access_token, google_refresh_token, 
               microsoft_access_token, microsoft_refresh_token
        FROM users WHERE id = $1`,
@@ -1503,18 +1503,23 @@ app.get('/api/calendar/status', authenticateToken, async (req, res) => {
     const hasMicrosoftCalendar = !!(user.microsoft_access_token && user.microsoft_refresh_token);
     
     res.json({
-      calendar_sync_enabled: user.calendar_sync_enabled || false,
-      provider: user.provider || null,
-      has_google_calendar: hasGoogleCalendar,
-      has_microsoft_calendar: hasMicrosoftCalendar,
-      is_connected: user.calendar_sync_enabled && (hasGoogleCalendar || hasMicrosoftCalendar)
+      connected: hasGoogleCalendar || hasMicrosoftCalendar,
+      google: {
+        connected: hasGoogleCalendar,
+        email: hasGoogleCalendar ? user.email : null,
+        last_sync: null  // Add this column to users table if you want to track sync times
+      },
+      microsoft: {
+        connected: hasMicrosoftCalendar,
+        email: hasMicrosoftCalendar ? user.email : null,
+        last_sync: null
+      }
     });
   } catch (error) {
     console.error('❌ Calendar status error:', error);
     res.status(500).json({ error: 'Failed to get calendar status' });
   }
 });
-}
 
 // ============ ORGANIZER OAUTH (DASHBOARD LOGIN WITH CALENDAR ACCESS) ============
 
