@@ -4090,222 +4090,228 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
 
     console.log('📅 Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
 
-    // 🔥 DETECT PUBLIC BOOKING PSEUDO-TOKEN (ADD THIS BLOCK)
-    if (token && token.startsWith('public:')) {
-      const parts = token.split(':');
-      const username = parts[1];
-      const eventSlug = parts[2];
+    // 🔥 DETECT PUBLIC BOOKING PSEUDO-TOKEN
+if (token && token.startsWith('public:')) {
+  const parts = token.split(':');
+  const username = parts[1];
+  const eventSlug = parts[2];
 
-      console.log('🌐 Public booking slots request detected:', { username, eventSlug });
+  console.log('🌐 Public booking slots request detected:', { username, eventSlug });
 
-      // Extract date from body (SmartSlotPicker sends it)
-      const date = req.body.date || new Date().toISOString().split('T')[0];
+  // Extract date from body (SmartSlotPicker sends it)
+  const date = req.body.date || new Date().toISOString().split('T')[0];
 
-      // Find user
-      const userResult = await pool.query(
-        `SELECT id, name, email, google_access_token, google_refresh_token, 
-                microsoft_access_token, microsoft_refresh_token, provider 
-         FROM users 
-         WHERE LOWER(username) = LOWER($1) 
-            OR LOWER(email) LIKE LOWER($2)
-         LIMIT 1`,
-        [username, `${username}%`]
+  // Find user
+  const userResult = await pool.query(
+    `SELECT id, name, email, google_access_token, google_refresh_token, 
+            microsoft_access_token, microsoft_refresh_token, provider 
+     FROM users 
+     WHERE LOWER(username) = LOWER($1) 
+        OR LOWER(email) LIKE LOWER($2)
+     LIMIT 1`,
+    [username, `${username}%`]
+  );
+
+  if (userResult.rows.length === 0) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const host = userResult.rows[0];
+
+  // Find event type
+  const eventResult = await pool.query(
+    `SELECT id, duration, buffer_before, buffer_after, max_bookings_per_day 
+     FROM event_types 
+     WHERE user_id = $1 
+       AND LOWER(slug) = LOWER($2) 
+       AND is_active = true`,
+    [host.id, eventSlug]
+  );
+
+  if (eventResult.rows.length === 0) {
+    return res.status(404).json({ error: 'Event type not found or inactive' });
+  }
+
+  const eventType = eventResult.rows[0];
+  const eventDuration = eventType.duration;
+  const bufferBefore = eventType.buffer_before || 0;
+  const bufferAfter = eventType.buffer_after || 0;
+
+  console.log('✅ Public event type found:', { duration: eventDuration, bufferBefore, bufferAfter });
+
+  // Get host's calendar events
+  let calendarEvents = [];
+
+  try {
+    if (host.provider === 'google' && host.google_access_token) {
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        process.env.GOOGLE_REDIRECT_URI
       );
 
-      if (userResult.rows.length === 0) {
-        return res.status(404).json({ error: 'User not found' });
-      }
+      oauth2Client.setCredentials({
+        access_token: host.google_access_token,
+        refresh_token: host.google_refresh_token
+      });
 
-      const host = userResult.rows[0];
+      const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
-      // Find event type
-      const eventResult = await pool.query(
-        `SELECT id, duration, buffer_before, buffer_after, max_bookings_per_day 
-         FROM event_types 
-         WHERE user_id = $1 
-           AND LOWER(slug) = LOWER($2) 
-           AND is_active = true`,
-        [host.id, eventSlug]
-      );
-
-      if (eventResult.rows.length === 0) {
-        return res.status(404).json({ error: 'Event type not found or inactive' });
-      }
-
-      const eventType = eventResult.rows[0];
-      const eventDuration = eventType.duration;
-      const bufferBefore = eventType.buffer_before || 0;
-      const bufferAfter = eventType.buffer_after || 0;
-
-      console.log('✅ Public event type found:', { duration: eventDuration, bufferBefore, bufferAfter });
-
-      // Get host's calendar events
-      let calendarEvents = [];
-
-      try {
-        if (host.provider === 'google' && host.google_access_token) {
-          const oauth2Client = new google.auth.OAuth2(
-            process.env.GOOGLE_CLIENT_ID,
-            process.env.GOOGLE_CLIENT_SECRET,
-            process.env.GOOGLE_REDIRECT_URI
-          );
-
-          oauth2Client.setCredentials({
-            access_token: host.google_access_token,
-            refresh_token: host.google_refresh_token
-          });
-
-          const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-
-          const startOfDay = new Date(date);
-          startOfDay.setHours(0, 0, 0, 0);
-          
-          const endOfDay = new Date(date);
-          endOfDay.setHours(23, 59, 59, 999);
-
-          const response = await calendar.events.list({
-            calendarId: 'primary',
-            timeMin: startOfDay.toISOString(),
-            timeMax: endOfDay.toISOString(),
-            singleEvents: true,
-            orderBy: 'startTime'
-          });
-
-          calendarEvents = response.data.items || [];
-          console.log(`📅 Found ${calendarEvents.length} Google Calendar events`);
-          
-        } else if (host.provider === 'microsoft' && host.microsoft_access_token) {
-          const startOfDay = new Date(date);
-          startOfDay.setHours(0, 0, 0, 0);
-          
-          const endOfDay = new Date(date);
-          endOfDay.setHours(23, 59, 59, 999);
-
-          const response = await fetch(
-            `https://graph.microsoft.com/v1.0/me/calendarview?startdatetime=${startOfDay.toISOString()}&enddatetime=${endOfDay.toISOString()}`,
-            {
-              headers: {
-                'Authorization': `Bearer ${host.microsoft_access_token}`
-              }
-            }
-          );
-
-          if (response.ok) {
-            const data = await response.json();
-            calendarEvents = data.value || [];
-            console.log(`📅 Found ${calendarEvents.length} Microsoft Calendar events`);
-          }
-        }
-      } catch (calendarError) {
-        console.error('⚠️ Calendar fetch failed:', calendarError.message);
-      }
-
-      // Get existing bookings
-      const startOfDay = new Date(date);
-      startOfDay.setHours(0, 0, 0, 0);
+      const publicStartOfDay = new Date(date);
+      publicStartOfDay.setHours(0, 0, 0, 0);
       
-      const endOfDay = new Date(date);
-      endOfDay.setHours(23, 59, 59, 999);
+      const publicEndOfDay = new Date(date);
+      publicEndOfDay.setHours(23, 59, 59, 999);
 
-    const publicBookingsResult = await pool.query(
-  `SELECT start_time, end_time 
-   FROM bookings 
-   WHERE host_user_id = $1 
-     AND event_type_id = $2
-     AND status != 'cancelled'
-     AND start_time >= $3 
-     AND start_time < $4`,
-  [host.id, eventType.id, startOfDay.toISOString(), endOfDay.toISOString()]
-);
+      const response = await calendar.events.list({
+        calendarId: 'primary',
+        timeMin: publicStartOfDay.toISOString(),
+        timeMax: publicEndOfDay.toISOString(),
+        singleEvents: true,
+        orderBy: 'startTime'
+      });
 
+      calendarEvents = response.data.items || [];
+      console.log(`📅 Found ${calendarEvents.length} Google Calendar events`);
+      
+    } else if (host.provider === 'microsoft' && host.microsoft_access_token) {
+      const publicStartOfDay = new Date(date);
+      publicStartOfDay.setHours(0, 0, 0, 0);
+      
+      const publicEndOfDay = new Date(date);
+      publicEndOfDay.setHours(23, 59, 59, 999);
 
-      const existingBookings = bookingsResult.rows;
-      console.log(`📊 Found ${existingBookings.length} existing bookings`);
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/calendarview?startdatetime=${publicStartOfDay.toISOString()}&enddatetime=${publicEndOfDay.toISOString()}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${host.microsoft_access_token}`
+          }
+        }
+      );
 
-      // Generate time slots
-      const slots = [];
-      const startHour = 9;
-      const endHour = 17;
-      const intervalMinutes = 30;
+      if (response.ok) {
+        const data = await response.json();
+        calendarEvents = data.value || [];
+        console.log(`📅 Found ${calendarEvents.length} Microsoft Calendar events`);
+      }
+    }
+  } catch (calendarError) {
+    console.error('⚠️ Calendar fetch failed:', calendarError.message);
+  }
 
-      for (let hour = startHour; hour < endHour; hour++) {
-        for (let minute = 0; minute < 60; minute += intervalMinutes) {
-          const slotStart = new Date(date);
-          slotStart.setHours(hour, minute, 0, 0);
+  // Get existing bookings
+  const publicStartOfDay2 = new Date(date);
+  publicStartOfDay2.setHours(0, 0, 0, 0);
+  
+  const publicEndOfDay2 = new Date(date);
+  publicEndOfDay2.setHours(23, 59, 59, 999);
+
+  const publicBookingsResult = await pool.query(
+    `SELECT start_time, end_time 
+     FROM bookings 
+     WHERE host_user_id = $1 
+       AND event_type_id = $2
+       AND status != 'cancelled'
+       AND start_time >= $3 
+       AND start_time < $4`,
+    [host.id, eventType.id, publicStartOfDay2.toISOString(), publicEndOfDay2.toISOString()]
+  );
+
+  const existingPublicBookings = publicBookingsResult.rows;
+  console.log(`📊 Found ${existingPublicBookings.length} existing bookings`);
+
+  // Generate time slots
+  const publicSlots = [];
+  const startHour = 9;
+  const endHour = 17;
+  const intervalMinutes = 30;
+
+  for (let hour = startHour; hour < endHour; hour++) {
+    for (let minute = 0; minute < 60; minute += intervalMinutes) {
+      const slotStart = new Date(date);
+      slotStart.setHours(hour, minute, 0, 0);
+      
+      const slotEnd = new Date(slotStart.getTime() + eventDuration * 60000);
+      
+      if (slotEnd.getHours() >= endHour || (slotEnd.getHours() === endHour && slotEnd.getMinutes() > 0)) {
+        continue;
+      }
+
+      let hasConflict = false;
+
+      // Check calendar events
+      for (const event of calendarEvents) {
+        const eventStart = new Date(event.start?.dateTime || event.start?.date);
+        const eventEnd = new Date(event.end?.dateTime || event.end?.date);
+        
+        const slotStartWithBuffer = new Date(slotStart.getTime() - bufferBefore * 60000);
+        const slotEndWithBuffer = new Date(slotEnd.getTime() + bufferAfter * 60000);
+        
+        if (slotStartWithBuffer < eventEnd && slotEndWithBuffer > eventStart) {
+          hasConflict = true;
+          break;
+        }
+      }
+
+      // Check existing bookings
+      if (!hasConflict) {
+        for (const booking of existingPublicBookings) {
+          const bookingStart = new Date(booking.start_time);
+          const bookingEnd = new Date(booking.end_time);
           
-          const slotEnd = new Date(slotStart.getTime() + eventDuration * 60000);
+          const slotStartWithBuffer = new Date(slotStart.getTime() - bufferBefore * 60000);
+          const slotEndWithBuffer = new Date(slotEnd.getTime() + bufferAfter * 60000);
           
-          if (slotEnd.getHours() >= endHour || (slotEnd.getHours() === endHour && slotEnd.getMinutes() > 0)) {
-            continue;
-          }
-
-          let hasConflict = false;
-
-          // Check calendar events
-          for (const event of calendarEvents) {
-            const eventStart = new Date(event.start?.dateTime || event.start?.date);
-            const eventEnd = new Date(event.end?.dateTime || event.end?.date);
-            
-            const slotStartWithBuffer = new Date(slotStart.getTime() - bufferBefore * 60000);
-            const slotEndWithBuffer = new Date(slotEnd.getTime() + bufferAfter * 60000);
-            
-            if (slotStartWithBuffer < eventEnd && slotEndWithBuffer > eventStart) {
-              hasConflict = true;
-              break;
-            }
-          }
-
-          // Check existing bookings
-          if (!hasConflict) {
-            for (const booking of existingBookings) {
-              const bookingStart = new Date(booking.start_time);
-              const bookingEnd = new Date(booking.end_time);
-              
-              const slotStartWithBuffer = new Date(slotStart.getTime() - bufferBefore * 60000);
-              const slotEndWithBuffer = new Date(slotEnd.getTime() + bufferAfter * 60000);
-              
-              if (slotStartWithBuffer < bookingEnd && slotEndWithBuffer > bookingStart) {
-                hasConflict = true;
-                break;
-              }
-            }
-          }
-
-          if (!hasConflict) {
-            slots.push({
-              start: slotStart.toISOString(),
-              end: slotEnd.toISOString()
-            });
+          if (slotStartWithBuffer < bookingEnd && slotEndWithBuffer > bookingStart) {
+            hasConflict = true;
+            break;
           }
         }
       }
-      console.log(`✅ Generated ${slots.length} available slots for public booking`);
 
-// Return in SmartSlotPicker format
-      return res.json({
-  slots: {
-    [date]: slots.map(slot => ({
-      start: slot.start,
-      end: slot.end,
-      status: 'available',
-      time: new Date(slot.start).toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-        timeZone: timezone
-      }),
-      matchScore: null,
-      matchColor: 'gray',
-      matchLabel: 'Available'
-    }))
-  },
-  summary: {
-    availableSlots: slots.length,
-    settings: {
-      horizonDays: 30
+      if (!hasConflict) {
+        publicSlots.push({
+          start: slotStart.toISOString(),
+          end: slotEnd.toISOString()
+        });
+      }
     }
   }
-});
+
+  console.log(`✅ Generated ${publicSlots.length} available slots for public booking`);
+
+  // Return in SmartSlotPicker format
+  return res.json({
+    slots: {
+      [date]: publicSlots.map(slot => ({
+        start: slot.start,
+        end: slot.end,
+        status: 'available',
+        time: new Date(slot.start).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+          timeZone: timezone
+        }),
+        matchScore: null,
+        matchColor: 'gray',
+        matchLabel: 'Available'
+      }))
+    },
+    summary: {
+      availableSlots: publicSlots.length,
+      settings: {
+        horizonDays: 30,
+        duration: eventDuration,
+        timezone: timezone
+      }
+    }
+  });
+} // 🔥 CLOSE THE PUBLIC BOOKING DETECTION BLOCK
+
+// ========== REGULAR TOKEN-BASED BOOKING CONTINUES BELOW ==========
+console.log('🔍 Checking if team token...');
 
     // ========== 1. GET MEMBER & SETTINGS ==========
     let memberResult;
