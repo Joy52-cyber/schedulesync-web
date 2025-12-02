@@ -271,6 +271,7 @@ export default function EventTypeDetail() {
     </div>
   </div>
 )}
+</div>
         {/* Sidebar */}
         <div className="space-y-6">
           
