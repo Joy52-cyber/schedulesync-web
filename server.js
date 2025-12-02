@@ -7243,8 +7243,8 @@ app.get('/api/chatgpt/team-members', authenticateToken, async (req, res) => {
 });
 
 // =============================================================================
-// JWT TOKEN MANAGEMENT FOR CHATGPT INTEGRATION
-// Add these endpoints to your server.js file after your existing auth routes
+// JWT TOKEN MANAGEMENT FOR CHATGPT INTEGRATION (CORRECTED VERSION)
+// Replace your existing JWT endpoints with this corrected version
 // =============================================================================
 
 // Get user's current JWT token for ChatGPT integration
@@ -7254,7 +7254,7 @@ app.get('/api/user/jwt-token', authenticateToken, async (req, res) => {
     
     // Get user info
     const userQuery = 'SELECT id, email, name, created_at FROM users WHERE id = $1';
-    const userResult = await client.query(userQuery, [user_id]);
+    const userResult = await pool.query(userQuery, [user_id]); // ✅ FIXED: pool instead of client
     
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -7282,7 +7282,7 @@ app.get('/api/user/jwt-token', authenticateToken, async (req, res) => {
       WHERE tm.user_id = $1 
       LIMIT 1
     `;
-    const teamResult = await client.query(teamQuery, [user_id]);
+    const teamResult = await pool.query(teamQuery, [user_id]); // ✅ FIXED: pool instead of client
     const hasBookingSetup = teamResult.rows.length > 0;
     
     res.json({
@@ -7315,7 +7315,7 @@ app.post('/api/user/refresh-chatgpt-token', authenticateToken, async (req, res) 
     
     // Get user info
     const userQuery = 'SELECT id, email, name FROM users WHERE id = $1';
-    const userResult = await client.query(userQuery, [user_id]);
+    const userResult = await pool.query(userQuery, [user_id]); // ✅ FIXED: pool instead of client
     
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -7365,7 +7365,7 @@ app.get('/api/user/test-chatgpt-connection', authenticateToken, async (req, res)
         WHERE tm.user_id = $1 AND t.name LIKE '%Personal%' 
         LIMIT 1
       `;
-      const memberResult = await client.query(memberQuery, [user_id]);
+      const memberResult = await pool.query(memberQuery, [user_id]); // ✅ FIXED: pool instead of client
       tests.push({
         test: 'Get Booking Link',
         status: memberResult.rows.length > 0 ? 'PASS' : 'FAIL',
@@ -7389,7 +7389,7 @@ app.get('/api/user/test-chatgpt-connection', authenticateToken, async (req, res)
     // Test 3: Can get team members
     try {
       const teamQuery = `SELECT COUNT(*) as team_count FROM teams WHERE owner_id = $1`;
-      const teamResult = await client.query(teamQuery, [user_id]);
+      const teamResult = await pool.query(teamQuery, [user_id]); // ✅ FIXED: pool instead of client
       tests.push({
         test: 'Get Team Members',
         status: 'PASS',
@@ -7683,6 +7683,10 @@ app.get('/api/user/chatgpt-openapi-schema', (req, res) => {
   
   res.json(schema);
 });
+
+// =============================================================================
+// END OF JWT TOKEN MANAGEMENT ENDPOINTS (CORRECTED VERSION)
+// =============================================================================
 
 // ============ ADMIN PANEL ROUTES ============
 
