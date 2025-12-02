@@ -1,558 +1,748 @@
 ﻿import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import {
-  Calendar,
-  User,
-  Mail,
-  MessageSquare,
-  CheckCircle,
-  Loader2,
-  LogIn,
+  Calendar, User, Clock, MapPin,
+  Sparkles, ArrowRight, ExternalLink, Loader2,
+  Ban, ChevronRight, RefreshCw, CheckCircle,
+  AlertTriangle, Plus, X
 } from 'lucide-react';
-import { bookings } from '../utils/api';
+import { bookings, oauth, eventTypes as eventTypesAPI } from '../utils/api';
+import SmartSlotPicker from '../components/SmartSlotPicker';
+
+const FadeIn = ({ children, className = "" }) => (
+  <div className={`animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-forwards ${className}`}>
+    {children}
+  </div>
+);
 
 export default function BookingPage() {
   const { token } = useParams();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // 'loading' | 'choice' | 'auth' | 'slots' | 'confirm' | 'success'
-  const [step, setStep] = useState('loading');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+  
+  const [isLinkUsed, setIsLinkUsed] = useState(false); 
+  const [isDirectMemberLink, setIsDirectMemberLink] = useState(false);
+  const [isReschedule, setIsReschedule] = useState(false);
+  const [rescheduleToken, setRescheduleToken] = useState(null);
 
   const [teamInfo, setTeamInfo] = useState(null);
   const [memberInfo, setMemberInfo] = useState(null);
-  const [aiSlots, setAiSlots] = useState([]);
-  const [selectedSlot, setSelectedSlot] = useState(null);
-
+  const [eventTypes, setEventTypes] = useState([]);
+  const [selectedEventType, setSelectedEventType] = useState(null);
+  const [error, setError] = useState('');
+    
+  const [step, setStep] = useState('loading');
+  const [guestCalendar, setGuestCalendar] = useState(null);
+  const [hasProcessedOAuth, setHasProcessedOAuth] = useState(false);
+    
   const [formData, setFormData] = useState({
     attendee_name: '',
     attendee_email: '',
     notes: '',
   });
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  
+  const [additionalAttendees, setAdditionalAttendees] = useState([]);
+  const [newAttendeeEmail, setNewAttendeeEmail] = useState('');
+  const [guestTimezone, setGuestTimezone] = useState('');
+    
+  const [selectedSlot, setSelectedSlot] = useState(null);
 
-  // 1) Load booking context
-useEffect(() => {
-  if (!token) return;
-
-  (async () => {
+  // Detect guest timezone
+  useEffect(() => {
     try {
-      const res = await bookings.getByToken(token);
-
-      console.log('📦 Raw booking API response:', res);
-      console.log('📦 Response data:', res.data);
-
-      const { team, member } = res.data || {};
-      console.log('🔹 Team:', team);
-      console.log('🔹 Member:', member);
-      console.log('🔹 External link:', member?.external_booking_link);
-      console.log('🔹 Platform:', member?.external_booking_platform);
-
-      setTeamInfo(team || null);
-      setMemberInfo(member || null);
-
-      // Guard to prevent overwriting later
-      setStep(prev => {
-        const nextStep =
-          member?.external_booking_link && member.external_booking_link.trim() !== ''
-            ? 'choice'
-            : 'auth';
-        console.log(`🔹 Setting step: ${prev} → ${nextStep}`);
-        return prev !== 'loading' ? prev : nextStep;
-      });
-    } catch (err) {
-      console.error('❌ Error fetching team info:', err);
-      setError('Invalid or expired booking link.');
-      setStep('error');
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      setGuestTimezone(timezone);
+      console.log('🌍 Guest timezone detected:', timezone);
+    } catch (error) {
+      console.error('Failed to detect timezone:', error);
+      setGuestTimezone('UTC');
     }
-  })();
-}, [token]);
-// Handle Google redirect (?code=...)
-// 2) Handle Google redirect (?code=...)
-useEffect(() => {
-  const code = searchParams.get('code');
-  if (!code || !token) return;
+  }, []);
 
-  (async () => {
+  // Check for reschedule mode
+  useEffect(() => {
+    const rescheduleParam = searchParams.get('reschedule');
+    if (rescheduleParam) {
+      setIsReschedule(true);
+      setRescheduleToken(rescheduleParam);
+    }
+    loadBookingInfo();
+  }, [token]);
+
+  // Handle OAuth callback
+  useEffect(() => {
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+    
+    if (!code || !state?.startsWith('guest-booking:') || !token || hasProcessedOAuth) return;
+
+    setHasProcessedOAuth(true);
+    console.log('🔄 Processing OAuth callback...');
+
+    (async () => {
+      try {
+        setError('');
+        const provider = state.split(':')[2] || 'google';
+        
+        console.log('📞 Calling OAuth with provider:', provider);
+        
+        let response;
+        if (provider === 'microsoft') {
+          response = await oauth.guestMicrosoftAuth(code, token);
+        } else {
+          response = await oauth.guestGoogleAuth(code, token);
+        }
+        
+        const data = response.data;
+        console.log('✅ OAuth successful:', data.email);
+        
+        setGuestCalendar({
+          signedIn: true,
+          hasCalendarAccess: data.hasCalendarAccess || false,
+          provider: provider,
+          email: data.email || '',
+          name: data.name || '',
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+        });
+
+        setFormData((prev) => ({
+          ...prev,
+          attendee_name: data.name || prev.attendee_name,
+          attendee_email: data.email || prev.attendee_email,
+        }));
+
+        // Clean URL (state restoration happens in separate effect)
+        const typeParam = searchParams.get('type');
+        const rescheduleParam = searchParams.get('reschedule');
+        let newUrl = `/book/${token}`;
+        const params = new URLSearchParams();
+        if (typeParam) params.set('type', typeParam);
+        if (rescheduleParam) params.set('reschedule', rescheduleParam);
+        if (params.toString()) newUrl += `?${params.toString()}`;
+        
+        navigate(newUrl, { replace: true });
+        
+      } catch (err) {
+        console.error('❌ Guest OAuth failed:', err);
+        console.error('Error details:', err.response?.status, err.response?.data);
+        setError('Failed to connect calendar. Please try again.');
+        setStep('calendar-choice');
+        
+        // Clear the URL to remove code/state params
+        const params = new URLSearchParams(searchParams);
+        params.delete('code');
+        params.delete('state');
+        navigate(`/book/${token}?${params.toString()}`, { replace: true });
+      }
+    })();
+  }, [searchParams, token, navigate, hasProcessedOAuth]);
+
+  // Restore saved state after eventTypes are loaded
+  useEffect(() => {
+    // Only run if we have guest calendar and eventTypes are loaded
+    if (!guestCalendar?.signedIn || eventTypes.length === 0) return;
+    
+    const savedState = localStorage.getItem('schedulesync_oauth_return');
+    if (!savedState) return;
+    
     try {
-      setError('');
-      console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
-
-      const resp = await fetch(`${import.meta.env.VITE_API_URL}/api/book/auth/google`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ code, bookingToken: token }),
-      });
-
-      const ctype = resp.headers.get('content-type') || '';
-      if (!resp.ok) {
-        console.error('Auth POST failed:', resp.status, await resp.text());
-        throw new Error('Calendar connection failed');
+      const state = JSON.parse(savedState);
+      console.log('🔄 Restoring saved state:', state);
+      
+      // Check if this state is recent (within last 5 minutes)
+      if (Date.now() - state.timestamp > 5 * 60 * 1000) {
+        console.log('⏰ Saved state expired, ignoring');
+        localStorage.removeItem('schedulesync_oauth_return');
+        return;
       }
-      if (!ctype.includes('application/json')) {
-        console.error('Expected JSON, got:', ctype, await resp.text());
-        throw new Error('Unexpected server response');
+      
+      // Restore event type
+      if (state.eventTypeId) {
+        const eventType = eventTypes.find(et => et.id === state.eventTypeId);
+        if (eventType) {
+          console.log('✅ Restored event type:', eventType.title);
+          setSelectedEventType(eventType);
+          
+          // Update URL with event type slug
+          const params = new URLSearchParams(searchParams);
+          params.set('type', state.eventTypeSlug);
+          setSearchParams(params, { replace: true });
+        }
       }
-
-      await resp.json(); // not used, just validating
-      await fetchAiSlots(token);
-      navigate(`/book/${token}`, { replace: true });
+      
+      // Restore step
+      if (state.step) {
+        console.log('✅ Restored step:', state.step);
+        setStep(state.step);
+      }
+      
+      // Clean up
+      localStorage.removeItem('schedulesync_oauth_return');
+      
     } catch (err) {
-      console.error('Guest Google auth failed:', err);
-      setError('Unable to connect your calendar. Please try again.');
-      setStep('auth');
+      console.error('Failed to restore state:', err);
+      localStorage.removeItem('schedulesync_oauth_return');
     }
-  })();
-}, [searchParams, token, navigate]);
+  }, [guestCalendar?.signedIn, eventTypes, searchParams, setSearchParams]);
 
+  const loadBookingInfo = async () => {
+    try {
+      setLoading(true);
+      const response = await bookings.getByToken(token);
+      const payload = response.data?.data || response.data || {};
 
+      if (!payload.team || !payload.member) throw new Error('Missing info');
 
-  // 3) Fetch AI slots
-  const fetchAiSlots = async (bookingToken) => {
-  try {
-    setStep('slots');
+      if (payload.member.external_booking_link && !isReschedule) {
+        setRedirecting(true);
+        setMemberInfo(payload.member);
+        setTimeout(() => { window.location.href = payload.member.external_booking_link; }, 1500);
+        return;
+      }
 
-    const resp = await fetch(`${import.meta.env.VITE_API_URL}/api/suggest-slots`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookingToken, duration: 60 }),
-    });
+      setTeamInfo(payload.team);
+      setMemberInfo(payload.member);
+      
+      const directMemberLink = payload.isDirectLink === true || 
+                               payload.skipEventTypes === true ||
+                               payload.linkType === 'member' ||
+                               isReschedule;
+      
+      setIsDirectMemberLink(directMemberLink);
+      
+      if (directMemberLink) {
+        setEventTypes([]);
+        setSelectedEventType(null);
+        setStep('calendar-choice');
+        return;
+      }
+      
+      let allEventTypes = payload.eventTypes || [];
+      if (allEventTypes.length === 0 && !directMemberLink) {
+        const eventTypesRes = await eventTypesAPI.getAll();
+        allEventTypes = eventTypesRes.data.eventTypes || [];
+      }
+      
+      const activeEventTypes = allEventTypes.filter(et => et.is_active !== false);
+      setEventTypes(activeEventTypes);
+      
+      const eventTypeSlug = searchParams.get('type');
+      if (eventTypeSlug) {
+        const selectedEvent = activeEventTypes.find(e => e.slug === eventTypeSlug);
+        if (selectedEvent) {
+          setSelectedEventType(selectedEvent);
+          setStep('calendar-choice');
+        } else {
+          setStep(activeEventTypes.length > 0 ? 'event-select' : 'calendar-choice');
+        }
+      } else {
+        if (activeEventTypes.length === 1) {
+          setSelectedEventType(activeEventTypes[0]);
+          setStep('calendar-choice');
+        } else if (activeEventTypes.length > 1) {
+          setStep('event-select');
+        } else {
+          setStep('calendar-choice');
+        }
+      }
 
-    if (!resp.ok) throw new Error('Failed to get AI slots');
-
-    const data = await resp.json();
-    const slots = data.slots || [];
-    setAiSlots(slots);
-    if (slots.length > 0) setSelectedSlot(slots[0]);
-
-    setStep('confirm');
-  } catch (err) {
-    console.error('AI slot error:', err);
-    setError('Failed to load AI slot suggestions. Try again.');
-    setStep('slots');
-  }
-};
-
-
-  // 4) Trigger Google OAuth (guest)
-  const handleGoogleConnect = () => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    const redirectUri = import.meta.env.VITE_GOOGLE_REDIRECT_URI;
-    const scope = encodeURIComponent(
-      'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid'
-    );
-    const state = encodeURIComponent(`booking:${token}`);
-
-    const authUrl =
-      `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}` +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&response_type=code&scope=${scope}&access_type=offline&prompt=consent&state=${state}`;
-
-    window.location.href = authUrl;
+    } catch (err) {
+      if (err.response?.status === 410 || err.response?.data?.code === 'LINK_USED') {
+        setIsLinkUsed(true);
+        setLoading(false);
+        return;
+      }
+      setError(err.response?.data?.error || 'Invalid booking link');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // 5) Final submit
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedSlot) {
-      setError('Please select a time slot.');
+  const handleSelectEventType = (eventType) => {
+    setSelectedEventType(eventType);
+    const params = new URLSearchParams(searchParams);
+    params.set('type', eventType.slug);
+    setSearchParams(params);
+    setStep('calendar-choice');
+  };
+
+  const handleCalendarConnect = async (provider) => {
+    try {
+      // Save current state before OAuth redirect
+      if (selectedEventType) {
+        const stateToSave = {
+          token: token,
+          eventTypeId: selectedEventType.id,
+          eventTypeSlug: selectedEventType.slug,
+          step: 'form',
+          timestamp: Date.now()
+        };
+        
+        console.log('💾 Saving state before OAuth:', stateToSave);
+        localStorage.setItem('schedulesync_oauth_return', JSON.stringify(stateToSave));
+      }
+      
+      // Generate OAuth URL and redirect
+      let response;
+      
+      if (provider === 'google') {
+        response = await oauth.getGoogleGuestUrl(token);
+      } else if (provider === 'microsoft') {
+        response = await oauth.getMicrosoftGuestUrl(token);
+      }
+      
+      const authUrl = response.data.url;
+      console.log('🔗 Redirecting to OAuth:', authUrl);
+      
+      window.location.href = authUrl;
+      
+    } catch (error) {
+      console.error('❌ OAuth URL generation failed:', error);
+      setError('Failed to connect calendar. Please try again.');
+    }
+  };
+
+  const handleAddAttendee = () => {
+    if (!newAttendeeEmail.trim()) return;
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newAttendeeEmail)) {
+      alert('Please enter a valid email address');
       return;
     }
+    
+    if (additionalAttendees.includes(newAttendeeEmail) || newAttendeeEmail === formData.attendee_email) {
+      alert('This email is already added');
+      return;
+    }
+    
+    setAdditionalAttendees([...additionalAttendees, newAttendeeEmail]);
+    setNewAttendeeEmail('');
+  };
 
-    setSubmitting(true);
-    setError('');
+  const handleRemoveAttendee = (emailToRemove) => {
+    setAdditionalAttendees(additionalAttendees.filter(email => email !== emailToRemove));
+  };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedSlot) return;
+    
     try {
-      await bookings.create({
-        token,
-        slot: {
-          start: selectedSlot.start,
-          end: selectedSlot.end,
-          startTime: selectedSlot.startTime,
-          endTime: selectedSlot.endTime,
-        },
+      setSubmitting(true);
+      const response = await bookings.create({
+        token, 
+        slot: selectedSlot, 
         ...formData,
+        additional_attendees: additionalAttendees,
+        guest_timezone: guestTimezone,
+        event_type_id: selectedEventType?.id,
+        event_type_slug: selectedEventType?.slug,
+        reschedule_token: rescheduleToken, 
       });
-      setStep('success');
+      
+      const booking = response.data.booking;
+      const bookingData = {
+        id: booking?.id,
+        start_time: selectedSlot.start,
+        end_time: selectedSlot.end,
+        attendee_name: formData.attendee_name,
+        attendee_email: formData.attendee_email,
+        additional_attendees: additionalAttendees,
+        guest_timezone: guestTimezone,
+        organizer_name: memberInfo?.name || memberInfo?.user_name,
+        team_name: teamInfo?.name,
+        event_type: selectedEventType?.title || selectedEventType?.name,
+        duration: selectedEventType?.duration || 30,
+        notes: formData.notes,
+        meet_link: booking?.meet_link,
+        booking_token: booking?.booking_token || token,
+        manage_token: booking?.manage_token,
+        is_reschedule: isReschedule,
+      };
+      navigate(`/booking-confirmation?data=${encodeURIComponent(JSON.stringify(bookingData))}`);
     } catch (err) {
-      console.error('Booking error:', err);
-      setError('Failed to create booking. Please try again.');
+      if (err.response?.status === 410) setIsLinkUsed(true);
+      else alert(err.response?.data?.error || 'Failed to create booking.');
+    } finally {
       setSubmitting(false);
     }
   };
 
-  // ========== RENDER ==========
+  const duration = selectedEventType?.duration || memberInfo?.default_duration || 30;
+  const avatarLetter = memberInfo?.name?.[0]?.toUpperCase() || memberInfo?.user_name?.[0]?.toUpperCase() || 'U';
 
-  // A. Loading screen
-  if (step === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 text-white animate-spin mx-auto mb-4" />
-          <p className="text-white text-lg">Loading booking page...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading || redirecting) return <LoadingScreen redirecting={redirecting} memberName={memberInfo?.name} />;
+  if (isLinkUsed) return <ExpiredLinkScreen />;
+  if (error && !teamInfo) return <ErrorScreen error={error} />;
 
-  // B. Success screen
-  if (step === 'success') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 px-4">
-        <div className="bg-white rounded-3xl shadow-2xl p-10 max-w-md w-full text-center">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="h-10 w-10 text-green-600" />
-          </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Booking Confirmed!</h2>
-          <p className="text-gray-600 mb-6">
-            We've sent a confirmation email to{' '}
-            <strong>{formData.attendee_email}</strong> with all the details.
-          </p>
-          {selectedSlot && (
-            <div className="bg-blue-50 rounded-xl p-4 mb-6">
-              <p className="text-sm text-gray-700 mb-2">
-                <strong>Date:</strong>{' '}
-                {new Date(selectedSlot.start).toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </p>
-              <p className="text-sm text-gray-700">
-                <strong>Time:</strong>{' '}
-                {selectedSlot.startTime ||
-                  new Date(selectedSlot.start).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-              </p>
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 md:p-6 font-sans">
+      <div className="bg-white w-full max-w-6xl rounded-[2rem] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] border border-slate-100">
+        
+        {/* Left Sidebar */}
+        <div className="md:w-1/3 bg-slate-50 border-r border-slate-200 p-8 flex flex-col relative">
+
+          {isReschedule && (
+            <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-3 items-start">
+              <RefreshCw className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-1">Rescheduling</p>
+                <p className="text-sm text-amber-700 leading-tight">Your original booking will be cancelled once you confirm a new time.</p>
+              </div>
             </div>
           )}
-          <p className="text-gray-500 text-sm">See you then! 🎉</p>
-        </div>
-      </div>
-    );
-  }
 
-  // C. Choice screen (if external link exists)
-  if (step === 'choice') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 py-12 px-4">
-        <div className="max-w-2xl mx-auto">
-          {/* Header */}
-          <div className="bg-white rounded-3xl shadow-2xl p-8 mb-6">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <Calendar className="h-8 w-8 text-white" />
+          <div className="flex-1 mt-8">
+            <div className="mb-6">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-blue-200 mb-4">
+                {avatarLetter}
               </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">
-                  {teamInfo?.name || 'Schedule a Meeting'}
-                </h1>
-                {teamInfo?.description && (
-                  <p className="text-gray-600">{teamInfo.description}</p>
+              <p className="text-slate-500 font-medium text-sm">Book a meeting with</p>
+              <h2 className="text-2xl font-bold text-slate-900">{memberInfo?.name || memberInfo?.user_name}</h2>
+              <p className="text-slate-400 text-sm mt-1">{teamInfo?.name}</p>
+            </div>
+
+            {selectedEventType ? (
+              <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-500">
+                <div className="h-px bg-slate-200 w-full" />
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-2">{selectedEventType.title}</h3>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <Clock className="h-4 w-4" />
+                      <span className="font-medium">{duration} min</span>
+                    </div>
+                    {selectedEventType.location && (
+                      <div className="flex items-center gap-2 text-slate-600">
+                        <MapPin className="h-4 w-4" />
+                        <span>{selectedEventType.location}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {selectedEventType.description && (
+                  <p className="text-sm text-slate-500 leading-relaxed">{selectedEventType.description}</p>
                 )}
               </div>
-            </div>
-          </div>
-
-          {/* Booking Method Options */}
-          <div className="bg-white rounded-3xl shadow-2xl p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">
-              Choose Your Booking Method
-            </h2>
-            
-            <div className="space-y-4">
-              {/* External Platform Option */}
-              <button
-                onClick={() => window.open(memberInfo.external_booking_link, '_blank')}
-                className="w-full flex items-center justify-between p-6 border-2 border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group text-left"
-              >
-                <div className="flex items-center gap-4">
-                  <Calendar className="h-10 w-10 text-blue-600" />
-                  <div>
-                    <p className="font-semibold text-gray-900 text-lg">
-                      Book via {
-                        memberInfo.external_booking_platform === 'calendly' ? 'Calendly' :
-                        memberInfo.external_booking_platform === 'hubspot' ? 'HubSpot' :
-                        'External Calendar'
-                      }
-                    </p>
-                    <p className="text-sm text-gray-600">Opens in a new tab</p>
-                  </div>
-                </div>
-                <svg className="h-6 w-6 text-gray-400 group-hover:text-blue-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </button>
-
-              {/* AI-Powered Booking Option */}
-              <button
-                onClick={() => setStep('auth')}
-                className="w-full flex items-center justify-between p-6 border-2 border-gray-300 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all group text-left"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                    <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900 text-lg">
-                      AI-Powered Smart Booking
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Get personalized time suggestions
-                    </p>
-                  </div>
-                </div>
-                <svg className="h-6 w-6 text-gray-400 group-hover:text-purple-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // D. Main booking UI
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-3xl shadow-2xl p-8 mb-6">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <Calendar className="h-8 w-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                {teamInfo?.name || 'Schedule a Meeting'}
-              </h1>
-              {teamInfo?.description && (
-                <p className="text-gray-600">{teamInfo.description}</p>
-              )}
-            </div>
-          </div>
-          {error && (
-            <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-xl">
-              <p className="text-sm text-red-600">{error}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Left column: auth / slots */}
-          <div className="bg-white rounded-3xl shadow-2xl p-8">
-            {step === 'auth' && (
-              <>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                  Connect your calendar
-                </h2>
-                <p className="text-gray-600 mb-6">
-                  We'll check your availability and suggest the best times.
-                </p>
-                <button
-                  onClick={handleGoogleConnect}
-                  className="w-full py-3 mb-3 bg-white border-2 border-gray-200 rounded-xl flex items-center justify-center gap-3 hover:border-blue-400 transition"
-                >
-                  <img
-                    src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                    alt="Google"
-                    className="h-5 w-5"
-                  />
-                  <span className="font-medium text-gray-700">
-                    Continue with Google Calendar
-                  </span>
-                </button>
-                <button
-                  disabled
-                  className="w-full py-3 bg-gray-100 border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center gap-3 text-gray-400 cursor-not-allowed"
-                >
-                  <LogIn className="h-5 w-5" />
-                  <span>Microsoft Calendar (soon)</span>
-                </button>
-                <p className="text-xs text-gray-400 mt-4">
-                  We'll only read availability to suggest slots.
-                </p>
-              </>
+            ) : (
+              <div className="mt-8 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+                <p className="text-sm text-blue-700">Please select a meeting type from the list to continue.</p>
+              </div>
             )}
+          </div>
+          
+          <div className="mt-auto pt-6 text-xs text-slate-300 font-medium">
+            Powered by ScheduleSync
+          </div>
+        </div>
 
-            {step === 'slots' && (
-              <>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    AI Slot Suggestions
-                  </h2>
+        {/* Right Content Area */}
+        <div className="md:w-2/3 bg-white p-6 md:p-10 overflow-y-auto relative">
+          
+          {/* Event Type Selection */}
+          {step === 'event-select' && (
+            <FadeIn className="max-w-xl mx-auto">
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Select a Meeting Type</h2>
+              <p className="text-slate-500 mb-8">Choose the type of meeting you'd like to schedule.</p>
+              
+              <div className="grid gap-4">
+                {eventTypes.map((et) => (
                   <button
-                    onClick={() => fetchAiSlots(token)}
-                    className="text-sm text-blue-600 hover:underline"
+                    key={et.id}
+                    onClick={() => handleSelectEventType(et)}
+                    className="group relative flex items-center gap-4 p-5 rounded-2xl border border-slate-200 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-50 transition-all text-left bg-white"
                   >
-                    Refresh
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-50 text-blue-600 group-hover:scale-110 transition-transform">
+                      <Clock className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-slate-900 text-lg group-hover:text-blue-700 transition-colors">{et.title}</h3>
+                      <p className="text-slate-500 text-sm mt-1">{et.duration} minutes</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
                   </button>
-                </div>
-                <div className="text-center py-8">
-                  <Loader2 className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-2" />
-                  <p className="text-sm text-gray-600">
-                    Generating best times for you...
-                  </p>
-                </div>
-              </>
-            )}
+                ))}
+              </div>
+            </FadeIn>
+          )}
 
-            {(step === 'confirm' || step === 'success') && aiSlots.length > 0 && (
-              <>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                  Suggested time slots
-                </h2>
-                <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
-                  {aiSlots.map((slot, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedSlot(slot)}
-                      className={`p-3 rounded-lg border-2 transition-all text-left ${
-                        selectedSlot === slot
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 hover:border-blue-300 text-gray-700'
-                      }`}
+          {/* Calendar Connection Choice */}
+          {step === 'calendar-choice' && (
+            <FadeIn className="max-w-lg mx-auto py-8">
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Sparkles className="h-8 w-8 text-indigo-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">Check for conflicts?</h2>
+                <p className="text-slate-500 mt-2">Sign in to overlay your calendar availability on top of {memberInfo?.name?.split(' ')[0]}'s schedule.</p>
+              </div>
+
+              <div className="space-y-4">
+                <button 
+                  onClick={() => handleCalendarConnect('google')}
+                  className="w-full flex items-center p-4 rounded-xl border border-slate-200 hover:border-red-200 hover:bg-red-50/30 transition-all group"
+                >
+                  <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" className="h-6 w-6 mr-4" />
+                  <div className="text-left flex-1">
+                    <span className="block font-semibold text-slate-900">Connect Google Calendar</span>
+                    <span className="block text-xs text-slate-500">We'll only read your busy times</span>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-slate-300 group-hover:text-red-500 transition-colors" />
+                </button>
+
+                <button 
+                  onClick={() => handleCalendarConnect('microsoft')}
+                  className="w-full flex items-center p-4 rounded-xl border border-slate-200 hover:border-blue-200 hover:bg-blue-50/30 transition-all group"
+                >
+                  <div className="h-6 w-6 mr-4 grid grid-cols-2 gap-0.5">
+                    <div className="bg-[#f35325]"></div>
+                    <div className="bg-[#81bc06]"></div>
+                    <div className="bg-[#05a6f0]"></div>
+                    <div className="bg-[#ffba08]"></div>
+                  </div>
+                  <div className="text-left flex-1">
+                    <span className="block font-semibold text-slate-900">Connect Outlook / Office 365</span>
+                    <span className="block text-xs text-slate-500">We'll only read your busy times</span>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-slate-300 group-hover:text-blue-500 transition-colors" />
+                </button>
+
+                <div className="relative py-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-100"></div>
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-white px-2 text-xs text-slate-400 uppercase tracking-wide">Or</span>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => setStep('form')} 
+                  className="w-full py-4 text-slate-600 font-medium hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-colors"
+                >
+                  Skip and select time manually
+                </button>
+              </div>
+            </FadeIn>
+          )}
+
+          {/* Booking Form */}
+          {step === 'form' && (
+            <FadeIn className="h-full flex flex-col">
+              {guestCalendar?.signedIn && (
+                <div className="mb-3 inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-sm font-medium self-start">
+                  <div className="w-2 h-2 bg-green-500 rounded-full" />
+                  Using your calendar: {guestCalendar.email}
+                </div>
+              )}
+
+              {guestTimezone && (
+                <div className="mb-6 inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium self-start">
+                  <Clock className="h-4 w-4" />
+                  Your timezone: {guestTimezone}
+                </div>
+              )}
+
+              <h2 className="text-2xl font-bold text-slate-900 mb-6">
+                {selectedSlot ? 'Finalize Booking' : 'Select a Time'}
+              </h2>
+
+              {!selectedSlot && (
+                <div className="flex-1">
+                  <SmartSlotPicker 
+                    bookingToken={token} 
+                    guestCalendar={guestCalendar} 
+                    onSlotSelected={setSelectedSlot}
+                    duration={duration}
+                    timezone={guestTimezone}
+                  />
+                </div>
+              )}
+
+              {selectedSlot && (
+                <div className="max-w-lg mx-auto w-full animate-in slide-in-from-right-8 duration-300">
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex justify-between items-center">
+                    <div>
+                      <p className="text-xs text-blue-600 font-bold uppercase tracking-wide">Selected Time</p>
+                      <p className="text-blue-900 font-semibold mt-1">
+                        {new Date(selectedSlot.start).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                      </p>
+                      <p className="text-blue-800 text-sm">
+                        {new Date(selectedSlot.start).toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' })} - {new Date(selectedSlot.end).toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' })}
+                      </p>
+                    </div>
+                    <button onClick={() => setSelectedSlot(null)} className="text-sm text-blue-600 hover:text-blue-800 font-medium underline">
+                      Change
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Your Name</label>
+                      <input 
+                        type="text"
+                        required
+                        value={formData.attendee_name} 
+                        onChange={(e) => setFormData({ ...formData, attendee_name: e.target.value })} 
+                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        placeholder="John Doe"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                      <input 
+                        type="email"
+                        required
+                        value={formData.attendee_email} 
+                        onChange={(e) => setFormData({ ...formData, attendee_email: e.target.value })} 
+                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        placeholder="john@example.com"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Additional Notes</label>
+                      <textarea 
+                        value={formData.notes}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })} 
+                        rows="3"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
+                        placeholder="Anything specific you want to discuss?"
+                      />
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-200">
+                      <label className="block text-sm font-medium text-slate-700 mb-3">
+                        Invite Others to This Meeting
+                      </label>
+                      
+                      {additionalAttendees.length > 0 && (
+                        <div className="space-y-2 mb-3">
+                          {additionalAttendees.map((email, index) => (
+                            <div key={index} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg group">
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4 text-slate-400" />
+                                <span className="text-sm text-slate-700">{email}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAttendee(email)}
+                                className="text-slate-400 hover:text-red-600 transition-colors"
+                                title="Remove attendee"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <input
+                          type="email"
+                          value={newAttendeeEmail}
+                          onChange={(e) => setNewAttendeeEmail(e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddAttendee();
+                            }
+                          }}
+                          className="flex-1 px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm"
+                          placeholder="colleague@example.com"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddAttendee}
+                          className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium text-sm flex items-center gap-1"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-2">
+                        Additional attendees will receive calendar invites and meeting details
+                      </p>
+                    </div>
+
+                    <button 
+                      type="submit"
+                      disabled={submitting} 
+                      className="w-full mt-4 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                      <p className="font-semibold">
-                        {new Date(slot.start).toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </p>
-                      <p className="text-sm">
-                        {slot.startTime ||
-                          new Date(slot.start).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}{' '}
-                        –{' '}
-                        {slot.endTime ||
-                          (slot.end &&
-                            new Date(slot.end).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            }))}
-                      </p>
-                      {slot.match && (
-                        <span className="inline-block mt-2 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
-                          {(slot.match * 100).toFixed(0)}% match
-                        </span>
+                      {submitting ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          {isReschedule ? 'Confirming...' : 'Booking...'}
+                        </>
+                      ) : (
+                        <>{isReschedule ? 'Confirm Reschedule' : 'Confirm Booking'}</>
                       )}
                     </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Right column: form */}
-          <div className="bg-white rounded-3xl shadow-2xl p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">
-              Your Information
-            </h2>
-
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name *
-                </label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text"
-                    required
-                    value={formData.attendee_name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, attendee_name: e.target.value })
-                    }
-                    placeholder="John Doe"
-                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address *
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="email"
-                    required
-                    value={formData.attendee_email}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        attendee_email: e.target.value,
-                      })
-                    }
-                    placeholder="john@example.com"
-                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Additional Notes (Optional)
-                </label>
-                <div className="relative">
-                  <MessageSquare className="absolute left-4 top-4 h-5 w-5 text-gray-400" />
-                  <textarea
-                    value={formData.notes}
-                    onChange={(e) =>
-                      setFormData({ ...formData, notes: e.target.value })
-                    }
-                    placeholder="Any specific topics or questions..."
-                    rows="4"
-                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none resize-none"
-                  />
-                </div>
-              </div>
-
-              {/* Error */}
-              {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
-                  <p className="text-sm text-red-600">{error}</p>
+                  </form>
                 </div>
               )}
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={submitting || !selectedSlot}
-                className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    Booking...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-5 w-5" />
-                    Confirm Booking
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
+            </FadeIn>
+          )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function LoadingScreen({ redirecting, memberName }) {
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="text-center animate-pulse">
+        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          {redirecting ? <ExternalLink className="h-8 w-8 text-blue-600" /> : <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />}
+        </div>
+        <h2 className="text-xl font-semibold text-slate-900">{redirecting ? `Redirecting to ${memberName}...` : 'Loading availability...'}</h2>
+      </div>
+    </div>
+  );
+}
+
+function ExpiredLinkScreen() {
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center border border-slate-100">
+        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Ban className="h-10 w-10 text-red-500" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Link Already Used</h2>
+        <p className="text-gray-600 mb-6">
+          This single-use booking link has already been used or has expired.
+        </p>
+        <p className="text-sm text-gray-500">
+          Please request a new link from the organizer if you need to book another time.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ErrorScreen({ error }) {
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center border border-slate-100">
+        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+          <AlertTriangle className="h-10 w-10 text-red-500" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Booking Not Found</h2>
+        <p className="text-gray-600 mb-6">
+          {error || 'This booking link is invalid or has expired. Please check your email for the correct link or contact the organizer.'}
+        </p>
+        <p className="text-sm text-gray-500">
+          You can safely close this page.
+        </p>
       </div>
     </div>
   );

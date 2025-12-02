@@ -710,8 +710,6 @@ setInterval(() => {
 
 // ============================================
 // PUBLIC EVENT TYPE BOOKING ENDPOINT
-// Add this to server.js BEFORE authentication middleware
-// Place it around line 500-600 with other PUBLIC routes
 // ============================================
 
 app.get('/api/public/booking/:username/:eventSlug', async (req, res) => {
@@ -774,6 +772,137 @@ app.get('/api/public/booking/:username/:eventSlug', async (req, res) => {
   } catch (error) {
     console.error('? Error fetching Event Type booking info:', error);
     res.status(500).json({ error: 'Failed to load event information' });
+  }
+});
+
+// ============ PUBLIC BOOKING CREATION ENDPOINT ============
+// Add this to server.js after the /api/public/booking/:username/:eventSlug endpoint
+
+app.post('/api/public/booking/create', async (req, res) => {
+  try {
+    const {
+      username,
+      event_slug,
+      start_time,
+      end_time,
+      attendee_name,
+      attendee_email,
+      notes,
+      additional_attendees,
+      guest_timezone
+    } = req.body;
+
+    console.log('📅 Creating public event type booking:', { username, event_slug, attendee_email });
+
+    // Find user by username
+    const userResult = await pool.query(
+      `SELECT id, name, email, username, google_access_token, microsoft_access_token 
+       FROM users 
+       WHERE LOWER(username) = LOWER($1) 
+          OR LOWER(email) LIKE LOWER($2)
+       LIMIT 1`,
+      [username, `${username}%`]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const host = userResult.rows[0];
+
+    // Find event type
+    const eventResult = await pool.query(
+      `SELECT id, title, duration, description, location, location_type
+       FROM event_types 
+       WHERE user_id = $1 
+         AND LOWER(slug) = LOWER($2) 
+         AND is_active = true`,
+      [host.id, event_slug]
+    );
+
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Event type not found or inactive' });
+    }
+
+    const eventType = eventResult.rows[0];
+
+    // Generate manage token
+    const manageToken = crypto.randomBytes(32).toString('hex');
+
+    // Generate Google Meet link if user has Google OAuth
+    let meetLink = null;
+    if (host.google_access_token) {
+      try {
+        // TODO: Implement Google Meet creation via API
+        meetLink = `https://meet.google.com/auto-generated-${Date.now()}`;
+      } catch (error) {
+        console.error('Failed to create Google Meet link:', error);
+      }
+    }
+
+    // Create booking
+    const bookingResult = await pool.query(
+      `INSERT INTO bookings (
+        host_user_id,
+        event_type_id,
+        attendee_name,
+        attendee_email,
+        start_time,
+        end_time,
+        notes,
+        meet_link,
+        manage_token,
+        guest_timezone,
+        status,
+        title
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'confirmed', $11)
+      RETURNING *`,
+      [
+        host.id,
+        eventType.id,
+        attendee_name,
+        attendee_email,
+        start_time,
+        end_time,
+        notes || null,
+        meetLink,
+        manageToken,
+        guest_timezone || 'UTC',
+        eventType.title
+      ]
+    );
+
+    const booking = bookingResult.rows[0];
+
+    // Store additional attendees if provided
+    if (additional_attendees && additional_attendees.length > 0) {
+      for (const email of additional_attendees) {
+        await pool.query(
+          `INSERT INTO booking_attendees (booking_id, email)
+           VALUES ($1, $2)`,
+          [booking.id, email]
+        );
+      }
+    }
+
+    // TODO: Send confirmation emails to all attendees
+    console.log('✅ Public booking created:', booking.id);
+
+    res.json({
+      success: true,
+      booking: {
+        id: booking.id,
+        start_time: booking.start_time,
+        end_time: booking.end_time,
+        meet_link: booking.meet_link,
+        manage_token: booking.manage_token,
+        status: booking.status
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Public booking creation error:', error);
+    res.status(500).json({ error: 'Failed to create booking' });
   }
 });
 
@@ -1254,6 +1383,7 @@ app.post('/api/bookings', async (req, res) => {
             console.error('?? Microsoft calendar creation failed:', calendarError.message);
           }
         }
+
 
 
         // ========== SEND CONFIRMATION EMAILS ==========

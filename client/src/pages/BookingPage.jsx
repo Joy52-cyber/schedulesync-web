@@ -16,9 +16,15 @@ const FadeIn = ({ children, className = "" }) => (
 );
 
 export default function BookingPage() {
-  const { token } = useParams();
+  const params = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // Detect route type: /book/:token OR /book/:username/:eventSlug
+  const isPublicEventType = params.username && params.eventSlug;
+  const token = params.token;
+  const username = params.username;
+  const eventSlug = params.eventSlug;
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -29,6 +35,7 @@ export default function BookingPage() {
   const [isReschedule, setIsReschedule] = useState(false);
   const [rescheduleToken, setRescheduleToken] = useState(null);
 
+  const [hostInfo, setHostInfo] = useState(null); // For public event types
   const [teamInfo, setTeamInfo] = useState(null);
   const [memberInfo, setMemberInfo] = useState(null);
   const [eventTypes, setEventTypes] = useState([]);
@@ -63,18 +70,26 @@ export default function BookingPage() {
     }
   }, []);
 
-  // Check for reschedule mode
+  // Check for reschedule mode (only for token-based bookings)
   useEffect(() => {
+    if (isPublicEventType) return; // Skip for public event types
+    
     const rescheduleParam = searchParams.get('reschedule');
     if (rescheduleParam) {
       setIsReschedule(true);
       setRescheduleToken(rescheduleParam);
     }
-    loadBookingInfo();
-  }, [token]);
+  }, [token, isPublicEventType]);
 
-  // Handle OAuth callback
+  // Load booking info on mount
   useEffect(() => {
+    loadBookingInfo();
+  }, []);
+
+  // Handle OAuth callback (only for token-based bookings)
+  useEffect(() => {
+    if (isPublicEventType) return; // Skip OAuth for public event types
+    
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     
@@ -116,7 +131,7 @@ export default function BookingPage() {
           attendee_email: data.email || prev.attendee_email,
         }));
 
-        // Clean URL (state restoration happens in separate effect)
+        // Clean URL
         const typeParam = searchParams.get('type');
         const rescheduleParam = searchParams.get('reschedule');
         let newUrl = `/book/${token}`;
@@ -129,22 +144,20 @@ export default function BookingPage() {
         
       } catch (err) {
         console.error('❌ Guest OAuth failed:', err);
-        console.error('Error details:', err.response?.status, err.response?.data);
         setError('Failed to connect calendar. Please try again.');
         setStep('calendar-choice');
         
-        // Clear the URL to remove code/state params
         const params = new URLSearchParams(searchParams);
         params.delete('code');
         params.delete('state');
         navigate(`/book/${token}?${params.toString()}`, { replace: true });
       }
     })();
-  }, [searchParams, token, navigate, hasProcessedOAuth]);
+  }, [searchParams, token, navigate, hasProcessedOAuth, isPublicEventType]);
 
-  // Restore saved state after eventTypes are loaded
+  // Restore saved state after OAuth (only for token-based)
   useEffect(() => {
-    // Only run if we have guest calendar and eventTypes are loaded
+    if (isPublicEventType) return;
     if (!guestCalendar?.signedIn || eventTypes.length === 0) return;
     
     const savedState = localStorage.getItem('schedulesync_oauth_return');
@@ -154,45 +167,80 @@ export default function BookingPage() {
       const state = JSON.parse(savedState);
       console.log('🔄 Restoring saved state:', state);
       
-      // Check if this state is recent (within last 5 minutes)
       if (Date.now() - state.timestamp > 5 * 60 * 1000) {
         console.log('⏰ Saved state expired, ignoring');
         localStorage.removeItem('schedulesync_oauth_return');
         return;
       }
       
-      // Restore event type
       if (state.eventTypeId) {
         const eventType = eventTypes.find(et => et.id === state.eventTypeId);
         if (eventType) {
           console.log('✅ Restored event type:', eventType.title);
           setSelectedEventType(eventType);
           
-          // Update URL with event type slug
           const params = new URLSearchParams(searchParams);
           params.set('type', state.eventTypeSlug);
           setSearchParams(params, { replace: true });
         }
       }
       
-      // Restore step
       if (state.step) {
         console.log('✅ Restored step:', state.step);
         setStep(state.step);
       }
       
-      // Clean up
       localStorage.removeItem('schedulesync_oauth_return');
       
     } catch (err) {
       console.error('Failed to restore state:', err);
       localStorage.removeItem('schedulesync_oauth_return');
     }
-  }, [guestCalendar?.signedIn, eventTypes, searchParams, setSearchParams]);
+  }, [guestCalendar?.signedIn, eventTypes, searchParams, setSearchParams, isPublicEventType]);
 
   const loadBookingInfo = async () => {
     try {
       setLoading(true);
+      
+      // ============ PUBLIC EVENT TYPE ROUTE: /book/:username/:eventSlug ============
+      if (isPublicEventType) {
+        console.log('📅 Loading public event type:', username, eventSlug);
+        
+        const response = await fetch(`/api/public/booking/${username}/${eventSlug}`);
+        if (!response.ok) {
+          throw new Error('Event type not found');
+        }
+        
+        const data = await response.json();
+        console.log('✅ Public event type loaded:', data);
+        
+        // Set host info
+        setHostInfo(data.host);
+        
+        // Create member info for UI compatibility
+        setMemberInfo({
+          name: data.host.name,
+          user_name: data.host.username,
+          id: data.host.username, // Use username as ID
+        });
+        
+        // Create team info for UI
+        setTeamInfo({
+          name: `${data.host.name}'s Events`,
+          id: 'public',
+        });
+        
+        // Set the event type
+        setSelectedEventType(data.eventType);
+        setEventTypes([data.eventType]);
+        
+        // Skip directly to form (no calendar choice for public bookings)
+        setStep('form');
+        setLoading(false);
+        return;
+      }
+      
+      // ============ TOKEN-BASED ROUTE: /book/:token (EXISTING LOGIC - DON'T TOUCH) ============
       const response = await bookings.getByToken(token);
       const payload = response.data?.data || response.data || {};
 
@@ -252,12 +300,13 @@ export default function BookingPage() {
       }
 
     } catch (err) {
+      console.error('❌ Error loading booking info:', err);
       if (err.response?.status === 410 || err.response?.data?.code === 'LINK_USED') {
         setIsLinkUsed(true);
         setLoading(false);
         return;
       }
-      setError(err.response?.data?.error || 'Invalid booking link');
+      setError(err.message || err.response?.data?.error || 'Invalid booking link');
     } finally {
       setLoading(false);
     }
@@ -273,7 +322,6 @@ export default function BookingPage() {
 
   const handleCalendarConnect = async (provider) => {
     try {
-      // Save current state before OAuth redirect
       if (selectedEventType) {
         const stateToSave = {
           token: token,
@@ -287,7 +335,6 @@ export default function BookingPage() {
         localStorage.setItem('schedulesync_oauth_return', JSON.stringify(stateToSave));
       }
       
-      // Generate OAuth URL and redirect
       let response;
       
       if (provider === 'google') {
@@ -335,6 +382,58 @@ export default function BookingPage() {
     
     try {
       setSubmitting(true);
+      
+      // ============ PUBLIC EVENT TYPE BOOKING ============
+      if (isPublicEventType) {
+        const response = await fetch('/api/public/booking/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username: username,
+            event_slug: eventSlug,
+            start_time: selectedSlot.start,
+            end_time: selectedSlot.end,
+            attendee_name: formData.attendee_name,
+            attendee_email: formData.attendee_email,
+            notes: formData.notes,
+            additional_attendees: additionalAttendees,
+            guest_timezone: guestTimezone,
+          }),
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to create booking');
+        }
+        
+        const data = await response.json();
+        const booking = data.booking;
+        
+        const bookingData = {
+          id: booking.id,
+          start_time: selectedSlot.start,
+          end_time: selectedSlot.end,
+          attendee_name: formData.attendee_name,
+          attendee_email: formData.attendee_email,
+          additional_attendees: additionalAttendees,
+          guest_timezone: guestTimezone,
+          organizer_name: hostInfo.name,
+          team_name: teamInfo.name,
+          event_type: selectedEventType.title,
+          duration: selectedEventType.duration,
+          notes: formData.notes,
+          meet_link: booking.meet_link,
+          manage_token: booking.manage_token,
+          is_reschedule: false,
+        };
+        
+        navigate(`/booking-confirmation?data=${encodeURIComponent(JSON.stringify(bookingData))}`);
+        return;
+      }
+      
+      // ============ TOKEN-BASED BOOKING (EXISTING LOGIC) ============
       const response = await bookings.create({
         token, 
         slot: selectedSlot, 
@@ -366,18 +465,24 @@ export default function BookingPage() {
         is_reschedule: isReschedule,
       };
       navigate(`/booking-confirmation?data=${encodeURIComponent(JSON.stringify(bookingData))}`);
+      
     } catch (err) {
+      console.error('❌ Booking failed:', err);
       if (err.response?.status === 410) setIsLinkUsed(true);
-      else alert(err.response?.data?.error || 'Failed to create booking.');
+      else alert(err.message || err.response?.data?.error || 'Failed to create booking.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const duration = selectedEventType?.duration || memberInfo?.default_duration || 30;
-  const avatarLetter = memberInfo?.name?.[0]?.toUpperCase() || memberInfo?.user_name?.[0]?.toUpperCase() || 'U';
+  const displayName = hostInfo?.name || memberInfo?.name || memberInfo?.user_name;
+  const avatarLetter = displayName?.[0]?.toUpperCase() || 'U';
+  
+  // For SmartSlotPicker - use a pseudo-token for public event types
+  const bookingTokenForPicker = isPublicEventType ? `public:${username}:${eventSlug}` : token;
 
-  if (loading || redirecting) return <LoadingScreen redirecting={redirecting} memberName={memberInfo?.name} />;
+  if (loading || redirecting) return <LoadingScreen redirecting={redirecting} memberName={displayName} />;
   if (isLinkUsed) return <ExpiredLinkScreen />;
   if (error && !teamInfo) return <ErrorScreen error={error} />;
 
@@ -404,7 +509,7 @@ export default function BookingPage() {
                 {avatarLetter}
               </div>
               <p className="text-slate-500 font-medium text-sm">Book a meeting with</p>
-              <h2 className="text-2xl font-bold text-slate-900">{memberInfo?.name || memberInfo?.user_name}</h2>
+              <h2 className="text-2xl font-bold text-slate-900">{displayName}</h2>
               <p className="text-slate-400 text-sm mt-1">{teamInfo?.name}</p>
             </div>
 
@@ -445,8 +550,8 @@ export default function BookingPage() {
         {/* Right Content Area */}
         <div className="md:w-2/3 bg-white p-6 md:p-10 overflow-y-auto relative">
           
-          {/* Event Type Selection */}
-          {step === 'event-select' && (
+          {/* Event Type Selection (only for token-based multi-event) */}
+          {step === 'event-select' && !isPublicEventType && (
             <FadeIn className="max-w-xl mx-auto">
               <h2 className="text-2xl font-bold text-slate-900 mb-2">Select a Meeting Type</h2>
               <p className="text-slate-500 mb-8">Choose the type of meeting you'd like to schedule.</p>
@@ -472,15 +577,15 @@ export default function BookingPage() {
             </FadeIn>
           )}
 
-          {/* Calendar Connection Choice */}
-          {step === 'calendar-choice' && (
+          {/* Calendar Connection Choice (only for token-based) */}
+          {step === 'calendar-choice' && !isPublicEventType && (
             <FadeIn className="max-w-lg mx-auto py-8">
               <div className="text-center mb-8">
                 <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Sparkles className="h-8 w-8 text-indigo-600" />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900">Check for conflicts?</h2>
-                <p className="text-slate-500 mt-2">Sign in to overlay your calendar availability on top of {memberInfo?.name?.split(' ')[0]}'s schedule.</p>
+                <p className="text-slate-500 mt-2">Sign in to overlay your calendar availability on top of {displayName?.split(' ')[0]}'s schedule.</p>
               </div>
 
               <div className="space-y-4">
@@ -556,7 +661,7 @@ export default function BookingPage() {
               {!selectedSlot && (
                 <div className="flex-1">
                   <SmartSlotPicker 
-                    bookingToken={token} 
+                    bookingToken={bookingTokenForPicker}
                     guestCalendar={guestCalendar} 
                     onSlotSelected={setSelectedSlot}
                     duration={duration}
