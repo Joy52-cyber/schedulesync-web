@@ -39,7 +39,7 @@ export default function AISchedulerChat() {
     setLoading(true);
 
     try {
-      const response = await aiScheduler.sendMessage(userMessage, chatHistory);
+      const response = await api.aiScheduler.sendMessage(userMessage, chatHistory);
       const data = response.data;
 
       setChatHistory((prev) => [
@@ -139,7 +139,7 @@ export default function AISchedulerChat() {
   const handleConfirm = async (bookingData) => {
     setLoading(true);
     try {
-      const response = await aiScheduler.confirmBooking(bookingData);
+      const response = await api.aiScheduler.confirmBooking(bookingData);
       setChatHistory((prev) => [
         ...prev,
         {
