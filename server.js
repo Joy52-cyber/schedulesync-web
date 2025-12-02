@@ -1132,17 +1132,6 @@ app.post('/api/public/booking/create', async (req, res) => {
     // Generate manage token
     const manageToken = crypto.randomBytes(32).toString('hex');
 
-    // Generate Google Meet link if user has Google OAuth
-    let meetLink = null;
-    if (host.google_access_token) {
-      try {
-        // TODO: Implement Google Meet creation via API
-        meetLink = `https://meet.google.com/auto-generated-${Date.now()}`;
-      } catch (error) {
-        console.error('Failed to create Google Meet link:', error);
-      }
-    }
-
     // Create booking
     const bookingResult = await pool.query(
       `INSERT INTO bookings (
@@ -1153,12 +1142,11 @@ app.post('/api/public/booking/create', async (req, res) => {
         start_time,
         end_time,
         notes,
-        meet_link,
         manage_token,
         guest_timezone,
         status,
         title
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'confirmed', $11)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10)
       RETURNING *`,
       [
         host.id,
@@ -1168,7 +1156,6 @@ app.post('/api/public/booking/create', async (req, res) => {
         start_time,
         end_time,
         notes || null,
-        meetLink,
         manageToken,
         guest_timezone || 'UTC',
         eventType.title
@@ -1188,20 +1175,162 @@ app.post('/api/public/booking/create', async (req, res) => {
       }
     }
 
-    // TODO: Send confirmation emails to all attendees
     console.log('✅ Public booking created:', booking.id);
 
+    // ========== RESPOND IMMEDIATELY ==========
     res.json({
       success: true,
       booking: {
         id: booking.id,
         start_time: booking.start_time,
         end_time: booking.end_time,
-        meet_link: booking.meet_link,
         manage_token: booking.manage_token,
         status: booking.status
-      }
+      },
+      message: 'Booking confirmed! Confirmation email will arrive shortly.'
     });
+
+    // 🔥 SEND EMAILS IN BACKGROUND
+    (async () => {
+      try {
+        console.log('📧 Preparing to send emails...');
+        
+        const manageUrl = `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/manage/${manageToken}`;
+        const duration = eventType.duration;
+
+        const startDate = new Date(start_time);
+        const endDate = new Date(end_time);
+        
+        const formattedDateTime = startDate.toLocaleString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: guest_timezone || 'UTC'
+        });
+
+        // Create ICS file
+        const icsContent = generateICS({
+          id: booking.id,
+          start_time: start_time,
+          end_time: end_time,
+          attendee_name: attendee_name,
+          attendee_email: attendee_email,
+          organizer_name: host.name,
+          organizer_email: host.email,
+          team_name: `${host.name}'s Events`,
+          notes: notes || '',
+        });
+
+        // 1. PRIMARY ATTENDEE EMAIL
+        await resend.emails.send({
+          from: 'ScheduleSync <bookings@trucal.xyz>',
+          to: attendee_email,
+          subject: `✅ Booking Confirmed: ${eventType.title}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                <h1 style="color: white; margin: 0;">Booking Confirmed! ✅</h1>
+              </div>
+              
+              <div style="padding: 30px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+                <p style="font-size: 16px; color: #374151;">Hi ${attendee_name},</p>
+                
+                <p style="font-size: 16px; color: #374151;">Your meeting with <strong>${host.name}</strong> is confirmed!</p>
+                
+                <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
+                  <h2 style="margin-top: 0; color: #1f2937;">${eventType.title}</h2>
+                  <p style="margin: 10px 0; color: #6b7280;">
+                    <strong>📅 When:</strong> ${formattedDateTime}<br>
+                    <strong>⏱️ Duration:</strong> ${duration} minutes<br>
+                    <strong>🌍 Timezone:</strong> ${guest_timezone || 'UTC'}<br>
+                    ${eventType.location ? `<strong>📍 Location:</strong> ${eventType.location}<br>` : ''}
+                    ${additional_attendees?.length > 0 ? `<strong>👥 Others:</strong> ${additional_attendees.join(', ')}<br>` : ''}
+                  </p>
+                  ${notes ? `<p style="margin-top: 15px; padding: 10px; background: #f3f4f6; border-radius: 4px;"><strong>Notes:</strong><br>${notes}</p>` : ''}
+                </div>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${manageUrl}" style="display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">Manage Booking</a>
+                </div>
+                
+                <p style="font-size: 14px; color: #6b7280; text-align: center;">
+                  Need to reschedule or cancel? Use the link above.
+                </p>
+              </div>
+            </div>
+          `,
+          attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+        });
+        console.log('✅ Email sent to primary attendee:', attendee_email);
+
+        // 2. ADDITIONAL ATTENDEES
+        if (additional_attendees && Array.isArray(additional_attendees) && additional_attendees.length > 0) {
+          console.log(`📧 Sending to ${additional_attendees.length} additional attendees...`);
+          for (const email of additional_attendees) {
+            await resend.emails.send({
+              from: 'ScheduleSync <bookings@trucal.xyz>',
+              to: email,
+              subject: `Meeting Invitation: ${eventType.title}`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <h2 style="color: #2563eb;">You're invited!</h2>
+                  <p><strong>${attendee_name}</strong> has invited you to a meeting with <strong>${host.name}</strong>.</p>
+                  <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <p style="margin: 5px 0;"><strong>📅 When:</strong> ${formattedDateTime}</p>
+                    <p style="margin: 5px 0;"><strong>⏱️ Duration:</strong> ${duration} minutes</p>
+                    <p style="margin: 5px 0;"><strong>👤 Invited by:</strong> ${attendee_name} (${attendee_email})</p>
+                    ${notes ? `<p style="margin: 5px 0;"><strong>📝 Notes:</strong> ${notes}</p>` : ''}
+                  </div>
+                </div>
+              `,
+              attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+            });
+            console.log(`✅ Email sent to: ${email}`);
+          }
+        }
+
+        // 3. HOST EMAIL
+        await resend.emails.send({
+          from: 'ScheduleSync <bookings@trucal.xyz>',
+          to: host.email,
+          subject: `📅 New Booking: ${eventType.title}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                <h1 style="color: white; margin: 0;">New Booking Received 📅</h1>
+              </div>
+              
+              <div style="padding: 30px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+                <p style="font-size: 16px; color: #374151;">Hi ${host.name},</p>
+                
+                <p style="font-size: 16px; color: #374151;">You have a new booking!</p>
+                
+                <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981;">
+                  <h2 style="margin-top: 0; color: #1f2937;">${eventType.title}</h2>
+                  <p style="margin: 10px 0; color: #6b7280;">
+                    <strong>👤 Guest:</strong> ${attendee_name}<br>
+                    <strong>✉️ Email:</strong> ${attendee_email}<br>
+                    ${additional_attendees?.length > 0 ? `<strong>👥 Others:</strong> ${additional_attendees.join(', ')}<br>` : ''}
+                    <strong>📅 When:</strong> ${formattedDateTime}<br>
+                    <strong>⏱️ Duration:</strong> ${duration} minutes
+                  </p>
+                  ${notes ? `<p style="margin-top: 15px; padding: 10px; background: #f3f4f6; border-radius: 4px;"><strong>Guest Notes:</strong><br>${notes}</p>` : ''}
+                </div>
+              </div>
+            </div>
+          `,
+          attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+        });
+        console.log('✅ Email sent to host:', host.email);
+        console.log('✅ All confirmation emails sent');
+
+      } catch (emailError) {
+        console.error('⚠️ Email send failed:', emailError);
+      }
+    })();
 
   } catch (error) {
     console.error('❌ Public booking creation error:', error);
@@ -4111,14 +4240,16 @@ if (token && token.startsWith('public:')) {
     endDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
     daysToGenerate = endDate.getDate();
     console.log(`📅 Generating slots for entire month: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
-  } else {
-    // Generate slots for next 30 days
-    startDate = new Date();
-    endDate = new Date();
-    endDate.setDate(endDate.getDate() + 30);
-    daysToGenerate = 30;
-    console.log(`📅 Generating slots for next 30 days`);
-  }
+  
+    // In server.js, find the public booking section:
+} else {
+  // Generate slots for next 90 days  // 🔥 CHANGE
+  startDate = new Date();
+  endDate = new Date();
+  endDate.setDate(endDate.getDate() + 90);  // 🔥 CHANGE
+  daysToGenerate = 90;  // 🔥 CHANGE
+  console.log(`📅 Generating slots for next 90 days`);
+}
 
   // Find user
   const userResult = await pool.query(
