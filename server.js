@@ -4743,7 +4743,7 @@ app.get('/api/admin/fix-working-hours-data', authenticateToken, async (req, res)
 });
 
 // ============================================
-// BOOKING LOOKUP ENDPOINTS - BOTH PATHS
+// BOOKING LOOKUP ENDPOINTS - FIXED SCHEMA
 // ============================================
 
 // Primary endpoint: /api/bookings/:token
@@ -4752,7 +4752,7 @@ app.get('/api/bookings/:token', async (req, res) => {
     const { token } = req.params;
     console.log('🔍 Looking up token:', token, 'Length:', token.length);
     
-    // ========== CHECK 1: Single-Use Link (64 chars) - PRIORITY! ==========
+    // ========== CHECK 1: Single-Use Link (64 chars) ==========
     if (token.length === 64) {
       console.log('🔍 Checking single-use link...');
       const singleUseResult = await pool.query(
@@ -4760,7 +4760,6 @@ app.get('/api/bookings/:token', async (req, res) => {
                 tm.id as member_id,
                 tm.name as member_name, 
                 tm.email as member_email,
-                tm.default_duration,
                 tm.user_id,
                 t.name as team_name,
                 t.id as team_id
@@ -4787,7 +4786,7 @@ app.get('/api/bookings/:token', async (req, res) => {
               id: link.member_id,
               name: link.member_name,
               email: link.member_email,
-              default_duration: link.default_duration || 30,
+              default_duration: 30,
               user_id: link.user_id
             },
             eventTypes: [],
@@ -4900,7 +4899,7 @@ app.get('/api/bookings/:token', async (req, res) => {
               name: member.name || member.user_name,
               email: member.email || member.user_email,
               external_booking_link: member.external_booking_link,
-              default_duration: member.default_duration || 30
+              default_duration: 30
             },
             eventTypes: [],
             isDirectLink: false
@@ -4908,6 +4907,7 @@ app.get('/api/bookings/:token', async (req, res) => {
         });
       }
       
+      // ✅ FIXED: Use user_id, not team_id
       let eventTypesResult = { rows: [] };
       if (member.user_id) {
         eventTypesResult = await pool.query(
@@ -4929,7 +4929,7 @@ app.get('/api/bookings/:token', async (req, res) => {
             id: member.id,
             name: member.name || member.user_name,
             email: member.email || member.user_email,
-            default_duration: member.default_duration || 30,
+            default_duration: 30,
             user_id: member.user_id
           },
           eventTypes: eventTypesResult.rows.map(et => ({
@@ -4948,7 +4948,6 @@ app.get('/api/bookings/:token', async (req, res) => {
       });
     }
     
-    // ========== Token Not Found ==========
     console.log('❌ Token not found:', token);
     return res.status(404).json({ error: 'Invalid booking link' });
     
@@ -4958,13 +4957,13 @@ app.get('/api/bookings/:token', async (req, res) => {
   }
 });
 
-// Legacy endpoint: /api/book/:token (exact duplicate for backwards compatibility)
+// Legacy endpoint: /api/book/:token (EXACT DUPLICATE)
 app.get('/api/book/:token', async (req, res) => {
   try {
     const { token } = req.params;
     console.log('🔍 Looking up token (via /api/book):', token, 'Length:', token.length);
     
-    // ========== CHECK 1: Single-Use Link (64 chars) - PRIORITY! ==========
+    // ========== CHECK 1: Single-Use Link (64 chars) ==========
     if (token.length === 64) {
       console.log('🔍 Checking single-use link...');
       const singleUseResult = await pool.query(
@@ -4972,7 +4971,6 @@ app.get('/api/book/:token', async (req, res) => {
                 tm.id as member_id,
                 tm.name as member_name, 
                 tm.email as member_email,
-                tm.default_duration,
                 tm.user_id,
                 t.name as team_name,
                 t.id as team_id
@@ -4999,7 +4997,7 @@ app.get('/api/book/:token', async (req, res) => {
               id: link.member_id,
               name: link.member_name,
               email: link.member_email,
-              default_duration: link.default_duration || 30,
+              default_duration: 30,
               user_id: link.user_id
             },
             eventTypes: [],
@@ -5112,7 +5110,7 @@ app.get('/api/book/:token', async (req, res) => {
               name: member.name || member.user_name,
               email: member.email || member.user_email,
               external_booking_link: member.external_booking_link,
-              default_duration: member.default_duration || 30
+              default_duration: 30
             },
             eventTypes: [],
             isDirectLink: false
@@ -5120,13 +5118,17 @@ app.get('/api/book/:token', async (req, res) => {
         });
       }
       
-      const eventTypesResult = await pool.query(
-        `SELECT id, title, duration, description, is_active, color, slug
-         FROM event_types 
-         WHERE team_id = $1 AND is_active = true 
-         ORDER BY duration ASC`,
-        [member.team_id]
-      );
+      // ✅ FIXED: Use user_id, not team_id
+      let eventTypesResult = { rows: [] };
+      if (member.user_id) {
+        eventTypesResult = await pool.query(
+          `SELECT id, title, duration, description, is_active, color, slug
+           FROM event_types 
+           WHERE user_id = $1 AND is_active = true 
+           ORDER BY duration ASC`,
+          [member.user_id]
+        );
+      }
       
       return res.json({
         data: {
@@ -5138,7 +5140,7 @@ app.get('/api/book/:token', async (req, res) => {
             id: member.id,
             name: member.name || member.user_name,
             email: member.email || member.user_email,
-            default_duration: member.default_duration || 30,
+            default_duration: 30,
             user_id: member.user_id
           },
           eventTypes: eventTypesResult.rows.map(et => ({
@@ -5157,7 +5159,6 @@ app.get('/api/book/:token', async (req, res) => {
       });
     }
     
-    // ========== Token Not Found ==========
     console.log('❌ Token not found:', token);
     return res.status(404).json({ error: 'Invalid booking link' });
     
