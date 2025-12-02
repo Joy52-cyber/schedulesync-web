@@ -189,9 +189,9 @@ export default function AISchedulerChat() {
   // ───────── Chat window (open) ─────────
   return (
     <div
-      className="fixed inset-x-2 bottom-4 md:bottom-6 md:right-6 md:left-auto"
-      style={{ zIndex: 99998 }}
-    >
+  className="fixed inset-x-3 bottom-3 sm:inset-x-4 sm:bottom-4 md:bottom-6 md:right-6 md:left-auto md:max-w-md"
+  style={{ zIndex: 99998 }}
+>
       <div
         className={`bg-white rounded-3xl shadow-2xl border-2 border-purple-200 overflow-hidden transition-all flex flex-col
           w-full md:w-96

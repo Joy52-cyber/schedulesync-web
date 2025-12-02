@@ -264,44 +264,47 @@ export default function EventTypeDetail() {
         <div className="space-y-6">
           
           {/* Share Card */}
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border border-blue-200 p-6">
-            <h2 className="text-lg font-semibold text-blue-900 mb-2 flex items-center gap-2">
-              <Globe className="h-5 w-5" /> Share Event
-            </h2>
-            <p className="text-sm text-blue-700 mb-4">
-              Share this link to let people book this specific meeting type.
-            </p>
-            
-            <div className="space-y-3">
-              <button 
-                onClick={handleCopyLink}
-                className="w-full flex items-center justify-between px-4 py-3 bg-white border border-blue-200 rounded-xl hover:border-blue-300 transition-all text-blue-800 font-medium shadow-sm"
-              >
-                <span className="text-sm">{copied ? 'Copied!' : 'Copy Link'}</span>
-                {copied ? (
-                  <Check className="h-5 w-5 text-green-600" />
-                ) : (
-                  <Copy className="h-5 w-5" />
-                )}
-              </button>
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border border-blue-200 p-4 sm:p-6">
+  <h2 className="text-lg font-semibold text-blue-900 mb-2 flex items-center gap-2">
+    <Globe className="h-5 w-5" /> Share Event
+  </h2>
+  <p className="text-xs sm:text-sm text-blue-700 mb-4">
+    Share this link to let people book this specific meeting type.
+  </p>
+  
+  <div className="space-y-3">
+    <button 
+      onClick={handleCopyLink}
+      className="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-white border border-blue-200 rounded-xl hover:border-blue-300 transition-all text-blue-800 font-medium shadow-sm text-sm"
+    >
+      <span>{copied ? 'Copied!' : 'Copy Link'}</span>
+      {copied ? (
+        <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0" />
+      ) : (
+        <Copy className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+      )}
+    </button>
 
-              <a 
-                href={getBookingLink()} 
-                target="_blank" 
-                rel="noreferrer"
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-md transition-colors"
-              >
-                <ExternalLink className="h-4 w-4" />
-                Preview Page
-              </a>
-            </div>
+    <a 
+      href={getBookingLink()} 
+      target="_blank" 
+      rel="noreferrer"
+      className="w-full flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-md transition-colors text-sm"
+    >
+      <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+      Preview Page
+    </a>
+  </div>
 
-            <div className="mt-4 pt-4 border-t border-blue-200">
-              <p className="text-xs text-blue-600 break-all font-mono">
-                {getBookingLink()}
-              </p>
-            </div>
-          </div>
+  {/* Fixed: Proper spacing and scrollable link */}
+  <div className="mt-4 pt-4 border-t border-blue-200">
+    <div className="bg-white rounded-lg p-2 overflow-x-auto scrollbar-thin">
+      <code className="text-[10px] sm:text-xs text-blue-600 whitespace-nowrap block">
+        {getBookingLink()}
+      </code>
+    </div>
+  </div>
+</div>
 
           {/* Stats Card (Future) */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">

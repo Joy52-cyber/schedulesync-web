@@ -96,14 +96,14 @@ export default function CalendarSettings() {
 
           <div className="p-8">
             {calendars.length === 0 ? (
-              <div className="text-center py-12">
-                <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-gray-900 mb-2">No calendars connected</h3>
-                <p className="text-gray-600 mb-6">Connect your calendar to sync availability</p>
-                <button
-                  onClick={handleConnectGoogle}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-xl hover:shadow-lg transition-all inline-flex items-center gap-2 font-semibold"
-                >
+             <div className="text-center py-8 sm:py-12 px-4">
+  <Calendar className="h-12 w-12 sm:h-16 sm:w-16 text-gray-300 mx-auto mb-4" />
+  <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">No calendars connected</h3>
+  <p className="text-sm sm:text-base text-gray-600 mb-6">Connect your calendar to sync availability</p>
+  <button
+    onClick={handleConnectGoogle}
+    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl hover:shadow-lg transition-all inline-flex items-center gap-2 font-semibold text-sm sm:text-base"
+  >
                   <svg className="h-5 w-5" viewBox="0 0 24 24">
                     <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                     <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -114,12 +114,12 @@ export default function CalendarSettings() {
                 </button>
               </div>
             ) : (
-              <div className="space-y-4">
-                {calendars.map((calendar) => (
-                  <div
-                    key={calendar.id}
-                    className="flex items-center justify-between p-6 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-                  >
+              <div className="space-y-3 sm:space-y-4">
+  {calendars.map((calendar) => (
+    <div
+      key={calendar.id}
+      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 sm:p-6 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+    >
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
                         <Calendar className="h-6 w-6 text-white" />
@@ -155,12 +155,12 @@ export default function CalendarSettings() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleSync(calendar.id)}
-                        disabled={syncing}
-                        className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50"
-                        title="Sync now"
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+  <button
+    onClick={() => handleSync(calendar.id)}
+    disabled={syncing}
+    className="p-2 sm:p-2.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50"
+                    title="Sync now"
                       >
                         <RefreshCw className={`h-5 w-5 ${syncing ? 'animate-spin' : ''}`} />
                       </button>

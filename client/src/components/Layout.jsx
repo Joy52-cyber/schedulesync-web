@@ -97,9 +97,11 @@ export default function Layout() {
             </nav>
 
             {/* Right side */}
-            <div className="flex items-center gap-2 sm:gap-3">
-              {/* Notification Bell - Added here */}
-              <NotificationBell />
+            <div className="flex items-center gap-3 sm:gap-4">
+  {/* Notification Bell with proper spacing */}
+  <div className="flex-shrink-0">
+    <NotificationBell />
+  </div>
 
               <div className="hidden sm:block text-right">
                 <p className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-[150px]">
@@ -140,10 +142,11 @@ export default function Layout() {
         </div>
 
         {/* Mobile menu */}
+        
         {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-gray-200 bg-white shadow-lg">
-            <div className="px-3 sm:px-4 py-3 space-y-1">
-              <div className="sm:hidden px-4 py-3 bg-gray-50 rounded-lg mb-2">
+  <div className="lg:hidden border-t border-gray-200 bg-white shadow-2xl">
+    <div className="px-3 sm:px-4 py-3 space-y-2">
+        <div className="sm:hidden px-4 py-3 bg-gray-50 rounded-lg mb-2">
                 <p className="text-sm font-semibold text-gray-900 truncate">
                   {user?.name || "User"}
                 </p>
