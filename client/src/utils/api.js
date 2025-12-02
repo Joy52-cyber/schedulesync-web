@@ -361,6 +361,7 @@ api.reminders = reminders;
 api.calendar = calendar;
 api.payments = payments;
 api.ai = ai;
+api.aiScheduler = aiScheduler;
 api.singleUseLinks = singleUseLinks;
 api.eventTypes = eventTypes;
 api.events = events;
