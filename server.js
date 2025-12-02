@@ -602,12 +602,16 @@ await pool.query(`
   }
 }
 
-// ============ EVENT TYPES COLUMN MIGRATION (For Existing Databases) ============
+
+// ============================================
+// DATABASE MIGRATIONS
+// ============================================
+
+// Event Types columns migration
 async function migrateEventTypesColumns() {
   try {
     console.log('🔄 Checking Event Types columns...');
     
-    // Add new columns if they don't exist (safe for existing databases)
     await pool.query(`
       ALTER TABLE event_types 
       ADD COLUMN IF NOT EXISTS location VARCHAR(255),
@@ -624,11 +628,88 @@ async function migrateEventTypesColumns() {
   }
 }
 
-// Initialize database with proper promise chain
+// Username column migration
+async function migrateUsernameColumn() {
+  try {
+    console.log('🔄 Adding username column to users table...');
+    
+    await pool.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS username VARCHAR(255) UNIQUE
+    `);
+    
+    await pool.query(`
+      UPDATE users
+      SET username = LOWER(SPLIT_PART(email, '@', 1))
+      WHERE username IS NULL
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_users_username 
+      ON users(LOWER(username))
+    `);
+    
+    console.log('✅ Username column migration completed');
+  } catch (error) {
+    console.error('❌ Username migration failed:', error);
+  }
+}
+
+// Public bookings migration
+async function migratePublicBookings() {
+  try {
+    console.log('🔄 Running public bookings migration...');
+    
+    await pool.query(`
+      ALTER TABLE bookings
+      ADD COLUMN IF NOT EXISTS host_user_id INTEGER REFERENCES users(id),
+      ADD COLUMN IF NOT EXISTS event_type_id INTEGER REFERENCES event_types(id),
+      ADD COLUMN IF NOT EXISTS guest_timezone VARCHAR(100) DEFAULT 'UTC'
+    `);
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS booking_attendees (
+        id SERIAL PRIMARY KEY,
+        booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+        email VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_booking_attendees_booking_id 
+      ON booking_attendees(booking_id)
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_bookings_host_user_id 
+      ON bookings(host_user_id)
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_bookings_event_type_id 
+      ON bookings(event_type_id)
+    `);
+    
+    console.log('✅ Public bookings migration completed');
+  } catch (error) {
+    console.error('❌ Public bookings migration failed:', error);
+  }
+}
+
+// Migration chain
 initDB()
   .then(() => migrateDatabase())
-  .then(() => migrateEventTypesColumns());
-
+  .then(() => migrateEventTypesColumns())
+  .then(() => migrateUsernameColumn())
+  .then(() => migratePublicBookings())
+  .then(() => {
+    console.log('✅ All migrations completed successfully');
+  })
+  .catch(err => {
+    console.error('❌ Migration chain failed:', err);
+    process.exit(1);
+  });
 
 // ============ OAUTH CODE TRACKING (PREVENT DOUBLE USE) ============
 
