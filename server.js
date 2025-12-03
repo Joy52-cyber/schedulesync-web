@@ -8174,80 +8174,84 @@ return res.json({
   }
 });
 
-// ============ AI BOOKING ENDPOINT (WITH EMAIL NOTIFICATIONS) ============
+
+// ============ AI BOOKING ENDPOINT (MULTIPLE ATTENDEES) ============
 app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
   try {
     const {
-      title, start_time, end_time, attendee_email, 
+      title, start_time, end_time, attendees, attendee_email, 
       attendee_name, notes, duration
     } = req.body;
     
     const userId = req.user.id;
+    const attendeeList = attendees || [attendee_email];
     
     console.log('🤖 AI Booking request:', {
-      title, start_time, attendee_email, userId
+      title, start_time, attendees: attendeeList, userId
     });
     
-    // Create the booking
-    const result = await pool.query(`
-      INSERT INTO bookings (
-        title, start_time, end_time, attendee_email, attendee_name,
-        notes, duration, status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed', NOW(), NOW())
-      RETURNING *
-    `, [
-      title, start_time, end_time, attendee_email, 
-      attendee_name || attendee_email.split('@')[0], 
-      notes || '', duration || 30
-    ]);
+    // Create individual booking for each attendee
+    const bookings = [];
     
-    const booking = result.rows[0];
-    console.log('✅ AI Booking created:', booking.id);
+    for (const email of attendeeList) {
+      const result = await pool.query(`
+        INSERT INTO bookings (
+          title, start_time, end_time, attendee_email, attendee_name,
+          notes, duration, status, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed', NOW(), NOW())
+        RETURNING *
+      `, [
+        title, start_time, end_time, email, 
+        email.split('@')[0], 
+        notes || '', duration || 30
+      ]);
+      
+      bookings.push(result.rows[0]);
+      console.log(`✅ Booking created for ${email}: ${result.rows[0].id}`);
+    }
     
-    // Get user info for email
-    const userResult = await pool.query('SELECT name, email FROM users WHERE id = $1', [userId]);
-    const organizer = userResult.rows[0];
-    
-    // Send confirmation email to attendee
-    try {
-      const emailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #7C3AED;">📅 Meeting Confirmed</h2>
-          <p>Hi ${attendee_name || 'there'},</p>
-          <p>Your meeting has been confirmed!</p>
-          
-          <div style="background: #F3F4F6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3 style="margin-top: 0;">📋 Meeting Details:</h3>
-            <p><strong>Title:</strong> ${title}</p>
-            <p><strong>Date & Time:</strong> ${new Date(start_time).toLocaleString()}</p>
-            <p><strong>Duration:</strong> ${duration} minutes</p>
-            <p><strong>With:</strong> ${organizer?.name || organizer?.email || 'Organizer'}</p>
-            ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ''}
+    // Send emails to all attendees
+    for (const email of attendeeList) {
+      try {
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #7C3AED;">📅 Meeting Confirmed</h2>
+            <p>Hi there,</p>
+            <p>You've been invited to a meeting!</p>
+            
+            <div style="background: #F3F4F6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="margin-top: 0;">📋 Meeting Details:</h3>
+              <p><strong>Title:</strong> ${title}</p>
+              <p><strong>Date & Time:</strong> ${new Date(start_time).toLocaleString()}</p>
+              <p><strong>Duration:</strong> ${duration} minutes</p>
+              <p><strong>Attendees:</strong> ${attendeeList.join(', ')}</p>
+              ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ''}
+            </div>
+            
+            <p>Looking forward to meeting with you!</p>
+            <p style="color: #666; font-size: 12px;">Powered by ScheduleSync AI</p>
           </div>
-          
-          <p>Looking forward to meeting with you!</p>
-          <p style="color: #666; font-size: 12px;">Powered by ScheduleSync AI</p>
-        </div>
-      `;
+        `;
 
-      await resend.emails.send({
-        from: process.env.EMAIL_FROM || 'noreply@schedulesync.com',
-        to: attendee_email,
-        subject: `Meeting Confirmed: ${title}`,
-        html: emailHtml
-      });
-      
-      console.log(`📧 Confirmation email sent to ${attendee_email}`);
-      
-    } catch (emailError) {
-      console.error('📧 Email sending failed:', emailError);
-      // Don't fail the booking if email fails
+        await resend.emails.send({
+          from: process.env.EMAIL_FROM || 'ScheduleSync <notifications@resend.dev>',
+          to: email,
+          subject: `Meeting Invitation: ${title}`,
+          html: emailHtml
+        });
+        
+        console.log(`📧 Invitation sent to ${email}`);
+        
+      } catch (emailError) {
+        console.error(`📧 Email failed for ${email}:`, emailError);
+      }
     }
     
     res.json({ 
       success: true, 
-      booking: booking,
-      message: 'AI booking created and confirmation email sent'
+      bookings: bookings,
+      attendee_count: attendeeList.length,
+      message: `Meeting created with ${attendeeList.length} attendee(s)`
     });
     
   } catch (error) {
@@ -8258,6 +8262,7 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
     });
   }
 });
+
 // ============ SUBSCRIPTION MANAGEMENT ============
 // (Add this section after your existing payment endpoints)
 
