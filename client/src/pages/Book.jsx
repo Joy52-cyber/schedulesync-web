@@ -10,7 +10,7 @@ import {
 import api from '../utils/api';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
-import PaymentForm from '../components/PaymentForm';
+import PaymentForm from '../components/SubscriptionPaymentForm';
 
 console.log('LOADING PURPLE UI VERSION - BUILD 2024-11-22-V3');
 
