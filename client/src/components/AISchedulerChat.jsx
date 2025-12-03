@@ -1,182 +1,236 @@
 ﻿import { useState, useRef, useEffect } from 'react';
-import { Sparkles, Send, X, Minimize2 } from 'lucide-react';
+import { 
+  Sparkles, 
+  Send, 
+  X, 
+  Minus, 
+  Loader2, 
+  Calendar,
+  Clock,
+  User,
+  Mail,
+  FileText,
+  CheckCircle,
+  XCircle,
+  Trash2
+} from 'lucide-react';
 import api from '../utils/api';
 
 export default function AISchedulerChat() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(() => {
+    const saved = localStorage.getItem('aiChat_isOpen');
+    return saved ? JSON.parse(saved) : false;
+  });
   const [isMinimized, setIsMinimized] = useState(false);
   const [message, setMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState([
-    {
-      role: 'assistant',
-      content:
-        "Hi! I'm your AI Scheduling Assistant. I can help you find the best times for meetings, manage your bookings, and answer questions about your schedule.",
-      timestamp: new Date(),
-    },
-  ]);
-  const [loading, setLoading] = useState(false);
-  const chatEndRef = useRef(null);
-
-  useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  const [chatHistory, setChatHistory] = useState(() => {
+    const saved = localStorage.getItem('aiChat_history');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Convert timestamp strings back to Date objects
+      return parsed.map(msg => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      }));
     }
+    return [];
+  });
+  const [loading, setLoading] = useState(false);
+  const [pendingBooking, setPendingBooking] = useState(() => {
+    const saved = localStorage.getItem('aiChat_pendingBooking');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Save chat history to localStorage
+  useEffect(() => {
+    localStorage.setItem('aiChat_history', JSON.stringify(chatHistory));
   }, [chatHistory]);
 
-  const handleSendMessage = async () => {
+  // Save pending booking to localStorage
+  useEffect(() => {
+    if (pendingBooking) {
+      localStorage.setItem('aiChat_pendingBooking', JSON.stringify(pendingBooking));
+    } else {
+      localStorage.removeItem('aiChat_pendingBooking');
+    }
+  }, [pendingBooking]);
+
+  // Save open state to localStorage
+  useEffect(() => {
+    localStorage.setItem('aiChat_isOpen', JSON.stringify(isOpen));
+  }, [isOpen]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatHistory]);
+
+  // Parse AI response to detect booking confirmation
+  const parseBookingFromResponse = (response) => {
+    // Check if response contains booking confirmation pattern
+    const hasConfirmation = response.includes('Ready to schedule') || 
+                           response.includes('ready to book') ||
+                           response.includes('Click confirm') ||
+                           response.includes('confirm to create');
+    
+    if (!hasConfirmation) return null;
+
+    // Extract booking details using regex
+    const titleMatch = response.match(/[""]([^""]+)[""]\s+for/i) || response.match(/schedule\s+[""]?([^""]+)[""]?\s+for/i);
+    const dateMatch = response.match(/for\s+(\d{4}-\d{2}-\d{2})/i) || response.match(/(\d{4}-\d{2}-\d{2})/);
+    const timeMatch = response.match(/at\s+(\d{1,2}:\d{2})/i);
+    const emailMatch = response.match(/Attendees?:\s*([^\s\n]+@[^\s\n]+)/i) || response.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    const durationMatch = response.match(/Duration:\s*(\d+)\s*minutes?/i) || response.match(/(\d+)\s*minutes?/i);
+    const notesMatch = response.match(/Notes:\s*(.+?)(?:\n|$)/i);
+
+    if (dateMatch && timeMatch && emailMatch) {
+      return {
+        title: titleMatch ? titleMatch[1] : 'Meeting',
+        date: dateMatch[1],
+        time: timeMatch[1],
+        attendee_email: emailMatch[1],
+        duration: durationMatch ? parseInt(durationMatch[1]) : 30,
+        notes: notesMatch && notesMatch[1] !== 'None' ? notesMatch[1] : ''
+      };
+    }
+
+    return null;
+  };
+
+  const handleSend = async () => {
     if (!message.trim() || loading) return;
 
     const userMessage = message.trim();
     setMessage('');
-    setChatHistory((prev) => [
-      ...prev,
-      {
-        role: 'user',
-        content: userMessage,
-        timestamp: new Date(),
-      },
-    ]);
+    
+    // Add user message to chat
+    setChatHistory(prev => [...prev, { 
+      role: 'user', 
+      content: userMessage,
+      timestamp: new Date()
+    }]);
+
     setLoading(true);
-
     try {
-      const response = await api.aiScheduler.sendMessage(userMessage, chatHistory);
-      const data = response.data;
-
-      setChatHistory((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: data.message,
-          type: data.type,
-          data,
-          timestamp: new Date(),
-        },
-      ]);
-
-      if (data.needsSlots) {
-        await fetchAndShowSlots(data.searchParams);
+      const response = await api.ai.schedule(userMessage, chatHistory);
+      const aiMessage = response.data.message || response.data.response || 'I understood your request.';
+      
+      // Check if AI is asking for confirmation
+      const bookingData = parseBookingFromResponse(aiMessage);
+      
+      if (bookingData) {
+        setPendingBooking(bookingData);
       }
+
+      setChatHistory(prev => [...prev, { 
+        role: 'assistant', 
+        content: aiMessage,
+        timestamp: new Date(),
+        hasBooking: !!bookingData
+      }]);
     } catch (error) {
-      console.error('AI error:', error);
-      setChatHistory((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: 'Sorry, I encountered an error. Please try again.',
-          timestamp: new Date(),
-        },
-      ]);
+      console.error('AI chat error:', error);
+      setChatHistory(prev => [...prev, { 
+        role: 'assistant', 
+        content: 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date()
+      }]);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchAndShowSlots = async (searchParams) => {
-    try {
-      const linkResponse = await api.get('/my-booking-link');
-      const bookingToken = linkResponse.data.bookingToken;
+  const handleConfirmBooking = async () => {
+    if (!pendingBooking) return;
 
-      const slotsResponse = await api.post(`/book/${bookingToken}/slots-with-status`, {
-        duration: (searchParams && searchParams.duration_minutes) || 30,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    setLoading(true);
+    try {
+      // Create the booking
+      const startDateTime = new Date(`${pendingBooking.date}T${pendingBooking.time}`);
+      const endDateTime = new Date(startDateTime.getTime() + pendingBooking.duration * 60000);
+
+      const response = await api.post('/chatgpt/book-meeting', {
+        title: pendingBooking.title,
+        start_time: startDateTime.toISOString(),
+        end_time: endDateTime.toISOString(),
+        attendee_email: pendingBooking.attendee_email,
+        attendee_name: pendingBooking.attendee_email.split('@')[0],
+        notes: pendingBooking.notes
       });
 
-      const allSlots = Object.values(slotsResponse.data.slots).flat();
-      const availableSlots = allSlots
-        .filter((slot) => slot.status === 'available')
-        .sort((a, b) => b.matchScore - a.matchScore)
-        .slice(0, 5);
+      setChatHistory(prev => [...prev, { 
+        role: 'assistant', 
+        content: `✅ **Booking Confirmed!**\n\n📅 ${pendingBooking.title}\n🕐 ${formatDateTime(startDateTime)}\n👤 ${pendingBooking.attendee_email}\n\nConfirmation email sent!`,
+        timestamp: new Date(),
+        isConfirmation: true
+      }]);
 
-      if (availableSlots.length === 0) {
-        setChatHistory((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content:
-              "I couldn't find any available slots in the next 7 days. Would you like to check a different time range?",
-            timestamp: new Date(),
-          },
-        ]);
-        return;
-      }
-
-      const slotsList = availableSlots
-        .map((slot, i) => {
-          const start = new Date(slot.start);
-          return `${i + 1}. **${start.toLocaleDateString()}** at **${start.toLocaleTimeString(
-            'en-US',
-            {
-              hour: 'numeric',
-              minute: '2-digit',
-            }
-          )}** (${slot.matchLabel})`;
-        })
-        .join('\n');
-
-      setChatHistory((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: `Here are the best available times:\n\n${slotsList}\n\nWould you like to book one of these slots?`,
-          type: 'slot_list',
-          data: { slots: availableSlots },
-          timestamp: new Date(),
-        },
-      ]);
+      setPendingBooking(null);
     } catch (error) {
-      console.error('Error fetching slots:', error);
-      setChatHistory((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: 'I had trouble checking your availability. Please try again.',
-          timestamp: new Date(),
-        },
-      ]);
-    }
-  };
-
-  const handleConfirm = async (bookingData) => {
-    setLoading(true);
-    try {
-      const response = await api.aiScheduler.confirmBooking(bookingData);
-      setChatHistory((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: response.data.message,
-          timestamp: new Date(),
-        },
-      ]);
-    } catch (error) {
-      console.error('Confirmation error:', error);
-      setChatHistory((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: 'Failed to create booking. Please try again.',
-          timestamp: new Date(),
-        },
-      ]);
+      console.error('Booking confirmation error:', error);
+      setChatHistory(prev => [...prev, { 
+        role: 'assistant', 
+        content: '❌ Failed to create booking. Please try again or check availability.',
+        timestamp: new Date()
+      }]);
     } finally {
       setLoading(false);
     }
   };
 
-  const formatTime = (date) => {
-    return new Date(date).toLocaleTimeString('en-US', {
+  const handleCancelBooking = () => {
+    setPendingBooking(null);
+    setChatHistory(prev => [...prev, { 
+      role: 'assistant', 
+      content: 'Booking cancelled. How else can I help you?',
+      timestamp: new Date()
+    }]);
+  };
+
+  const handleClearChat = () => {
+    setChatHistory([]);
+    setPendingBooking(null);
+    localStorage.removeItem('aiChat_history');
+    localStorage.removeItem('aiChat_pendingBooking');
+  };
+
+  const formatDateTime = (date) => {
+    return date.toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
+      hour12: true
     });
   };
 
-  // ───────── Floating button (closed) ─────────
+  const formatTime = (date) => {
+    return new Date(date).toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+  };
+
+  // Clean up AI response - remove markdown symbols
+  const renderMessage = (content) => {
+    // Remove ** markers entirely
+    const cleaned = content.replace(/\*\*/g, '');
+    return cleaned;
+  };
+
+  // Floating button when closed
   if (!isOpen) {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 right-4 h-16 w-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full shadow-2xl hover:shadow-3xl transition-all hover:scale-110 flex items-center justify-center group"
-        style={{ zIndex: 99999 }}
+        className="fixed bottom-6 right-6 h-16 w-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full shadow-2xl hover:shadow-3xl transition-all hover:scale-110 flex items-center justify-center group animate-bounce"
+        style={{ animationDuration: '2s', zIndex: 99999 }}
       >
         <Sparkles className="h-8 w-8 text-white group-hover:rotate-12 transition-transform" />
         <div className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 rounded-full border-2 border-white animate-pulse flex items-center justify-center">
@@ -186,47 +240,44 @@ export default function AISchedulerChat() {
     );
   }
 
-  // ───────── Chat window (open) ─────────
   return (
-    <div
-  className="fixed inset-x-3 bottom-3 sm:inset-x-4 sm:bottom-4 md:bottom-6 md:right-6 md:left-auto md:max-w-md"
-  style={{ zIndex: 99998 }}
->
-      <div
-        className={`bg-white rounded-3xl shadow-2xl border-2 border-purple-200 overflow-hidden transition-all flex flex-col
-          w-full md:w-96
-          ${isMinimized ? 'h-14' : 'max-h-[55vh] md:max-h-[70vh]'}
-        `}
-      >
+    <div className="fixed bottom-6 right-6" style={{ zIndex: 99998 }}>
+      <div className={`w-96 bg-white rounded-3xl shadow-2xl border-2 border-purple-200 overflow-hidden transition-all flex flex-col ${
+        isMinimized ? 'h-16' : 'h-[550px]'
+      }`}>
+        
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-3 md:p-4 flex items-center justify-between flex-shrink-0">
+        <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 md:h-10 md:w-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
-              <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-white" />
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <Sparkles className="h-5 w-5 text-white" />
             </div>
-            {!isMinimized && (
-              <div>
-                <h3 className="text-white font-bold text-sm md:text-base">AI Assistant</h3>
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse" />
-                  <p className="text-white/90 text-[11px] md:text-xs">Online • Ready to help</p>
-                </div>
-              </div>
-            )}
+            <div>
+              <h3 className="font-bold text-white">AI Scheduler</h3>
+              <p className="text-xs text-purple-200">Natural language booking</p>
+            </div>
           </div>
-
-          <div className="flex items-center gap-1 md:gap-2">
-            <button
+          <div className="flex items-center gap-2">
+            {chatHistory.length > 0 && (
+              <button 
+                onClick={handleClearChat}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                title="Clear chat"
+              >
+                <Trash2 className="h-4 w-4 text-white" />
+              </button>
+            )}
+            <button 
               onClick={() => setIsMinimized(!isMinimized)}
-              className="p-1.5 md:p-2 text-white hover:bg-white/20 rounded-lg transition-colors"
+              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
             >
-              <Minimize2 className="h-3 w-3 md:h-4 md:w-4" />
+              <Minus className="h-4 w-4 text-white" />
             </button>
-            <button
+            <button 
               onClick={() => setIsOpen(false)}
-              className="p-1.5 md:p-2 text-white hover:bg-white/20 rounded-lg transition-colors"
+              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
             >
-              <X className="h-3 w-3 md:h-4 md:w-4" />
+              <X className="h-4 w-4 text-white" />
             </button>
           </div>
         </div>
@@ -234,136 +285,140 @@ export default function AISchedulerChat() {
         {!isMinimized && (
           <>
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-3 md:p-4 bg-gradient-to-br from-gray-50 to-purple-50/30 space-y-3 md:space-y-4">
-              {chatHistory.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`flex gap-2 md:gap-3 ${
-                    msg.role === 'user' ? 'justify-end' : 'justify-start'
-                  }`}
-                >
-                  {msg.role === 'assistant' && (
-                    <div className="h-7 w-7 md:h-8 md:w-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md">
-                      <Sparkles className="h-3 w-3 md:h-4 md:w-4 text-white" />
-                    </div>
-                  )}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+              {chatHistory.length === 0 && (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Calendar className="h-8 w-8 text-purple-600" />
+                  </div>
+                  <h4 className="font-semibold text-gray-800 mb-2">AI Scheduling Assistant</h4>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Try saying:
+                  </p>
+                  <div className="space-y-2">
+                    {[
+                      "Book a meeting with john@email.com tomorrow at 2pm",
+                      "Schedule a 1-hour call next Monday morning",
+                      "Find me a slot this week for a team sync"
+                    ].map((suggestion, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setMessage(suggestion)}
+                        className="block w-full text-left text-sm p-2 bg-white rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors"
+                      >
+                        "{suggestion}"
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                  <div className="flex flex-col gap-1 max-w-[78%]">
-                   <div
-  className={`p-2.5 md:p-3 rounded-2xl shadow-md text-xs md:text-sm ${
-    msg.role === 'user'
-      ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-br-sm'
-      : 'bg-white text-gray-900 rounded-bl-sm border-2 border-purple-100'
-  }`}
->
-  <p className="leading-relaxed whitespace-pre-line">{msg.content}</p>
-
-  {/* 🔥 ENHANCED: Show button for any confirmation message */}
-  {(msg.type === 'confirmation' || msg.content?.includes('Click confirm') || msg.content?.includes('Ready to schedule')) && msg.data?.bookingData && (
-    <button
-      onClick={() => handleConfirm(msg.data.bookingData)}
-      disabled={loading}
-      className="mt-3 w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-3 rounded-xl hover:shadow-xl hover:scale-105 transition-all text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      {loading ? (
-        <>
-          <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          Creating...
-        </>
-      ) : (
-        <>
-          ✅ Confirm Booking
-        </>
-      )}
-    </button>
-  )}
-</div>
-                    <p
-                      className={`text-[10px] md:text-xs text-gray-500 px-1 ${
-                        msg.role === 'user' ? 'text-right' : 'text-left'
-                      }`}
-                    >
+              {chatHistory.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                    msg.role === 'user' 
+                      ? 'bg-purple-600 text-white rounded-br-md' 
+                      : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md shadow-sm'
+                  }`}>
+                    <p className="text-sm whitespace-pre-wrap">{renderMessage(msg.content)}</p>
+                    <p className={`text-xs mt-1 ${msg.role === 'user' ? 'text-purple-200' : 'text-gray-400'}`}>
                       {formatTime(msg.timestamp)}
                     </p>
                   </div>
-
-                  {msg.role === 'user' && (
-                    <div className="h-7 w-7 md:h-8 md:w-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-[10px] md:text-xs flex-shrink-0 shadow-md">
-                      YOU
-                    </div>
-                  )}
                 </div>
               ))}
 
               {loading && (
-                <div className="flex gap-2 md:gap-3">
-                  <div className="h-7 w-7 md:h-8 md:w-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center shadow-md">
-                    <Sparkles className="h-3 w-3 md:h-4 md:w-4 text-white animate-pulse" />
-                  </div>
-                  <div className="bg-white p-2.5 md:p-3 rounded-2xl rounded-bl-sm shadow-md border-2 border-purple-100">
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        <div className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce" />
-                        <div
-                          className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce"
-                          style={{ animationDelay: '150ms' }}
-                        />
-                        <div
-                          className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce"
-                          style={{ animationDelay: '300ms' }}
-                        />
-                      </div>
-                      <span className="text-xs md:text-sm text-gray-600 font-medium">
-                        Thinking...
-                      </span>
-                    </div>
+                <div className="flex justify-start">
+                  <div className="bg-white rounded-2xl px-4 py-3 border border-gray-200 shadow-sm">
+                    <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
                   </div>
                 </div>
               )}
-              <div ref={chatEndRef} />
+
+              <div ref={messagesEndRef} />
             </div>
 
-            {/* Quick actions */}
-            <div className="px-3 md:px-4 py-2.5 md:py-3 bg-white border-t-2 border-purple-100 flex-shrink-0">
-              <p className="text-[10px] md:text-xs font-bold text-gray-700 mb-1.5">
-                Quick Actions:
-              </p>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {['Show bookings', 'Find meeting time', 'Tomorrow availability'].map((action) => (
-                  <button
-                    key={action}
-                    onClick={() => setMessage(action)}
-                    className="px-3 py-1.5 text-[11px] md:text-xs font-semibold text-purple-600 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 border-2 border-purple-200 rounded-lg whitespace-nowrap transition-all hover:shadow-md flex-shrink-0"
-                  >
-                    {action}
-                  </button>
-                ))}
+            {/* Pending Booking Confirmation */}
+            {pendingBooking && (
+              <div className="p-4 bg-purple-50 border-t border-purple-200">
+                <div className="bg-white rounded-xl p-4 border-2 border-purple-300 shadow-sm">
+                  <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-purple-600" />
+                    Confirm Booking
+                  </h4>
+                  
+                  <div className="space-y-2 text-sm mb-4">
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <FileText className="h-4 w-4" />
+                      <span>{pendingBooking.title}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Calendar className="h-4 w-4" />
+                      <span>{pendingBooking.date} at {pendingBooking.time}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Mail className="h-4 w-4" />
+                      <span>{pendingBooking.attendee_email}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Clock className="h-4 w-4" />
+                      <span>{pendingBooking.duration} minutes</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleConfirmBooking}
+                      disabled={loading}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    >
+                      {loading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <CheckCircle className="h-4 w-4" />
+                          Confirm
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleCancelBooking}
+                      disabled={loading}
+                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Input */}
-            <div className="p-3 md:p-4 bg-white border-t-2 border-purple-200 flex-shrink-0">
-              <div className="flex gap-2">
+            <div className="p-4 border-t border-gray-200 bg-white">
+              <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  placeholder="Type your message..."
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                  className="flex-1 px-3 md:px-4 py-2.5 md:py-3 border-2 border-purple-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all text-xs md:text-sm bg-gradient-to-r from-purple-50/50 to-pink-50/50"
+                  onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                  placeholder="Try: 'Book a call with...' "
+                  className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                   disabled={loading}
                 />
                 <button
-                  onClick={handleSendMessage}
+                  onClick={handleSend}
                   disabled={loading || !message.trim()}
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl group flex-shrink-0"
+                  className="p-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-xl transition-colors"
                 >
-                  <Send className="h-4 w-4 md:h-5 md:w-5 group-hover:translate-x-1 transition-transform" />
+                  {loading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Send className="h-5 w-5" />
+                  )}
                 </button>
               </div>
-              <p className="text-[10px] md:text-xs text-gray-500 mt-1.5 md:mt-2 text-center">
-                💡 Try: "Schedule meeting with john@example.com tomorrow"
-              </p>
             </div>
           </>
         )}
