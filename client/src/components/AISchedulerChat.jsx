@@ -216,17 +216,17 @@ const handleConfirmBooking = async () => {
     const endDateTime = new Date(startDateTime.getTime() + pendingBooking.duration * 60000);
     const allAttendees = pendingBooking.attendees || [pendingBooking.attendee_email];
 
-    const bookingData = {
-      title: pendingBooking.title || 'Meeting',
-      start_time: startDateTime.toISOString(),
-      end_time: endDateTime.toISOString(),
-      attendee_email: allAttendees[0],
-      attendee_name: allAttendees[0].split('@')[0],
-      notes: pendingBooking.notes || ''
-    };
+  const bookingData = {
+  title: pendingBooking.title || 'Meeting',
+  start_time: startDateTime.toISOString(),
+  end_time: endDateTime.toISOString(),
+  attendees: allAttendees,  // ✅ ADD THIS LINE
+  attendee_email: allAttendees[0],
+  attendee_name: allAttendees[0].split('@')[0],
+  notes: pendingBooking.notes || ''
+};
 
-    console.log('📤 Sending AI booking request:', bookingData);
-
+console.log('📤 Sending AI booking request:', bookingData);  // Check this log shows attendees
     // ✅ FIXED: Use authenticated endpoint instead of bookings.create
     const response = await api.post('/chatgpt/book-meeting', bookingData);
 
@@ -244,7 +244,7 @@ const handleConfirmBooking = async () => {
   } catch (error) {
     console.error('❌ AI booking error:', error);
     console.error('❌ Error response:', error.response?.data);
-    
+    /api/chatgpt/book-meeting)
     let errorMessage = '❌ Failed to create booking. ';
     if (error.response?.data?.error) {
       errorMessage += error.response.data.error;
