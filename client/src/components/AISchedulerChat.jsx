@@ -208,31 +208,34 @@ What would you like to do?`;
   };
 
   // Enhanced booking confirmation with detailed error handling
-  const handleConfirmBooking = async () => {
+ const handleConfirmBooking = async () => {
   if (!pendingBooking) return;
   setLoading(true);
   try {
-    const startDateTime = new Date(`${pendingBooking.date}T${pendingBooking.time}`); // Fixed syntax
+    const startDateTime = new Date(`${pendingBooking.date}T${pendingBooking.time}`);
     const endDateTime = new Date(startDateTime.getTime() + pendingBooking.duration * 60000);
+
+    // Get all attendees from the modal
+    const allAttendees = pendingBooking.attendees || [pendingBooking.attendee_email];
 
     const bookingData = {
       title: pendingBooking.title || 'Meeting',
       start_time: startDateTime.toISOString(),
       end_time: endDateTime.toISOString(),
-      attendee_email: pendingBooking.attendee_email,
-      attendee_name: pendingBooking.attendee_email.split('@')[0],
+      attendees: allAttendees,  // ✅ SEND FULL ATTENDEES ARRAY
+      attendee_email: allAttendees[0],  // Keep for backward compatibility
+      attendee_name: allAttendees[0].split('@')[0],
       notes: pendingBooking.notes || '',
       duration: pendingBooking.duration || 30
     };
 
     console.log('📤 Sending AI booking request:', bookingData);
 
-    // FIXED: Use the AI booking endpoint you just created
     const response = await api.post('/ai/book-meeting', bookingData);
 
     setChatHistory(prev => [...prev, { 
       role: 'assistant', 
-      content: `✅ Booking Confirmed!\n\n📅 ${pendingBooking.title || 'Meeting'}\n🕐 ${formatDateTime(startDateTime)}\n👤 ${pendingBooking.attendee_email}\n\nConfirmation email sent!`,
+      content: `✅ Booking Confirmed!\n\n📅 ${pendingBooking.title || 'Meeting'}\n🕐 ${formatDateTime(startDateTime)}\n👥 ${allAttendees.join(', ')}\n\nConfirmation emails sent!`,
       timestamp: new Date(),
       isConfirmation: true
     }]);
