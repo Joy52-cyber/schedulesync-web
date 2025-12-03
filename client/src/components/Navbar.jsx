@@ -1,5 +1,4 @@
-﻿// client/src/components/Navbar.jsx
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+﻿import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   LogOut,
   Calendar,
@@ -8,8 +7,10 @@ import {
   Settings,
   Menu,
   X,
-  Clock, // ⭐ Availability
-   Mail,
+  Clock,
+  Mail,
+  Ticket, // For single-use links
+  Plus,   // For quick actions
 } from 'lucide-react';
 import { useState } from 'react';
 import { NotificationBell } from '../contexts/NotificationContext';
@@ -34,8 +35,16 @@ export default function Navbar() {
     { path: '/availability', label: 'Availability', icon: Clock },
     { path: '/teams', label: 'Teams', icon: Users },
     { path: '/bookings', label: 'Bookings', icon: Calendar },
-    { path: '/my-booking-link', label: 'My Link', icon: Link2 },
-      { path: '/email-templates', label: 'Templates', icon: Mail },
+    { 
+      path: '/my-booking-link', 
+      label: 'My Links', 
+      icon: Link2,
+      dropdown: [
+        { path: '/my-booking-link', label: 'Permanent Link', icon: Link2 },
+        { path: '/single-use-links', label: 'Single-Use Links', icon: Ticket }
+      ]
+    },
+    { path: '/email-templates', label: 'Templates', icon: Mail },
     { path: '/settings', label: 'Settings', icon: Settings },
   ];
 
@@ -54,6 +63,43 @@ export default function Navbar() {
           <div className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => {
               const Icon = link.icon;
+              
+              // If link has dropdown, show main link
+              if (link.dropdown) {
+                return (
+                  <div key={link.path} className="relative group">
+                    <Link
+                      to={link.path}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                        isActive(link.path) || link.dropdown.some(item => isActive(item.path))
+                          ? 'bg-blue-50 text-blue-600'
+                          : 'text-gray-700 hover:bg-gray-100 hover:text-blue-600'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {link.label}
+                    </Link>
+                    
+                    {/* Dropdown menu on hover */}
+                    <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                      {link.dropdown.map((item) => {
+                        const ItemIcon = item.icon;
+                        return (
+                          <Link
+                            key={item.path}
+                            to={item.path}
+                            className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors first:rounded-t-lg last:rounded-b-lg"
+                          >
+                            <ItemIcon className="h-4 w-4" />
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+              
               return (
                 <Link
                   key={link.path}
@@ -133,12 +179,52 @@ export default function Navbar() {
               </div>
             </div>
 
-         
-
             {/* Navigation Links Mobile */}
             <div className="space-y-1">
               {navLinks.map((link) => {
                 const Icon = link.icon;
+                
+                if (link.dropdown) {
+                  return (
+                    <div key={link.path} className="space-y-1">
+                      <Link
+                        to={link.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                          isActive(link.path)
+                            ? 'bg-blue-50 text-blue-600'
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        <Icon className="h-5 w-5" />
+                        {link.label}
+                      </Link>
+                      
+                      {/* Show dropdown items in mobile */}
+                      <div className="pl-6 space-y-1">
+                        {link.dropdown.map((item) => {
+                          const ItemIcon = item.icon;
+                          return (
+                            <Link
+                              key={item.path}
+                              to={item.path}
+                              onClick={() => setMobileMenuOpen(false)}
+                              className={`flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all ${
+                                isActive(item.path)
+                                  ? 'bg-blue-50 text-blue-600'
+                                  : 'text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              <ItemIcon className="h-4 w-4" />
+                              {item.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+                
                 return (
                   <Link
                     key={link.path}

@@ -249,25 +249,35 @@ export default function AISchedulerChat() {
                   )}
 
                   <div className="flex flex-col gap-1 max-w-[78%]">
-                    <div
-                      className={`p-2.5 md:p-3 rounded-2xl shadow-md text-xs md:text-sm ${
-                        msg.role === 'user'
-                          ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-br-sm'
-                          : 'bg-white text-gray-900 rounded-bl-sm border-2 border-purple-100'
-                      }`}
-                    >
-                      <p className="leading-relaxed whitespace-pre-line">{msg.content}</p>
+                   <div
+  className={`p-2.5 md:p-3 rounded-2xl shadow-md text-xs md:text-sm ${
+    msg.role === 'user'
+      ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-br-sm'
+      : 'bg-white text-gray-900 rounded-bl-sm border-2 border-purple-100'
+  }`}
+>
+  <p className="leading-relaxed whitespace-pre-line">{msg.content}</p>
 
-                      {msg.type === 'confirmation' && msg.data && msg.data.bookingData && (
-                        <button
-                          onClick={() => handleConfirm(msg.data.bookingData)}
-                          disabled={loading}
-                          className="mt-2 w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 py-2 rounded-xl hover:shadow-xl transition-all text-xs md:text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                          ✅ Confirm Booking
-                        </button>
-                      )}
-                    </div>
+  {/* 🔥 ENHANCED: Show button for any confirmation message */}
+  {(msg.type === 'confirmation' || msg.content?.includes('Click confirm') || msg.content?.includes('Ready to schedule')) && msg.data?.bookingData && (
+    <button
+      onClick={() => handleConfirm(msg.data.bookingData)}
+      disabled={loading}
+      className="mt-3 w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-3 rounded-xl hover:shadow-xl hover:scale-105 transition-all text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {loading ? (
+        <>
+          <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          Creating...
+        </>
+      ) : (
+        <>
+          ✅ Confirm Booking
+        </>
+      )}
+    </button>
+  )}
+</div>
                     <p
                       className={`text-[10px] md:text-xs text-gray-500 px-1 ${
                         msg.role === 'user' ? 'text-right' : 'text-left'

@@ -7526,7 +7526,7 @@ app.delete('/api/notifications/:id', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete' });
   }
 });
-// ============ COMPLETE AI SCHEDULING ENDPOINT WITH FIXED VARIABLE NAMES ============
+// ============ CLEAN PROFESSIONAL AI SCHEDULING ENDPOINT ============
 
 app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
   try {
@@ -7597,17 +7597,31 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
       parts: [{ text: msg.content || '' }]
     })).filter(msg => msg.parts[0].text.trim() !== '');
 
-    // System instruction
-    const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
+    // System instruction - WITH ONE-MESSAGE PROCESSING FIX
+const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
 
 User context: ${JSON.stringify(userContext)}
 
-**IMPORTANT: Current date/time is ${new Date().toISOString()}**
-**When parsing dates:**
-- "Monday December 1" means the NEXT occurrence of Monday, December 1
-- Always use year 2025 or later for future dates
-- "2 pm" = "14:00" in 24-hour format
-- If only day/month given, assume current year or next year if date has passed
+CRITICAL INSTRUCTIONS FOR SINGLE-MESSAGE BOOKING:
+1. When user requests "create meeting" or "schedule with [email]", extract ALL details in ONE response:
+   - Email address from message
+   - Date (parse relative dates: "tomorrow", "December 2", "next Monday")
+   - Time (parse: "5pm", "5:00 PM", "17:00", "2 pm")
+   - Default duration: 30 minutes unless specified
+
+2. If ALL required info is provided (email, date, time), set intent to "create_meeting" immediately.
+
+3. ONLY ask follow-up questions if critical info is missing.
+
+4. Parse natural language dates intelligently:
+   - "tomorrow" = next day from ${new Date().toISOString()}
+   - "December 2" or "Dec 2" = 2025-12-02 (use 2025 or later for future dates)
+   - "next Monday" = upcoming Monday
+   - "5pm" or "5:00 PM" = "17:00" in 24-hour format
+   - "2 pm" = "14:00" in 24-hour format
+
+Current date/time: ${new Date().toISOString()}
+User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
 
 Return JSON structure:
 {
@@ -7616,7 +7630,7 @@ Return JSON structure:
   "extracted": {
     "title": "string or null",
     "attendees": ["email@example.com"],
-    "date": "YYYY-MM-DD (always use 2025 or later)",
+    "date": "YYYY-MM-DD (always use 2025 or later for future dates)",
     "time": "HH:MM in 24-hour format", 
     "duration_minutes": number or null,
     "notes": "string or null",
@@ -7627,35 +7641,40 @@ Return JSON structure:
   "action": "create" | "list" | "suggest_slots" | "cancel" | null
 }
 
+Examples:
+- "create meeting with john@test.com tomorrow at 2pm" → intent: "create_meeting", date: "2025-12-04", time: "14:00"
+- "schedule with joy@gmail.com December 5 at 5pm" → intent: "create_meeting", date: "2025-12-05", time: "17:00"
+- "book a call with sarah@company.com next Monday 10am" → intent: "create_meeting", date: "2025-12-09", time: "10:00"
+
 For "show bookings" intent, set action to "list".
 For "find time" or vague scheduling, set action to "suggest_slots".
 For specific time/date provided, set action to "create".
 If missing info, set intent to "clarify".`;
 
-    // Call Google Gemini API - CONSISTENT VARIABLE NAME
+    // Call Google Gemini API
     const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-    method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    contents: [
-      ...formattedHistory,
-      {
-        role: 'user',
-        parts: [{ text: `${systemInstruction}\n\nUser message: ${message.trim()}` }]
-      }
-    ],
-    generationConfig: {
-      temperature: 0.1,
-      topK: 1,
-      topP: 0.8,
-      maxOutputTokens: 1500,
-    }
-  })
-});
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [
+          ...formattedHistory,
+          {
+            role: 'user',
+            parts: [{ text: `${systemInstruction}\n\nUser message: ${message.trim()}` }]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          topK: 1,
+          topP: 0.8,
+          maxOutputTokens: 1500,
+        }
+      })
+    });
 
-    // Error handling - SAME VARIABLE NAME
+    // Error handling
     if (!geminiResponse.ok) {
       console.error('Gemini API error:', geminiResponse.status, geminiResponse.statusText);
       const errorText = await geminiResponse.text();
@@ -7708,12 +7727,12 @@ If missing info, set intent to "clarify".`;
         });
       }
 
-      // Format bookings with complete details
+      // Format bookings with complete details - NO MARKDOWN
       const bookingsList = userContext.upcomingBookings.map((booking, index) => {
         const startDate = new Date(booking.start);
         const endDate = new Date(booking.end);
         
-        return `${index + 1}. **${booking.attendee_name}** ${booking.attendee_email ? `(${booking.attendee_email})` : ''}
+        return `${index + 1}. ${booking.attendee_name} ${booking.attendee_email ? `(${booking.attendee_email})` : ''}
 📞 ${booking.attendee_phone || 'No phone'}
 📅 ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { 
           hour: 'numeric', 
@@ -7736,117 +7755,111 @@ If missing info, set intent to "clarify".`;
       });
     }
 
-    // Handle other intents (find_time, create_meeting, etc.)
-if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slots') {
-  try {
-    return res.json({
-      type: 'slots',
-      message: 'Let me find the best available times. I\'ll analyze your calendar and suggest optimal slots.',
-      needsSlots: true,
-      searchParams: parsedIntent.extracted,
-      useEnhancedFormatting: true // Flag for frontend
-    });
-  } catch (error) {
-    return res.json({
-      type: 'error', 
-      message: 'Sorry, I had trouble checking your availability.'
-    });
-  }
-}
-
-    
-  // Enhanced slot formatting function
-  function formatAvailableSlots(slots) {
-    if (!slots || slots.length === 0) {
-      return "❌ **No available slots found.** Try a different time range or check your availability settings.";
-    }
-
-    // Group slots by date
-    const slotsByDate = {};
-    slots.forEach(slot => {
-      const date = new Date(slot.start);
-      const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
-      
-      if (!slotsByDate[dateKey]) {
-        slotsByDate[dateKey] = {
-          date: date,
-          slots: []
-        };
+    // Handle find_time intent
+    if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slots') {
+      try {
+        return res.json({
+          type: 'slots',
+          message: 'Let me find the best available times. I\'ll analyze your calendar and suggest optimal slots.',
+          needsSlots: true,
+          searchParams: parsedIntent.extracted,
+          useEnhancedFormatting: true
+        });
+      } catch (error) {
+        return res.json({
+          type: 'error', 
+          message: 'Sorry, I had trouble checking your availability.'
+        });
       }
-      slotsByDate[dateKey].slots.push(slot);
-    });
+    }
+    
+    // Enhanced slot formatting function - NO MARKDOWN
+    function formatAvailableSlots(slots) {
+      if (!slots || slots.length === 0) {
+        return "❌ No available slots found. Try a different time range or check your availability settings.";
+      }
 
-    // Generate formatted response
-    let response = "🗓️ **Perfect! I found some great times for you:**\n\n";
+      // Group slots by date
+      const slotsByDate = {};
+      slots.forEach(slot => {
+        const date = new Date(slot.start);
+        const dateKey = date.toISOString().split('T')[0];
+        
+        if (!slotsByDate[dateKey]) {
+          slotsByDate[dateKey] = {
+            date: date,
+            slots: []
+          };
+        }
+        slotsByDate[dateKey].slots.push(slot);
+      });
 
-    Object.keys(slotsByDate).forEach(dateKey => {
-      const dayData = slotsByDate[dateKey];
-      const date = dayData.date;
-      
-      // Add day name and date
-      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-      const monthDay = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-      
-      response += `📅 **${dayName}, ${monthDay}**\n`;
-      
-      // Add slots for this day
-      dayData.slots.forEach(slot => {
-        const time = new Date(slot.start).toLocaleTimeString('en-US', { 
-          hour: 'numeric', 
-          minute: '2-digit',
-          hour12: true 
+      // Generate formatted response
+      let response = "🗓️ Perfect! I found some great times for you:\n\n";
+
+      Object.keys(slotsByDate).forEach(dateKey => {
+        const dayData = slotsByDate[dateKey];
+        const date = dayData.date;
+        
+        // Add day name and date
+        const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+        const monthDay = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+        
+        response += `📅 ${dayName}, ${monthDay}\n`;
+        
+        // Add slots for this day
+        dayData.slots.forEach(slot => {
+          const time = new Date(slot.start).toLocaleTimeString('en-US', { 
+            hour: 'numeric', 
+            minute: '2-digit',
+            hour12: true 
+          });
+          
+          // Get time context
+          const hour = new Date(slot.start).getHours();
+          let timeContext = '';
+          let emoji = '🕰️';
+          
+          if (hour >= 9 && hour < 12) {
+            timeContext = 'Morning focus time';
+            emoji = '🌅';
+          } else if (hour >= 12 && hour < 14) {
+            timeContext = 'Lunch break';
+            emoji = '🍽️';
+          } else if (hour >= 14 && hour < 17) {
+            timeContext = 'Afternoon productivity';
+            emoji = '💼';
+          } else if (hour >= 17 && hour < 19) {
+            timeContext = 'End of workday';
+            emoji = '🕰️';
+          } else if (hour >= 19 && hour < 21) {
+            timeContext = 'Prime dinner time';
+            emoji = '🍽️';
+          } else if (hour >= 21) {
+            timeContext = 'Late evening';
+            emoji = '🌙';
+          } else {
+            timeContext = 'Early morning';
+            emoji = '🌅';
+          }
+
+          // Get match quality emoji
+          const matchEmoji = slot.matchScore >= 90 ? '⭐' : 
+                            slot.matchScore >= 80 ? '🌟' : 
+                            slot.matchScore >= 70 ? '✨' : '💫';
+          
+          response += `   ${emoji} ${time} • ${matchEmoji} ${slot.matchLabel || 'Available'} • ${timeContext}\n`;
         });
         
-        // Get time context
-        const hour = new Date(slot.start).getHours();
-        let timeContext = '';
-        let emoji = '🕰️';
-        
-        if (hour >= 9 && hour < 12) {
-          timeContext = 'Morning focus time';
-          emoji = '🌅';
-        } else if (hour >= 12 && hour < 14) {
-          timeContext = 'Lunch break';
-          emoji = '🍽️';
-        } else if (hour >= 14 && hour < 17) {
-          timeContext = 'Afternoon productivity';
-          emoji = '💼';
-        } else if (hour >= 17 && hour < 19) {
-          timeContext = 'End of workday';
-          emoji = '🕰️';
-        } else if (hour >= 19 && hour < 21) {
-          timeContext = 'Prime dinner time';
-          emoji = '🍽️';
-        } else if (hour >= 21) {
-          timeContext = 'Late evening';
-          emoji = '🌙';
-        } else {
-          timeContext = 'Early morning';
-          emoji = '🌅';
-        }
-        
-
-
-        // Get match quality emoji
-        const matchEmoji = slot.matchScore >= 90 ? '⭐' : 
-                          slot.matchScore >= 80 ? '🌟' : 
-                          slot.matchScore >= 70 ? '✨' : '💫';
-        
-        response += `   ${emoji} **${time}** • ${matchEmoji} ${slot.matchLabel || 'Available'} • ${timeContext}\n`;
+        response += '\n';
       });
-      
-      response += '\n';
-    });
 
-    response += `✨ **All times show optimal availability!**\n\n`;
-    response += `👆 **Just tell me which time works best and I'll book it for you:**\n`;
-    response += `*Example: "Book 6:30 PM on Tuesday" or "Schedule the Monday 8:00 PM slot"*`;
+      response += `✨ All times show optimal availability!\n\n`;
+      response += `👆 Just tell me which time works best and I'll book it for you:\n`;
+      response += `Example: "Book 6:30 PM on Tuesday" or "Schedule the Monday 8:00 PM slot"`;
 
-    return response;
-  }
-
-
-
+      return response;
+    }
 
     // Email validation function
     const validateEmail = (email) => {
@@ -7861,7 +7874,7 @@ if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slot
         if (invalidEmails.length > 0) {
           return res.json({
             type: 'clarify',
-            message: `❌ Invalid email address(es): **${invalidEmails.join(', ')}**\n\nPlease provide valid email addresses. Example: john@company.com`,
+            message: `❌ Invalid email address(es): ${invalidEmails.join(', ')}\n\nPlease provide valid email addresses. Example: john@company.com`,
             data: parsedIntent
           });
         }
@@ -7894,10 +7907,10 @@ if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slot
         });
       }
 
-      // All validation passed
+      // All validation passed - NO MARKDOWN
       return res.json({
         type: 'confirmation',
-        message: `✅ Ready to schedule "${parsedIntent.extracted.title || 'Meeting'}" for **${parsedIntent.extracted.date} at ${parsedIntent.extracted.time}**?\n\n👥 Attendees: ${parsedIntent.extracted.attendees.join(', ')}\n⏱️ Duration: ${parsedIntent.extracted.duration_minutes || 30} minutes\n📝 Notes: ${parsedIntent.extracted.notes || 'None'}\n\nClick confirm to create the booking.`,
+        message: `✅ Ready to schedule "${parsedIntent.extracted.title || 'Meeting'}" for ${parsedIntent.extracted.date} at ${parsedIntent.extracted.time}?\n\n👥 Attendees: ${parsedIntent.extracted.attendees.join(', ')}\n⏱️ Duration: ${parsedIntent.extracted.duration_minutes || 30} minutes\n📝 Notes: ${parsedIntent.extracted.notes || 'None'}\n\nClick confirm to create the booking.`,
         data: { 
           bookingData: {
             title: parsedIntent.extracted.title,
