@@ -32,7 +32,7 @@ export default function Layout() {
   { name: "Event Types", path: "/events", icon: Clock },
   { name: "Teams", path: "/teams", icon: Users },
   { name: "Bookings", path: "/bookings", icon: Calendar },
-  { name: "My Link", path: "/my-booking-link", icon: Link2 },
+  { name: "My Link", path: "/my-links", icon: Link2 },
   { name: "Settings", path: "/settings", icon: Settings },
 ];
 
