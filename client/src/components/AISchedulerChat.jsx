@@ -166,53 +166,57 @@ What would you like to do?`;
     }
   };
 
-  const handleConfirmBooking = async () => {
-    if (!pendingBooking) return;
+ const handleConfirmBooking = async () => {
+  if (!pendingBooking) return;
 
-    setLoading(true);
-    try {
-      const startDateTime = new Date(`${pendingBooking.date}T${pendingBooking.time}`);
-      const endDateTime = new Date(startDateTime.getTime() + pendingBooking.duration * 60000);
+  setLoading(true);
+  try {
+    const startDateTime = new Date(`${pendingBooking.date}T${pendingBooking.time}`);
+    const endDateTime = new Date(startDateTime.getTime() + pendingBooking.duration * 60000);
 
-      const response = await api.post('/api/bookings', {
-        title: pendingBooking.title,
-        start_time: startDateTime.toISOString(),
-        end_time: endDateTime.toISOString(),
-        attendee_email: pendingBooking.attendee_email,
-        attendee_name: pendingBooking.attendee_email.split('@')[0],
-        notes: pendingBooking.notes
-      });
+    // FIXED: Remove /api prefix since your api utility already adds it
+    const response = await api.post('/bookings', {
+      title: pendingBooking.title || 'Meeting',
+      start_time: startDateTime.toISOString(),
+      end_time: endDateTime.toISOString(),
+      attendee_email: pendingBooking.attendee_email,
+      attendee_name: pendingBooking.attendee_email.split('@')[0],
+      notes: pendingBooking.notes || ''
+    });
 
-      setChatHistory(prev => [...prev, { 
-        role: 'assistant', 
-        content: `✅ Booking Confirmed!\n\n📅 ${pendingBooking.title}\n🕐 ${formatDateTime(startDateTime)}\n👤 ${pendingBooking.attendee_email}\n\nConfirmation email sent!`,
-        timestamp: new Date(),
-        isConfirmation: true
-      }]);
+    setChatHistory(prev => [...prev, { 
+      role: 'assistant', 
+      content: `✅ Booking Confirmed!\n\n📅 ${pendingBooking.title || 'Meeting'}\n🕐 ${formatDateTime(startDateTime)}\n👤 ${pendingBooking.attendee_email}\n\nConfirmation email sent!`,
+      timestamp: new Date(),
+      isConfirmation: true
+    }]);
 
-      setPendingBooking(null);
-    } catch (error) {
-      console.error('Booking confirmation error:', error);
-      setPendingBooking(null);
-      
-      let errorMessage = '❌ Failed to create booking. ';
-      if (error.response?.status === 500) {
-        errorMessage += 'Server error - please try again later.';
-      } else if (error.response?.status === 401) {
-        errorMessage += 'Please log in and try again.';
-      } else {
-        errorMessage += 'Please try again or check your availability settings.';
-      }
-      
-      setChatHistory(prev => [...prev, { 
-        role: 'assistant', 
-        content: errorMessage,
-        timestamp: new Date()
-      }]);
-    } finally {
-      setLoading(false);
+    setPendingBooking(null);
+    
+  } catch (error) {
+    console.error('Booking confirmation error:', error);
+    setPendingBooking(null);
+    
+    let errorMessage = '❌ Failed to create booking. ';
+    if (error.response?.status === 500) {
+      errorMessage += 'Server error - please try again later.';
+    } else if (error.response?.status === 401) {
+      errorMessage += 'Please log in and try again.';
+    } else if (error.response?.status === 404) {
+      errorMessage += 'Booking endpoint not found - check server configuration.';
+    } else {
+      errorMessage += 'Please try again or check your availability settings.';
     }
-  };
+    
+    setChatHistory(prev => [...prev, { 
+      role: 'assistant', 
+      content: errorMessage,
+      timestamp: new Date()
+    }]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleCancelBooking = () => {
     setPendingBooking(null);
