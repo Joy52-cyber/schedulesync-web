@@ -174,7 +174,7 @@ export default function Dashboard() {
                 className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all font-semibold flex items-center gap-2 shadow-sm"
               >
                 <Clock className="h-4 w-4" />
-                Manage Availability
+                Availability
               </button>
 
               {/* ChatGPT Status Indicator */}
