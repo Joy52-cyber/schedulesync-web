@@ -8174,7 +8174,7 @@ return res.json({
   }
 });
 
-// ============ AI BOOKING ENDPOINT (ADD THIS HERE) ============
+// ============ AI BOOKING ENDPOINT (FIXED) ============
 app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
   try {
     const {
@@ -8188,17 +8188,17 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
       title, start_time, attendee_email, userId
     });
     
-    // Insert directly without token/slot validation for AI bookings
+    // FIXED: Remove created_by column since it doesn't exist
     const result = await pool.query(`
       INSERT INTO bookings (
         title, start_time, end_time, attendee_email, attendee_name,
-        notes, duration, created_by, status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'confirmed', NOW(), NOW())
+        notes, duration, status, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed', NOW(), NOW())
       RETURNING *
     `, [
       title, start_time, end_time, attendee_email, 
       attendee_name || attendee_email.split('@')[0], 
-      notes || '', duration || 30, userId
+      notes || '', duration || 30
     ]);
     
     console.log('✅ AI Booking created:', result.rows[0].id);
@@ -8217,7 +8217,6 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
     });
   }
 });
-
 
 // ============ SUBSCRIPTION MANAGEMENT ============
 // (Add this section after your existing payment endpoints)
