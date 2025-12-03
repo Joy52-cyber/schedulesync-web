@@ -7528,7 +7528,7 @@ app.delete('/api/notifications/:id', authenticateToken, async (req, res) => {
 });
 // ============ CLEAN PROFESSIONAL AI SCHEDULING ENDPOINT ============
 
-app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
+app.post('/api/ai/schedule', authenticateToken, checkUsageLimits, async (req, res) => {
   try {
     const { message, conversationHistory = [] } = req.body;
     const userId = req.user.id;
@@ -7828,20 +7828,145 @@ For update_pending intent, only include fields that changed.`;
       });
     }
 
-    // Handle find_time intent
+      // Handle find_time intent - ACTUALLY FETCH SLOTS
     if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slots') {
       try {
+        // Get user's booking token
+        const memberResult = await pool.query(
+          `SELECT tm.id, tm.booking_token, tm.timezone
+           FROM team_members tm
+           JOIN teams t ON tm.team_id = t.id
+           WHERE tm.user_id = $1 OR t.owner_id = $1
+           LIMIT 1`,
+          [userId]
+        );
+
+        if (memberResult.rows.length === 0) {
+          return res.json({
+            type: 'error',
+            message: 'No booking profile found. Please set up your availability first.'
+          });
+        }
+
+        const member = memberResult.rows[0];
+
+        // Get availability settings
+        const availResult = await pool.query(
+          `SELECT * FROM availability_settings WHERE member_id = $1`,
+          [member.id]
+        );
+
+        // If no availability settings, return helpful message
+        if (availResult.rows.length === 0) {
+          return res.json({
+            type: 'info',
+            message: '⚠️ No availability settings found. Please set up your available hours in Settings > Availability first.'
+          });
+        }
+
+        // Generate slots for next 7 days
+        const slots = [];
+        const now = new Date();
+        const daysToCheck = 7;
+
+        for (let dayOffset = 0; dayOffset < daysToCheck; dayOffset++) {
+          const checkDate = new Date(now);
+          checkDate.setDate(checkDate.getDate() + dayOffset);
+          const dayOfWeek = checkDate.getDay();
+
+          // Find availability for this day
+          const dayAvail = availResult.rows.find(a => a.day_of_week === dayOfWeek);
+          
+          if (dayAvail && dayAvail.is_available) {
+            // Parse start/end times
+            const [startHour, startMin] = dayAvail.start_time.split(':').map(Number);
+            const [endHour, endMin] = dayAvail.end_time.split(':').map(Number);
+
+            // Generate 30-min slots
+            let slotTime = new Date(checkDate);
+            slotTime.setHours(startHour, startMin, 0, 0);
+
+            const endTime = new Date(checkDate);
+            endTime.setHours(endHour, endMin, 0, 0);
+
+            while (slotTime < endTime && slots.length < 10) {
+              // Skip past times
+              if (slotTime > now) {
+                // Check for conflicts with existing bookings
+                const conflictCheck = await pool.query(
+                  `SELECT id FROM bookings 
+                   WHERE member_id = $1 
+                   AND status = 'confirmed'
+                   AND start_time <= $2 
+                   AND end_time > $2`,
+                  [member.id, slotTime.toISOString()]
+                );
+
+                if (conflictCheck.rows.length === 0) {
+                  const hour = slotTime.getHours();
+                  let matchScore = 85;
+                  let matchLabel = 'Good Match';
+
+                  // Score based on time of day
+                  if (hour >= 9 && hour <= 11) {
+                    matchScore = 95;
+                    matchLabel = 'Excellent Match';
+                  } else if (hour >= 14 && hour <= 16) {
+                    matchScore = 90;
+                    matchLabel = 'Excellent Match';
+                  } else if (hour >= 17 && hour <= 19) {
+                    matchScore = 88;
+                    matchLabel = 'Good Match';
+                  }
+
+                  slots.push({
+                    start: slotTime.toISOString(),
+                    end: new Date(slotTime.getTime() + 30 * 60000).toISOString(),
+                    matchScore,
+                    matchLabel
+                  });
+                }
+              }
+
+              slotTime = new Date(slotTime.getTime() + 30 * 60000);
+            }
+          }
+        }
+
+        if (slots.length === 0) {
+          return res.json({
+            type: 'info',
+            message: '❌ No available slots found in the next 7 days. Please check your availability settings or clear some existing bookings.'
+          });
+        }
+
+        // Format slots nicely - NO MARKDOWN
+        const formattedSlots = slots.slice(0, 5).map((slot, index) => {
+          const date = new Date(slot.start);
+          const dateStr = date.toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric' 
+          });
+          const timeStr = date.toLocaleTimeString('en-US', { 
+            hour: 'numeric', 
+            minute: '2-digit',
+            hour12: true 
+          });
+          return `${index + 1}. ${dateStr} at ${timeStr} (${slot.matchLabel})`;
+        }).join('\n');
+
         return res.json({
           type: 'slots',
-          message: 'Let me find the best available times. I\'ll analyze your calendar and suggest optimal slots.',
-          needsSlots: true,
-          searchParams: parsedIntent.extracted,
-          useEnhancedFormatting: true
+          message: `Here are the best available times:\n\n${formattedSlots}\n\nWould you like to book one of these slots? Just say "book slot 1" or "schedule the first one".`,
+          data: { slots: slots.slice(0, 5) }
         });
+
       } catch (error) {
+        console.error('Slot fetch error:', error);
         return res.json({
           type: 'error', 
-          message: 'Sorry, I had trouble checking your availability.'
+          message: 'Sorry, I had trouble checking your availability. Please try again.'
         });
       }
     }
@@ -7910,20 +8035,23 @@ For update_pending intent, only include fields that changed.`;
       });
     }
 
+   // Increment usage for successful AI response
+    await incrementChatGPTUsage(userId);
+    console.log(`💰 ChatGPT query used by user ${userId} (${req.userUsage.tier} plan)`);
+
     // Default response
     return res.json({
       type: 'clarify',
-      message: parsedIntent.clarifying_question || 'How can I help you with your scheduling today? You can ask me to show bookings, find available times, or schedule a new meeting.'
+      message: parsedIntent.clarifying_question || 'How can I help you with your scheduling today? You can ask me to show bookings, find available times, or schedule a new meeting.',
+      usage: {
+        chatgpt_used: req.userUsage.chatgpt_used + 1,
+        chatgpt_limit: req.userUsage.limits.chatgpt
+      }
     });
 
-  } catch (error) {
-    console.error('🚨 AI scheduling error:', error);
-    res.status(500).json({
-      type: 'error',
-      message: 'Something went wrong. Please try again.'
-    });
-  }
-});
+
+
+
 // ============ SUBSCRIPTION MANAGEMENT ============
 // (Add this section after your existing payment endpoints)
 
@@ -8054,6 +8182,114 @@ app.post('/api/subscriptions/billing-portal', authenticateToken, async (req, res
     res.status(500).json({ error: 'Failed to create billing portal session' });
   }
 });
+
+
+// ============ USAGE ENFORCEMENT MIDDLEWARE ============
+
+const checkUsageLimits = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get user's subscription and current usage
+    const userResult = await pool.query(
+      `SELECT subscription_tier, subscription_status, grace_period_end,
+              chatgpt_queries_used, chatgpt_queries_reset_date
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    const tier = user.subscription_tier || 'free';
+    const graceActive = user.grace_period_end && new Date(user.grace_period_end) > new Date();
+    
+    // Define limits by tier
+    const limits = {
+      free: { chatgpt: 3, bookings: 25 },
+      pro: { chatgpt: -1, bookings: 500 },  // -1 = unlimited
+      team: { chatgpt: -1, bookings: -1 }
+    };
+    
+    // If grace period, give pro limits
+    const currentLimits = graceActive && tier === 'free' ? limits.pro : limits[tier];
+    
+    // Check what feature is being accessed
+    const endpoint = req.route.path;
+    
+    // ChatGPT usage check
+    if (endpoint.includes('/ai/') && currentLimits.chatgpt !== -1) {
+      const used = user.chatgpt_queries_used || 0;
+      
+      if (used >= currentLimits.chatgpt) {
+        return res.status(402).json({ 
+          error: 'ChatGPT limit reached',
+          type: 'usage_limit_exceeded',
+          feature: 'chatgpt',
+          usage: { used, limit: currentLimits.chatgpt },
+          subscription_tier: tier,
+          upgrade_required: true,
+          message: `You've used all ${currentLimits.chatgpt} ChatGPT queries this month. Upgrade to Pro for unlimited AI assistance!`
+        });
+      }
+    }
+    
+    // Booking creation check
+    if ((endpoint.includes('/bookings') && req.method === 'POST') && currentLimits.bookings !== -1) {
+      // Count bookings this month
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      
+      const bookingResult = await pool.query(
+        'SELECT COUNT(*) as booking_count FROM bookings WHERE created_by = $1 AND created_at >= $2',
+        [userId, startOfMonth]
+      );
+      
+      const bookingsUsed = parseInt(bookingResult.rows[0].booking_count);
+      
+      if (bookingsUsed >= currentLimits.bookings) {
+        return res.status(402).json({
+          error: 'Booking limit reached',
+          type: 'usage_limit_exceeded', 
+          feature: 'bookings',
+          usage: { used: bookingsUsed, limit: currentLimits.bookings },
+          subscription_tier: tier,
+          upgrade_required: true,
+          message: `You've created ${currentLimits.bookings} bookings this month. Upgrade for higher limits!`
+        });
+      }
+    }
+    
+    // Add usage info to request for incrementing
+    req.userUsage = {
+      tier,
+      limits: currentLimits,
+      graceActive,
+      chatgpt_used: user.chatgpt_queries_used || 0
+    };
+    
+    next();
+  } catch (error) {
+    console.error('Usage check error:', error);
+    res.status(500).json({ error: 'Usage check failed' });
+  }
+};
+
+// Helper function to increment usage
+const incrementChatGPTUsage = async (userId) => {
+  try {
+    await pool.query(
+      'UPDATE users SET chatgpt_queries_used = chatgpt_queries_used + 1 WHERE id = $1',
+      [userId]
+    );
+  } catch (error) {
+    console.error('Failed to increment ChatGPT usage:', error);
+  }
+};
+
 
 // ============ CHATGPT INTEGRATION ENDPOINTS ============
 
@@ -8192,7 +8428,9 @@ app.post('/api/chatgpt/suggest-times', authenticateToken, async (req, res) => {
   }
 });
 
-// Autonomous booking
+// ============ FIXED CHATGPT BOOK-MEETING ENDPOINT ============
+// Replace your existing /api/chatgpt/book-meeting endpoint with this
+
 app.post('/api/chatgpt/book-meeting', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -8204,47 +8442,166 @@ app.post('/api/chatgpt/book-meeting', authenticateToken, async (req, res) => {
       attendee_name,
       notes 
     } = req.body;
-    
-    // Get user's booking token
+
+    console.log('🤖 AI Booking request:', { title, start_time, attendee_email });
+
+    // Validate required fields
+    if (!start_time || !attendee_email) {
+      return res.status(400).json({ error: 'Start time and attendee email are required' });
+    }
+
+    // Get user's booking token and info
     const memberResult = await pool.query(
-      'SELECT id, booking_token FROM team_members WHERE user_id = $1 LIMIT 1',
+      `SELECT tm.id, tm.booking_token, tm.name, tm.email, t.name as team_name
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       WHERE tm.user_id = $1 OR t.owner_id = $1
+       LIMIT 1`,
       [userId]
     );
-    
+
     if (memberResult.rows.length === 0) {
       return res.status(400).json({ error: 'No team membership found' });
     }
-    
+
     const member = memberResult.rows[0];
     
-    // Create booking directly
+    // Create booking
     const manageToken = crypto.randomBytes(16).toString('hex');
+    const bookingTitle = title || 'Meeting';
+    const guestName = attendee_name || attendee_email.split('@')[0];
     
+    // Calculate end time if not provided (default 30 min)
+    const startDate = new Date(start_time);
+    const endDate = end_time ? new Date(end_time) : new Date(startDate.getTime() + 30 * 60000);
+    const duration = Math.round((endDate - startDate) / 60000);
+
     const bookingResult = await pool.query(`
       INSERT INTO bookings (
         member_id, user_id, attendee_name, attendee_email,
-        start_time, end_time, title, notes, status, manage_token
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'confirmed', $9)
+        start_time, end_time, title, notes, status, manage_token, duration
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'confirmed', $9, $10)
       RETURNING *
     `, [
-      member.id, userId, attendee_name, attendee_email,
-      start_time, end_time, title, notes, manageToken
+      member.id, userId, guestName, attendee_email,
+      startDate.toISOString(), endDate.toISOString(), 
+      bookingTitle, notes || null, manageToken, duration
     ]);
-    
+
     const booking = bookingResult.rows[0];
-    
-    // Send confirmation emails (async)
-    // ... your existing email logic ...
-    
+    console.log('✅ AI Booking created:', booking.id);
+
+    // Format times for email
+    const formattedDate = startDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const formattedTime = startDate.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${manageToken}`;
+
+    // Send confirmation email to GUEST
+    try {
+      await resend.emails.send({
+        from: `${member.name} via ScheduleSync <notifications@${process.env.RESEND_DOMAIN || 'trucal.xyz'}>`,
+        to: attendee_email,
+        subject: `✅ Meeting Confirmed: ${bookingTitle}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">✅ Meeting Confirmed!</h1>
+            </div>
+            
+            <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
+              <p style="font-size: 16px; color: #333;">Hi ${guestName},</p>
+              
+              <p style="font-size: 16px; color: #555;">Your meeting with <strong>${member.name}</strong> has been confirmed!</p>
+              
+              <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
+                <p style="margin: 5px 0; color: #333;"><strong>📅 Date:</strong> ${formattedDate}</p>
+                <p style="margin: 5px 0; color: #333;"><strong>🕐 Time:</strong> ${formattedTime}</p>
+                <p style="margin: 5px 0; color: #333;"><strong>⏱️ Duration:</strong> ${duration} minutes</p>
+              </div>
+              
+              ${notes ? `
+              <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0; color: #856404;"><strong>📝 Notes:</strong> ${notes}</p>
+              </div>
+              ` : ''}
+              
+              <div style="text-align: center; margin-top: 30px;">
+                <a href="${manageUrl}" style="display: inline-block; background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Manage Booking</a>
+              </div>
+              
+              <p style="font-size: 14px; color: #888; margin-top: 30px; text-align: center;">
+                Scheduled via ScheduleSync
+              </p>
+            </div>
+          </div>
+        `
+      });
+      console.log('✅ Guest confirmation email sent to:', attendee_email);
+    } catch (emailError) {
+      console.error('❌ Failed to send guest email:', emailError);
+    }
+
+    // Send notification email to ORGANIZER
+    try {
+      await resend.emails.send({
+        from: `ScheduleSync <notifications@${process.env.RESEND_DOMAIN || 'trucal.xyz'}>`,
+        to: member.email,
+        subject: `📅 New Booking: ${guestName} - ${bookingTitle}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">📅 New Booking via AI</h1>
+            </div>
+            
+            <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
+              <p style="font-size: 16px; color: #333;">Hi ${member.name},</p>
+              
+              <p style="font-size: 16px; color: #555;">You have a new booking created via your AI assistant.</p>
+              
+              <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #11998e;">
+                <p style="margin: 5px 0; color: #333;"><strong>👤 Guest:</strong> ${guestName} (${attendee_email})</p>
+                <p style="margin: 5px 0; color: #333;"><strong>📅 Date:</strong> ${formattedDate}</p>
+                <p style="margin: 5px 0; color: #333;"><strong>🕐 Time:</strong> ${formattedTime}</p>
+                <p style="margin: 5px 0; color: #333;"><strong>⏱️ Duration:</strong> ${duration} minutes</p>
+              </div>
+              
+              ${notes ? `
+              <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0; color: #2e7d32;"><strong>📝 Notes:</strong> ${notes}</p>
+              </div>
+              ` : ''}
+              
+              <p style="font-size: 14px; color: #888; margin-top: 30px; text-align: center;">
+                Powered by ScheduleSync AI
+              </p>
+            </div>
+          </div>
+        `
+      });
+      console.log('✅ Organizer notification email sent to:', member.email);
+    } catch (emailError) {
+      console.error('❌ Failed to send organizer email:', emailError);
+    }
+
     res.json({
       success: true,
       booking_id: booking.id,
-      manage_url: `${process.env.FRONTEND_URL}/manage/${manageToken}`,
-      message: `Meeting "${title}" booked successfully with ${attendee_name}`
+      manage_url: manageUrl,
+      message: `Meeting "${bookingTitle}" booked successfully with ${guestName}`
     });
-    
+
   } catch (error) {
-    console.error('Book meeting error:', error);
+    console.error('🚨 AI Book meeting error:', error);
     res.status(500).json({ error: 'Failed to book meeting' });
   }
 });
