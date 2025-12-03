@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useNotification } from '../contexts/NotificationContext';
 import { 
   User, 
   Mail, 
@@ -35,12 +36,15 @@ import api, {
   calendar as calendarApi,
   chatgptIntegration,
 } from '../utils/api';
-import { useNotification } from '../contexts/NotificationContext';
+
+// ← ADD THIS LINE HERE!
+import SubscriptionSettings from '../components/SubscriptionSettings';
 
 export default function UserSettings() {
   const [searchParams] = useSearchParams();
   const notify = useNotification();
-  
+
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);

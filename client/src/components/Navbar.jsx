@@ -131,6 +131,11 @@ export default function Navbar() {
               </div>
             </div>
 
+            <NavLink to="/email-templates">
+  <Mail className="h-5 w-5" />
+  Email Templates
+</NavLink>
+
             {/* Navigation Links Mobile */}
             <div className="space-y-1">
               {navLinks.map((link) => {

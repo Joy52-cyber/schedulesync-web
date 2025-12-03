@@ -25,6 +25,7 @@ import EventTypeForm from './pages/EventTypeForm';
 import EventTypeDetail from './pages/EventTypeDetail';
 import Availability from './pages/Availability';
 import CalendlyMigration from './pages/CalendlyMigration';
+import EmailTemplates from './pages/EmailTemplates';
 
 // Team
 import Teams from './pages/Teams';
@@ -113,6 +114,7 @@ function InnerApp() {
           <Route path="/booking-confirmation" element={<BookingConfirmation />} />
           <Route path="/import/calendly" element={<CalendlyMigration />} />
 
+
           {/* Protected App Layout */}
           <Route element={
             <ProtectedRoute>
@@ -122,7 +124,8 @@ function InnerApp() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/bookings" element={<Bookings />} />
             <Route path="/availability" element={<Availability />} />
-            
+            <Route path="/email-templates" element={<EmailTemplates />} />
+
             {/* Event Types */}
             <Route path="/events" element={<EventTypes />} />
             <Route path="/events/new" element={<EventTypeForm />} />

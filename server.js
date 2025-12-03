@@ -404,6 +404,30 @@ async function initDB() {
   )
 `);
 
+// Email Templates Table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS email_templates (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    subject VARCHAR(500) NOT NULL,
+    body TEXT NOT NULL,
+    is_default BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
+    variables JSONB DEFAULT '[]',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(user_id, name)
+  )
+`);
+
+// Create index for faster lookups
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_email_templates_user_type 
+  ON email_templates(user_id, type)
+`);
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS bookings (
         id SERIAL PRIMARY KEY,
@@ -9132,6 +9156,567 @@ module.exports = {
   checkAndSendReminders,
   lastReminderRun
 };
+
+
+// ============ EMAIL TEMPLATE ENDPOINTS ============
+
+// Get all templates for user
+app.get('/api/email-templates', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM email_templates 
+       WHERE user_id = $1 
+       ORDER BY type, name`,
+      [req.user.id]
+    );
+    
+    // If user has no templates, return system defaults
+    if (result.rows.length === 0) {
+      return res.json({ 
+        templates: getDefaultTemplates(),
+        isUsingDefaults: true 
+      });
+    }
+    
+    res.json({ templates: result.rows, isUsingDefaults: false });
+  } catch (error) {
+    console.error('Get templates error:', error);
+    res.status(500).json({ error: 'Failed to fetch templates' });
+  }
+});
+
+// Get templates by type
+app.get('/api/email-templates/type/:type', authenticateToken, async (req, res) => {
+  try {
+    const { type } = req.params;
+    
+    const result = await pool.query(
+      `SELECT * FROM email_templates 
+       WHERE user_id = $1 AND type = $2 AND is_active = true
+       ORDER BY is_default DESC, name`,
+      [req.user.id, type]
+    );
+    
+    res.json({ templates: result.rows });
+  } catch (error) {
+    console.error('Get templates by type error:', error);
+    res.status(500).json({ error: 'Failed to fetch templates' });
+  }
+});
+
+// Get single template
+app.get('/api/email-templates/:id', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM email_templates WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    res.json({ template: result.rows[0] });
+  } catch (error) {
+    console.error('Get template error:', error);
+    res.status(500).json({ error: 'Failed to fetch template' });
+  }
+});
+
+// Create new template
+app.post('/api/email-templates', authenticateToken, async (req, res) => {
+  try {
+    const { name, type, subject, body, is_default } = req.body;
+    
+    if (!name || !type || !subject || !body) {
+      return res.status(400).json({ error: 'Name, type, subject, and body are required' });
+    }
+    
+    // Validate template type
+    const validTypes = [
+      'booking_confirmation_guest',
+      'booking_confirmation_organizer', 
+      'booking_reminder',
+      'booking_cancellation',
+      'booking_reschedule',
+      'team_invitation',
+      'payment_confirmation'
+    ];
+    
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ error: 'Invalid template type' });
+    }
+    
+    // If setting as default, unset other defaults of same type
+    if (is_default) {
+      await pool.query(
+        `UPDATE email_templates 
+         SET is_default = false 
+         WHERE user_id = $1 AND type = $2`,
+        [req.user.id, type]
+      );
+    }
+    
+    // Extract variables from body (e.g., {{attendee_name}}, {{start_time}})
+    const variableRegex = /\{\{(\w+)\}\}/g;
+    const variables = [];
+    let match;
+    while ((match = variableRegex.exec(body)) !== null) {
+      if (!variables.includes(match[1])) {
+        variables.push(match[1]);
+      }
+    }
+    
+    const result = await pool.query(
+      `INSERT INTO email_templates (user_id, name, type, subject, body, is_default, variables)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [req.user.id, name, type, subject, body, is_default || false, JSON.stringify(variables)]
+    );
+    
+    console.log('✅ Email template created:', result.rows[0].id);
+    res.json({ template: result.rows[0], message: 'Template created successfully' });
+  } catch (error) {
+    console.error('Create template error:', error);
+    if (error.code === '23505') {
+      return res.status(400).json({ error: 'A template with this name already exists' });
+    }
+    res.status(500).json({ error: 'Failed to create template' });
+  }
+});
+
+// Update template
+app.put('/api/email-templates/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, subject, body, is_default, is_active } = req.body;
+    
+    // Get current template to check ownership and type
+    const current = await pool.query(
+      `SELECT * FROM email_templates WHERE id = $1 AND user_id = $2`,
+      [id, req.user.id]
+    );
+    
+    if (current.rows.length === 0) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    const template = current.rows[0];
+    
+    // If setting as default, unset other defaults of same type
+    if (is_default && !template.is_default) {
+      await pool.query(
+        `UPDATE email_templates 
+         SET is_default = false 
+         WHERE user_id = $1 AND type = $2 AND id != $3`,
+        [req.user.id, template.type, id]
+      );
+    }
+    
+    // Extract variables from new body
+    const bodyToUse = body || template.body;
+    const variableRegex = /\{\{(\w+)\}\}/g;
+    const variables = [];
+    let match;
+    while ((match = variableRegex.exec(bodyToUse)) !== null) {
+      if (!variables.includes(match[1])) {
+        variables.push(match[1]);
+      }
+    }
+    
+    const result = await pool.query(
+      `UPDATE email_templates 
+       SET name = COALESCE($1, name),
+           subject = COALESCE($2, subject),
+           body = COALESCE($3, body),
+           is_default = COALESCE($4, is_default),
+           is_active = COALESCE($5, is_active),
+           variables = $6,
+           updated_at = NOW()
+       WHERE id = $7 AND user_id = $8
+       RETURNING *`,
+      [name, subject, body, is_default, is_active, JSON.stringify(variables), id, req.user.id]
+    );
+    
+    console.log('✅ Email template updated:', id);
+    res.json({ template: result.rows[0], message: 'Template updated successfully' });
+  } catch (error) {
+    console.error('Update template error:', error);
+    res.status(500).json({ error: 'Failed to update template' });
+  }
+});
+
+// Delete template
+app.delete('/api/email-templates/:id', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `DELETE FROM email_templates WHERE id = $1 AND user_id = $2 RETURNING id`,
+      [req.params.id, req.user.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    console.log('✅ Email template deleted:', req.params.id);
+    res.json({ success: true, message: 'Template deleted successfully' });
+  } catch (error) {
+    console.error('Delete template error:', error);
+    res.status(500).json({ error: 'Failed to delete template' });
+  }
+});
+
+// Preview template with sample data
+app.post('/api/email-templates/preview', authenticateToken, async (req, res) => {
+  try {
+    const { subject, body } = req.body;
+    
+    // Sample data for preview
+    const sampleData = {
+      attendee_name: 'John Smith',
+      attendee_email: 'john@example.com',
+      organizer_name: req.user.name || 'Jane Doe',
+      organizer_email: req.user.email,
+      team_name: 'My Team',
+      start_time: new Date(Date.now() + 86400000).toLocaleString(),
+      end_time: new Date(Date.now() + 86400000 + 1800000).toLocaleString(),
+      date: new Date(Date.now() + 86400000).toLocaleDateString(),
+      time: '2:00 PM',
+      duration: '30 minutes',
+      meeting_link: 'https://meet.google.com/abc-defg-hij',
+      manage_url: 'https://schedulesync.app/manage/abc123',
+      notes: 'Looking forward to discussing the project!',
+      cancellation_reason: 'Schedule conflict',
+      old_time: new Date().toLocaleString(),
+      new_time: new Date(Date.now() + 172800000).toLocaleString(),
+    };
+    
+    // Replace variables in subject and body
+    let previewSubject = subject;
+    let previewBody = body;
+    
+    for (const [key, value] of Object.entries(sampleData)) {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      previewSubject = previewSubject.replace(regex, value);
+      previewBody = previewBody.replace(regex, value);
+    }
+    
+    res.json({ 
+      preview: {
+        subject: previewSubject,
+        body: previewBody
+      },
+      sampleData 
+    });
+  } catch (error) {
+    console.error('Preview template error:', error);
+    res.status(500).json({ error: 'Failed to generate preview' });
+  }
+});
+
+// Duplicate a template
+app.post('/api/email-templates/:id/duplicate', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const original = await pool.query(
+      `SELECT * FROM email_templates WHERE id = $1 AND user_id = $2`,
+      [id, req.user.id]
+    );
+    
+    if (original.rows.length === 0) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    const template = original.rows[0];
+    
+    const result = await pool.query(
+      `INSERT INTO email_templates (user_id, name, type, subject, body, is_default, variables)
+       VALUES ($1, $2, $3, $4, $5, false, $6)
+       RETURNING *`,
+      [
+        req.user.id, 
+        `${template.name} (Copy)`, 
+        template.type, 
+        template.subject, 
+        template.body, 
+        template.variables
+      ]
+    );
+    
+    res.json({ template: result.rows[0], message: 'Template duplicated successfully' });
+  } catch (error) {
+    console.error('Duplicate template error:', error);
+    res.status(500).json({ error: 'Failed to duplicate template' });
+  }
+});
+
+// Reset to default templates
+app.post('/api/email-templates/reset-defaults', authenticateToken, async (req, res) => {
+  try {
+    // Delete all custom templates
+    await pool.query(
+      `DELETE FROM email_templates WHERE user_id = $1`,
+      [req.user.id]
+    );
+    
+    // Insert default templates
+    const defaults = getDefaultTemplates();
+    
+    for (const template of defaults) {
+      await pool.query(
+        `INSERT INTO email_templates (user_id, name, type, subject, body, is_default, variables)
+         VALUES ($1, $2, $3, $4, $5, true, $6)`,
+        [req.user.id, template.name, template.type, template.subject, template.body, JSON.stringify(template.variables)]
+      );
+    }
+    
+    res.json({ success: true, message: 'Templates reset to defaults' });
+  } catch (error) {
+    console.error('Reset templates error:', error);
+    res.status(500).json({ error: 'Failed to reset templates' });
+  }
+});
+
+// Helper: Get default templates
+function getDefaultTemplates() {
+  return [
+    {
+      name: 'Booking Confirmation (Guest)',
+      type: 'booking_confirmation_guest',
+      subject: '✅ Booking Confirmed with {{organizer_name}}',
+      body: `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">✅ Booking Confirmed!</h1>
+  </div>
+  
+  <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
+    <p style="font-size: 16px; color: #333;">Hi {{attendee_name}},</p>
+    
+    <p style="font-size: 16px; color: #555;">Your meeting with <strong>{{organizer_name}}</strong> has been confirmed!</p>
+    
+    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
+      <p style="margin: 5px 0; color: #333;"><strong>📅 Date:</strong> {{date}}</p>
+      <p style="margin: 5px 0; color: #333;"><strong>🕐 Time:</strong> {{time}}</p>
+      <p style="margin: 5px 0; color: #333;"><strong>⏱️ Duration:</strong> {{duration}}</p>
+      {{#if meeting_link}}
+      <p style="margin: 5px 0; color: #333;"><strong>🔗 Meeting Link:</strong> <a href="{{meeting_link}}" style="color: #667eea;">Join Meeting</a></p>
+      {{/if}}
+    </div>
+    
+    {{#if notes}}
+    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+      <p style="margin: 0; color: #856404;"><strong>📝 Notes:</strong> {{notes}}</p>
+    </div>
+    {{/if}}
+    
+    <div style="text-align: center; margin-top: 30px;">
+      <a href="{{manage_url}}" style="display: inline-block; background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Manage Booking</a>
+    </div>
+    
+    <p style="font-size: 14px; color: #888; margin-top: 30px; text-align: center;">
+      Scheduled via ScheduleSync
+    </p>
+  </div>
+</div>`,
+      variables: ['attendee_name', 'organizer_name', 'date', 'time', 'duration', 'meeting_link', 'notes', 'manage_url']
+    },
+    {
+      name: 'Booking Confirmation (Organizer)',
+      type: 'booking_confirmation_organizer',
+      subject: '📅 New Booking: {{attendee_name}}',
+      body: `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">📅 New Booking Received!</h1>
+  </div>
+  
+  <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
+    <p style="font-size: 16px; color: #333;">Hi {{organizer_name}},</p>
+    
+    <p style="font-size: 16px; color: #555;">You have a new booking from <strong>{{attendee_name}}</strong>.</p>
+    
+    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #11998e;">
+      <p style="margin: 5px 0; color: #333;"><strong>👤 Guest:</strong> {{attendee_name}} ({{attendee_email}})</p>
+      <p style="margin: 5px 0; color: #333;"><strong>📅 Date:</strong> {{date}}</p>
+      <p style="margin: 5px 0; color: #333;"><strong>🕐 Time:</strong> {{time}}</p>
+      <p style="margin: 5px 0; color: #333;"><strong>⏱️ Duration:</strong> {{duration}}</p>
+      {{#if meeting_link}}
+      <p style="margin: 5px 0; color: #333;"><strong>🔗 Meeting Link:</strong> <a href="{{meeting_link}}" style="color: #11998e;">{{meeting_link}}</a></p>
+      {{/if}}
+    </div>
+    
+    {{#if notes}}
+    <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 20px 0;">
+      <p style="margin: 0; color: #2e7d32;"><strong>📝 Guest Notes:</strong> {{notes}}</p>
+    </div>
+    {{/if}}
+    
+    <p style="font-size: 14px; color: #888; margin-top: 30px; text-align: center;">
+      Powered by ScheduleSync
+    </p>
+  </div>
+</div>`,
+      variables: ['organizer_name', 'attendee_name', 'attendee_email', 'date', 'time', 'duration', 'meeting_link', 'notes']
+    },
+    {
+      name: 'Booking Reminder',
+      type: 'booking_reminder',
+      subject: '⏰ Reminder: Meeting with {{organizer_name}} in {{hours_until}} hours',
+      body: `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">⏰ Meeting Reminder</h1>
+  </div>
+  
+  <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
+    <p style="font-size: 16px; color: #333;">Hi {{attendee_name}},</p>
+    
+    <p style="font-size: 16px; color: #555;">This is a friendly reminder about your upcoming meeting with <strong>{{organizer_name}}</strong>.</p>
+    
+    <div style="background: #fff0f3; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f5576c;">
+      <p style="margin: 5px 0; color: #333;"><strong>📅 Date:</strong> {{date}}</p>
+      <p style="margin: 5px 0; color: #333;"><strong>🕐 Time:</strong> {{time}}</p>
+      <p style="margin: 5px 0; color: #333;"><strong>⏱️ Duration:</strong> {{duration}}</p>
+      {{#if meeting_link}}
+      <p style="margin: 5px 0; color: #333;"><strong>🔗 Join:</strong> <a href="{{meeting_link}}" style="color: #f5576c; font-weight: bold;">Click here to join</a></p>
+      {{/if}}
+    </div>
+    
+    <div style="text-align: center; margin-top: 30px;">
+      {{#if meeting_link}}
+      <a href="{{meeting_link}}" style="display: inline-block; background: #f5576c; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">Join Meeting</a>
+      {{/if}}
+    </div>
+    
+    <p style="font-size: 14px; color: #888; margin-top: 30px; text-align: center;">
+      Need to reschedule? <a href="{{manage_url}}" style="color: #f5576c;">Manage your booking</a>
+    </p>
+  </div>
+</div>`,
+      variables: ['attendee_name', 'organizer_name', 'date', 'time', 'duration', 'meeting_link', 'manage_url', 'hours_until']
+    },
+    {
+      name: 'Booking Cancellation',
+      type: 'booking_cancellation',
+      subject: '❌ Booking Cancelled',
+      body: `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: #dc3545; padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">❌ Booking Cancelled</h1>
+  </div>
+  
+  <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
+    <p style="font-size: 16px; color: #333;">Hi {{attendee_name}},</p>
+    
+    <p style="font-size: 16px; color: #555;">Your meeting with <strong>{{organizer_name}}</strong> has been cancelled.</p>
+    
+    <div style="background: #f8d7da; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #dc3545;">
+      <p style="margin: 5px 0; color: #721c24;"><strong>Original Date:</strong> {{date}}</p>
+      <p style="margin: 5px 0; color: #721c24;"><strong>Original Time:</strong> {{time}}</p>
+      {{#if cancellation_reason}}
+      <p style="margin: 10px 0 0 0; color: #721c24;"><strong>Reason:</strong> {{cancellation_reason}}</p>
+      {{/if}}
+    </div>
+    
+    <p style="font-size: 16px; color: #555;">Would you like to reschedule?</p>
+    
+    <div style="text-align: center; margin-top: 20px;">
+      <a href="{{booking_link}}" style="display: inline-block; background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Book a New Time</a>
+    </div>
+  </div>
+</div>`,
+      variables: ['attendee_name', 'organizer_name', 'date', 'time', 'cancellation_reason', 'booking_link']
+    },
+    {
+      name: 'Booking Rescheduled',
+      type: 'booking_reschedule',
+      subject: '🔄 Booking Rescheduled',
+      body: `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">🔄 Booking Rescheduled</h1>
+  </div>
+  
+  <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
+    <p style="font-size: 16px; color: #333;">Hi {{attendee_name}},</p>
+    
+    <p style="font-size: 16px; color: #555;">Your meeting with <strong>{{organizer_name}}</strong> has been rescheduled.</p>
+    
+    <div style="display: flex; gap: 20px; margin: 20px 0;">
+      <div style="flex: 1; background: #f8d7da; padding: 15px; border-radius: 8px; text-decoration: line-through;">
+        <p style="margin: 0; color: #721c24; font-size: 12px; font-weight: bold;">OLD TIME</p>
+        <p style="margin: 5px 0 0 0; color: #721c24;">{{old_time}}</p>
+      </div>
+      <div style="flex: 1; background: #d4edda; padding: 15px; border-radius: 8px;">
+        <p style="margin: 0; color: #155724; font-size: 12px; font-weight: bold;">NEW TIME</p>
+        <p style="margin: 5px 0 0 0; color: #155724; font-weight: bold;">{{new_time}}</p>
+      </div>
+    </div>
+    
+    {{#if meeting_link}}
+    <div style="background: #e8f4fd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+      <p style="margin: 0; color: #0056b3;"><strong>🔗 Meeting Link:</strong> <a href="{{meeting_link}}" style="color: #0056b3;">{{meeting_link}}</a></p>
+    </div>
+    {{/if}}
+    
+    <div style="text-align: center; margin-top: 30px;">
+      <a href="{{manage_url}}" style="display: inline-block; background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Booking Details</a>
+    </div>
+  </div>
+</div>`,
+      variables: ['attendee_name', 'organizer_name', 'old_time', 'new_time', 'meeting_link', 'manage_url']
+    }
+  ];
+}
+
+// Helper: Render template with data
+function renderEmailTemplate(template, data) {
+  let subject = template.subject;
+  let body = template.body;
+  
+  // Replace all variables
+  for (const [key, value] of Object.entries(data)) {
+    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+    subject = subject.replace(regex, value || '');
+    body = body.replace(regex, value || '');
+  }
+  
+  // Handle conditional blocks {{#if variable}}...{{/if}}
+  const conditionalRegex = /\{\{#if (\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g;
+  body = body.replace(conditionalRegex, (match, variable, content) => {
+    return data[variable] ? content : '';
+  });
+  
+  return { subject, body };
+}
+
+// Get user's template for a specific type (with fallback to default)
+async function getUserEmailTemplate(userId, type) {
+  try {
+    // Try to get user's custom template
+    const result = await pool.query(
+      `SELECT * FROM email_templates 
+       WHERE user_id = $1 AND type = $2 AND is_active = true
+       ORDER BY is_default DESC
+       LIMIT 1`,
+      [userId, type]
+    );
+    
+    if (result.rows.length > 0) {
+      return result.rows[0];
+    }
+    
+    // Fall back to system default
+    const defaults = getDefaultTemplates();
+    return defaults.find(t => t.type === type) || null;
+  } catch (error) {
+    console.error('Get user template error:', error);
+    return null;
+  }
+}
+
 
 // ============ ONBOARDING / PROFILE UPDATE ============
 app.put('/api/users/profile', authenticateToken, async (req, res) => {

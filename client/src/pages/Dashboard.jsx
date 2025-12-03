@@ -28,6 +28,7 @@ import api, {
 } from '../utils/api';
 import AISchedulerChat from '../components/AISchedulerChat';
 import { useNotification } from '../contexts/NotificationContext';
+import UsageWidget from '../components/UsageWidget';
 
 export default function Dashboard() {
   const navigate = useNavigate();
