@@ -244,6 +244,34 @@ export const eventTypes = {
 export const events = eventTypes;
 
 // ============================================
+// EMAIL TEMPLATES
+// ============================================
+export const emailTemplates = {
+  // Get all templates for user
+  getAll: () => api.get('/email-templates'),
+  
+  // Get single template
+  get: (id) => api.get(`/email-templates/${id}`),
+  
+  // Create new template
+  create: (data) => api.post('/email-templates', data),
+  
+  // Update template
+  update: (id, data) => api.put(`/email-templates/${id}`, data),
+  
+  // Delete template
+  delete: (id) => api.delete(`/email-templates/${id}`),
+  
+  // Toggle favorite
+  toggleFavorite: (id) => api.patch(`/email-templates/${id}/favorite`),
+  
+  // ChatGPT Integration endpoints
+  listForAI: (type) => api.get('/chatgpt/email-templates', { params: { type } }),
+  findTemplate: (query, type) => api.get('/chatgpt/find-template', { params: { query, type } }),
+  sendWithTemplate: (data) => api.post('/chatgpt/send-email', data),
+};
+
+// ============================================
 // ANALYTICS
 // ============================================
 export const analytics = {
@@ -373,6 +401,7 @@ api.aiScheduler = aiScheduler;
 api.singleUseLinks = singleUseLinks;
 api.eventTypes = eventTypes;
 api.events = events;
+api.emailTemplates = emailTemplates;
 api.analytics = analytics;
 api.notifications = notifications;
 api.timezone = timezone;

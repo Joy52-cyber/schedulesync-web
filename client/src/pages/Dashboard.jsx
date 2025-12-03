@@ -10,6 +10,8 @@ import {
   ChevronRight,
   Globe,
   Loader2,
+  Bot,
+  Settings,
 } from 'lucide-react';
 
 import api, {
@@ -20,6 +22,8 @@ import api, {
 import AISchedulerChat from '../components/AISchedulerChat';
 import { useNotification } from '../contexts/NotificationContext';
 import UsageWidget from '../components/UsageWidget';
+import TestWidget from '../components/TestWidget';
+
 
 export default function Dashboard() {
   const navigate = useNavigate();

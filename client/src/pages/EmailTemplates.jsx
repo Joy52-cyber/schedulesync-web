@@ -1,59 +1,148 @@
 ﻿import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
-  Mail, Plus, Edit2, Trash2, Copy, Eye, Save, X,
-  Loader2, Check, AlertTriangle, RefreshCw, ChevronDown
+  Mail,
+  Plus,
+  Edit2,
+  Trash2,
+  Save,
+  X,
+  Loader2,
+  Search,
+  Star,
+  Sparkles,
+  FileText,
+  Bot,
+  Eye,
 } from 'lucide-react';
 import api from '../utils/api';
 
+// Template Types - Simple and focused
 const TEMPLATE_TYPES = [
-  { value: 'booking_confirmation_guest', label: 'Booking Confirmation (Guest)', icon: '✅' },
-  { value: 'booking_confirmation_organizer', label: 'Booking Confirmation (Organizer)', icon: '📅' },
-  { value: 'booking_reminder', label: 'Booking Reminder', icon: '⏰' },
-  { value: 'booking_cancellation', label: 'Booking Cancellation', icon: '❌' },
-  { value: 'booking_reschedule', label: 'Booking Rescheduled', icon: '🔄' },
-  { value: 'team_invitation', label: 'Team Invitation', icon: '👥' },
-  { value: 'payment_confirmation', label: 'Payment Confirmation', icon: '💳' },
+  { id: 'reminder', label: 'Reminder', emoji: '⏰' },
+  { id: 'confirmation', label: 'Confirmation', emoji: '✅' },
+  { id: 'follow_up', label: 'Follow-up', emoji: '👋' },
+  { id: 'reschedule', label: 'Reschedule', emoji: '🔄' },
+  { id: 'cancellation', label: 'Cancellation', emoji: '❌' },
+  { id: 'other', label: 'Other', emoji: '📧' },
 ];
 
-const AVAILABLE_VARIABLES = [
-  { name: 'attendee_name', description: 'Guest name' },
-  { name: 'attendee_email', description: 'Guest email' },
-  { name: 'organizer_name', description: 'Your name' },
-  { name: 'organizer_email', description: 'Your email' },
-  { name: 'team_name', description: 'Team name' },
-  { name: 'date', description: 'Meeting date' },
-  { name: 'time', description: 'Meeting time' },
-  { name: 'duration', description: 'Meeting duration' },
-  { name: 'start_time', description: 'Start datetime' },
-  { name: 'end_time', description: 'End datetime' },
-  { name: 'meeting_link', description: 'Video call link' },
-  { name: 'manage_url', description: 'Booking management URL' },
-  { name: 'notes', description: 'Meeting notes' },
-  { name: 'cancellation_reason', description: 'Cancellation reason' },
-  { name: 'old_time', description: 'Previous time (reschedule)' },
-  { name: 'new_time', description: 'New time (reschedule)' },
+// Available Variables for personalization
+const VARIABLES = [
+  { key: 'guestName', label: 'Guest Name' },
+  { key: 'guestEmail', label: 'Guest Email' },
+  { key: 'organizerName', label: 'Your Name' },
+  { key: 'meetingDate', label: 'Meeting Date' },
+  { key: 'meetingTime', label: 'Meeting Time' },
+  { key: 'meetingLink', label: 'Meeting Link' },
+  { key: 'bookingLink', label: 'Booking Link' },
+];
+
+// Default starter templates
+const DEFAULT_TEMPLATES = [
+  {
+    id: 'default_1',
+    name: 'Friendly Reminder',
+    type: 'reminder',
+    subject: 'Quick reminder: We meet tomorrow! 👋',
+    body: `Hey {{guestName}}!
+
+Just a friendly heads up – we're scheduled to meet tomorrow!
+
+📅 {{meetingDate}} at {{meetingTime}}
+🔗 {{meetingLink}}
+
+Looking forward to it!
+
+{{organizerName}}`,
+    is_default: true,
+    is_favorite: true,
+  },
+  {
+    id: 'default_2',
+    name: 'Professional Reminder',
+    type: 'reminder',
+    subject: 'Reminder: Upcoming meeting on {{meetingDate}}',
+    body: `Dear {{guestName}},
+
+This is a reminder about your upcoming meeting.
+
+Date: {{meetingDate}}
+Time: {{meetingTime}}
+Meeting Link: {{meetingLink}}
+
+Best regards,
+{{organizerName}}`,
+    is_default: true,
+    is_favorite: false,
+  },
+  {
+    id: 'default_3',
+    name: 'Thank You Follow-up',
+    type: 'follow_up',
+    subject: 'Great talking with you! 🙌',
+    body: `Hi {{guestName}},
+
+Thank you for taking the time to meet with me today! I really enjoyed our conversation.
+
+If you need anything else, feel free to book another time: {{bookingLink}}
+
+Talk soon!
+{{organizerName}}`,
+    is_default: true,
+    is_favorite: false,
+  },
+  {
+    id: 'default_4',
+    name: 'Meeting Confirmed',
+    type: 'confirmation',
+    subject: 'Your meeting is confirmed! ✅',
+    body: `Hi {{guestName}},
+
+Great news! Your meeting has been confirmed.
+
+📅 {{meetingDate}}
+🕐 {{meetingTime}}
+🔗 {{meetingLink}}
+
+See you soon!
+{{organizerName}}`,
+    is_default: true,
+    is_favorite: false,
+  },
+  {
+    id: 'default_5',
+    name: 'Need to Reschedule',
+    type: 'reschedule',
+    subject: 'Can we reschedule?',
+    body: `Hi {{guestName}},
+
+I'm sorry, but I need to reschedule our meeting on {{meetingDate}}.
+
+Please pick a new time that works for you: {{bookingLink}}
+
+Apologies for any inconvenience!
+{{organizerName}}`,
+    is_default: true,
+    is_favorite: false,
+  },
 ];
 
 export default function EmailTemplates() {
-  const navigate = useNavigate();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showEditor, setShowEditor] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewHtml, setPreviewHtml] = useState('');
-  const [previewSubject, setPreviewSubject] = useState('');
-  const [selectedType, setSelectedType] = useState('all');
   
-  const [editingTemplate, setEditingTemplate] = useState({
-    id: null,
-    name: '',
-    type: 'booking_confirmation_guest',
-    subject: '',
-    body: '',
-    is_default: false,
-  });
+  // Filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  
+  // Editor
+  const [showEditor, setShowEditor] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null);
+  
+  // Preview
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState(null);
 
   useEffect(() => {
     loadTemplates();
@@ -62,17 +151,80 @@ export default function EmailTemplates() {
   const loadTemplates = async () => {
     try {
       const response = await api.get('/email-templates');
-      setTemplates(response.data.templates || []);
+      const userTemplates = response.data.templates || [];
+      
+      // Combine defaults with user templates
+      const allTemplates = [
+        ...DEFAULT_TEMPLATES,
+        ...userTemplates.map(t => ({ ...t, is_default: false }))
+      ];
+      setTemplates(allTemplates);
     } catch (error) {
       console.error('Failed to load templates:', error);
+      setTemplates(DEFAULT_TEMPLATES);
     } finally {
       setLoading(false);
     }
   };
 
+  // Filter templates
+  const filteredTemplates = templates.filter(t => {
+    const matchesSearch = searchQuery === '' || 
+      t.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = filterType === 'all' || t.type === filterType;
+    return matchesSearch && matchesType;
+  });
+
+  // Sort: favorites first, then by name
+  const sortedTemplates = [...filteredTemplates].sort((a, b) => {
+    if (a.is_favorite && !b.is_favorite) return -1;
+    if (!a.is_favorite && b.is_favorite) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  const toggleFavorite = async (templateId) => {
+    const template = templates.find(t => t.id === templateId);
+    
+    setTemplates(prev => prev.map(t => 
+      t.id === templateId ? { ...t, is_favorite: !t.is_favorite } : t
+    ));
+    
+    // Save to API if user template
+    if (template && !template.is_default) {
+      try {
+        await api.patch(`/email-templates/${templateId}/favorite`);
+      } catch (error) {
+        console.error('Failed to update favorite:', error);
+      }
+    }
+  };
+
+  const openEditor = (template = null) => {
+    if (template) {
+      // Editing existing or duplicating default
+      setEditingTemplate({ 
+        ...template, 
+        id: template.is_default ? null : template.id,
+        name: template.is_default ? `${template.name} (My Version)` : template.name,
+        is_default: false 
+      });
+    } else {
+      // New template
+      setEditingTemplate({
+        id: null,
+        name: '',
+        type: 'other',
+        subject: '',
+        body: '',
+        is_favorite: false,
+      });
+    }
+    setShowEditor(true);
+  };
+
   const handleSave = async () => {
     if (!editingTemplate.name || !editingTemplate.subject || !editingTemplate.body) {
-      alert('Please fill in all required fields');
+      alert('Please fill in all fields');
       return;
     }
 
@@ -85,102 +237,70 @@ export default function EmailTemplates() {
       }
       await loadTemplates();
       setShowEditor(false);
-      resetEditor();
     } catch (error) {
-      alert(error.response?.data?.error || 'Failed to save template');
+      console.error('Save failed:', error);
+      alert('Failed to save template');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this template?')) return;
+    if (!confirm('Delete this template?')) return;
     
     try {
       await api.delete(`/email-templates/${id}`);
       await loadTemplates();
     } catch (error) {
-      alert('Failed to delete template');
+      console.error('Delete failed:', error);
     }
   };
 
-  const handleDuplicate = async (id) => {
-    try {
-      await api.post(`/email-templates/${id}/duplicate`);
-      await loadTemplates();
-    } catch (error) {
-      alert('Failed to duplicate template');
-    }
-  };
-
-  const handlePreview = async () => {
-    try {
-      const response = await api.post('/email-templates/preview', {
-        subject: editingTemplate.subject,
-        body: editingTemplate.body,
-      });
-      setPreviewSubject(response.data.preview.subject);
-      setPreviewHtml(response.data.preview.body);
-      setShowPreview(true);
-    } catch (error) {
-      alert('Failed to generate preview');
-    }
-  };
-
-  const handleResetDefaults = async () => {
-    if (!confirm('This will delete all your custom templates and restore defaults. Continue?')) return;
-    
-    try {
-      await api.post('/email-templates/reset-defaults');
-      await loadTemplates();
-    } catch (error) {
-      alert('Failed to reset templates');
-    }
-  };
-
-  const resetEditor = () => {
-    setEditingTemplate({
-      id: null,
-      name: '',
-      type: 'booking_confirmation_guest',
-      subject: '',
-      body: '',
-      is_default: false,
-    });
-  };
-
-  const openEditor = (template = null) => {
-    if (template) {
-      setEditingTemplate({ ...template });
-    } else {
-      resetEditor();
-    }
-    setShowEditor(true);
-  };
-
-  const insertVariable = (variable) => {
+  const insertVariable = (varKey) => {
     const textarea = document.getElementById('template-body');
-    if (textarea) {
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const text = editingTemplate.body;
-      const before = text.substring(0, start);
-      const after = text.substring(end);
-      const newBody = `${before}{{${variable}}}${after}`;
-      setEditingTemplate({ ...editingTemplate, body: newBody });
-      
-      setTimeout(() => {
-        textarea.focus();
-        textarea.selectionStart = textarea.selectionEnd = start + variable.length + 4;
-      }, 0);
-    }
+    if (!textarea || !editingTemplate) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = editingTemplate.body;
+    const newBody = text.substring(0, start) + `{{${varKey}}}` + text.substring(end);
+    
+    setEditingTemplate({ ...editingTemplate, body: newBody });
+    
+    setTimeout(() => {
+      textarea.focus();
+      const newPos = start + varKey.length + 4;
+      textarea.setSelectionRange(newPos, newPos);
+    }, 0);
   };
 
-  const filteredTemplates = selectedType === 'all' 
-    ? templates 
-    : templates.filter(t => t.type === selectedType);
+  const getTypeEmoji = (type) => {
+    return TEMPLATE_TYPES.find(t => t.id === type)?.emoji || '📧';
+  };
 
-  const getTypeInfo = (type) => TEMPLATE_TYPES.find(t => t.value === type) || { label: type, icon: '📧' };
+  const previewWithSampleData = (template) => {
+    const sampleData = {
+      guestName: 'John Smith',
+      guestEmail: 'john@example.com',
+      organizerName: 'You',
+      meetingDate: 'Monday, Jan 20, 2025',
+      meetingTime: '2:00 PM',
+      meetingLink: 'https://meet.google.com/abc-xyz',
+      bookingLink: 'https://schedulesync.app/book/you',
+    };
+    
+    let subject = template.subject;
+    let body = template.body;
+    
+    Object.entries(sampleData).forEach(([key, value]) => {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      subject = subject.replace(regex, value);
+      body = body.replace(regex, value);
+    });
+    
+    setPreviewTemplate({ ...template, subject, body });
+    setShowPreview(true);
+  };
 
   if (loading) {
     return (
@@ -191,178 +311,196 @@ export default function EmailTemplates() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
               <Mail className="h-8 w-8 text-blue-600" />
               Email Templates
             </h1>
-            <p className="text-gray-600 mt-1">Customize the emails sent to you and your guests</p>
+            <p className="text-gray-600 mt-1 flex items-center gap-2">
+              <Bot className="h-4 w-4" />
+              Your AI assistant uses these when sending emails
+            </p>
           </div>
-          <div className="flex gap-3">
-            <button
-              onClick={handleResetDefaults}
-              className="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 flex items-center gap-2 font-medium"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Reset Defaults
-            </button>
-            <button
-              onClick={() => openEditor()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2 font-semibold"
-            >
-              <Plus className="h-4 w-4" />
-              New Template
-            </button>
+          <button
+            onClick={() => openEditor()}
+            className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2 font-semibold shadow-sm"
+          >
+            <Plus className="h-5 w-5" />
+            New Template
+          </button>
+        </div>
+
+        {/* AI Tip */}
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-2xl p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-purple-900">How it works with AI</p>
+              <p className="text-sm text-purple-700 mt-1">
+                Say: <span className="font-mono bg-white px-2 py-0.5 rounded">"Send John a friendly reminder about tomorrow"</span>
+                <br />
+                Your AI will use your "Friendly Reminder" template automatically!
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Filter */}
-        <div className="bg-white rounded-xl shadow-sm border p-4 mb-6">
-          <div className="flex items-center gap-4 flex-wrap">
-            <span className="text-sm font-medium text-gray-700">Filter by type:</span>
-            <select
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-              className="px-3 py-2 border rounded-lg text-sm"
-            >
-              <option value="all">All Templates</option>
-              {TEMPLATE_TYPES.map(type => (
-                <option key={type.value} value={type.value}>
-                  {type.icon} {type.label}
-                </option>
-              ))}
-            </select>
+        {/* Search & Filter */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search templates..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none"
+            />
           </div>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none bg-white"
+          >
+            <option value="all">All Types</option>
+            {TEMPLATE_TYPES.map(type => (
+              <option key={type.id} value={type.id}>{type.emoji} {type.label}</option>
+            ))}
+          </select>
         </div>
 
-        {/* Templates Grid */}
-        {filteredTemplates.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-            <Mail className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-gray-900 mb-2">No templates yet</h2>
-            <p className="text-gray-600 mb-6">Create your first custom email template</p>
+        {/* Templates List */}
+        {sortedTemplates.length === 0 ? (
+          <div className="bg-white rounded-2xl p-12 text-center border-2 border-dashed border-gray-200">
+            <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500 mb-4">No templates found</p>
             <button
               onClick={() => openEditor()}
-              className="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium"
             >
-              Create Template
+              Create One
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredTemplates.map((template) => {
-              const typeInfo = getTypeInfo(template.type);
-              return (
-                <div
-                  key={template.id}
-                  className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 overflow-hidden hover:shadow-xl transition-shadow"
-                >
-                  <div className="p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl">{typeInfo.icon}</span>
-                        <div>
-                          <h3 className="font-bold text-gray-900">{template.name}</h3>
-                          <p className="text-xs text-gray-500">{typeInfo.label}</p>
-                        </div>
-                      </div>
+          <div className="space-y-3">
+            {sortedTemplates.map((template) => (
+              <div
+                key={template.id}
+                className="bg-white rounded-xl border-2 border-gray-100 hover:border-blue-200 transition-all overflow-hidden"
+              >
+                <div className="flex items-center gap-4 p-4">
+                  {/* Emoji & Name */}
+                  <div className="text-2xl">{getTypeEmoji(template.type)}</div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-900 truncate">{template.name}</h3>
                       {template.is_default && (
-                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
-                          Default
+                        <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                          Built-in
                         </span>
                       )}
                     </div>
-                    
-                    <div className="bg-gray-50 rounded-lg p-3 mb-4">
-                      <p className="text-sm text-gray-600 font-medium truncate">
-                        Subject: {template.subject}
-                      </p>
-                    </div>
+                    <p className="text-sm text-gray-500 truncate">{template.subject}</p>
+                  </div>
 
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => openEditor(template)}
-                        className="flex-1 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 flex items-center justify-center gap-1"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDuplicate(template.id)}
-                        className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                        title="Duplicate"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </button>
+                  {/* Actions */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => toggleFavorite(template.id)}
+                      className="p-2 hover:bg-gray-100 rounded-lg"
+                      title={template.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+                    >
+                      <Star className={`h-5 w-5 ${template.is_favorite ? 'fill-yellow-400 text-yellow-400' : 'text-gray-400'}`} />
+                    </button>
+                    <button
+                      onClick={() => previewWithSampleData(template)}
+                      className="p-2 hover:bg-gray-100 rounded-lg"
+                      title="Preview"
+                    >
+                      <Eye className="h-5 w-5 text-gray-500" />
+                    </button>
+                    <button
+                      onClick={() => openEditor(template)}
+                      className="p-2 hover:bg-gray-100 rounded-lg"
+                      title={template.is_default ? 'Duplicate & Edit' : 'Edit'}
+                    >
+                      <Edit2 className="h-5 w-5 text-gray-500" />
+                    </button>
+                    {!template.is_default && (
                       <button
                         onClick={() => handleDelete(template.id)}
-                        className="px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
+                        className="p-2 hover:bg-red-50 rounded-lg"
                         title="Delete"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-5 w-5 text-red-500" />
                       </button>
-                    </div>
+                    )}
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>
 
       {/* Editor Modal */}
-      {showEditor && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+      {showEditor && editingTemplate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">
-                {editingTemplate.id ? 'Edit Template' : 'Create Template'}
+              <h2 className="text-lg font-bold text-gray-900">
+                {editingTemplate.id ? 'Edit Template' : 'New Template'}
               </h2>
-              <button
-                onClick={() => setShowEditor(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
+              <button onClick={() => setShowEditor(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Template Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={editingTemplate.name}
-                    onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
-                    placeholder="My Custom Confirmation"
-                    className="w-full px-4 py-3 border-2 rounded-xl focus:border-blue-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Template Type *
-                  </label>
-                  <select
-                    value={editingTemplate.type}
-                    onChange={(e) => setEditingTemplate({ ...editingTemplate, type: e.target.value })}
-                    disabled={!!editingTemplate.id}
-                    className="w-full px-4 py-3 border-2 rounded-xl focus:border-blue-500 outline-none disabled:bg-gray-100"
-                  >
-                    {TEMPLATE_TYPES.map(type => (
-                      <option key={type.value} value={type.value}>
-                        {type.icon} {type.label}
-                      </option>
-                    ))}
-                  </select>
+            <div className="p-6 space-y-5">
+              {/* Name */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Template Name *
+                </label>
+                <input
+                  type="text"
+                  value={editingTemplate.name}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
+                  placeholder="e.g., Friendly Reminder"
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none"
+                />
+              </div>
+
+              {/* Type */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Type
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {TEMPLATE_TYPES.map(type => (
+                    <button
+                      key={type.id}
+                      onClick={() => setEditingTemplate({ ...editingTemplate, type: type.id })}
+                      className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                        editingTemplate.type === type.id
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      {type.emoji} {type.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
+              {/* Subject */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Email Subject *
@@ -371,78 +509,59 @@ export default function EmailTemplates() {
                   type="text"
                   value={editingTemplate.subject}
                   onChange={(e) => setEditingTemplate({ ...editingTemplate, subject: e.target.value })}
-                  placeholder="✅ Booking Confirmed with {{organizer_name}}"
-                  className="w-full px-4 py-3 border-2 rounded-xl focus:border-blue-500 outline-none"
+                  placeholder="e.g., Quick reminder about tomorrow! 👋"
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none"
                 />
               </div>
 
+              {/* Body */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-semibold text-gray-700">
-                    Email Body (HTML) *
-                  </label>
-                  <button
-                    onClick={handlePreview}
-                    className="px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 flex items-center gap-1"
-                  >
-                    <Eye className="h-4 w-4" />
-                    Preview
-                  </button>
-                </div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Email Body *
+                </label>
                 <textarea
                   id="template-body"
                   value={editingTemplate.body}
                   onChange={(e) => setEditingTemplate({ ...editingTemplate, body: e.target.value })}
-                  rows={12}
-                  placeholder="<div>Your HTML email content here...</div>"
-                  className="w-full px-4 py-3 border-2 rounded-xl focus:border-blue-500 outline-none font-mono text-sm"
+                  rows={8}
+                  placeholder="Write your email here..."
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none resize-none"
                 />
               </div>
 
-              {/* Variables Reference */}
-              <div className="bg-blue-50 rounded-xl p-4">
-                <h4 className="font-semibold text-blue-900 mb-3">Available Variables (click to insert)</h4>
+              {/* Variables */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-sm font-semibold text-gray-700 mb-2">
+                  Insert Variables (click to add)
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {AVAILABLE_VARIABLES.map(v => (
+                  {VARIABLES.map(v => (
                     <button
-                      key={v.name}
-                      onClick={() => insertVariable(v.name)}
-                      className="px-2 py-1 bg-white border border-blue-200 rounded text-xs font-mono hover:bg-blue-100 transition-colors"
-                      title={v.description}
+                      key={v.key}
+                      onClick={() => insertVariable(v.key)}
+                      className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm hover:bg-blue-50 hover:border-blue-300 transition-all"
                     >
-                      {`{{${v.name}}}`}
+                      <span className="font-mono text-blue-600">{`{{${v.key}}}`}</span>
+                      <span className="text-gray-400 ml-1">({v.label})</span>
                     </button>
                   ))}
                 </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="is_default"
-                  checked={editingTemplate.is_default}
-                  onChange={(e) => setEditingTemplate({ ...editingTemplate, is_default: e.target.checked })}
-                  className="w-5 h-5 rounded border-gray-300"
-                />
-                <label htmlFor="is_default" className="text-sm text-gray-700">
-                  Set as default template for this type
-                </label>
               </div>
             </div>
 
             <div className="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex justify-end gap-3">
               <button
                 onClick={() => setShowEditor(false)}
-                className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50"
+                className="px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
               >
-                {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 {saving ? 'Saving...' : 'Save Template'}
               </button>
             </div>
@@ -451,26 +570,43 @@ export default function EmailTemplates() {
       )}
 
       {/* Preview Modal */}
-      {showPreview && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
+      {showPreview && previewTemplate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden">
             <div className="bg-gray-100 px-6 py-4 flex items-center justify-between border-b">
               <div>
-                <p className="text-xs text-gray-500 font-medium">PREVIEW</p>
-                <p className="font-semibold text-gray-900">{previewSubject}</p>
+                <p className="text-xs text-gray-500">Preview</p>
+                <p className="font-semibold text-gray-900">{previewTemplate.name}</p>
               </div>
-              <button
-                onClick={() => setShowPreview(false)}
-                className="p-2 hover:bg-gray-200 rounded-lg"
-              >
+              <button onClick={() => setShowPreview(false)} className="p-2 hover:bg-gray-200 rounded-lg">
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="p-6 overflow-y-auto max-h-[70vh]">
-              <div 
-                className="email-preview"
-                dangerouslySetInnerHTML={{ __html: previewHtml }}
-              />
+            
+            <div className="p-6">
+              <div className="mb-4">
+                <p className="text-xs font-medium text-gray-500 mb-1">SUBJECT</p>
+                <p className="text-gray-900 font-medium">{previewTemplate.subject}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">BODY</p>
+                <div className="bg-gray-50 rounded-lg p-4 whitespace-pre-wrap text-gray-800 text-sm">
+                  {previewTemplate.body}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 border-t px-6 py-4 flex justify-end">
+              <button
+                onClick={() => {
+                  setShowPreview(false);
+                  const originalTemplate = templates.find(t => t.id === previewTemplate.id || t.name === previewTemplate.name);
+                  if (originalTemplate) openEditor(originalTemplate);
+                }}
+                className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700"
+              >
+                Edit This Template
+              </button>
             </div>
           </div>
         </div>
