@@ -7766,6 +7766,21 @@ EMAIL INTENTS:
 Current date/time: ${new Date().toISOString()}
 User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
 
+MULTIPLE ATTENDEE PARSING EXAMPLES:
+- "Schedule with alice@company.com and bob@startup.com tomorrow" 
+  → attendees: ["alice@company.com", "bob@startup.com"], date: "2025-12-04"
+- "Meeting with john@email.com, jane@company.com at 3pm"
+  → attendees: ["john@email.com", "jane@company.com"], time: "15:00"
+- "Book team meeting with bob@startup.com and alice@company.com"
+  → attendees: ["bob@startup.com", "alice@company.com"]
+- "Schedule with team: john@email.com, jane@company.com, bob@startup.com"
+  → attendees: ["john@email.com", "jane@company.com", "bob@startup.com"]
+
+CRITICAL: Extract ALL email addresses found in the message.
+Use regex pattern /\S+@\S+\.\S+/g to find all emails.
+When multiple emails are connected by "and", commas, or "with", include ALL in attendees array.
+NEVER ignore any email addresses found in the user message.
+
 Return JSON structure:
 {
   "intent": "create_meeting" | "send_email" | "update_pending" | "show_bookings" | "find_time" | "cancel_booking" | "reschedule" | "check_availability" | "clarify",
