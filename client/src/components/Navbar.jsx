@@ -9,6 +9,7 @@ import {
   Menu,
   X,
   Clock, // ⭐ Availability
+   Mail,
 } from 'lucide-react';
 import { useState } from 'react';
 import { NotificationBell } from '../contexts/NotificationContext';
@@ -34,6 +35,7 @@ export default function Navbar() {
     { path: '/teams', label: 'Teams', icon: Users },
     { path: '/bookings', label: 'Bookings', icon: Calendar },
     { path: '/my-booking-link', label: 'My Link', icon: Link2 },
+      { path: '/email-templates', label: 'Templates', icon: Mail },
     { path: '/settings', label: 'Settings', icon: Settings },
   ];
 
@@ -131,10 +133,7 @@ export default function Navbar() {
               </div>
             </div>
 
-            <NavLink to="/email-templates">
-  <Mail className="h-5 w-5" />
-  Email Templates
-</NavLink>
+         
 
             {/* Navigation Links Mobile */}
             <div className="space-y-1">

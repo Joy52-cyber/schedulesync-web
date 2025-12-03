@@ -439,6 +439,18 @@ export default function UserSettings() {
             >
               <Mail size={18} /> Notifications
             </button>
+            {/* ADD THIS NEW BUTTON */}
+<button
+  onClick={() => handleTabChange('email-templates')}
+  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+    activeTab === 'email-templates'
+      ? 'bg-blue-50 text-blue-700'
+      : 'text-gray-600 hover:bg-gray-50'
+  }`}
+>
+  <Mail size={18} /> Email Templates
+</button>
+
           </nav>
         </div>
 
@@ -1001,6 +1013,29 @@ export default function UserSettings() {
           )}
         </div>
       </div>
+
+      <button
+  onClick={() => handleTabChange('notifications')}
+  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+    activeTab === 'notifications'
+      ? 'bg-blue-50 text-blue-700'
+      : 'text-gray-600 hover:bg-gray-50'
+  }`}
+>
+  <Mail size={18} /> Notifications
+</button>
+
+{/* ADD THIS NEW BUTTON */}
+<button
+  onClick={() => handleTabChange('email-templates')}
+  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+    activeTab === 'email-templates'
+      ? 'bg-blue-50 text-blue-700'
+      : 'text-gray-600 hover:bg-gray-50'
+  }`}
+>
+  <Mail size={18} /> Email Templates
+</button>
 
       {/* Setup Instructions Modal */}
       {showInstructions && (
