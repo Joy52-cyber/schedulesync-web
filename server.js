@@ -8134,6 +8134,70 @@ Return JSON structure:
       }
     }
 
+    // ============ HANDLE EMAIL SENDING INTENTS ============
+    if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
+      const { type, recipient, meeting_details } = parsedIntent.email_action;
+      
+      // Validate email
+      if (!validateEmail(recipient)) {
+        return res.json({
+          type: 'error',
+          message: `❌ Invalid email address: ${recipient}. Please provide a valid email.`
+        });
+      }
+      
+      // Select best template from user's templates
+      const template = await selectBestTemplate(userId, type, meeting_details);
+      
+      if (!template) {
+        return res.json({
+          type: 'error',
+          message: `❌ No ${type} template found. Please create one in Email Templates first, or I'll use a default template.`
+        });
+      }
+      
+      // Prepare meeting details with context from recent bookings
+      const emailDetails = {
+        date: meeting_details?.date || new Date().toLocaleDateString(),
+        time: meeting_details?.time || 'TBD',
+        link: meeting_details?.link || userContext.upcomingBookings?.[0]?.meet_link || 'Will be provided',
+        title: meeting_details?.title || userContext.upcomingBookings?.[0]?.title || 'Meeting'
+      };
+      
+      // Send email with selected template
+      const emailSent = await sendEmailWithTemplate(template, recipient, emailDetails, userId);
+      
+      if (emailSent) {
+        // Track template usage (if template has ID)
+        if (template.id) {
+          await trackTemplateUsage(template.id, userId, 'sent');
+        }
+        
+        // Increment AI usage
+        await incrementChatGPTUsage(userId);
+        
+        return res.json({
+          type: 'email_sent',
+          message: `✅ ${type.charAt(0).toUpperCase() + type.slice(1)} email sent to ${recipient} using "${template.name}" template! 📧`,
+          data: {
+            template_used: template.name,
+            recipient: recipient,
+            email_type: type
+          },
+          usage: {
+            chatgpt_used: req.userUsage.chatgpt_used + 1,
+            chatgpt_limit: req.userUsage.limits.chatgpt
+          }
+        });
+      } else {
+        return res.json({
+          type: 'error',
+          message: `❌ Failed to send ${type} email to ${recipient}. Please try again.`
+        });
+      }
+    }
+
+
     // ============ HANDLE CREATE MEETING INTENT ============
     if (parsedIntent.intent === 'create_meeting') {
       // Email validation
@@ -8552,49 +8616,54 @@ app.patch('/api/email-templates/:id/favorite', authenticateToken, async (req, re
 });
 
 // ============ AI TEMPLATE SELECTION FUNCTION ============
-const selectBestTemplate = async (userId, intent, context) => {
+const selectBestTemplate = async (userId, templateType, context) => {
   try {
     // Get user's templates
     const templatesResult = await pool.query(`
       SELECT * FROM email_templates 
-      WHERE user_id = $1 
-      ORDER BY is_favorite DESC, effectiveness DESC NULLS LAST, name ASC
+      WHERE user_id = $1 AND is_active = true
+      ORDER BY is_default DESC, name ASC
     `, [userId]);
     
     const userTemplates = templatesResult.rows;
     
-    // Combine with defaults (simplified)
+    // Default templates as fallback
     const DEFAULT_TEMPLATES = {
       'reminder': {
-        name: 'Meeting Reminder',
-        subject: 'Reminder: Our meeting {{meetingDate}} at {{meetingTime}}',
+        id: 'default_reminder',
+        name: 'Default Reminder',
+        subject: 'Reminder: {{meetingDate}} at {{meetingTime}}',
         body: `Hi {{guestName}},\n\nJust a quick reminder about our meeting:\n\n📅 {{meetingDate}} at {{meetingTime}}\n🔗 {{meetingLink}}\n\nSee you soon!\n{{organizerName}}`
       },
       'confirmation': {
-        name: 'Meeting Confirmed',
+        id: 'default_confirmation',
+        name: 'Default Confirmation',
         subject: 'Meeting confirmed for {{meetingDate}}',
         body: `Hi {{guestName}},\n\nYour meeting is confirmed!\n\n📅 {{meetingDate}}\n🕐 {{meetingTime}}\n🔗 {{meetingLink}}\n\nLooking forward to it!\n{{organizerName}}`
       },
       'follow_up': {
-        name: 'Follow-up',
+        id: 'default_followup',
+        name: 'Default Follow-up',
         subject: 'Thank you for your time!',
         body: `Hi {{guestName}},\n\nThank you for meeting with me today!\n\nIf you need anything else: {{bookingLink}}\n\nBest regards,\n{{organizerName}}`
+      },
+      'reschedule': {
+        id: 'default_reschedule',
+        name: 'Default Reschedule',
+        subject: 'Need to reschedule our meeting',
+        body: `Hi {{guestName}},\n\nI need to reschedule our meeting on {{meetingDate}}.\n\nPlease let me know what works better for you: {{bookingLink}}\n\nApologies for any inconvenience!\n{{organizerName}}`
+      },
+      'cancellation': {
+        id: 'default_cancellation',
+        name: 'Default Cancellation',
+        subject: 'Meeting cancellation',
+        body: `Hi {{guestName}},\n\nI need to cancel our meeting scheduled for {{meetingDate}}.\n\nI'll reach out to reschedule soon.\n\nSorry for the inconvenience!\n{{organizerName}}`
       }
     };
 
-    // Determine template type from intent
-    let templateType = 'other';
-    if (intent.includes('remind') || intent.includes('reminder')) {
-      templateType = 'reminder';
-    } else if (intent.includes('confirm') || intent.includes('confirmation')) {
-      templateType = 'confirmation';
-    } else if (intent.includes('follow') || intent.includes('thank')) {
-      templateType = 'follow_up';
-    }
-
     // Find best matching user template
     let selectedTemplate = userTemplates.find(t => 
-      t.type === templateType && (t.is_favorite || t.effectiveness > 80)
+      t.type === templateType && t.is_default
     );
 
     // Fallback to any template of the right type
@@ -8602,9 +8671,14 @@ const selectBestTemplate = async (userId, intent, context) => {
       selectedTemplate = userTemplates.find(t => t.type === templateType);
     }
 
-    // Ultimate fallback to default
+    // Ultimate fallback to default template
     if (!selectedTemplate && DEFAULT_TEMPLATES[templateType]) {
       selectedTemplate = DEFAULT_TEMPLATES[templateType];
+    }
+
+    // Generic fallback
+    if (!selectedTemplate) {
+      selectedTemplate = DEFAULT_TEMPLATES['confirmation'];
     }
 
     console.log(`📧 Selected template: ${selectedTemplate?.name || 'Default'} for type: ${templateType}`);
@@ -8612,7 +8686,7 @@ const selectBestTemplate = async (userId, intent, context) => {
 
   } catch (error) {
     console.error('Template selection error:', error);
-    return null;
+    return DEFAULT_TEMPLATES['confirmation']; // Safe fallback
   }
 };
 
