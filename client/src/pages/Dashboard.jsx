@@ -207,20 +207,22 @@ export default function Dashboard() {
                 </button>
               )}
 
-              {/* Usage Indicator - only show for non-team users */}
-              {currentTier !== 'team' && (
-                <div className="flex items-center gap-2 bg-purple-50 px-3 py-2 rounded-xl border border-purple-200">
-                  <span className="text-sm text-purple-700 font-medium">
-                    {usage.chatgpt_used}/{usage.chatgpt_limit} AI queries
-                  </span>
-                  {usage.chatgpt_used >= usage.chatgpt_limit - 1 && (
-                    <button 
-                      onClick={() => setShowUpgradeModal(true)} // ✅ FIXED: Use modal instead
-                      className="text-xs bg-purple-600 text-white px-2 py-1 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
-                    >
-                      Upgrade
-                    </button>
-                  )}
+            {/* Usage Indicator - only show for non-team users */}
+{currentTier !== 'team' && (
+  <div className="flex items-center gap-2 bg-purple-50 px-3 py-2 rounded-xl border border-purple-200">
+    <span className="text-sm text-purple-700 font-medium">
+      {usage.ai_queries_used || 0}/{usage.ai_queries_limit || 3} AI queries
+    </span>
+    {(usage.ai_queries_used || 0) >= (usage.ai_queries_limit || 3) - 1 && (
+      <button 
+        onClick={() => setShowUpgradeModal(true)}
+        className="text-xs bg-purple-600 text-white px-2 py-1 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+      >
+        Upgrade
+      </button>
+    )}
+  </div>
+)}
                 </div>
               )}
             </div>
