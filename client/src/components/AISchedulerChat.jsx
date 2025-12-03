@@ -30,10 +30,12 @@ I can help you:
 
 What would you like to do?`;
 
+  // Enhanced greeting creation with identification flag
   const createGreeting = () => ({
     role: 'assistant',
     content: GREETING_MESSAGE,
-    timestamp: new Date()
+    timestamp: new Date(),
+    isGreeting: true
   });
 
   const [isOpen, setIsOpen] = useState(() => {
@@ -43,22 +45,34 @@ What would you like to do?`;
   const [isMinimized, setIsMinimized] = useState(false);
   const [message, setMessage] = useState('');
 
+  // Enhanced chat history initialization
   const [chatHistory, setChatHistory] = useState(() => {
     try {
       const saved = localStorage.getItem('aiChat_history');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.length > 0) {
-          return parsed.map(msg => ({
+          const mappedHistory = parsed.map(msg => ({
             ...msg,
             timestamp: new Date(msg.timestamp)
           }));
+          
+          // Check if greeting exists
+          const hasGreeting = mappedHistory.some(msg => 
+            msg.isGreeting || 
+            (msg.role === 'assistant' && msg.content.includes("Hi! I'm your AI scheduling assistant"))
+          );
+          
+          if (hasGreeting) {
+            return mappedHistory;
+          }
         }
       }
     } catch (e) {
       console.error('Error loading chat history:', e);
     }
     
+    // Always return greeting if nothing saved or error
     return [createGreeting()];
   });
 
@@ -73,19 +87,44 @@ What would you like to do?`;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Force greeting on component mount
+  useEffect(() => {
+    console.log('🚀 Component mounted, ensuring greeting exists');
+    
+    setTimeout(() => {
+      if (chatHistory.length === 0) {
+        const greeting = createGreeting();
+        setChatHistory([greeting]);
+        localStorage.setItem('aiChat_history', JSON.stringify([greeting]));
+      }
+    }, 200);
+  }, []);
+
+  // Enhanced greeting management
   useEffect(() => {
     console.log('💬 Current chat history length:', chatHistory.length);
     
-    if (chatHistory.length === 0) {
-      console.log('⚠️ No chat history, adding greeting');
-      setChatHistory([createGreeting()]);
+    // Check if greeting exists
+    const hasGreeting = chatHistory.some(msg => 
+      msg.isGreeting || 
+      (msg.role === 'assistant' && msg.content.includes("Hi! I'm your AI scheduling assistant"))
+    );
+    
+    if (chatHistory.length === 0 || !hasGreeting) {
+      console.log('⚠️ No greeting found, adding one');
+      const greeting = createGreeting();
+      setChatHistory([greeting]);
     }
   }, [chatHistory]);
 
+  // Save chat history to localStorage
   useEffect(() => {
-    localStorage.setItem('aiChat_history', JSON.stringify(chatHistory));
+    if (chatHistory.length > 0) {
+      localStorage.setItem('aiChat_history', JSON.stringify(chatHistory));
+    }
   }, [chatHistory]);
 
+  // Save pending booking to localStorage
   useEffect(() => {
     if (pendingBooking) {
       localStorage.setItem('aiChat_pendingBooking', JSON.stringify(pendingBooking));
@@ -94,6 +133,7 @@ What would you like to do?`;
     }
   }, [pendingBooking]);
 
+  // Save open state to localStorage
   useEffect(() => {
     localStorage.setItem('aiChat_isOpen', JSON.stringify(isOpen));
   }, [isOpen]);
@@ -166,57 +206,76 @@ What would you like to do?`;
     }
   };
 
- const handleConfirmBooking = async () => {
-  if (!pendingBooking) return;
+  // Enhanced booking confirmation with detailed error handling
+  const handleConfirmBooking = async () => {
+    if (!pendingBooking) return;
 
-  setLoading(true);
-  try {
-    const startDateTime = new Date(`${pendingBooking.date}T${pendingBooking.time}`);
-    const endDateTime = new Date(startDateTime.getTime() + pendingBooking.duration * 60000);
+    setLoading(true);
+    try {
+      const startDateTime = new Date(`${pendingBooking.date}T${pendingBooking.time}`);
+      const endDateTime = new Date(startDateTime.getTime() + pendingBooking.duration * 60000);
 
-    // FIXED: Remove /api prefix since your api utility already adds it
-    const response = await api.post('/bookings', {
-      title: pendingBooking.title || 'Meeting',
-      start_time: startDateTime.toISOString(),
-      end_time: endDateTime.toISOString(),
-      attendee_email: pendingBooking.attendee_email,
-      attendee_name: pendingBooking.attendee_email.split('@')[0],
-      notes: pendingBooking.notes || ''
-    });
+      const bookingData = {
+        title: pendingBooking.title || 'Meeting',
+        start_time: startDateTime.toISOString(),
+        end_time: endDateTime.toISOString(),
+        attendee_email: pendingBooking.attendee_email,
+        attendee_name: pendingBooking.attendee_name || pendingBooking.attendee_email.split('@')[0],
+        attendee_phone: '', // Add empty phone field
+        notes: pendingBooking.notes || '',
+        duration: pendingBooking.duration || 30, // Add duration back
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // Add timezone
+        status: 'confirmed' // Add status
+      };
 
-    setChatHistory(prev => [...prev, { 
-      role: 'assistant', 
-      content: `✅ Booking Confirmed!\n\n📅 ${pendingBooking.title || 'Meeting'}\n🕐 ${formatDateTime(startDateTime)}\n👤 ${pendingBooking.attendee_email}\n\nConfirmation email sent!`,
-      timestamp: new Date(),
-      isConfirmation: true
-    }]);
+      console.log('📤 Sending booking request:', bookingData);
 
-    setPendingBooking(null);
-    
-  } catch (error) {
-    console.error('Booking confirmation error:', error);
-    setPendingBooking(null);
-    
-    let errorMessage = '❌ Failed to create booking. ';
-    if (error.response?.status === 500) {
-      errorMessage += 'Server error - please try again later.';
-    } else if (error.response?.status === 401) {
-      errorMessage += 'Please log in and try again.';
-    } else if (error.response?.status === 404) {
-      errorMessage += 'Booking endpoint not found - check server configuration.';
-    } else {
-      errorMessage += 'Please try again or check your availability settings.';
+      const response = await api.post('/bookings', bookingData);
+
+      setChatHistory(prev => [...prev, { 
+        role: 'assistant', 
+        content: `✅ Booking Confirmed!\n\n📅 ${pendingBooking.title || 'Meeting'}\n🕐 ${formatDateTime(startDateTime)}\n👤 ${pendingBooking.attendee_email}\n\nConfirmation email sent!`,
+        timestamp: new Date(),
+        isConfirmation: true
+      }]);
+
+      setPendingBooking(null);
+      
+    } catch (error) {
+      console.error('❌ Full booking error details:', error);
+      console.error('❌ Error response data:', error.response?.data);
+      console.error('❌ Error status:', error.response?.status);
+      
+      // Clear pending booking to prevent getting stuck
+      setPendingBooking(null);
+      
+      // Enhanced error messaging
+      let errorMessage = '❌ Failed to create booking. ';
+      if (error.response?.data?.error) {
+        errorMessage += `Server says: ${error.response.data.error}`;
+      } else if (error.response?.data?.message) {
+        errorMessage += `${error.response.data.message}`;
+      } else if (error.response?.status === 400) {
+        errorMessage += 'Invalid request data - please check all fields are filled correctly.';
+      } else if (error.response?.status === 401) {
+        errorMessage += 'Please log in and try again.';
+      } else if (error.response?.status === 404) {
+        errorMessage += 'Booking endpoint not found - check server configuration.';
+      } else if (error.response?.status === 500) {
+        errorMessage += 'Server error - please try again later.';
+      } else {
+        errorMessage += 'Please try again or check your availability settings.';
+      }
+      
+      setChatHistory(prev => [...prev, { 
+        role: 'assistant', 
+        content: errorMessage,
+        timestamp: new Date()
+      }]);
+    } finally {
+      setLoading(false);
     }
-    
-    setChatHistory(prev => [...prev, { 
-      role: 'assistant', 
-      content: errorMessage,
-      timestamp: new Date()
-    }]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const handleCancelBooking = () => {
     setPendingBooking(null);
@@ -227,21 +286,49 @@ What would you like to do?`;
     }]);
   };
 
+  // Enhanced clear chat function
   const handleClearChat = () => {
-    setChatHistory([createGreeting()]);
+    console.log('🗑️ Clearing all chat history');
+    const newGreeting = createGreeting();
+    setChatHistory([newGreeting]);
     setPendingBooking(null);
     localStorage.removeItem('aiChat_pendingBooking');
+    
+    // Force save the new greeting
+    setTimeout(() => {
+      localStorage.setItem('aiChat_history', JSON.stringify([newGreeting]));
+    }, 100);
   };
 
+  // Enhanced reset function
   const handleResetToGreeting = () => {
-    setChatHistory([createGreeting()]);
+    console.log('🔄 Resetting to greeting');
+    const newGreeting = createGreeting();
+    setChatHistory([newGreeting]);
     setPendingBooking(null);
     localStorage.removeItem('aiChat_pendingBooking');
+    
+    // Force save the new greeting
+    setTimeout(() => {
+      localStorage.setItem('aiChat_history', JSON.stringify([newGreeting]));
+    }, 100);
   };
 
+  // Enhanced delete message function
   const handleDeleteMessage = (indexToDelete) => {
+    console.log(`🗑️ Deleting message at index ${indexToDelete}`);
     const newHistory = chatHistory.filter((_, index) => index !== indexToDelete);
-    setChatHistory(newHistory.length === 0 ? [createGreeting()] : newHistory);
+    
+    // Always ensure greeting exists after deletion
+    if (newHistory.length === 0 || !newHistory.some(msg => msg.isGreeting)) {
+      const greeting = createGreeting();
+      setChatHistory([greeting]);
+      setTimeout(() => {
+        localStorage.setItem('aiChat_history', JSON.stringify([greeting]));
+      }, 100);
+    } else {
+      setChatHistory(newHistory);
+    }
   };
 
   const formatDateTime = (date) => {
@@ -268,7 +355,7 @@ What would you like to do?`;
     return cleaned;
   };
 
-  // Floating button when closed
+  // Mobile-responsive floating button when closed
   if (!isOpen) {
     console.log('🔍 Rendering floating button - should be visible now!');
     return (
@@ -360,21 +447,22 @@ What would you like to do?`;
                 </div>
               )}
 
+              {/* Enhanced Clear Buttons */}
               {chatHistory.length > 1 && (
-                <div className="flex justify-center mb-2 gap-2 sm:gap-3">
+                <div className="flex justify-center mb-4 gap-2 sm:gap-3 p-2 bg-gray-100 rounded-lg">
                   <button
                     onClick={handleClearChat}
-                    className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1 transition-colors px-2 py-1 rounded hover:bg-red-50"
+                    className="text-xs text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 flex items-center gap-1 transition-colors px-3 py-2 rounded-lg border border-red-200"
                   >
                     <Trash2 className="h-3 w-3" />
-                    Clear All
+                    Clear All Messages
                   </button>
                   <button
                     onClick={handleResetToGreeting}
-                    className="text-xs text-gray-400 hover:text-blue-500 flex items-center gap-1 transition-colors px-2 py-1 rounded hover:bg-blue-50"
+                    className="text-xs text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 flex items-center gap-1 transition-colors px-3 py-2 rounded-lg border border-blue-200"
                   >
                     <RotateCcw className="h-3 w-3" />
-                    Reset
+                    Reset Chat
                   </button>
                 </div>
               )}
@@ -391,7 +479,8 @@ What would you like to do?`;
                       {formatTime(msg.timestamp)}
                     </p>
                     
-                    {i > 0 && (
+                    {/* Individual delete button - don't show for greeting */}
+                    {i > 0 && !msg.isGreeting && (
                       <button
                         onClick={() => handleDeleteMessage(i)}
                         className={`absolute -top-2 -right-2 w-5 h-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs ${
@@ -417,7 +506,7 @@ What would you like to do?`;
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Pending Booking Confirmation */}
+            {/* Enhanced Pending Booking Confirmation */}
             {pendingBooking && (
               <div className="p-3 sm:p-4 bg-purple-50 border-t border-purple-200">
                 <div className="bg-white rounded-xl p-3 sm:p-4 border-2 border-purple-300 shadow-sm">
@@ -443,6 +532,7 @@ What would you like to do?`;
                         value={pendingBooking.title}
                         onChange={(e) => setPendingBooking({...pendingBooking, title: e.target.value})}
                         className="flex-1 bg-gray-50 border border-gray-200 rounded px-2 py-2 text-sm focus:ring-1 focus:ring-purple-500"
+                        placeholder="Meeting title"
                       />
                     </div>
                     <div className="flex items-center gap-2 text-gray-600">
@@ -467,6 +557,7 @@ What would you like to do?`;
                         value={pendingBooking.attendee_email}
                         onChange={(e) => setPendingBooking({...pendingBooking, attendee_email: e.target.value})}
                         className="flex-1 bg-gray-50 border border-gray-200 rounded px-2 py-2 text-sm focus:ring-1 focus:ring-purple-500"
+                        placeholder="attendee@email.com"
                       />
                     </div>
                     <div className="flex items-center gap-2 text-gray-600">
