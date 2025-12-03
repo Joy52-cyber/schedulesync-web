@@ -15,7 +15,7 @@ import {
   Trash2,
   RotateCcw
 } from 'lucide-react';
-import api from '../utils/api';
+import api, { bookings } from '../utils/api'; 
 
 export default function AISchedulerChat() {
   console.log('🔥 AISchedulerChat component is rendering!');
