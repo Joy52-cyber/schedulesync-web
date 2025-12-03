@@ -70,8 +70,7 @@ export default function Navbar() {
     { path: '/availability', label: 'Availability', icon: Clock },
     { path: '/teams', label: 'Teams', icon: Users },
     { path: '/bookings', label: 'Bookings', icon: Calendar },
-    // REPLACE this line with the dropdown version below
-    // { path: '/my-booking-link', label: 'My Link', icon: Link2 },
+    { path: '/my-links', label: 'My Links', icon: Link2 },
     { path: '/email-templates', label: 'Templates', icon: Mail },
     { path: '/settings', label: 'Settings', icon: Settings },
   ];

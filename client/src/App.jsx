@@ -26,6 +26,8 @@ import EventTypeDetail from './pages/EventTypeDetail';
 import Availability from './pages/Availability';
 import CalendlyMigration from './pages/CalendlyMigration';
 import EmailTemplates from './pages/EmailTemplates';
+import MyLinks from './pages/MyLinks';
+
 
 // Team
 import Teams from './pages/Teams';
@@ -125,6 +127,7 @@ function InnerApp() {
             <Route path="/bookings" element={<Bookings />} />
             <Route path="/availability" element={<Availability />} />
             <Route path="/email-templates" element={<EmailTemplates />} />
+            <Route path="/my-links" element={<MyLinks />} />
 
             {/* Event Types */}
             <Route path="/events" element={<EventTypes />} />
