@@ -9071,14 +9071,18 @@ app.post('/api/chatgpt/suggest-times', authenticateToken, async (req, res) => {
 app.post('/api/chatgpt/book-meeting', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { 
+   const { 
       title, 
       start_time, 
       end_time, 
+      attendees,
       attendee_email, 
       attendee_name,
       notes 
     } = req.body;
+
+    // Get all attendees (support both single and multiple)
+    const allAttendees = attendees || [attendee_email];
 
     console.log('🤖 AI Booking request:', { title, start_time, attendee_email });
 
@@ -9102,6 +9106,8 @@ app.post('/api/chatgpt/book-meeting', authenticateToken, async (req, res) => {
     }
 
     const member = memberResult.rows[0];
+    // Fallback for member name if null
+    member.name = member.name || member.email?.split('@')[0] || 'Your Host';
     
     // Create booking
     const manageToken = crypto.randomBytes(16).toString('hex');
@@ -9143,50 +9149,56 @@ app.post('/api/chatgpt/book-meeting', authenticateToken, async (req, res) => {
 
     const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${manageToken}`;
 
-    // Send confirmation email to GUEST
-    try {
-      await resend.emails.send({
-        from: `${member.name} via ScheduleSync <notifications@${process.env.RESEND_DOMAIN || 'trucal.xyz'}>`,
-        to: attendee_email,
-        subject: `✅ Meeting Confirmed: ${bookingTitle}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">✅ Meeting Confirmed!</h1>
+    // Send confirmation email to ALL GUESTS
+    for (const guestEmail of allAttendees) {
+      const guestName = guestEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      
+      try {
+        await resend.emails.send({
+          from: `${member.name} via ScheduleSync <notifications@${process.env.RESEND_DOMAIN || 'trucal.xyz'}>`,
+          to: guestEmail,
+          subject: `✅ Meeting Confirmed: ${bookingTitle}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 24px;">✅ Meeting Confirmed!</h1>
+              </div>
+              
+              <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
+                <p style="font-size: 16px; color: #333;">Hi ${guestName},</p>
+                
+                <p style="font-size: 16px; color: #555;">Your meeting with <strong>${member.name}</strong> has been confirmed!</p>
+                
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
+                  <p style="margin: 5px 0; color: #333;"><strong>📅 Date:</strong> ${formattedDate}</p>
+                  <p style="margin: 5px 0; color: #333;"><strong>🕐 Time:</strong> ${formattedTime}</p>
+                  <p style="margin: 5px 0; color: #333;"><strong>⏱️ Duration:</strong> ${duration} minutes</p>
+                  ${allAttendees.length > 1 ? `<p style="margin: 5px 0; color: #333;"><strong>👥 All Attendees:</strong> ${allAttendees.join(', ')}</p>` : ''}
+                </div>
+                
+                ${notes ? `
+                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                  <p style="margin: 0; color: #856404;"><strong>📝 Notes:</strong> ${notes}</p>
+                </div>
+                ` : ''}
+                
+                <div style="text-align: center; margin-top: 30px;">
+                  <a href="${manageUrl}" style="display: inline-block; background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Manage Booking</a>
+                </div>
+                
+                <p style="font-size: 14px; color: #888; margin-top: 30px; text-align: center;">
+                  Scheduled via ScheduleSync
+                </p>
+              </div>
             </div>
-            
-            <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
-              <p style="font-size: 16px; color: #333;">Hi ${guestName},</p>
-              
-              <p style="font-size: 16px; color: #555;">Your meeting with <strong>${member.name}</strong> has been confirmed!</p>
-              
-              <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
-                <p style="margin: 5px 0; color: #333;"><strong>📅 Date:</strong> ${formattedDate}</p>
-                <p style="margin: 5px 0; color: #333;"><strong>🕐 Time:</strong> ${formattedTime}</p>
-                <p style="margin: 5px 0; color: #333;"><strong>⏱️ Duration:</strong> ${duration} minutes</p>
-              </div>
-              
-              ${notes ? `
-              <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 0; color: #856404;"><strong>📝 Notes:</strong> ${notes}</p>
-              </div>
-              ` : ''}
-              
-              <div style="text-align: center; margin-top: 30px;">
-                <a href="${manageUrl}" style="display: inline-block; background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Manage Booking</a>
-              </div>
-              
-              <p style="font-size: 14px; color: #888; margin-top: 30px; text-align: center;">
-                Scheduled via ScheduleSync
-              </p>
-            </div>
-          </div>
-        `
-      });
-      console.log('✅ Guest confirmation email sent to:', attendee_email);
-    } catch (emailError) {
-      console.error('❌ Failed to send guest email:', emailError);
+          `
+        });
+        console.log('✅ Guest confirmation email sent to:', guestEmail);
+      } catch (emailError) {
+        console.error('❌ Failed to send guest email to', guestEmail, ':', emailError);
+      }
     }
+    
 
     // Send notification email to ORGANIZER
     try {
@@ -9206,8 +9218,8 @@ app.post('/api/chatgpt/book-meeting', authenticateToken, async (req, res) => {
               <p style="font-size: 16px; color: #555;">You have a new booking created via your AI assistant.</p>
               
               <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #11998e;">
-                <p style="margin: 5px 0; color: #333;"><strong>👤 Guest:</strong> ${guestName} (${attendee_email})</p>
-                <p style="margin: 5px 0; color: #333;"><strong>📅 Date:</strong> ${formattedDate}</p>
+               <p style="margin: 5px 0; color: #333;"><strong>👥 Guests:</strong> ${allAttendees.join(', ')}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>📅 Date:</strong> ${formattedDate}</p>
                 <p style="margin: 5px 0; color: #333;"><strong>🕐 Time:</strong> ${formattedTime}</p>
                 <p style="margin: 5px 0; color: #333;"><strong>⏱️ Duration:</strong> ${duration} minutes</p>
               </div>
