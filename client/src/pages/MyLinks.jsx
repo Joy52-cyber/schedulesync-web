@@ -14,9 +14,8 @@ import {
   XCircle,
   Clock,
 } from 'lucide-react';
-import api from '../utils/api'; // ← Simple import
+import api from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
-
 
 export default function MyLinks() {
   const navigate = useNavigate();
@@ -60,34 +59,14 @@ export default function MyLinks() {
     }
   };
 
- const loadSingleUseLinks = async () => {
-  try {
-    // Change from: const response = await singleUseLinks.getRecent();
-    const response = await api.singleUseLinks.getRecent(); // ← Use attached API
-    setSingleUseLinks(response.data.links || []);
-  } catch (error) {
-    console.error('Load single-use links error:', error);
-  }
-};
-
-const handleGenerateSingleUse = async () => {
-  setGeneratingSingleUse(true);
-  try {
-    // Change from: const response = await singleUseLinks.generate({ name: linkName.trim() || null });
-    const response = await api.singleUseLinks.generate({ 
-      name: linkName.trim() || null 
-    }); // ← Use attached API
-    
-    setLinkName('');
-    await loadSingleUseLinks();
-    notify.success('Single-use link generated! 🎫');
-  } catch (error) {
-    console.error('Generate single-use link error:', error);
-    notify.error('Could not generate single-use link');
-  } finally {
-    setGeneratingSingleUse(false);
-  }
-};
+  const loadSingleUseLinks = async () => {
+    try {
+      const response = await api.singleUseLinks.getRecent();
+      setSingleUseLinks(response.data.links || []);
+    } catch (error) {
+      console.error('Load single-use links error:', error);
+    }
+  };
 
   const handleCreateLink = async () => {
     setGeneratingLink(true);
@@ -114,7 +93,10 @@ const handleGenerateSingleUse = async () => {
   const handleGenerateSingleUse = async () => {
     setGeneratingSingleUse(true);
     try {
-      const response = await singleUseLinks.generate({ name: linkName.trim() || null });
+      const response = await api.singleUseLinks.generate({ 
+        name: linkName.trim() || null 
+      });
+      
       setLinkName('');
       await loadSingleUseLinks();
       notify.success('Single-use link generated! 🎫');
