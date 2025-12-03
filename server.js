@@ -8035,7 +8035,7 @@ For update_pending intent, only include fields that changed.`;
       });
     }
 
-   // Increment usage for successful AI response
+    // Increment usage for successful AI response
     await incrementChatGPTUsage(userId);
     console.log(`💰 ChatGPT query used by user ${userId} (${req.userUsage.tier} plan)`);
 
@@ -8049,7 +8049,14 @@ For update_pending intent, only include fields that changed.`;
       }
     });
 
-
+  } catch (error) {
+    console.error('🚨 AI scheduling error:', error);
+    res.status(500).json({
+      type: 'error',
+      message: 'Something went wrong. Please try again.'
+    });
+  }
+});
 
 
 // ============ SUBSCRIPTION MANAGEMENT ============
