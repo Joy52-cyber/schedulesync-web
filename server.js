@@ -8322,6 +8322,235 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
   }
 });
 
+// ============ AI TEMPLATE GENERATION ENDPOINT (GEMINI VERSION) ============
+app.post('/api/ai/generate-template', authenticateToken, checkUsageLimits, async (req, res) => {
+  try {
+    const { description, type, tone } = req.body;
+    const userId = req.user.id;
+    
+    console.log('🤖 AI Template generation request:', { description, type, tone, userId });
+
+    if (!description || description.trim().length < 10) {
+      return res.status(400).json({ error: 'Please provide a more detailed description (at least 10 characters)' });
+    }
+
+    const prompt = `Create a professional email template based on this request: "${description}"
+
+Template Type: ${type || 'general'}
+Tone: ${tone || 'professional but friendly'}
+
+Requirements:
+- Return ONLY valid JSON (no markdown, no explanations)
+- Use these exact variable names: {{guestName}}, {{guestEmail}}, {{organizerName}}, {{meetingDate}}, {{meetingTime}}, {{meetingLink}}, {{bookingLink}}
+- Keep subject under 60 characters
+- Make body 3-5 sentences, warm but professional
+- Include appropriate emojis sparingly
+
+Format:
+{
+  "name": "Template name (2-4 words)",
+  "subject": "Email subject line",
+  "body": "Email body with proper formatting and variables"
+}`;
+
+    // Call Google Gemini API (same pattern as your AI scheduling)
+    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          role: 'user',
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 1,
+          topP: 0.8,
+          maxOutputTokens: 500,
+        }
+      })
+    });
+
+    // Error handling (same pattern as your AI scheduling)
+    if (!geminiResponse.ok) {
+      console.error('Gemini API error:', geminiResponse.status, geminiResponse.statusText);
+      return res.status(500).json({
+        error: 'AI service temporarily unavailable',
+        details: 'Please try again in a moment'
+      });
+    }
+
+    const geminiData = await geminiResponse.json();
+
+    if (!geminiData?.candidates?.[0]?.content) {
+      console.error('Invalid Gemini response:', geminiData);
+      return res.status(500).json({
+        error: 'AI generated invalid response',
+        details: 'Please try again with a clearer description'
+      });
+    }
+
+    const aiText = geminiData.candidates[0].content.parts[0].text;
+    
+    // Parse JSON response (same logic as your AI scheduling)
+    let generatedTemplate;
+    try {
+      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('No JSON found in response:', aiText);
+        return res.status(500).json({
+          error: 'AI generated invalid response format',
+          details: 'Please try again with a clearer description'
+        });
+      }
+      generatedTemplate = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      console.error('🚨 JSON parsing failed:', parseError);
+      console.error('🚨 Raw response:', aiText);
+      return res.status(500).json({
+        error: 'AI generated invalid response format',
+        details: 'Please try again with a clearer description'
+      });
+    }
+    
+    // Add metadata
+    const templateData = {
+      ...generatedTemplate,
+      type: type || 'other',
+      is_favorite: false,
+      generated_by_ai: true,
+      generated_at: new Date().toISOString()
+    };
+
+    // Increment usage for successful generation
+    await incrementChatGPTUsage(userId);
+    console.log(`💰 Template generation completed for user ${userId}`);
+
+    res.json({
+      success: true,
+      template: templateData,
+      usage: {
+        chatgpt_used: req.userUsage.chatgpt_used + 1,
+        chatgpt_limit: req.userUsage.limits.chatgpt
+      }
+    });
+
+  } catch (error) {
+    console.error('🚨 AI template generation error:', error);
+    
+    if (error.code === 'ENOTFOUND') {
+      res.status(500).json({
+        error: 'AI service connection failed',
+        details: 'Please check your internet connection'
+      });
+    } else {
+      res.status(500).json({
+        error: 'Failed to generate template',
+        details: error.message
+      });
+    }
+  }
+});
+
+// ============ EMAIL TEMPLATE ENDPOINTS (FIXED FOR YOUR SCHEMA) ============
+
+// Get all templates for user
+app.get('/api/email-templates', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM email_templates 
+       WHERE user_id = $1 AND is_active = true
+       ORDER BY is_default DESC, name ASC`,
+      [req.user.id]
+    );
+    
+    res.json({ templates: result.rows });
+  } catch (error) {
+    console.error('Get templates error:', error);
+    res.status(500).json({ error: 'Failed to fetch templates' });
+  }
+});
+
+// Create new template (FIXED)
+app.post('/api/email-templates', authenticateToken, async (req, res) => {
+  try {
+    const { name, type, subject, body, is_default } = req.body;
+    
+    if (!name || !subject || !body) {
+      return res.status(400).json({ error: 'Name, subject, and body are required' });
+    }
+    
+    const validTypes = ['reminder', 'confirmation', 'follow_up', 'reschedule', 'cancellation', 'other'];
+    const templateType = validTypes.includes(type) ? type : 'other';
+    
+    const result = await pool.query(
+      `INSERT INTO email_templates (user_id, name, type, subject, body, is_default, is_active, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
+       RETURNING *`,
+      [req.user.id, name, templateType, subject, body, is_default || false]
+    );
+    
+    console.log('✅ Email template created:', result.rows[0].id);
+    res.json({ template: result.rows[0] });
+  } catch (error) {
+    console.error('Create template error:', error);
+    res.status(500).json({ error: 'Failed to create template' });
+  }
+});
+
+// Update template (FIXED)
+app.put('/api/email-templates/:id', authenticateToken, async (req, res) => {
+  try {
+    const { name, type, subject, body, is_default } = req.body;
+    
+    const result = await pool.query(
+      `UPDATE email_templates 
+       SET name = COALESCE($1, name),
+           type = COALESCE($2, type),
+           subject = COALESCE($3, subject),
+           body = COALESCE($4, body),
+           is_default = COALESCE($5, is_default),
+           updated_at = NOW()
+       WHERE id = $6 AND user_id = $7
+       RETURNING *`,
+      [name, type, subject, body, is_default, req.params.id, req.user.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    res.json({ template: result.rows[0] });
+  } catch (error) {
+    console.error('Update template error:', error);
+    res.status(500).json({ error: 'Failed to update template' });
+  }
+});
+
+// Toggle default (instead of favorite)
+app.patch('/api/email-templates/:id/favorite', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE email_templates 
+       SET is_default = NOT is_default, updated_at = NOW()
+       WHERE id = $1 AND user_id = $2
+       RETURNING *`,
+      [req.params.id, req.user.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    res.json({ template: result.rows[0] });
+  } catch (error) {
+    console.error('Toggle default error:', error);
+    res.status(500).json({ error: 'Failed to toggle default' });
+  }
+});
+
 // ============ AI TEMPLATE SELECTION FUNCTION ============
 const selectBestTemplate = async (userId, intent, context) => {
   try {
@@ -10148,275 +10377,6 @@ module.exports = {
   lastReminderRun
 };
 
-// ============ AI TEMPLATE GENERATION ENDPOINT (GEMINI VERSION) ============
-app.post('/api/ai/generate-template', authenticateToken, checkUsageLimits, async (req, res) => {
-  try {
-    const { description, type, tone } = req.body;
-    const userId = req.user.id;
-    
-    console.log('🤖 AI Template generation request:', { description, type, tone, userId });
-
-    if (!description || description.trim().length < 10) {
-      return res.status(400).json({ error: 'Please provide a more detailed description (at least 10 characters)' });
-    }
-
-    const prompt = `Create a professional email template based on this request: "${description}"
-
-Template Type: ${type || 'general'}
-Tone: ${tone || 'professional but friendly'}
-
-Requirements:
-- Return ONLY valid JSON (no markdown, no explanations)
-- Use these exact variable names: {{guestName}}, {{guestEmail}}, {{organizerName}}, {{meetingDate}}, {{meetingTime}}, {{meetingLink}}, {{bookingLink}}
-- Keep subject under 60 characters
-- Make body 3-5 sentences, warm but professional
-- Include appropriate emojis sparingly
-
-Format:
-{
-  "name": "Template name (2-4 words)",
-  "subject": "Email subject line",
-  "body": "Email body with proper formatting and variables"
-}`;
-
-    // Call Google Gemini API (same pattern as your AI scheduling)
-    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          role: 'user',
-          parts: [{ text: prompt }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 1,
-          topP: 0.8,
-          maxOutputTokens: 500,
-        }
-      })
-    });
-
-    // Error handling (same pattern as your AI scheduling)
-    if (!geminiResponse.ok) {
-      console.error('Gemini API error:', geminiResponse.status, geminiResponse.statusText);
-      return res.status(500).json({
-        error: 'AI service temporarily unavailable',
-        details: 'Please try again in a moment'
-      });
-    }
-
-    const geminiData = await geminiResponse.json();
-
-    if (!geminiData?.candidates?.[0]?.content) {
-      console.error('Invalid Gemini response:', geminiData);
-      return res.status(500).json({
-        error: 'AI generated invalid response',
-        details: 'Please try again with a clearer description'
-      });
-    }
-
-    const aiText = geminiData.candidates[0].content.parts[0].text;
-    
-    // Parse JSON response (same logic as your AI scheduling)
-    let generatedTemplate;
-    try {
-      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.error('No JSON found in response:', aiText);
-        return res.status(500).json({
-          error: 'AI generated invalid response format',
-          details: 'Please try again with a clearer description'
-        });
-      }
-      generatedTemplate = JSON.parse(jsonMatch[0]);
-    } catch (parseError) {
-      console.error('🚨 JSON parsing failed:', parseError);
-      console.error('🚨 Raw response:', aiText);
-      return res.status(500).json({
-        error: 'AI generated invalid response format',
-        details: 'Please try again with a clearer description'
-      });
-    }
-    
-    // Add metadata
-    const templateData = {
-      ...generatedTemplate,
-      type: type || 'other',
-      is_favorite: false,
-      generated_by_ai: true,
-      generated_at: new Date().toISOString()
-    };
-
-    // Increment usage for successful generation
-    await incrementChatGPTUsage(userId);
-    console.log(`💰 Template generation completed for user ${userId}`);
-
-    res.json({
-      success: true,
-      template: templateData,
-      usage: {
-        chatgpt_used: req.userUsage.chatgpt_used + 1,
-        chatgpt_limit: req.userUsage.limits.chatgpt
-      }
-    });
-
-  } catch (error) {
-    console.error('🚨 AI template generation error:', error);
-    
-    if (error.code === 'ENOTFOUND') {
-      res.status(500).json({
-        error: 'AI service connection failed',
-        details: 'Please check your internet connection'
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to generate template',
-        details: error.message
-      });
-    }
-  }
-});
-
-// ============ EMAIL TEMPLATE ENDPOINTS ============
-
-// Get all templates for user
-app.get('/api/email-templates', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT * FROM email_templates 
-       WHERE user_id = $1 
-       ORDER BY is_favorite DESC, name ASC`,
-      [req.user.id]
-    );
-    
-    res.json({ templates: result.rows });
-  } catch (error) {
-    console.error('Get templates error:', error);
-    res.status(500).json({ error: 'Failed to fetch templates' });
-  }
-});
-
-// Get single template
-app.get('/api/email-templates/:id', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT * FROM email_templates WHERE id = $1 AND user_id = $2`,
-      [req.params.id, req.user.id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Template not found' });
-    }
-    
-    res.json({ template: result.rows[0] });
-  } catch (error) {
-    console.error('Get template error:', error);
-    res.status(500).json({ error: 'Failed to fetch template' });
-  }
-});
-
-// Create new template
-app.post('/api/email-templates', authenticateToken, async (req, res) => {
-  try {
-    const { name, type, subject, body, is_favorite } = req.body;
-    
-    if (!name || !subject || !body) {
-      return res.status(400).json({ error: 'Name, subject, and body are required' });
-    }
-    
-    // Validate template type
-    const validTypes = ['reminder', 'confirmation', 'follow_up', 'reschedule', 'cancellation', 'other'];
-    const templateType = validTypes.includes(type) ? type : 'other';
-    
-    const result = await pool.query(
-      `INSERT INTO email_templates (user_id, name, type, subject, body, is_favorite)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
-      [req.user.id, name, templateType, subject, body, is_favorite || false]
-    );
-    
-    console.log('✅ Email template created:', result.rows[0].id);
-    res.json({ template: result.rows[0] });
-  } catch (error) {
-    console.error('Create template error:', error);
-    res.status(500).json({ error: 'Failed to create template' });
-  }
-});
-
-// Update template
-app.put('/api/email-templates/:id', authenticateToken, async (req, res) => {
-  try {
-    const { name, type, subject, body, is_favorite } = req.body;
-    
-    const result = await pool.query(
-      `UPDATE email_templates 
-       SET name = COALESCE($1, name),
-           type = COALESCE($2, type),
-           subject = COALESCE($3, subject),
-           body = COALESCE($4, body),
-           is_favorite = COALESCE($5, is_favorite),
-           updated_at = NOW()
-       WHERE id = $6 AND user_id = $7
-       RETURNING *`,
-      [name, type, subject, body, is_favorite, req.params.id, req.user.id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Template not found' });
-    }
-    
-    console.log('✅ Email template updated:', req.params.id);
-    res.json({ template: result.rows[0] });
-  } catch (error) {
-    console.error('Update template error:', error);
-    res.status(500).json({ error: 'Failed to update template' });
-  }
-});
-
-// Delete template
-app.delete('/api/email-templates/:id', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `DELETE FROM email_templates WHERE id = $1 AND user_id = $2 RETURNING id`,
-      [req.params.id, req.user.id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Template not found' });
-    }
-    
-    console.log('✅ Email template deleted:', req.params.id);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Delete template error:', error);
-    res.status(500).json({ error: 'Failed to delete template' });
-  }
-});
-
-// Toggle favorite
-app.patch('/api/email-templates/:id/favorite', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `UPDATE email_templates 
-       SET is_favorite = NOT is_favorite, updated_at = NOW()
-       WHERE id = $1 AND user_id = $2
-       RETURNING *`,
-      [req.params.id, req.user.id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Template not found' });
-    }
-    
-    res.json({ template: result.rows[0] });
-  } catch (error) {
-    console.error('Toggle favorite error:', error);
-    res.status(500).json({ error: 'Failed to toggle favorite' });
-  }
-});
 
 // ============ ONBOARDING / PROFILE UPDATE ============
 app.put('/api/users/profile', authenticateToken, async (req, res) => {
