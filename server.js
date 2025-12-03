@@ -8174,6 +8174,50 @@ return res.json({
   }
 });
 
+// ============ AI BOOKING ENDPOINT (ADD THIS HERE) ============
+app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
+  try {
+    const {
+      title, start_time, end_time, attendee_email, 
+      attendee_name, notes, duration
+    } = req.body;
+    
+    const userId = req.user.id;
+    
+    console.log('🤖 AI Booking request:', {
+      title, start_time, attendee_email, userId
+    });
+    
+    // Insert directly without token/slot validation for AI bookings
+    const result = await pool.query(`
+      INSERT INTO bookings (
+        title, start_time, end_time, attendee_email, attendee_name,
+        notes, duration, created_by, status, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'confirmed', NOW(), NOW())
+      RETURNING *
+    `, [
+      title, start_time, end_time, attendee_email, 
+      attendee_name || attendee_email.split('@')[0], 
+      notes || '', duration || 30, userId
+    ]);
+    
+    console.log('✅ AI Booking created:', result.rows[0].id);
+    
+    res.json({ 
+      success: true, 
+      booking: result.rows[0],
+      message: 'AI booking created successfully'
+    });
+    
+  } catch (error) {
+    console.error('🚨 AI booking error:', error);
+    res.status(500).json({ 
+      error: 'Failed to create AI booking',
+      details: error.message 
+    });
+  }
+});
+
 
 // ============ SUBSCRIPTION MANAGEMENT ============
 // (Add this section after your existing payment endpoints)

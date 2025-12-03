@@ -208,75 +208,79 @@ What would you like to do?`;
 
   // Enhanced booking confirmation with detailed error handling
   const handleConfirmBooking = async () => {
-    if (!pendingBooking) return;
+  if (!pendingBooking) return;
 
-    setLoading(true);
-    try {
-      const startDateTime = new Date(`${pendingBooking.date}T${pendingBooking.time}`);
-      const endDateTime = new Date(startDateTime.getTime() + pendingBooking.duration * 60000);
+  setLoading(true);
+  try {
+    const startDateTime = new Date(`${pendingBooking.date}T${pendingBooking.time}`);
+    const endDateTime = new Date(startDateTime.getTime() + pendingBooking.duration * 60000);
 
-      const bookingData = {
-        title: pendingBooking.title || 'Meeting',
-        start_time: startDateTime.toISOString(),
-        end_time: endDateTime.toISOString(),
-        attendee_email: pendingBooking.attendee_email,
-        attendee_name: pendingBooking.attendee_name || pendingBooking.attendee_email.split('@')[0],
-        attendee_phone: '', // Add empty phone field
-        notes: pendingBooking.notes || '',
-        duration: pendingBooking.duration || 30, // Add duration back
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // Add timezone
-        status: 'confirmed' // Add status
-      };
+    // Get user's team member info for token
+    const userResult = await api.get('/dashboard/stats');
+    console.log('📋 User info for booking:', userResult.data);
 
-      console.log('📤 Sending booking request:', bookingData);
-
-      const response = await api.post('/bookings', bookingData);
-
-      setChatHistory(prev => [...prev, { 
-        role: 'assistant', 
-        content: `✅ Booking Confirmed!\n\n📅 ${pendingBooking.title || 'Meeting'}\n🕐 ${formatDateTime(startDateTime)}\n👤 ${pendingBooking.attendee_email}\n\nConfirmation email sent!`,
-        timestamp: new Date(),
-        isConfirmation: true
-      }]);
-
-      setPendingBooking(null);
+    const bookingData = {
+      // Basic booking info
+      title: pendingBooking.title || 'Meeting',
+      start_time: startDateTime.toISOString(),
+      end_time: endDateTime.toISOString(),
+      duration: pendingBooking.duration || 30,
+      notes: pendingBooking.notes || '',
       
-    } catch (error) {
-      console.error('❌ Full booking error details:', error);
-      console.error('❌ Error response data:', error.response?.data);
-      console.error('❌ Error status:', error.response?.status);
+      // Attendee info
+      attendee_name: pendingBooking.attendee_email.split('@')[0],
+      attendee_email: pendingBooking.attendee_email,
+      attendee_phone: '',
       
-      // Clear pending booking to prevent getting stuck
-      setPendingBooking(null);
+      // Required fields that were missing
+      token: 'ai-booking', // AI-generated booking identifier
+      slot_id: `ai-${Date.now()}`, // Generate unique slot ID
+      member_id: userResult.data?.user?.id || 1, // Use current user as organizer
       
-      // Enhanced error messaging
-      let errorMessage = '❌ Failed to create booking. ';
-      if (error.response?.data?.error) {
-        errorMessage += `Server says: ${error.response.data.error}`;
-      } else if (error.response?.data?.message) {
-        errorMessage += `${error.response.data.message}`;
-      } else if (error.response?.status === 400) {
-        errorMessage += 'Invalid request data - please check all fields are filled correctly.';
-      } else if (error.response?.status === 401) {
-        errorMessage += 'Please log in and try again.';
-      } else if (error.response?.status === 404) {
-        errorMessage += 'Booking endpoint not found - check server configuration.';
-      } else if (error.response?.status === 500) {
-        errorMessage += 'Server error - please try again later.';
-      } else {
-        errorMessage += 'Please try again or check your availability settings.';
-      }
-      
-      setChatHistory(prev => [...prev, { 
-        role: 'assistant', 
-        content: errorMessage,
-        timestamp: new Date()
-      }]);
-    } finally {
-      setLoading(false);
+      // Additional required fields
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      status: 'confirmed',
+      created_by: userResult.data?.user?.id || 1
+    };
+
+    console.log('📤 Sending enhanced booking request:', bookingData);
+
+    const response = await api.post('/bookings', bookingData);
+
+    setChatHistory(prev => [...prev, { 
+      role: 'assistant', 
+      content: `✅ Booking Confirmed!\n\n📅 ${pendingBooking.title || 'Meeting'}\n🕐 ${formatDateTime(startDateTime)}\n👤 ${pendingBooking.attendee_email}\n\nConfirmation email sent!`,
+      timestamp: new Date(),
+      isConfirmation: true
+    }]);
+
+    setPendingBooking(null);
+    
+  } catch (error) {
+    console.error('❌ Full booking error details:', error);
+    console.error('❌ Error response data:', error.response?.data);
+    console.error('❌ Error status:', error.response?.status);
+    
+    setPendingBooking(null);
+    
+    let errorMessage = '❌ Failed to create booking. ';
+    if (error.response?.data?.error) {
+      errorMessage += `Server says: ${error.response.data.error}`;
+    } else if (error.response?.status === 400) {
+      errorMessage += 'Invalid request data. Please try booking through the main calendar instead.';
+    } else {
+      errorMessage += 'Please try again later.';
     }
-  };
-
+    
+    setChatHistory(prev => [...prev, { 
+      role: 'assistant', 
+      content: errorMessage,
+      timestamp: new Date()
+    }]);
+  } finally {
+    setLoading(false);
+  }
+};
   const handleCancelBooking = () => {
     setPendingBooking(null);
     setChatHistory(prev => [...prev, { 
