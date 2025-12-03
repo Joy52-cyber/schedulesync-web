@@ -209,43 +209,25 @@ What would you like to do?`;
   // Enhanced booking confirmation with detailed error handling
   const handleConfirmBooking = async () => {
   if (!pendingBooking) return;
-
   setLoading(true);
   try {
-    const startDateTime = new Date(`${pendingBooking.date}T${pendingBooking.time}`);
+    const startDateTime = new Date(`${pendingBooking.date}T${pendingBooking.time}`); // Fixed syntax
     const endDateTime = new Date(startDateTime.getTime() + pendingBooking.duration * 60000);
 
-    // Get user's team member info for token
-    const userResult = await api.get('/dashboard/stats');
-    console.log('📋 User info for booking:', userResult.data);
-
     const bookingData = {
-      // Basic booking info
       title: pendingBooking.title || 'Meeting',
       start_time: startDateTime.toISOString(),
       end_time: endDateTime.toISOString(),
-      duration: pendingBooking.duration || 30,
-      notes: pendingBooking.notes || '',
-      
-      // Attendee info
-      attendee_name: pendingBooking.attendee_email.split('@')[0],
       attendee_email: pendingBooking.attendee_email,
-      attendee_phone: '',
-      
-      // Required fields that were missing
-      token: 'ai-booking', // AI-generated booking identifier
-      slot_id: `ai-${Date.now()}`, // Generate unique slot ID
-      member_id: userResult.data?.user?.id || 1, // Use current user as organizer
-      
-      // Additional required fields
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      status: 'confirmed',
-      created_by: userResult.data?.user?.id || 1
+      attendee_name: pendingBooking.attendee_email.split('@')[0],
+      notes: pendingBooking.notes || '',
+      duration: pendingBooking.duration || 30
     };
 
-    console.log('📤 Sending enhanced booking request:', bookingData);
+    console.log('📤 Sending AI booking request:', bookingData);
 
-    const response = await api.post('/bookings', bookingData);
+    // FIXED: Use the AI booking endpoint you just created
+    const response = await api.post('/ai/book-meeting', bookingData);
 
     setChatHistory(prev => [...prev, { 
       role: 'assistant', 
@@ -257,17 +239,14 @@ What would you like to do?`;
     setPendingBooking(null);
     
   } catch (error) {
-    console.error('❌ Full booking error details:', error);
-    console.error('❌ Error response data:', error.response?.data);
-    console.error('❌ Error status:', error.response?.status);
+    console.error('❌ AI booking error:', error);
+    console.error('❌ Error response:', error.response?.data);
     
     setPendingBooking(null);
     
     let errorMessage = '❌ Failed to create booking. ';
     if (error.response?.data?.error) {
-      errorMessage += `Server says: ${error.response.data.error}`;
-    } else if (error.response?.status === 400) {
-      errorMessage += 'Invalid request data. Please try booking through the main calendar instead.';
+      errorMessage += `${error.response.data.error}`;
     } else {
       errorMessage += 'Please try again later.';
     }
