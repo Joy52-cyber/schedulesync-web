@@ -7855,6 +7855,17 @@ Return JSON structure:
 
     console.log('🤖 Parsed intent:', parsedIntent);
 
+    if (parsedIntent.intent === 'clarify' || cleanMessage.toLowerCase().includes('help') || cleanMessage.toLowerCase().includes('what can you do')) {
+  return res.json({
+    type: 'help',
+    message: `I can help with:\n\n📅 **Meeting scheduling**\n• "Schedule with client@company.com tomorrow at 2pm"\n• "Find available times this week"\n• "Show my bookings"\n\n📧 **Professional emails**\n• "Send reminder to someone@email.com"\n• "Send thank you to client@company.com"\n• "Send confirmation to team@startup.com"\n\n💡 Try any of these commands!`,
+    usage: {
+      chatgpt_used: req.userUsage.chatgpt_used + 1,
+      chatgpt_limit: req.userUsage.limits.chatgpt
+    }
+  });
+}
+
     // Email validation function
     const validateEmail = (email) => {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -8735,10 +8746,13 @@ const sendEmailWithTemplate = async (template, recipientEmail, meetingDetails, u
   }
 };
 
-// ============ TRACK TEMPLATE USAGE ============
+// ============ TRACK TEMPLATE USAGE (FIXED) ============
 const trackTemplateUsage = async (templateId, userId, action) => {
   try {
-    if (!templateId || templateId.startsWith('default_')) {
+    // Convert templateId to string for comparison
+    const templateIdStr = String(templateId);
+    
+    if (!templateId || templateIdStr.startsWith('default_')) {
       return; // Don't track default templates
     }
 
@@ -8748,6 +8762,8 @@ const trackTemplateUsage = async (templateId, userId, action) => {
           last_used = NOW()
       WHERE id = $1 AND user_id = $2
     `, [templateId, userId]);
+
+    console.log(`📊 Template usage tracked: ID ${templateId} for user ${userId}`);
 
   } catch (error) {
     console.error('Failed to track template usage:', error);

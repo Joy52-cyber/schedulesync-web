@@ -27,6 +27,7 @@ I can help you:
 📅 Book meetings ("Schedule with john@email.com tomorrow at 2pm")
 🕐 Find available times ("When can I meet this week?")  
 📋 View your bookings ("Show my upcoming meetings")
+📧 Send professional emails ("Send reminder to client@company.com")
 
 What would you like to do?`;
 
@@ -413,11 +414,12 @@ What would you like to do?`;
                     Try saying:
                   </p>
                   <div className="space-y-2">
-                    {[
-                      "Book a meeting with john@email.com tomorrow at 2pm",
-                      "Find available times this week",
-                      "Show my bookings"
-                    ].map((suggestion, i) => (
+                   {[
+  "Book a meeting with john@email.com tomorrow at 2pm",
+  "Find available times this week",
+  "Show my bookings",
+  "Send reminder to client@company.com"
+].map((suggestion, i) => (
                       <button
                         key={i}
                         onClick={() => setMessage(suggestion)}
