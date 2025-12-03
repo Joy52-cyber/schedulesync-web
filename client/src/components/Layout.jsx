@@ -8,7 +8,9 @@ import {
   X,
   ShieldAlert,
   Clock,
-  Settings
+  Settings,
+   Link2
+
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -26,12 +28,13 @@ export default function Layout() {
   const isAdmin = adminEmails.includes(userEmail);
 
   const navigation = [
-    { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-    { name: "Event Types", path: "/events", icon: Clock },
-    { name: "Teams", path: "/teams", icon: Users },
-    { name: "Bookings", path: "/bookings", icon: Calendar },
-    { name: "Settings", path: "/settings", icon: Settings },
-  ];
+  { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+  { name: "Event Types", path: "/events", icon: Clock },
+  { name: "Teams", path: "/teams", icon: Users },
+  { name: "Bookings", path: "/bookings", icon: Calendar },
+  { name: "My Link", path: "/my-booking-link", icon: Link2 },
+  { name: "Settings", path: "/settings", icon: Settings },
+];
 
   // Add Admin Panel to navigation if user is admin
   if (isAdmin) {
