@@ -1,8 +1,25 @@
 ﻿import React, { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
+import SubscriptionPaymentForm from './SubscriptionPaymentForm'; // Import the new form
 
-const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
+// Better Stripe key detection
+const getStripeKey = () => {
+  // Try different environment variable formats
+  const viteKey = typeof window !== 'undefined' && window.__VITE_STRIPE_KEY__;
+  const reactKey = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY;
+  
+  // For development, you can temporarily hardcode your test key:
+  const fallbackKey = 'pk_test_51...your_actual_key_here';
+  
+  const key = viteKey || reactKey || fallbackKey;
+  console.log('🔑 Using Stripe key:', key ? 'Found' : 'Missing');
+  return key;
+};
+
+const stripeKey = getStripeKey();
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
+
 
 // Payment Form Component
 const PaymentForm = ({ plan, onSuccess, onCancel }) => {
@@ -243,13 +260,14 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, currentTier = 'free' }) => 
                 <p className="text-sm text-gray-600">{selectedPlan.description}</p>
               </div>
 
-              <Elements stripe={stripePromise}>
-                <PaymentForm 
-                  plan={selectedPlan}
-                  onSuccess={handlePaymentSuccess}
-                  onCancel={handleBack}
-                />
-              </Elements>
+              // In SubscriptionUpgradeModal.jsx, replace the Elements wrapper:
+<Elements stripe={stripePromise}>
+  <SubscriptionPaymentForm 
+    plan={selectedPlan}
+    onSuccess={handlePaymentSuccess}
+    onCancel={handleBack}
+  />
+</Elements>
             </div>
           )}
         </div>
