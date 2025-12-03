@@ -7635,7 +7635,7 @@ app.delete('/api/notifications/:id', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete' });
   }
 });
-// ============ CLEAN PROFESSIONAL AI SCHEDULING ENDPOINT ============
+// ============ COMPLETE AI SCHEDULING ENDPOINT WITH EMAIL TEMPLATE INTEGRATION ============
 
 app.post('/api/ai/schedule', authenticateToken, checkUsageLimits, async (req, res) => {
   try {
@@ -7739,16 +7739,9 @@ If the user wants to UPDATE this pending booking (change time, duration, date, e
 2. Include the updated fields in "extracted"
 3. Keep unchanged fields from the original booking
 4. DO NOT ask for confirmation again - the UI will handle that
-
-Examples of update requests:
-- "change to 1 hour" → update duration to 60 minutes
-- "make it 2pm" → update time to "14:00"
-- "change the duration to an hour" → update duration to 60 minutes
-- "move it to tomorrow" → update date
-- "change email to john@test.com" → update attendee_email
 ` : '';
 
-    // System instruction
+    // Enhanced system instruction with email functionality
     const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
 
 User context: ${JSON.stringify(userContext)}
@@ -7756,20 +7749,26 @@ ${pendingBookingInstruction}
 
 CRITICAL INSTRUCTIONS:
 1. When user requests "create meeting" or "schedule with [email]", extract ALL details in ONE response
-2. Parse natural language intelligently:
+2. When user wants to send emails, detect email intent and extract recipient/type
+3. Parse natural language intelligently:
    - "tomorrow" = next day from ${new Date().toISOString()}
    - "1 hour" or "an hour" = 60 minutes duration
    - "2 hours" = 120 minutes duration
    - "5pm" or "5:00 PM" = "17:00" in 24-hour format
-3. NEVER use markdown formatting (no **, no ##, no *)
-4. Keep responses clean and professional
+4. NEVER use markdown formatting (no **, no ##, no *)
+5. Keep responses clean and professional
+
+EMAIL INTENTS:
+- "send reminder to john@email.com" → intent: "send_email", email_action: {type: "reminder", recipient: "john@email.com"}
+- "send thank you to jane@email.com" → intent: "send_email", email_action: {type: "follow_up", recipient: "jane@email.com"}  
+- "confirm meeting with bob@email.com" → intent: "send_email", email_action: {type: "confirmation", recipient: "bob@email.com"}
 
 Current date/time: ${new Date().toISOString()}
 User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
 
 Return JSON structure:
 {
-  "intent": "create_meeting" | "update_pending" | "show_bookings" | "find_time" | "cancel_booking" | "reschedule" | "check_availability" | "clarify",
+  "intent": "create_meeting" | "send_email" | "update_pending" | "show_bookings" | "find_time" | "cancel_booking" | "reschedule" | "check_availability" | "clarify",
   "confidence": 0-100,
   "extracted": {
     "title": "string or null",
@@ -7780,19 +7779,16 @@ Return JSON structure:
     "duration_minutes": number (15, 30, 45, 60, 90, 120),
     "notes": "string or null"
   },
+  "email_action": {
+    "type": "reminder|confirmation|follow_up",
+    "recipient": "email@example.com",
+    "meeting_details": { ... }
+  },
   "missing_fields": ["field1", "field2"],
   "clarifying_question": "question if needed",
   "action": "create" | "update" | "list" | "suggest_slots" | "cancel" | null,
   "response_message": "Clean text response without markdown"
-}
-
-Duration parsing:
-- "1 hour" or "an hour" or "one hour" → 60
-- "30 minutes" or "30 mins" → 30
-- "1.5 hours" or "90 minutes" → 90
-- "2 hours" → 120
-
-For update_pending intent, only include fields that changed.`;
+}`;
 
     // Call Google Gemini API
     const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
@@ -7820,8 +7816,6 @@ For update_pending intent, only include fields that changed.`;
     // Error handling
     if (!geminiResponse.ok) {
       console.error('Gemini API error:', geminiResponse.status, geminiResponse.statusText);
-      const errorText = await geminiResponse.text();
-      console.error('Gemini error body:', errorText);
       return res.status(500).json({
         type: 'error',
         message: 'AI service temporarily unavailable. Please try again.'
@@ -7830,7 +7824,7 @@ For update_pending intent, only include fields that changed.`;
 
     const geminiData = await geminiResponse.json();
 
-    if (!geminiData || !geminiData.candidates || !geminiData.candidates[0] || !geminiData.candidates[0].content) {
+    if (!geminiData?.candidates?.[0]?.content) {
       console.error('Invalid Gemini response:', geminiData);
       return res.status(500).json({
         type: 'error',
@@ -7861,7 +7855,74 @@ For update_pending intent, only include fields that changed.`;
 
     console.log('🤖 Parsed intent:', parsedIntent);
 
-    // Handle UPDATE PENDING intent
+    // Email validation function
+    const validateEmail = (email) => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
+    };
+
+    // ============ HANDLE EMAIL SENDING INTENTS ============
+    if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
+      const { type, recipient, meeting_details } = parsedIntent.email_action;
+      
+      // Validate email
+      if (!validateEmail(recipient)) {
+        return res.json({
+          type: 'error',
+          message: `❌ Invalid email address: ${recipient}. Please provide a valid email.`
+        });
+      }
+      
+      // Select best template
+      const template = await selectBestTemplate(userId, type, meeting_details);
+      
+      if (!template) {
+        return res.json({
+          type: 'error',
+          message: `❌ No ${type} template found. Please create one in Email Templates first.`
+        });
+      }
+      
+      // Get meeting details from context
+      const emailDetails = {
+        date: meeting_details?.date || new Date().toLocaleDateString(),
+        time: meeting_details?.time || 'TBD',
+        link: meeting_details?.link || 'Will be provided',
+        title: meeting_details?.title || 'Meeting'
+      };
+      
+      // Send email with template
+      const emailSent = await sendEmailWithTemplate(template, recipient, emailDetails, userId);
+      
+      if (emailSent) {
+        // Track template usage
+        await trackTemplateUsage(template.id, userId, 'sent');
+        
+        // Increment AI usage
+        await incrementChatGPTUsage(userId);
+        
+        return res.json({
+          type: 'email_sent',
+          message: `✅ ${type.charAt(0).toUpperCase() + type.slice(1)} email sent to ${recipient} using "${template.name}" template!`,
+          data: {
+            template_used: template.name,
+            recipient: recipient,
+            email_type: type
+          },
+          usage: {
+            chatgpt_used: req.userUsage.chatgpt_used + 1,
+            chatgpt_limit: req.userUsage.limits.chatgpt
+          }
+        });
+      } else {
+        return res.json({
+          type: 'error',
+          message: `❌ Failed to send ${type} email to ${recipient}. Please try again.`
+        });
+      }
+    }
+
+    // ============ HANDLE UPDATE PENDING INTENT ============
     if (parsedIntent.intent === 'update_pending' && pendingBookingContext) {
       const updated = {
         ...pendingBookingContext,
@@ -7900,7 +7961,7 @@ For update_pending intent, only include fields that changed.`;
       });
     }
 
-    // Handle different intents
+    // ============ HANDLE SHOW BOOKINGS INTENT ============
     if (parsedIntent.intent === 'show_bookings' || parsedIntent.action === 'list') {
       if (userContext.upcomingBookings.length === 0) {
         return res.json({
@@ -7909,7 +7970,6 @@ For update_pending intent, only include fields that changed.`;
         });
       }
 
-      // Format bookings with complete details - NO MARKDOWN
       const bookingsList = userContext.upcomingBookings.map((booking, index) => {
         const startDate = new Date(booking.start);
         const endDate = new Date(booking.end);
@@ -7937,7 +7997,7 @@ For update_pending intent, only include fields that changed.`;
       });
     }
 
-      // Handle find_time intent - ACTUALLY FETCH SLOTS
+    // ============ HANDLE FIND TIME INTENT ============
     if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slots') {
       try {
         // Get user's booking token
@@ -7965,7 +8025,6 @@ For update_pending intent, only include fields that changed.`;
           [member.id]
         );
 
-        // If no availability settings, return helpful message
         if (availResult.rows.length === 0) {
           return res.json({
             type: 'info',
@@ -7983,15 +8042,12 @@ For update_pending intent, only include fields that changed.`;
           checkDate.setDate(checkDate.getDate() + dayOffset);
           const dayOfWeek = checkDate.getDay();
 
-          // Find availability for this day
           const dayAvail = availResult.rows.find(a => a.day_of_week === dayOfWeek);
           
           if (dayAvail && dayAvail.is_available) {
-            // Parse start/end times
             const [startHour, startMin] = dayAvail.start_time.split(':').map(Number);
             const [endHour, endMin] = dayAvail.end_time.split(':').map(Number);
 
-            // Generate 30-min slots
             let slotTime = new Date(checkDate);
             slotTime.setHours(startHour, startMin, 0, 0);
 
@@ -7999,9 +8055,7 @@ For update_pending intent, only include fields that changed.`;
             endTime.setHours(endHour, endMin, 0, 0);
 
             while (slotTime < endTime && slots.length < 10) {
-              // Skip past times
               if (slotTime > now) {
-                // Check for conflicts with existing bookings
                 const conflictCheck = await pool.query(
                   `SELECT id FROM bookings 
                    WHERE member_id = $1 
@@ -8016,16 +8070,12 @@ For update_pending intent, only include fields that changed.`;
                   let matchScore = 85;
                   let matchLabel = 'Good Match';
 
-                  // Score based on time of day
                   if (hour >= 9 && hour <= 11) {
                     matchScore = 95;
                     matchLabel = 'Excellent Match';
                   } else if (hour >= 14 && hour <= 16) {
                     matchScore = 90;
                     matchLabel = 'Excellent Match';
-                  } else if (hour >= 17 && hour <= 19) {
-                    matchScore = 88;
-                    matchLabel = 'Good Match';
                   }
 
                   slots.push({
@@ -8045,38 +8095,35 @@ For update_pending intent, only include fields that changed.`;
         if (slots.length === 0) {
           return res.json({
             type: 'info',
-            message: '❌ No available slots found in the next 7 days. Please check your availability settings or clear some existing bookings.'
+            message: '❌ No available slots found in the next 7 days. Please check your availability settings.'
           });
         }
 
-        // Format slots nicely - NO MARKDOWN
-       // In your AI endpoint, replace the slots formatting section:
-const formattedSlots = slots.slice(0, 5).map((slot, index) => {
-  const date = new Date(slot.start);
-  const dateStr = date.toLocaleDateString('en-US', { 
-    weekday: 'short', 
-    month: 'short', 
-    day: 'numeric' 
-  });
-  const timeStr = date.toLocaleTimeString('en-US', { 
-    hour: 'numeric', 
-    minute: '2-digit',
-    hour12: true 
-  });
-  
-  // Option 2 format: Clean with emojis and better spacing
-  return `${index + 1}️⃣ ${dateStr} • ${timeStr}    (${slot.matchLabel})`;
-}).join('\n');
+        const formattedSlots = slots.slice(0, 5).map((slot, index) => {
+          const date = new Date(slot.start);
+          const dateStr = date.toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric' 
+          });
+          const timeStr = date.toLocaleTimeString('en-US', { 
+            hour: 'numeric', 
+            minute: '2-digit',
+            hour12: true 
+          });
+          
+          return `${index + 1}️⃣ ${dateStr} • ${timeStr}    (${slot.matchLabel})`;
+        }).join('\n');
 
-return res.json({
-  type: 'slots',
-  message: `📅 Here are your best available times:\n\n${formattedSlots}\n\n💡 Ready to book? Just say "book slot 1" or "schedule 10 AM"! ⚡`,
-  data: { slots: slots.slice(0, 5) },
-  usage: {
-    chatgpt_used: req.userUsage.chatgpt_used + 1,
-    chatgpt_limit: req.userUsage.limits.chatgpt
-  }
-});
+        return res.json({
+          type: 'slots',
+          message: `📅 Here are your best available times:\n\n${formattedSlots}\n\n💡 Ready to book? Just say "book slot 1" or "schedule 10 AM"! ⚡`,
+          data: { slots: slots.slice(0, 5) },
+          usage: {
+            chatgpt_used: req.userUsage.chatgpt_used + 1,
+            chatgpt_limit: req.userUsage.limits.chatgpt
+          }
+        });
 
       } catch (error) {
         console.error('Slot fetch error:', error);
@@ -8087,12 +8134,7 @@ return res.json({
       }
     }
 
-    // Email validation function
-    const validateEmail = (email) => {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return emailRegex.test(email);
-    };
-
+    // ============ HANDLE CREATE MEETING INTENT ============
     if (parsedIntent.intent === 'create_meeting') {
       // Email validation
       if (parsedIntent.extracted.attendees && parsedIntent.extracted.attendees.length > 0) {
@@ -8133,32 +8175,49 @@ return res.json({
         });
       }
 
-      // All validation passed - NO "Click confirm" text since UI has buttons
+      // All validation passed - prepare booking data
+      const bookingData = {
+        title: parsedIntent.extracted.title || 'Meeting',
+        date: parsedIntent.extracted.date,
+        time: parsedIntent.extracted.time,
+        duration: parsedIntent.extracted.duration_minutes || 30,
+        attendees: parsedIntent.extracted.attendees,
+        attendee_email: parsedIntent.extracted.attendees[0],
+        notes: parsedIntent.extracted.notes
+      };
+
+      let confirmationMessage = `✅ Ready to schedule "${bookingData.title}" for ${bookingData.date} at ${bookingData.time}?\n\n👥 Attendees: ${bookingData.attendees.join(', ')}\n⏱️ Duration: ${bookingData.duration} minutes\n📝 Notes: ${bookingData.notes || 'None'}`;
+
+      // Try to find a confirmation template for preview
+      try {
+        const confirmationTemplate = await selectBestTemplate(userId, 'confirmation', {
+          date: bookingData.date,
+          time: bookingData.time,
+          title: bookingData.title
+        });
+
+        if (confirmationTemplate) {
+          confirmationMessage += `\n\n📧 Will use "${confirmationTemplate.name}" template for confirmation email`;
+          bookingData.selectedTemplate = confirmationTemplate;
+        }
+      } catch (templateError) {
+        console.log('📧 No confirmation template found, proceeding without auto-email');
+      }
+
       return res.json({
         type: 'confirmation',
-        message: `✅ Ready to schedule "${parsedIntent.extracted.title || 'Meeting'}" for ${parsedIntent.extracted.date} at ${parsedIntent.extracted.time}?\n\n👥 Attendees: ${parsedIntent.extracted.attendees.join(', ')}\n⏱️ Duration: ${parsedIntent.extracted.duration_minutes || 30} minutes\n📝 Notes: ${parsedIntent.extracted.notes || 'None'}`,
-        data: { 
-          bookingData: {
-            title: parsedIntent.extracted.title || 'Meeting',
-            date: parsedIntent.extracted.date,
-            time: parsedIntent.extracted.time,
-            duration: parsedIntent.extracted.duration_minutes || 30,
-            attendees: parsedIntent.extracted.attendees,
-            attendee_email: parsedIntent.extracted.attendees[0],
-            notes: parsedIntent.extracted.notes
-          }
-        }
+        message: confirmationMessage,
+        data: { bookingData }
       });
     }
 
-    // Increment usage for successful AI response
+    // ============ DEFAULT RESPONSE ============
     await incrementChatGPTUsage(userId);
     console.log(`💰 ChatGPT query used by user ${userId} (${req.userUsage.tier} plan)`);
 
-    // Default response
     return res.json({
       type: 'clarify',
-      message: parsedIntent.clarifying_question || 'How can I help you with your scheduling today? You can ask me to show bookings, find available times, or schedule a new meeting.',
+      message: parsedIntent.clarifying_question || 'How can I help you with your scheduling today? You can ask me to show bookings, find available times, schedule meetings, or send emails.',
       usage: {
         chatgpt_used: req.userUsage.chatgpt_used + 1,
         chatgpt_limit: req.userUsage.limits.chatgpt
@@ -8173,7 +8232,6 @@ return res.json({
     });
   }
 });
-
 
 // ============ AI BOOKING ENDPOINT (MULTIPLE ATTENDEES) ============
 app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
@@ -8262,6 +8320,135 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
     });
   }
 });
+
+// ============ AI TEMPLATE SELECTION FUNCTION ============
+const selectBestTemplate = async (userId, intent, context) => {
+  try {
+    // Get user's templates
+    const templatesResult = await pool.query(`
+      SELECT * FROM email_templates 
+      WHERE user_id = $1 
+      ORDER BY is_favorite DESC, effectiveness DESC NULLS LAST, name ASC
+    `, [userId]);
+    
+    const userTemplates = templatesResult.rows;
+    
+    // Combine with defaults (simplified)
+    const DEFAULT_TEMPLATES = {
+      'reminder': {
+        name: 'Meeting Reminder',
+        subject: 'Reminder: Our meeting {{meetingDate}} at {{meetingTime}}',
+        body: `Hi {{guestName}},\n\nJust a quick reminder about our meeting:\n\n📅 {{meetingDate}} at {{meetingTime}}\n🔗 {{meetingLink}}\n\nSee you soon!\n{{organizerName}}`
+      },
+      'confirmation': {
+        name: 'Meeting Confirmed',
+        subject: 'Meeting confirmed for {{meetingDate}}',
+        body: `Hi {{guestName}},\n\nYour meeting is confirmed!\n\n📅 {{meetingDate}}\n🕐 {{meetingTime}}\n🔗 {{meetingLink}}\n\nLooking forward to it!\n{{organizerName}}`
+      },
+      'follow_up': {
+        name: 'Follow-up',
+        subject: 'Thank you for your time!',
+        body: `Hi {{guestName}},\n\nThank you for meeting with me today!\n\nIf you need anything else: {{bookingLink}}\n\nBest regards,\n{{organizerName}}`
+      }
+    };
+
+    // Determine template type from intent
+    let templateType = 'other';
+    if (intent.includes('remind') || intent.includes('reminder')) {
+      templateType = 'reminder';
+    } else if (intent.includes('confirm') || intent.includes('confirmation')) {
+      templateType = 'confirmation';
+    } else if (intent.includes('follow') || intent.includes('thank')) {
+      templateType = 'follow_up';
+    }
+
+    // Find best matching user template
+    let selectedTemplate = userTemplates.find(t => 
+      t.type === templateType && (t.is_favorite || t.effectiveness > 80)
+    );
+
+    // Fallback to any template of the right type
+    if (!selectedTemplate) {
+      selectedTemplate = userTemplates.find(t => t.type === templateType);
+    }
+
+    // Ultimate fallback to default
+    if (!selectedTemplate && DEFAULT_TEMPLATES[templateType]) {
+      selectedTemplate = DEFAULT_TEMPLATES[templateType];
+    }
+
+    console.log(`📧 Selected template: ${selectedTemplate?.name || 'Default'} for type: ${templateType}`);
+    return selectedTemplate;
+
+  } catch (error) {
+    console.error('Template selection error:', error);
+    return null;
+  }
+};
+
+// ============ SEND EMAIL WITH TEMPLATE FUNCTION ============
+const sendEmailWithTemplate = async (template, recipientEmail, meetingDetails, userId) => {
+  try {
+    // Get user info
+    const userResult = await pool.query('SELECT name, email FROM users WHERE id = $1', [userId]);
+    const organizer = userResult.rows[0];
+
+    // Prepare template variables
+    const variables = {
+      guestName: recipientEmail.split('@')[0], // Default to email username
+      guestEmail: recipientEmail,
+      organizerName: organizer?.name || organizer?.email || 'Your host',
+      meetingDate: meetingDetails?.date || 'TBD',
+      meetingTime: meetingDetails?.time || 'TBD',
+      meetingLink: meetingDetails?.link || 'Will be provided',
+      bookingLink: `${process.env.BASE_URL || 'https://schedulesync.app'}/book/${userId}`
+    };
+
+    // Replace variables in template
+    let subject = template.subject;
+    let body = template.body;
+
+    Object.entries(variables).forEach(([key, value]) => {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      subject = subject.replace(regex, value);
+      body = body.replace(regex, value);
+    });
+
+    // Send email
+    const emailResult = await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'ScheduleSync <notifications@resend.dev>',
+      to: recipientEmail,
+      subject: subject,
+      html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; white-space: pre-wrap;">${body.replace(/\n/g, '<br>')}</div>`
+    });
+
+    console.log(`📧 Email sent using template "${template.name}" to ${recipientEmail}`);
+    return true;
+
+  } catch (error) {
+    console.error('📧 Email sending failed:', error);
+    return false;
+  }
+};
+
+// ============ TRACK TEMPLATE USAGE ============
+const trackTemplateUsage = async (templateId, userId, action) => {
+  try {
+    if (!templateId || templateId.startsWith('default_')) {
+      return; // Don't track default templates
+    }
+
+    await pool.query(`
+      UPDATE email_templates 
+      SET usage_count = COALESCE(usage_count, 0) + 1,
+          last_used = NOW()
+      WHERE id = $1 AND user_id = $2
+    `, [templateId, userId]);
+
+  } catch (error) {
+    console.error('Failed to track template usage:', error);
+  }
+};
 
 // ============ SUBSCRIPTION MANAGEMENT ============
 // (Add this section after your existing payment endpoints)
