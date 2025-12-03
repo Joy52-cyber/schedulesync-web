@@ -8233,6 +8233,139 @@ Return JSON structure:
   }
 });
 
+// ============ AI TEMPLATE GENERATION ENDPOINT (GEMINI VERSION) ============
+app.post('/api/ai/generate-template', authenticateToken, checkUsageLimits, async (req, res) => {
+  try {
+    const { description, type, tone } = req.body;
+    const userId = req.user.id;
+    
+    console.log('🤖 AI Template generation request:', { description, type, tone, userId });
+
+    if (!description || description.trim().length < 10) {
+      return res.status(400).json({ error: 'Please provide a more detailed description (at least 10 characters)' });
+    }
+
+    const prompt = `Create a professional email template based on this request: "${description}"
+
+Template Type: ${type || 'general'}
+Tone: ${tone || 'professional but friendly'}
+
+Requirements:
+- Return ONLY valid JSON (no markdown, no explanations)
+- Use these exact variable names: {{guestName}}, {{guestEmail}}, {{organizerName}}, {{meetingDate}}, {{meetingTime}}, {{meetingLink}}, {{bookingLink}}
+- Keep subject under 60 characters
+- Make body 3-5 sentences, warm but professional
+- Include appropriate emojis sparingly
+
+Format:
+{
+  "name": "Template name (2-4 words)",
+  "subject": "Email subject line",
+  "body": "Email body with proper formatting and variables"
+}`;
+
+    // Call Google Gemini API (same as your AI scheduling)
+    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          role: 'user',
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 1,
+          topP: 0.8,
+          maxOutputTokens: 500,
+        }
+      })
+    });
+
+    // Error handling
+    if (!geminiResponse.ok) {
+      console.error('Gemini API error:', geminiResponse.status, geminiResponse.statusText);
+      return res.status(500).json({
+        error: 'AI service temporarily unavailable',
+        details: 'Please try again in a moment'
+      });
+    }
+
+    const geminiData = await geminiResponse.json();
+
+    if (!geminiData?.candidates?.[0]?.content) {
+      console.error('Invalid Gemini response:', geminiData);
+      return res.status(500).json({
+        error: 'AI generated invalid response',
+        details: 'Please try again with a clearer description'
+      });
+    }
+
+    const aiText = geminiData.candidates[0].content.parts[0].text;
+    
+    // Parse JSON response (same logic as your AI scheduling)
+    let generatedTemplate;
+    try {
+      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('No JSON found in response:', aiText);
+        return res.status(500).json({
+          error: 'AI generated invalid response format',
+          details: 'Please try again with a clearer description'
+        });
+      }
+      generatedTemplate = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      console.error('🚨 JSON parsing failed:', parseError);
+      console.error('🚨 Raw response:', aiText);
+      return res.status(500).json({
+        error: 'AI generated invalid response format',
+        details: 'Please try again with a clearer description'
+      });
+    }
+    
+    // Add metadata
+    const templateData = {
+      ...generatedTemplate,
+      type: type || 'other',
+      is_favorite: false,
+      generated_by_ai: true,
+      generated_at: new Date().toISOString()
+    };
+
+    // Increment usage for successful generation
+    await incrementChatGPTUsage(userId);
+    console.log(`💰 Template generation completed for user ${userId}`);
+
+    res.json({
+      success: true,
+      template: templateData,
+      usage: {
+        chatgpt_used: req.userUsage.chatgpt_used + 1,
+        chatgpt_limit: req.userUsage.limits.chatgpt
+      }
+    });
+
+  } catch (error) {
+    console.error('🚨 AI template generation error:', error);
+    
+    if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+      res.status(500).json({
+        error: 'AI service connection failed',
+        details: 'Please check your internet connection and try again'
+      });
+    } else {
+      res.status(500).json({
+        error: 'Failed to generate template',
+        details: error.message
+      });
+    }
+  }
+});
+
+
 // ============ AI BOOKING ENDPOINT (MULTIPLE ATTENDEES) ============
 app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
   try {
