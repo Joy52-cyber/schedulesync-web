@@ -28,6 +28,7 @@ import {
   Zap,
   X,
   Link2,
+  FileText,
 } from 'lucide-react';
 import api, { 
   auth, 
@@ -37,13 +38,11 @@ import api, {
   chatgptIntegration,
 } from '../utils/api';
 
-// ← ADD THIS LINE HERE!
 import SubscriptionSettings from '../components/SubscriptionSettings';
 
 export default function UserSettings() {
   const [searchParams] = useSearchParams();
   const notify = useNotification();
-
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -187,7 +186,6 @@ export default function UserSettings() {
       }
     } catch (error) {
       console.error('ChatGPT token load error:', error);
-      // Don't show error notification for optional feature
     } finally {
       setChatgptLoading(false);
     }
@@ -374,7 +372,7 @@ export default function UserSettings() {
           <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
           <p className="text-gray-500 mt-1">Manage your profile, calendars, integrations and notifications</p>
         </div>
-        {activeTab !== 'calendars' && activeTab !== 'integrations' && (
+        {activeTab !== 'calendars' && activeTab !== 'integrations' && activeTab !== 'email-templates' && (
           <button
             onClick={handleSave}
             disabled={saving}
@@ -439,18 +437,16 @@ export default function UserSettings() {
             >
               <Mail size={18} /> Notifications
             </button>
-            {/* ADD THIS NEW BUTTON */}
-<button
-  onClick={() => handleTabChange('email-templates')}
-  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-    activeTab === 'email-templates'
-      ? 'bg-blue-50 text-blue-700'
-      : 'text-gray-600 hover:bg-gray-50'
-  }`}
->
-  <Mail size={18} /> Email Templates
-</button>
-
+            <button
+              onClick={() => handleTabChange('email-templates')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'email-templates'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <FileText size={18} /> Email Templates
+            </button>
           </nav>
         </div>
 
@@ -1011,31 +1007,79 @@ export default function UserSettings() {
               </div>
             </div>
           )}
+
+          {/* EMAIL TEMPLATES TAB */}
+          {activeTab === 'email-templates' && (
+            <div className="p-8">
+              <div className="mb-6">
+                <h2 className="text-xl font-bold text-gray-900">Email Templates</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Customize the emails sent to you and your guests
+                </p>
+              </div>
+              
+              <div className="max-w-2xl">
+                {/* Feature Overview */}
+                <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl border-2 border-blue-200 p-6 mb-6">
+                  <div className="flex items-start gap-4">
+                    <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
+                      <FileText className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 mb-2">
+                        Personalize Your Booking Emails
+                      </h3>
+                      <p className="text-gray-600 text-sm mb-4">
+                        Create custom email templates for booking confirmations, reminders, 
+                        cancellations, and more. Add your branding and personalized messages.
+                      </p>
+                      
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        <span className="px-3 py-1 bg-white rounded-full text-xs font-medium text-blue-700 border border-blue-200">
+                          ✅ Booking Confirmations
+                        </span>
+                        <span className="px-3 py-1 bg-white rounded-full text-xs font-medium text-purple-700 border border-purple-200">
+                          ⏰ Reminders
+                        </span>
+                        <span className="px-3 py-1 bg-white rounded-full text-xs font-medium text-red-700 border border-red-200">
+                          ❌ Cancellations
+                        </span>
+                        <span className="px-3 py-1 bg-white rounded-full text-xs font-medium text-green-700 border border-green-200">
+                          🔄 Reschedules
+                        </span>
+                      </div>
+
+                      <a
+                        href="/email-templates"
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                      >
+                        <FileText className="h-5 w-5" />
+                        Manage Email Templates
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Tips */}
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <div className="flex gap-3">
+                    <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-amber-800">
+                      <p className="font-semibold mb-1">Tips for great email templates:</p>
+                      <ul className="space-y-1 text-xs">
+                        <li>• Use variables like <code className="bg-amber-100 px-1 rounded">{'{{attendee_name}}'}</code> to personalize emails</li>
+                        <li>• Keep subject lines clear and include key info like date/time</li>
+                        <li>• Always include a link for guests to manage their booking</li>
+                        <li>• Preview your templates before setting them as default</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-
-      <button
-  onClick={() => handleTabChange('notifications')}
-  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-    activeTab === 'notifications'
-      ? 'bg-blue-50 text-blue-700'
-      : 'text-gray-600 hover:bg-gray-50'
-  }`}
->
-  <Mail size={18} /> Notifications
-</button>
-
-{/* ADD THIS NEW BUTTON */}
-<button
-  onClick={() => handleTabChange('email-templates')}
-  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-    activeTab === 'email-templates'
-      ? 'bg-blue-50 text-blue-700'
-      : 'text-gray-600 hover:bg-gray-50'
-  }`}
->
-  <Mail size={18} /> Email Templates
-</button>
 
       {/* Setup Instructions Modal */}
       {showInstructions && (
