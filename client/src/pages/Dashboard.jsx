@@ -27,7 +27,7 @@ import AISchedulerChat from '../components/AISchedulerChat';
 import { useNotification } from '../contexts/NotificationContext';
 import UsageWidget from '../components/UsageWidget';
 import TestWidget from '../components/TestWidget';
-
+import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal'; // ✅ ADD THIS IMPORT
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -42,6 +42,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [timezone, setTimezone] = useState('');
   const [user, setUser] = useState(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false); // ✅ ADD THIS STATE
 
   // Simple ChatGPT status check
   const [chatgptConfigured, setChatgptConfigured] = useState(false);
@@ -214,7 +215,7 @@ export default function Dashboard() {
                   </span>
                   {usage.chatgpt_used >= usage.chatgpt_limit - 1 && (
                     <button 
-                      onClick={() => navigate('/pricing')}
+                      onClick={() => setShowUpgradeModal(true)} // ✅ FIXED: Use modal instead
                       className="text-xs bg-purple-600 text-white px-2 py-1 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
                     >
                       Upgrade
@@ -309,7 +310,7 @@ export default function Dashboard() {
                       </p>
                     </div>
                     <button 
-                      onClick={() => navigate('/pricing')}
+                      onClick={() => setShowUpgradeModal(true)} // ✅ FIXED: Use modal instead
                       className="bg-white text-purple-600 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
                     >
                       Upgrade
@@ -361,7 +362,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <button 
-                  onClick={() => navigate('/pricing')}
+                  onClick={() => setShowUpgradeModal(true)} // ✅ FIXED: Use modal instead
                   className="w-full bg-white text-purple-600 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors mt-4"
                 >
                   {currentTier === 'free' ? 'Upgrade to Pro' : 'Upgrade to Team'}
@@ -471,7 +472,7 @@ export default function Dashboard() {
                           <TrendingUp className="h-4 w-4" />
                           💡 You're at {bookingCount}/25 bookings this month. 
                           <button 
-                            onClick={() => navigate('/pricing')}
+                            onClick={() => setShowUpgradeModal(true)} // ✅ FIXED: Use modal instead
                             className="text-orange-600 underline ml-1 font-medium hover:text-orange-700"
                           >
                             Upgrade to Pro
@@ -487,6 +488,13 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
+
+      {/* ✅ ADD SUBSCRIPTION UPGRADE MODAL */}
+      <SubscriptionUpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        currentTier={currentTier}
+      />
 
       <AISchedulerChat />
     </div>
