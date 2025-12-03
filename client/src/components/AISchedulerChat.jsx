@@ -15,7 +15,7 @@ import {
   Trash2,
   RotateCcw
 } from 'lucide-react';
-import api, { bookings } from '../utils/api'; 
+import api from '../utils/api';
 
 export default function AISchedulerChat() {
   console.log('🔥 AISchedulerChat component is rendering!');
@@ -207,51 +207,34 @@ What would you like to do?`;
     }
   };
 
-  // Enhanced booking confirmation with detailed error handling
- const handleConfirmBooking = async () => {
+  // Enhanced booking confirmation - FIXED VERSION
+const handleConfirmBooking = async () => {
   if (!pendingBooking) return;
   setLoading(true);
   try {
     const startDateTime = new Date(`${pendingBooking.date}T${pendingBooking.time}`);
     const endDateTime = new Date(startDateTime.getTime() + pendingBooking.duration * 60000);
-
-    // Get all attendees from the modal
     const allAttendees = pendingBooking.attendees || [pendingBooking.attendee_email];
 
     const bookingData = {
       title: pendingBooking.title || 'Meeting',
       start_time: startDateTime.toISOString(),
       end_time: endDateTime.toISOString(),
-      attendees: allAttendees,  // ✅ SEND FULL ATTENDEES ARRAY
-      attendee_email: allAttendees[0],  // Keep for backward compatibility
+      attendee_email: allAttendees[0],
       attendee_name: allAttendees[0].split('@')[0],
-      notes: pendingBooking.notes || '',
-      duration: pendingBooking.duration || 30
+      notes: pendingBooking.notes || ''
     };
 
     console.log('📤 Sending AI booking request:', bookingData);
 
-    // Create a temporary token for the booking API
-const tempToken = `ai-${Date.now()}`;
+    // ✅ FIXED: Use authenticated endpoint instead of bookings.create
+    const response = await api.post('/chatgpt/book-meeting', bookingData);
 
-const response = await bookings.create({
-  token: tempToken,
-  slot: {
-    start: startDateTime.toISOString(),
-    end: endDateTime.toISOString()
-  },
-  attendee_name: allAttendees[0].split('@')[0],
-  attendee_email: allAttendees[0], 
-  additional_attendees: allAttendees.slice(1), // Rest of attendees
-  notes: pendingBooking.notes || '',
-  guest_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-  event_type_id: null, // AI bookings don't need event type
-  event_type_slug: 'ai-booking'
-});
+    console.log('✅ AI booking response:', response.data);
 
     setChatHistory(prev => [...prev, { 
       role: 'assistant', 
-      content: `✅ Booking Confirmed!\n\n📅 ${pendingBooking.title || 'Meeting'}\n🕐 ${formatDateTime(startDateTime)}\n👥 ${allAttendees.join(', ')}\n\nConfirmation emails sent!`,
+      content: `✅ Booking Confirmed!\n\n📅 ${pendingBooking.title || 'Meeting'}\n🕐 ${formatDateTime(startDateTime)}\n👤 ${allAttendees.join(', ')}\n\nConfirmation emails sent!`,
       timestamp: new Date(),
       isConfirmation: true
     }]);
@@ -262,11 +245,9 @@ const response = await bookings.create({
     console.error('❌ AI booking error:', error);
     console.error('❌ Error response:', error.response?.data);
     
-    setPendingBooking(null);
-    
     let errorMessage = '❌ Failed to create booking. ';
     if (error.response?.data?.error) {
-      errorMessage += `${error.response.data.error}`;
+      errorMessage += error.response.data.error;
     } else {
       errorMessage += 'Please try again later.';
     }
@@ -280,6 +261,7 @@ const response = await bookings.create({
     setLoading(false);
   }
 };
+
   const handleCancelBooking = () => {
     setPendingBooking(null);
     setChatHistory(prev => [...prev, { 
