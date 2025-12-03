@@ -8174,7 +8174,7 @@ return res.json({
   }
 });
 
-// ============ AI BOOKING ENDPOINT (FIXED) ============
+// ============ AI BOOKING ENDPOINT (WITH EMAIL NOTIFICATIONS) ============
 app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
   try {
     const {
@@ -8188,7 +8188,7 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
       title, start_time, attendee_email, userId
     });
     
-    // FIXED: Remove created_by column since it doesn't exist
+    // Create the booking
     const result = await pool.query(`
       INSERT INTO bookings (
         title, start_time, end_time, attendee_email, attendee_name,
@@ -8201,12 +8201,53 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
       notes || '', duration || 30
     ]);
     
-    console.log('✅ AI Booking created:', result.rows[0].id);
+    const booking = result.rows[0];
+    console.log('✅ AI Booking created:', booking.id);
+    
+    // Get user info for email
+    const userResult = await pool.query('SELECT name, email FROM users WHERE id = $1', [userId]);
+    const organizer = userResult.rows[0];
+    
+    // Send confirmation email to attendee
+    try {
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #7C3AED;">📅 Meeting Confirmed</h2>
+          <p>Hi ${attendee_name || 'there'},</p>
+          <p>Your meeting has been confirmed!</p>
+          
+          <div style="background: #F3F4F6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin-top: 0;">📋 Meeting Details:</h3>
+            <p><strong>Title:</strong> ${title}</p>
+            <p><strong>Date & Time:</strong> ${new Date(start_time).toLocaleString()}</p>
+            <p><strong>Duration:</strong> ${duration} minutes</p>
+            <p><strong>With:</strong> ${organizer?.name || organizer?.email || 'Organizer'}</p>
+            ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ''}
+          </div>
+          
+          <p>Looking forward to meeting with you!</p>
+          <p style="color: #666; font-size: 12px;">Powered by ScheduleSync AI</p>
+        </div>
+      `;
+
+      await resend.emails.send({
+        from: process.env.EMAIL_FROM || 'noreply@schedulesync.com',
+        to: attendee_email,
+        subject: `Meeting Confirmed: ${title}`,
+        html: emailHtml
+      });
+      
+      console.log(`📧 Confirmation email sent to ${attendee_email}`);
+      
+    } catch (emailError) {
+      console.error('📧 Email sending failed:', emailError);
+      // Don't fail the booking if email fails
+    }
     
     res.json({ 
       success: true, 
-      booking: result.rows[0],
-      message: 'AI booking created successfully'
+      booking: booking,
+      message: 'AI booking created and confirmation email sent'
     });
     
   } catch (error) {
@@ -8217,7 +8258,6 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
     });
   }
 });
-
 // ============ SUBSCRIPTION MANAGEMENT ============
 // (Add this section after your existing payment endpoints)
 
