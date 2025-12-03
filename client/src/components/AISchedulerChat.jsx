@@ -12,12 +12,23 @@ import {
   FileText,
   CheckCircle,
   XCircle,
-  Trash2
+  Trash2,
+  RotateCcw
 } from 'lucide-react';
 import api from '../utils/api';
 
 export default function AISchedulerChat() {
-  const GREETING_MESSAGE = `Hi! I'm your AI scheduling assistant. I can help you:\n\n• Book meetings\n• Find available times\n• View your bookings\n\nWhat would you like to do?`;
+  console.log('🔥 AISchedulerChat component is rendering!');
+
+  const GREETING_MESSAGE = `👋 Hi! I'm your AI scheduling assistant.
+
+I can help you:
+
+📅 Book meetings ("Schedule with john@email.com tomorrow at 2pm")
+🕐 Find available times ("When can I meet this week?")  
+📋 View your bookings ("Show my upcoming meetings")
+
+What would you like to do?`;
 
   const createGreeting = () => ({
     role: 'assistant',
@@ -33,23 +44,25 @@ export default function AISchedulerChat() {
   const [message, setMessage] = useState('');
 
   const [chatHistory, setChatHistory] = useState(() => {
-    const saved = localStorage.getItem('aiChat_history');
-    if (saved) {
-      try {
+    try {
+      const saved = localStorage.getItem('aiChat_history');
+      if (saved) {
         const parsed = JSON.parse(saved);
-        if (!parsed || parsed.length === 0) {
-          return [createGreeting()];
+        if (parsed && parsed.length > 0) {
+          return parsed.map(msg => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }));
         }
-        return parsed.map(msg => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        }));
-      } catch (e) {
-        return [createGreeting()];
       }
+    } catch (e) {
+      console.error('Error loading chat history:', e);
     }
+    
+    // Always return greeting if nothing saved or error
     return [createGreeting()];
   });
+
   const [loading, setLoading] = useState(false);
   const [pendingBooking, setPendingBooking] = useState(() => {
     const saved = localStorage.getItem('aiChat_pendingBooking');
@@ -61,12 +74,15 @@ export default function AISchedulerChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Ensure greeting exists (for users who had old localStorage)
+  // Debug and ensure greeting exists
   useEffect(() => {
+    console.log('💬 Current chat history length:', chatHistory.length);
+    
     if (chatHistory.length === 0) {
+      console.log('⚠️ No chat history, adding greeting');
       setChatHistory([createGreeting()]);
     }
-  }, []);
+  }, [chatHistory]);
 
   // Save chat history to localStorage
   useEffect(() => {
@@ -181,7 +197,7 @@ export default function AISchedulerChat() {
 
       setChatHistory(prev => [...prev, { 
         role: 'assistant', 
-        content: `✅ **Booking Confirmed!**\n\n📅 ${pendingBooking.title}\n🕐 ${formatDateTime(startDateTime)}\n👤 ${pendingBooking.attendee_email}\n\nConfirmation email sent!`,
+        content: `✅ Booking Confirmed!\n\n📅 ${pendingBooking.title}\n🕐 ${formatDateTime(startDateTime)}\n👤 ${pendingBooking.attendee_email}\n\nConfirmation email sent!`,
         timestamp: new Date(),
         isConfirmation: true
       }]);
@@ -214,6 +230,17 @@ export default function AISchedulerChat() {
     localStorage.removeItem('aiChat_pendingBooking');
   };
 
+  const handleResetToGreeting = () => {
+    setChatHistory([createGreeting()]);
+    setPendingBooking(null);
+    localStorage.removeItem('aiChat_pendingBooking');
+  };
+
+  const handleDeleteMessage = (indexToDelete) => {
+    const newHistory = chatHistory.filter((_, index) => index !== indexToDelete);
+    setChatHistory(newHistory.length === 0 ? [createGreeting()] : newHistory);
+  };
+
   const formatDateTime = (date) => {
     return date.toLocaleString('en-US', {
       weekday: 'short',
@@ -242,6 +269,7 @@ export default function AISchedulerChat() {
 
   // Floating button when closed
   if (!isOpen) {
+    console.log('🔍 Rendering floating button - should be visible now!');
     return (
       <button
         onClick={() => setIsOpen(true)}
@@ -323,20 +351,27 @@ export default function AISchedulerChat() {
               )}
 
               {chatHistory.length > 1 && (
-                <div className="flex justify-center mb-2">
+                <div className="flex justify-center mb-2 gap-3">
                   <button
                     onClick={handleClearChat}
-                    className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 transition-colors"
+                    className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1 transition-colors px-2 py-1 rounded hover:bg-red-50"
                   >
                     <Trash2 className="h-3 w-3" />
-                    Clear conversation
+                    Clear All
+                  </button>
+                  <button
+                    onClick={handleResetToGreeting}
+                    className="text-xs text-gray-400 hover:text-blue-500 flex items-center gap-1 transition-colors px-2 py-1 rounded hover:bg-blue-50"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    Reset
                   </button>
                 </div>
               )}
 
               {chatHistory.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} group`}>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 relative ${
                     msg.role === 'user' 
                       ? 'bg-purple-600 text-white rounded-br-md' 
                       : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md shadow-sm'
@@ -345,6 +380,19 @@ export default function AISchedulerChat() {
                     <p className={`text-xs mt-1 ${msg.role === 'user' ? 'text-purple-200' : 'text-gray-400'}`}>
                       {formatTime(msg.timestamp)}
                     </p>
+                    
+                    {/* Individual delete button - only show on hover and not for greeting */}
+                    {i > 0 && (
+                      <button
+                        onClick={() => handleDeleteMessage(i)}
+                        className={`absolute -top-2 -right-2 w-5 h-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs ${
+                          msg.role === 'user' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-gray-400 hover:bg-red-500 text-white'
+                        }`}
+                        title="Delete this message"
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

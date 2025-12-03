@@ -8050,26 +8050,33 @@ For update_pending intent, only include fields that changed.`;
         }
 
         // Format slots nicely - NO MARKDOWN
-        const formattedSlots = slots.slice(0, 5).map((slot, index) => {
-          const date = new Date(slot.start);
-          const dateStr = date.toLocaleDateString('en-US', { 
-            weekday: 'short', 
-            month: 'short', 
-            day: 'numeric' 
-          });
-          const timeStr = date.toLocaleTimeString('en-US', { 
-            hour: 'numeric', 
-            minute: '2-digit',
-            hour12: true 
-          });
-          return `${index + 1}. ${dateStr} at ${timeStr} (${slot.matchLabel})`;
-        }).join('\n');
+       // In your AI endpoint, replace the slots formatting section:
+const formattedSlots = slots.slice(0, 5).map((slot, index) => {
+  const date = new Date(slot.start);
+  const dateStr = date.toLocaleDateString('en-US', { 
+    weekday: 'short', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+  const timeStr = date.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit',
+    hour12: true 
+  });
+  
+  // Option 2 format: Clean with emojis and better spacing
+  return `${index + 1}️⃣ ${dateStr} • ${timeStr}    (${slot.matchLabel})`;
+}).join('\n');
 
-        return res.json({
-          type: 'slots',
-          message: `Here are the best available times:\n\n${formattedSlots}\n\nWould you like to book one of these slots? Just say "book slot 1" or "schedule the first one".`,
-          data: { slots: slots.slice(0, 5) }
-        });
+return res.json({
+  type: 'slots',
+  message: `📅 Here are your best available times:\n\n${formattedSlots}\n\n💡 Ready to book? Just say "book slot 1" or "schedule 10 AM"! ⚡`,
+  data: { slots: slots.slice(0, 5) },
+  usage: {
+    chatgpt_used: req.userUsage.chatgpt_used + 1,
+    chatgpt_limit: req.userUsage.limits.chatgpt
+  }
+});
 
       } catch (error) {
         console.error('Slot fetch error:', error);
