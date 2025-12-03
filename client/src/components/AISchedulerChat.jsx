@@ -231,7 +231,23 @@ What would you like to do?`;
 
     console.log('📤 Sending AI booking request:', bookingData);
 
-    const response = await api.post('/ai/book-meeting', bookingData);
+    // Create a temporary token for the booking API
+const tempToken = `ai-${Date.now()}`;
+
+const response = await bookings.create({
+  token: tempToken,
+  slot: {
+    start: startDateTime.toISOString(),
+    end: endDateTime.toISOString()
+  },
+  attendee_name: allAttendees[0].split('@')[0],
+  attendee_email: allAttendees[0], 
+  additional_attendees: allAttendees.slice(1), // Rest of attendees
+  notes: pendingBooking.notes || '',
+  guest_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+  event_type_id: null, // AI bookings don't need event type
+  event_type_slug: 'ai-booking'
+});
 
     setChatHistory(prev => [...prev, { 
       role: 'assistant', 
