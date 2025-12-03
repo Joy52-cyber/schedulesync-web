@@ -210,7 +210,7 @@ export default function Dashboard() {
 {currentTier !== 'team' && (
   <div className="flex items-center gap-2 bg-purple-50 px-3 py-2 rounded-xl border border-purple-200">
     <span className="text-sm text-purple-700 font-medium">
-      {usage.ai_queries_used || 0}/{usage.ai_queries_limit || 3} AI queries
+      {usage.chatgpt_queries_used || 0}/{usage.chatgpt_queries_limit || 3} AI queries
     </span>
     {(usage.ai_queries_used || 0) >= (usage.ai_queries_limit || 3) - 1 && (
       <button 

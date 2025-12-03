@@ -17,6 +17,18 @@ import {
 } from 'lucide-react';
 import api from '../utils/api';
 
+async function incrementAIUsage(userId) {
+  try {
+    await pool.query(
+      'UPDATE users SET ai_queries_used = ai_queries_used + 1 WHERE id = $1',
+      [userId]
+    );
+    console.log(`✅ AI usage incremented for user ${userId}`);
+  } catch (error) {
+    console.error('❌ Failed to increment AI usage:', error);
+  }
+}
+
 export default function AISchedulerChat() {
   console.log('🔥 AISchedulerChat component is rendering!');
 

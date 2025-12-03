@@ -8313,18 +8313,19 @@ Return JSON structure:
     }
 
     // ============ DEFAULT RESPONSE ============
-    await incrementAIUsage(userId);
+  console.log(`🚀 About to increment AI usage for user ${userId}`);
+
+  await incrementAIUsage(userId);
 console.log(`💰 AI query used by user ${userId} (${req.userUsage.tier} plan)`);
 
 return res.json({
   type: 'clarify',
-  message: parsedIntent.clarifying_question || 'How can I help you with your scheduling today? You can ask me to show bookings, find available times, schedule meetings, or send emails.',
+  message: parsedIntent.clarifying_question || 'How can I help you with your scheduling today?',
   usage: {
-    ai_queries_used: req.userUsage.ai_queries_used + 1,
-    ai_queries_limit: req.userUsage.limits.ai_queries
+    ai_queries_used: req.userUsage.chatgpt_queries_used + 1,  // Use existing field
+    ai_queries_limit: 3  // Hard-code for now
   }
 });
-
   } catch (error) {
     console.error('🚨 AI scheduling error:', error);
     res.status(500).json({
@@ -10735,18 +10736,6 @@ process.on('unhandledRejection', (err) => {
   console.error('Unhandled Promise Rejection:', err);
   if (process.env.NODE_ENV === 'production') server.close(() => process.exit(1));
 });
-
-async function incrementAIUsage(userId) {
-  try {
-    await pool.query(
-      'UPDATE users SET ai_queries_used = ai_queries_used + 1 WHERE id = $1',
-      [userId]
-    );
-    console.log(`✅ AI usage incremented for user ${userId}`);
-  } catch (error) {
-    console.error('❌ Failed to increment AI usage:', error);
-  }
-}
 
 
 module.exports = app;
