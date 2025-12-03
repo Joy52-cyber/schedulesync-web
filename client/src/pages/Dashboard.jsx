@@ -206,8 +206,7 @@ export default function Dashboard() {
                   Setup ChatGPT
                 </button>
               )}
-
-            {/* Usage Indicator - only show for non-team users */}
+              {/* Usage Indicator - only show for non-team users */}
 {currentTier !== 'team' && (
   <div className="flex items-center gap-2 bg-purple-50 px-3 py-2 rounded-xl border border-purple-200">
     <span className="text-sm text-purple-700 font-medium">
@@ -223,13 +222,11 @@ export default function Dashboard() {
     )}
   </div>
 )}
-                </div>
-              )}
             </div>
           </div>
         </div>
       </header>
-
+   
       <main className="w-full">
         <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8">
           <div className="space-y-6">
