@@ -3,11 +3,11 @@ import {
   Sparkles, 
   Send, 
   X, 
-  Minus, 
+  Minus,
+  Maximize2,
   Loader2, 
   Calendar,
   Clock,
-  User,
   Mail,
   FileText,
   CheckCircle,
@@ -33,7 +33,12 @@ export default function AISchedulerChat() {
         timestamp: new Date(msg.timestamp)
       }));
     }
-    return [];
+    // Initial greeting message
+    return [{
+      role: 'assistant',
+      content: `Hi! I'm your AI scheduling assistant. I can help you:\n\n• Book meetings\n• Find available times\n• View your bookings\n\nWhat would you like to do?`,
+      timestamp: new Date()
+    }];
   });
   const [loading, setLoading] = useState(false);
   const [pendingBooking, setPendingBooking] = useState(() => {
@@ -187,9 +192,13 @@ export default function AISchedulerChat() {
   };
 
   const handleClearChat = () => {
-    setChatHistory([]);
+    const initialGreeting = {
+      role: 'assistant',
+      content: `Hi! I'm your AI scheduling assistant. I can help you:\n\n• Book meetings\n• Find available times\n• View your bookings\n\nWhat would you like to do?`,
+      timestamp: new Date()
+    };
+    setChatHistory([initialGreeting]);
     setPendingBooking(null);
-    localStorage.removeItem('aiChat_history');
     localStorage.removeItem('aiChat_pendingBooking');
   };
 
@@ -253,24 +262,21 @@ export default function AISchedulerChat() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {chatHistory.length > 0 && (
-              <button 
-                onClick={handleClearChat}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                title="Clear chat"
-              >
-                <Trash2 className="h-4 w-4 text-white" />
-              </button>
-            )}
             <button 
               onClick={() => setIsMinimized(!isMinimized)}
               className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              title={isMinimized ? 'Expand' : 'Minimize'}
             >
-              <Minus className="h-4 w-4 text-white" />
+              {isMinimized ? (
+                <Maximize2 className="h-4 w-4 text-white" />
+              ) : (
+                <Minus className="h-4 w-4 text-white" />
+              )}
             </button>
             <button 
               onClick={() => setIsOpen(false)}
               className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              title="Close"
             >
               <X className="h-4 w-4 text-white" />
             </button>
@@ -281,20 +287,16 @@ export default function AISchedulerChat() {
           <>
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-              {chatHistory.length === 0 && (
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Calendar className="h-8 w-8 text-purple-600" />
-                  </div>
-                  <h4 className="font-semibold text-gray-800 mb-2">AI Scheduling Assistant</h4>
-                  <p className="text-sm text-gray-500 mb-4">
+              {chatHistory.length <= 1 && (
+                <div className="text-center py-4">
+                  <p className="text-sm text-gray-500 mb-3">
                     Try saying:
                   </p>
                   <div className="space-y-2">
                     {[
                       "Book a meeting with john@email.com tomorrow at 2pm",
-                      "Schedule a 1-hour call next Monday morning",
-                      "Find me a slot this week for a team sync"
+                      "Find available times this week",
+                      "Show my bookings"
                     ].map((suggestion, i) => (
                       <button
                         key={i}
@@ -305,6 +307,18 @@ export default function AISchedulerChat() {
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {chatHistory.length > 1 && (
+                <div className="flex justify-center mb-2">
+                  <button
+                    onClick={handleClearChat}
+                    className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 transition-colors"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Clear conversation
+                  </button>
                 </div>
               )}
 
