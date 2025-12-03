@@ -8264,20 +8264,31 @@ Return JSON structure:
           data: parsedIntent
         });
       }
-
       // All validation passed - prepare booking data
-      const bookingData = {
-        title: parsedIntent.extracted.title || 'Meeting',
-        date: parsedIntent.extracted.date,
-        time: parsedIntent.extracted.time,
-        duration: parsedIntent.extracted.duration_minutes || 30,
-        attendees: parsedIntent.extracted.attendees,
-        attendee_email: parsedIntent.extracted.attendees[0],
-        notes: parsedIntent.extracted.notes
-      };
+     const attendeeEmail = parsedIntent.extracted.attendees[0];
+     const attendeeName = attendeeEmail
+       .split('@')[0]
+       .replace(/[._-]/g, ' ')
+       .replace(/\b\w/g, c => c.toUpperCase());
 
-      let confirmationMessage = `✅ Ready to schedule "${bookingData.title}" for ${bookingData.date} at ${bookingData.time}?\n\n👥 Attendees: ${bookingData.attendees.join(', ')}\n⏱️ Duration: ${bookingData.duration} minutes\n📝 Notes: ${bookingData.notes || 'None'}`;
+     // Auto-generate note with attendee name if no notes provided
+     const extractedNotes = parsedIntent.extracted.notes;
+     const cleanNotes = (extractedNotes && extractedNotes !== 'null' && extractedNotes.trim() !== '') 
+       ? extractedNotes 
+       : `Meeting with ${attendeeName}`;
 
+     const bookingData = {
+       title: parsedIntent.extracted.title || 'Meeting',
+       date: parsedIntent.extracted.date,
+       time: parsedIntent.extracted.time,
+       duration: parsedIntent.extracted.duration_minutes || 30,
+       attendees: parsedIntent.extracted.attendees,
+       attendee_email: attendeeEmail,
+       notes: cleanNotes
+     };
+     
+     let confirmationMessage = `✅ Ready to schedule "${bookingData.title}" for ${bookingData.date} at ${bookingData.time}?\n\n👥 Attendees: ${bookingData.attendees.join(', ')}\n⏱️ Duration: ${bookingData.duration} minutes\n📝 Notes: ${cleanNotes}`;
+     
       // Try to find a confirmation template for preview
       try {
         const confirmationTemplate = await selectBestTemplate(userId, 'confirmation', {
