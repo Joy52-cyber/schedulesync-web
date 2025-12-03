@@ -10098,7 +10098,107 @@ app.patch('/api/email-templates/:id/favorite', authenticateToken, async (req, re
   }
 });
 
+// ============ AI TEMPLATE GENERATION ENDPOINT ============
+app.post('/api/ai/generate-template', authenticateToken, checkUsageLimits, async (req, res) => {
+  try {
+    const { description, type, tone } = req.body;
+    const userId = req.user.id;
+    
+    console.log('🤖 AI Template generation request:', { description, type, tone, userId });
 
+    if (!description || description.trim().length < 10) {
+      return res.status(400).json({ error: 'Please provide a more detailed description (at least 10 characters)' });
+    }
+
+    const prompt = `Create a professional email template based on this request: "${description}"
+
+Template Type: ${type || 'general'}
+Tone: ${tone || 'professional but friendly'}
+
+Requirements:
+- Return ONLY valid JSON (no markdown, no explanations)
+- Use these exact variable names: {{guestName}}, {{guestEmail}}, {{organizerName}}, {{meetingDate}}, {{meetingTime}}, {{meetingLink}}, {{bookingLink}}
+- Keep subject under 60 characters
+- Make body 3-5 sentences, warm but professional
+- Include appropriate emojis sparingly
+
+Format:
+{
+  "name": "Template name (2-4 words)",
+  "subject": "Email subject line",
+  "body": "Email body with proper formatting and variables"
+}`;
+
+    const chatCompletion = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      max_tokens: 500,
+      temperature: 0.7,
+    });
+
+    const responseText = chatCompletion.choices[0].message.content.trim();
+    
+    // Clean and parse the response
+    let cleanedResponse = responseText;
+    if (responseText.includes('```json')) {
+      cleanedResponse = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    }
+    
+    let generatedTemplate;
+    try {
+      generatedTemplate = JSON.parse(cleanedResponse);
+    } catch (parseError) {
+      console.error('🚨 JSON parsing failed:', parseError);
+      console.error('🚨 Raw response:', responseText);
+      return res.status(500).json({
+        error: 'AI generated invalid response format',
+        details: 'Please try again with a clearer description'
+      });
+    }
+    
+    // Add metadata
+    const templateData = {
+      ...generatedTemplate,
+      type: type || 'other',
+      is_favorite: false,
+      generated_by_ai: true,
+      generated_at: new Date().toISOString()
+    };
+
+    // Increment usage for successful generation
+    await incrementChatGPTUsage(userId);
+    console.log(`💰 Template generation completed for user ${userId}`);
+
+    res.json({
+      success: true,
+      template: templateData,
+      usage: {
+        chatgpt_used: req.userUsage.chatgpt_used + 1,
+        chatgpt_limit: req.userUsage.limits.chatgpt
+      }
+    });
+
+  } catch (error) {
+    console.error('🚨 AI template generation error:', error);
+    
+    if (error.response?.status === 429) {
+      res.status(429).json({
+        error: 'AI service is busy',
+        details: 'Please try again in a moment'
+      });
+    } else {
+      res.status(500).json({
+        error: 'Failed to generate template',
+        details: error.message
+      });
+    }
+  }
+});
 
 // ============ ONBOARDING / PROFILE UPDATE ============
 app.put('/api/users/profile', authenticateToken, async (req, res) => {

@@ -13,6 +13,11 @@ import {
   FileText,
   Bot,
   Eye,
+  Zap,
+  Target,
+  BarChart3,
+  Lightbulb,
+  Wand2,
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -37,6 +42,15 @@ const VARIABLES = [
   { key: 'bookingLink', label: 'Booking Link' },
 ];
 
+// Tone options for AI generation
+const TONE_OPTIONS = [
+  { id: 'professional', label: 'Professional', emoji: '💼' },
+  { id: 'professional but friendly', label: 'Professional & Friendly', emoji: '😊' },
+  { id: 'casual', label: 'Casual', emoji: '👋' },
+  { id: 'warm', label: 'Warm', emoji: '🤗' },
+  { id: 'formal', label: 'Formal', emoji: '🎩' },
+];
+
 // Default starter templates
 const DEFAULT_TEMPLATES = [
   {
@@ -56,6 +70,8 @@ Looking forward to it!
 {{organizerName}}`,
     is_default: true,
     is_favorite: true,
+    usage_count: 23,
+    effectiveness: 87,
   },
   {
     id: 'default_2',
@@ -74,6 +90,8 @@ Best regards,
 {{organizerName}}`,
     is_default: true,
     is_favorite: false,
+    usage_count: 15,
+    effectiveness: 82,
   },
   {
     id: 'default_3',
@@ -90,6 +108,8 @@ Talk soon!
 {{organizerName}}`,
     is_default: true,
     is_favorite: false,
+    usage_count: 31,
+    effectiveness: 91,
   },
   {
     id: 'default_4',
@@ -108,6 +128,8 @@ See you soon!
 {{organizerName}}`,
     is_default: true,
     is_favorite: false,
+    usage_count: 45,
+    effectiveness: 94,
   },
   {
     id: 'default_5',
@@ -124,6 +146,8 @@ Apologies for any inconvenience!
 {{organizerName}}`,
     is_default: true,
     is_favorite: false,
+    usage_count: 8,
+    effectiveness: 78,
   },
 ];
 
@@ -143,9 +167,22 @@ export default function EmailTemplates() {
   // Preview
   const [showPreview, setShowPreview] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState(null);
+  
+  // AI Generation
+  const [showGenerator, setShowGenerator] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generatorForm, setGeneratorForm] = useState({
+    description: '',
+    type: 'other',
+    tone: 'professional but friendly'
+  });
+  
+  // Smart suggestions
+  const [smartSuggestions, setSmartSuggestions] = useState([]);
 
   useEffect(() => {
     loadTemplates();
+    loadSmartSuggestions();
   }, []);
 
   const loadTemplates = async () => {
@@ -167,6 +204,88 @@ export default function EmailTemplates() {
     }
   };
 
+  // Load context-aware smart suggestions
+  const loadSmartSuggestions = async () => {
+    try {
+      const timeOfDay = new Date().getHours();
+      const dayOfWeek = new Date().getDay();
+      
+      // Simple smart suggestion logic
+      const suggestions = [];
+      
+      if (timeOfDay > 17 || dayOfWeek === 5) {
+        // Evening or Friday - suggest follow-up templates
+        suggestions.push({
+          template: DEFAULT_TEMPLATES.find(t => t.type === 'follow_up'),
+          reason: "Popular for end-of-day follow-ups"
+        });
+      }
+      
+      if (timeOfDay >= 9 && timeOfDay <= 11) {
+        // Morning - suggest reminders
+        suggestions.push({
+          template: DEFAULT_TEMPLATES.find(t => t.type === 'reminder'),
+          reason: "Perfect timing for meeting reminders"
+        });
+      }
+      
+      // Always include highest performing template
+      const bestTemplate = DEFAULT_TEMPLATES.reduce((best, current) => 
+        (current.effectiveness || 0) > (best.effectiveness || 0) ? current : best
+      );
+      
+      if (!suggestions.find(s => s.template?.id === bestTemplate.id)) {
+        suggestions.push({
+          template: bestTemplate,
+          reason: `${bestTemplate.effectiveness}% effectiveness rate`
+        });
+      }
+      
+      setSmartSuggestions(suggestions.slice(0, 3));
+    } catch (error) {
+      console.error('Failed to load smart suggestions:', error);
+    }
+  };
+
+  // Generate template with AI
+  const generateTemplate = async () => {
+    if (!generatorForm.description.trim()) {
+      alert('Please describe the template you want to create');
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const response = await api.post('/ai/generate-template', generatorForm);
+      const aiTemplate = response.data.template;
+      
+      // Open the generated template in editor
+      setEditingTemplate({
+        ...aiTemplate,
+        id: null,
+        is_default: false,
+        is_favorite: false,
+        generated_by_ai: true
+      });
+      
+      setShowGenerator(false);
+      setShowEditor(true);
+      
+      // Reset form
+      setGeneratorForm({
+        description: '',
+        type: 'other',
+        tone: 'professional but friendly'
+      });
+      
+    } catch (error) {
+      console.error('AI generation failed:', error);
+      alert(error.response?.data?.error || 'Failed to generate template');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   // Filter templates
   const filteredTemplates = templates.filter(t => {
     const matchesSearch = searchQuery === '' || 
@@ -175,10 +294,13 @@ export default function EmailTemplates() {
     return matchesSearch && matchesType;
   });
 
-  // Sort: favorites first, then by name
+  // Sort: favorites first, then by effectiveness, then by name
   const sortedTemplates = [...filteredTemplates].sort((a, b) => {
     if (a.is_favorite && !b.is_favorite) return -1;
     if (!a.is_favorite && b.is_favorite) return 1;
+    if (a.effectiveness && b.effectiveness) {
+      return b.effectiveness - a.effectiveness;
+    }
     return a.name.localeCompare(b.name);
   });
 
@@ -278,6 +400,13 @@ export default function EmailTemplates() {
     return TEMPLATE_TYPES.find(t => t.id === type)?.emoji || '📧';
   };
 
+  const getEffectivenessColor = (effectiveness) => {
+    if (effectiveness >= 90) return 'text-green-600 bg-green-50';
+    if (effectiveness >= 80) return 'text-blue-600 bg-blue-50';
+    if (effectiveness >= 70) return 'text-yellow-600 bg-yellow-50';
+    return 'text-gray-600 bg-gray-50';
+  };
+
   const previewWithSampleData = (template) => {
     const sampleData = {
       guestName: 'John Smith',
@@ -325,28 +454,74 @@ export default function EmailTemplates() {
               Your AI assistant uses these when sending emails
             </p>
           </div>
-          <button
-            onClick={() => openEditor()}
-            className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2 font-semibold shadow-sm"
-          >
-            <Plus className="h-5 w-5" />
-            New Template
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowGenerator(true)}
+              className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 flex items-center gap-2 font-semibold shadow-sm"
+            >
+              <Sparkles className="h-5 w-5" />
+              AI Generate
+            </button>
+            <button
+              onClick={() => openEditor()}
+              className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2 font-semibold shadow-sm"
+            >
+              <Plus className="h-5 w-5" />
+              New Template
+            </button>
+          </div>
         </div>
 
-        {/* AI Tip */}
-        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-2xl p-4 mb-6">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Sparkles className="h-5 w-5 text-purple-600" />
+        {/* AI Tips */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          {/* Smart Suggestions */}
+          {smartSuggestions.length > 0 && (
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <Target className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-green-900 mb-2">🎯 Recommended for you:</p>
+                  <div className="space-y-2">
+                    {smartSuggestions.map((suggestion, i) => (
+                      <div key={i} className="bg-white p-2 rounded-lg border border-green-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-green-900">
+                              {suggestion.template?.name}
+                            </p>
+                            <p className="text-xs text-green-700">{suggestion.reason}</p>
+                          </div>
+                          <button
+                            onClick={() => openEditor(suggestion.template)}
+                            className="text-green-600 hover:text-green-700"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-purple-900">How it works with AI</p>
-              <p className="text-sm text-purple-700 mt-1">
-                Say: <span className="font-mono bg-white px-2 py-0.5 rounded">"Send John a friendly reminder about tomorrow"</span>
-                <br />
-                Your AI will use your "Friendly Reminder" template automatically!
-              </p>
+          )}
+
+          {/* AI Integration Info */}
+          <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-2xl p-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Sparkles className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-purple-900">How it works with AI</p>
+                <p className="text-sm text-purple-700 mt-1">
+                  Say: <span className="font-mono bg-white px-2 py-0.5 rounded">"Send John a friendly reminder"</span>
+                  <br />
+                  Your AI picks the best template automatically!
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -380,12 +555,20 @@ export default function EmailTemplates() {
           <div className="bg-white rounded-2xl p-12 text-center border-2 border-dashed border-gray-200">
             <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 mb-4">No templates found</p>
-            <button
-              onClick={() => openEditor()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium"
-            >
-              Create One
-            </button>
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => setShowGenerator(true)}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium"
+              >
+                ✨ Generate with AI
+              </button>
+              <button
+                onClick={() => openEditor()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium"
+              >
+                Create Manual
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
@@ -399,15 +582,35 @@ export default function EmailTemplates() {
                   <div className="text-2xl">{getTypeEmoji(template.type)}</div>
                   
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-semibold text-gray-900 truncate">{template.name}</h3>
                       {template.is_default && (
                         <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
                           Built-in
                         </span>
                       )}
+                      {template.generated_by_ai && (
+                        <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full flex items-center gap-1">
+                          <Wand2 className="h-3 w-3" />
+                          AI
+                        </span>
+                      )}
                     </div>
-                    <p className="text-sm text-gray-500 truncate">{template.subject}</p>
+                    <p className="text-sm text-gray-500 truncate mb-1">{template.subject}</p>
+                    
+                    {/* Analytics */}
+                    <div className="flex items-center gap-3 text-xs">
+                      {template.usage_count && (
+                        <span className="text-gray-600">
+                          📊 Used {template.usage_count} times
+                        </span>
+                      )}
+                      {template.effectiveness && (
+                        <span className={`px-2 py-0.5 rounded-full ${getEffectivenessColor(template.effectiveness)}`}>
+                          {template.effectiveness}% effective
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Actions */}
@@ -450,12 +653,108 @@ export default function EmailTemplates() {
         )}
       </div>
 
+      {/* AI Generator Modal */}
+      {showGenerator && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl">
+            <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4 flex items-center justify-between text-white rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                <Sparkles className="h-6 w-6" />
+                <h2 className="text-lg font-bold">AI Template Generator</h2>
+              </div>
+              <button onClick={() => setShowGenerator(false)} className="p-2 hover:bg-white/20 rounded-lg">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Describe your template *
+                </label>
+                <textarea
+                  value={generatorForm.description}
+                  onChange={(e) => setGeneratorForm({ ...generatorForm, description: e.target.value })}
+                  placeholder="e.g., Professional follow-up for sales meetings with warm tone"
+                  rows={3}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 outline-none resize-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">Be specific about purpose, tone, and style</p>
+              </div>
+
+              {/* Type */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Template Type
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {TEMPLATE_TYPES.map(type => (
+                    <button
+                      key={type.id}
+                      onClick={() => setGeneratorForm({ ...generatorForm, type: type.id })}
+                      className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                        generatorForm.type === type.id
+                          ? 'border-purple-500 bg-purple-50 text-purple-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      {type.emoji} {type.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tone */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Tone
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {TONE_OPTIONS.map(tone => (
+                    <button
+                      key={tone.id}
+                      onClick={() => setGeneratorForm({ ...generatorForm, tone: tone.id })}
+                      className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                        generatorForm.tone === tone.id
+                          ? 'border-purple-500 bg-purple-50 text-purple-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      {tone.emoji} {tone.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 border-t px-6 py-4 flex justify-end gap-3">
+              <button
+                onClick={() => setShowGenerator(false)}
+                className="px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={generateTemplate}
+                disabled={generating || !generatorForm.description.trim()}
+                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {generating ? 'Generating...' : 'Generate Template'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Editor Modal */}
       {showEditor && editingTemplate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                {editingTemplate.generated_by_ai && <Wand2 className="h-5 w-5 text-purple-600" />}
                 {editingTemplate.id ? 'Edit Template' : 'New Template'}
               </h2>
               <button onClick={() => setShowEditor(false)} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -464,6 +763,18 @@ export default function EmailTemplates() {
             </div>
 
             <div className="p-6 space-y-5">
+              {/* AI Generated Banner */}
+              {editingTemplate.generated_by_ai && (
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-purple-600" />
+                    <p className="text-sm font-medium text-purple-900">
+                      Generated by AI - Feel free to customize as needed!
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Name */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -531,7 +842,8 @@ export default function EmailTemplates() {
 
               {/* Variables */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-sm font-semibold text-gray-700 mb-2">
+                <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4" />
                   Insert Variables (click to add)
                 </p>
                 <div className="flex flex-wrap gap-2">
