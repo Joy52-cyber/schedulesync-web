@@ -17,28 +17,38 @@ import {
 import api from '../utils/api';
 
 export default function AISchedulerChat() {
+  const GREETING_MESSAGE = `Hi! I'm your AI scheduling assistant. I can help you:\n\n• Book meetings\n• Find available times\n• View your bookings\n\nWhat would you like to do?`;
+
+  const createGreeting = () => ({
+    role: 'assistant',
+    content: GREETING_MESSAGE,
+    timestamp: new Date()
+  });
+
   const [isOpen, setIsOpen] = useState(() => {
     const saved = localStorage.getItem('aiChat_isOpen');
     return saved ? JSON.parse(saved) : false;
   });
   const [isMinimized, setIsMinimized] = useState(false);
   const [message, setMessage] = useState('');
+
   const [chatHistory, setChatHistory] = useState(() => {
     const saved = localStorage.getItem('aiChat_history');
     if (saved) {
-      const parsed = JSON.parse(saved);
-      // Convert timestamp strings back to Date objects
-      return parsed.map(msg => ({
-        ...msg,
-        timestamp: new Date(msg.timestamp)
-      }));
+      try {
+        const parsed = JSON.parse(saved);
+        if (!parsed || parsed.length === 0) {
+          return [createGreeting()];
+        }
+        return parsed.map(msg => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }));
+      } catch (e) {
+        return [createGreeting()];
+      }
     }
-    // Initial greeting message
-    return [{
-      role: 'assistant',
-      content: `Hi! I'm your AI scheduling assistant. I can help you:\n\n• Book meetings\n• Find available times\n• View your bookings\n\nWhat would you like to do?`,
-      timestamp: new Date()
-    }];
+    return [createGreeting()];
   });
   const [loading, setLoading] = useState(false);
   const [pendingBooking, setPendingBooking] = useState(() => {
@@ -50,6 +60,13 @@ export default function AISchedulerChat() {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Ensure greeting exists (for users who had old localStorage)
+  useEffect(() => {
+    if (chatHistory.length === 0) {
+      setChatHistory([createGreeting()]);
+    }
+  }, []);
 
   // Save chat history to localStorage
   useEffect(() => {
@@ -192,12 +209,7 @@ export default function AISchedulerChat() {
   };
 
   const handleClearChat = () => {
-    const initialGreeting = {
-      role: 'assistant',
-      content: `Hi! I'm your AI scheduling assistant. I can help you:\n\n• Book meetings\n• Find available times\n• View your bookings\n\nWhat would you like to do?`,
-      timestamp: new Date()
-    };
-    setChatHistory([initialGreeting]);
+    setChatHistory([createGreeting()]);
     setPendingBooking(null);
     localStorage.removeItem('aiChat_pendingBooking');
   };
