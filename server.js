@@ -7544,6 +7544,23 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
       });
     }
 
+    // Check if message contains pending booking context
+    let pendingBookingContext = null;
+    let cleanMessage = message;
+    
+    const pendingMatch = message.match(/\[Current pending booking: "([^"]+)" on (\S+) at (\S+) for (\d+) minutes with (\S+)\]/);
+    if (pendingMatch) {
+      pendingBookingContext = {
+        title: pendingMatch[1],
+        date: pendingMatch[2],
+        time: pendingMatch[3],
+        duration: parseInt(pendingMatch[4]),
+        attendee_email: pendingMatch[5]
+      };
+      cleanMessage = message.replace(/\[Current pending booking:.*?\]\s*User says:\s*/i, '').trim();
+      console.log('📋 Pending booking detected:', pendingBookingContext);
+    }
+
     // Get user's teams and bookings for context
     const teamsResult = await pool.query(
       `SELECT t.*, COUNT(tm.id) as member_count
@@ -7588,7 +7605,8 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
         status: b.status,
         team_name: b.team_name,
         organizer: b.organizer_name
-      }))
+      })),
+      pendingBooking: pendingBookingContext
     };
 
     // Format conversation history
@@ -7597,59 +7615,75 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
       parts: [{ text: msg.content || '' }]
     })).filter(msg => msg.parts[0].text.trim() !== '');
 
-    // System instruction - WITH ONE-MESSAGE PROCESSING FIX
-const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
+    // Build pending booking instruction if exists
+    const pendingBookingInstruction = pendingBookingContext ? `
+IMPORTANT - PENDING BOOKING CONTEXT:
+There is currently a pending booking waiting for confirmation:
+- Title: "${pendingBookingContext.title}"
+- Date: ${pendingBookingContext.date}
+- Time: ${pendingBookingContext.time}
+- Duration: ${pendingBookingContext.duration} minutes
+- Attendee: ${pendingBookingContext.attendee_email}
+
+If the user wants to UPDATE this pending booking (change time, duration, date, etc.):
+1. Set intent to "update_pending"
+2. Include the updated fields in "extracted"
+3. Keep unchanged fields from the original booking
+4. DO NOT ask for confirmation again - the UI will handle that
+
+Examples of update requests:
+- "change to 1 hour" → update duration to 60 minutes
+- "make it 2pm" → update time to "14:00"
+- "change the duration to an hour" → update duration to 60 minutes
+- "move it to tomorrow" → update date
+- "change email to john@test.com" → update attendee_email
+` : '';
+
+    // System instruction
+    const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
 
 User context: ${JSON.stringify(userContext)}
+${pendingBookingInstruction}
 
-CRITICAL INSTRUCTIONS FOR SINGLE-MESSAGE BOOKING:
-1. When user requests "create meeting" or "schedule with [email]", extract ALL details in ONE response:
-   - Email address from message
-   - Date (parse relative dates: "tomorrow", "December 2", "next Monday")
-   - Time (parse: "5pm", "5:00 PM", "17:00", "2 pm")
-   - Default duration: 30 minutes unless specified
-
-2. If ALL required info is provided (email, date, time), set intent to "create_meeting" immediately.
-
-3. ONLY ask follow-up questions if critical info is missing.
-
-4. Parse natural language dates intelligently:
+CRITICAL INSTRUCTIONS:
+1. When user requests "create meeting" or "schedule with [email]", extract ALL details in ONE response
+2. Parse natural language intelligently:
    - "tomorrow" = next day from ${new Date().toISOString()}
-   - "December 2" or "Dec 2" = 2025-12-02 (use 2025 or later for future dates)
-   - "next Monday" = upcoming Monday
+   - "1 hour" or "an hour" = 60 minutes duration
+   - "2 hours" = 120 minutes duration
    - "5pm" or "5:00 PM" = "17:00" in 24-hour format
-   - "2 pm" = "14:00" in 24-hour format
+3. NEVER use markdown formatting (no **, no ##, no *)
+4. Keep responses clean and professional
 
 Current date/time: ${new Date().toISOString()}
 User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
 
 Return JSON structure:
 {
-  "intent": "create_meeting" | "show_bookings" | "find_time" | "cancel_booking" | "reschedule" | "check_availability" | "clarify",
+  "intent": "create_meeting" | "update_pending" | "show_bookings" | "find_time" | "cancel_booking" | "reschedule" | "check_availability" | "clarify",
   "confidence": 0-100,
   "extracted": {
     "title": "string or null",
     "attendees": ["email@example.com"],
-    "date": "YYYY-MM-DD (always use 2025 or later for future dates)",
+    "attendee_email": "email for single attendee",
+    "date": "YYYY-MM-DD",
     "time": "HH:MM in 24-hour format", 
-    "duration_minutes": number or null,
-    "notes": "string or null",
-    "time_window": "tomorrow morning" | "next week" | "this afternoon" etc
+    "duration_minutes": number (15, 30, 45, 60, 90, 120),
+    "notes": "string or null"
   },
   "missing_fields": ["field1", "field2"],
-  "clarifying_question": "What time works best for you?",
-  "action": "create" | "list" | "suggest_slots" | "cancel" | null
+  "clarifying_question": "question if needed",
+  "action": "create" | "update" | "list" | "suggest_slots" | "cancel" | null,
+  "response_message": "Clean text response without markdown"
 }
 
-Examples:
-- "create meeting with john@test.com tomorrow at 2pm" → intent: "create_meeting", date: "2025-12-04", time: "14:00"
-- "schedule with joy@gmail.com December 5 at 5pm" → intent: "create_meeting", date: "2025-12-05", time: "17:00"
-- "book a call with sarah@company.com next Monday 10am" → intent: "create_meeting", date: "2025-12-09", time: "10:00"
+Duration parsing:
+- "1 hour" or "an hour" or "one hour" → 60
+- "30 minutes" or "30 mins" → 30
+- "1.5 hours" or "90 minutes" → 90
+- "2 hours" → 120
 
-For "show bookings" intent, set action to "list".
-For "find time" or vague scheduling, set action to "suggest_slots".
-For specific time/date provided, set action to "create".
-If missing info, set intent to "clarify".`;
+For update_pending intent, only include fields that changed.`;
 
     // Call Google Gemini API
     const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
@@ -7662,7 +7696,7 @@ If missing info, set intent to "clarify".`;
           ...formattedHistory,
           {
             role: 'user',
-            parts: [{ text: `${systemInstruction}\n\nUser message: ${message.trim()}` }]
+            parts: [{ text: `${systemInstruction}\n\nUser message: ${cleanMessage}` }]
           }
         ],
         generationConfig: {
@@ -7718,6 +7752,45 @@ If missing info, set intent to "clarify".`;
 
     console.log('🤖 Parsed intent:', parsedIntent);
 
+    // Handle UPDATE PENDING intent
+    if (parsedIntent.intent === 'update_pending' && pendingBookingContext) {
+      const updated = {
+        ...pendingBookingContext,
+        ...parsedIntent.extracted
+      };
+      
+      // Handle attendees array to single email
+      if (parsedIntent.extracted.attendees && parsedIntent.extracted.attendees.length > 0) {
+        updated.attendee_email = parsedIntent.extracted.attendees[0];
+      }
+      
+      // Rename duration_minutes to duration for consistency
+      if (parsedIntent.extracted.duration_minutes) {
+        updated.duration = parsedIntent.extracted.duration_minutes;
+      }
+
+      const changeDescription = [];
+      if (parsedIntent.extracted.duration_minutes && parsedIntent.extracted.duration_minutes !== pendingBookingContext.duration) {
+        changeDescription.push(`duration to ${parsedIntent.extracted.duration_minutes} minutes`);
+      }
+      if (parsedIntent.extracted.time && parsedIntent.extracted.time !== pendingBookingContext.time) {
+        changeDescription.push(`time to ${parsedIntent.extracted.time}`);
+      }
+      if (parsedIntent.extracted.date && parsedIntent.extracted.date !== pendingBookingContext.date) {
+        changeDescription.push(`date to ${parsedIntent.extracted.date}`);
+      }
+
+      return res.json({
+        type: 'update_pending',
+        message: changeDescription.length > 0 
+          ? `✅ Updated ${changeDescription.join(' and ')}. Please review and confirm.`
+          : 'Booking details updated. Please review and confirm.',
+        data: {
+          updatedBooking: updated
+        }
+      });
+    }
+
     // Handle different intents
     if (parsedIntent.intent === 'show_bookings' || parsedIntent.action === 'list') {
       if (userContext.upcomingBookings.length === 0) {
@@ -7772,94 +7845,6 @@ If missing info, set intent to "clarify".`;
         });
       }
     }
-    
-    // Enhanced slot formatting function - NO MARKDOWN
-    function formatAvailableSlots(slots) {
-      if (!slots || slots.length === 0) {
-        return "❌ No available slots found. Try a different time range or check your availability settings.";
-      }
-
-      // Group slots by date
-      const slotsByDate = {};
-      slots.forEach(slot => {
-        const date = new Date(slot.start);
-        const dateKey = date.toISOString().split('T')[0];
-        
-        if (!slotsByDate[dateKey]) {
-          slotsByDate[dateKey] = {
-            date: date,
-            slots: []
-          };
-        }
-        slotsByDate[dateKey].slots.push(slot);
-      });
-
-      // Generate formatted response
-      let response = "🗓️ Perfect! I found some great times for you:\n\n";
-
-      Object.keys(slotsByDate).forEach(dateKey => {
-        const dayData = slotsByDate[dateKey];
-        const date = dayData.date;
-        
-        // Add day name and date
-        const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-        const monthDay = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-        
-        response += `📅 ${dayName}, ${monthDay}\n`;
-        
-        // Add slots for this day
-        dayData.slots.forEach(slot => {
-          const time = new Date(slot.start).toLocaleTimeString('en-US', { 
-            hour: 'numeric', 
-            minute: '2-digit',
-            hour12: true 
-          });
-          
-          // Get time context
-          const hour = new Date(slot.start).getHours();
-          let timeContext = '';
-          let emoji = '🕰️';
-          
-          if (hour >= 9 && hour < 12) {
-            timeContext = 'Morning focus time';
-            emoji = '🌅';
-          } else if (hour >= 12 && hour < 14) {
-            timeContext = 'Lunch break';
-            emoji = '🍽️';
-          } else if (hour >= 14 && hour < 17) {
-            timeContext = 'Afternoon productivity';
-            emoji = '💼';
-          } else if (hour >= 17 && hour < 19) {
-            timeContext = 'End of workday';
-            emoji = '🕰️';
-          } else if (hour >= 19 && hour < 21) {
-            timeContext = 'Prime dinner time';
-            emoji = '🍽️';
-          } else if (hour >= 21) {
-            timeContext = 'Late evening';
-            emoji = '🌙';
-          } else {
-            timeContext = 'Early morning';
-            emoji = '🌅';
-          }
-
-          // Get match quality emoji
-          const matchEmoji = slot.matchScore >= 90 ? '⭐' : 
-                            slot.matchScore >= 80 ? '🌟' : 
-                            slot.matchScore >= 70 ? '✨' : '💫';
-          
-          response += `   ${emoji} ${time} • ${matchEmoji} ${slot.matchLabel || 'Available'} • ${timeContext}\n`;
-        });
-        
-        response += '\n';
-      });
-
-      response += `✨ All times show optimal availability!\n\n`;
-      response += `👆 Just tell me which time works best and I'll book it for you:\n`;
-      response += `Example: "Book 6:30 PM on Tuesday" or "Schedule the Monday 8:00 PM slot"`;
-
-      return response;
-    }
 
     // Email validation function
     const validateEmail = (email) => {
@@ -7907,17 +7892,18 @@ If missing info, set intent to "clarify".`;
         });
       }
 
-      // All validation passed - NO MARKDOWN
+      // All validation passed - NO "Click confirm" text since UI has buttons
       return res.json({
         type: 'confirmation',
-        message: `✅ Ready to schedule "${parsedIntent.extracted.title || 'Meeting'}" for ${parsedIntent.extracted.date} at ${parsedIntent.extracted.time}?\n\n👥 Attendees: ${parsedIntent.extracted.attendees.join(', ')}\n⏱️ Duration: ${parsedIntent.extracted.duration_minutes || 30} minutes\n📝 Notes: ${parsedIntent.extracted.notes || 'None'}\n\nClick confirm to create the booking.`,
+        message: `✅ Ready to schedule "${parsedIntent.extracted.title || 'Meeting'}" for ${parsedIntent.extracted.date} at ${parsedIntent.extracted.time}?\n\n👥 Attendees: ${parsedIntent.extracted.attendees.join(', ')}\n⏱️ Duration: ${parsedIntent.extracted.duration_minutes || 30} minutes\n📝 Notes: ${parsedIntent.extracted.notes || 'None'}`,
         data: { 
           bookingData: {
-            title: parsedIntent.extracted.title,
+            title: parsedIntent.extracted.title || 'Meeting',
             date: parsedIntent.extracted.date,
             time: parsedIntent.extracted.time,
             duration: parsedIntent.extracted.duration_minutes || 30,
             attendees: parsedIntent.extracted.attendees,
+            attendee_email: parsedIntent.extracted.attendees[0],
             notes: parsedIntent.extracted.notes
           }
         }
@@ -7936,6 +7922,136 @@ If missing info, set intent to "clarify".`;
       type: 'error',
       message: 'Something went wrong. Please try again.'
     });
+  }
+});
+// ============ SUBSCRIPTION MANAGEMENT ============
+// (Add this section after your existing payment endpoints)
+
+// Get current subscription
+app.get('/api/subscriptions/current', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const userResult = await pool.query(
+      'SELECT subscription_tier, subscription_status, stripe_subscription_id, stripe_customer_id FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+
+    res.json({
+      plan: user.subscription_tier || 'free',
+      status: user.subscription_status || 'active',
+      stripe_subscription_id: user.stripe_subscription_id,
+      stripe_customer_id: user.stripe_customer_id
+    });
+  } catch (error) {
+    console.error('Current subscription error:', error);
+    res.status(500).json({ error: 'Failed to get subscription' });
+  }
+});
+
+// Create new subscription
+app.post('/api/subscriptions/create', authenticateToken, async (req, res) => {
+  try {
+    const { plan_id } = req.body; // 'pro' or 'team'
+    const userId = req.user.id;
+    
+    console.log(`🚀 Creating subscription for user ${userId}, plan: ${plan_id}`);
+
+    // Get user details
+    const userResult = await pool.query(
+      'SELECT email, name, stripe_customer_id FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+
+    // For testing, let's simulate the subscription creation
+    // Later you can add real Stripe subscription creation here
+    
+    // Update user's subscription in database
+    await pool.query(
+      `UPDATE users 
+       SET subscription_tier = $1, 
+           subscription_status = $2,
+           updated_at = NOW()
+       WHERE id = $3`,
+      [plan_id, 'active', userId]
+    );
+    
+    console.log(`✅ Successfully upgraded user ${userId} to ${plan_id} plan`);
+
+    // Return success response
+    res.json({ 
+      success: true,
+      message: `Successfully upgraded to ${plan_id} plan`,
+      client_secret: 'simulated_success', // Frontend expects this
+      subscription: {
+        plan: plan_id,
+        status: 'active'
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Create subscription error:', error);
+    res.status(500).json({ error: 'Failed to create subscription' });
+  }
+});
+
+// Cancel subscription
+app.post('/api/subscriptions/cancel', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    console.log(`🔴 Cancelling subscription for user ${userId}`);
+    
+    // Update subscription status
+    await pool.query(
+      `UPDATE users 
+       SET subscription_tier = $1, 
+           subscription_status = $2,
+           updated_at = NOW()
+       WHERE id = $3`,
+      ['free', 'cancelled', userId]
+    );
+    
+    console.log(`✅ Successfully cancelled subscription for user ${userId}`);
+    
+    res.json({ 
+      success: true,
+      message: 'Subscription cancelled successfully' 
+    });
+  } catch (error) {
+    console.error('Cancel subscription error:', error);
+    res.status(500).json({ error: 'Failed to cancel subscription' });
+  }
+});
+
+// Billing portal (placeholder)
+app.post('/api/subscriptions/billing-portal', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    console.log(`🏪 Creating billing portal for user ${userId}`);
+    
+    // For now, return a placeholder URL
+    // Later you can integrate with Stripe's billing portal
+    res.json({ 
+      url: 'https://billing.stripe.com/p/login/test_placeholder',
+      message: 'Billing portal coming soon'
+    });
+  } catch (error) {
+    console.error('Billing portal error:', error);
+    res.status(500).json({ error: 'Failed to create billing portal session' });
   }
 });
 

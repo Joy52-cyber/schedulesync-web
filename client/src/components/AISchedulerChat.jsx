@@ -69,38 +69,6 @@ export default function AISchedulerChat() {
     scrollToBottom();
   }, [chatHistory]);
 
-  // Parse AI response to detect booking confirmation
-  const parseBookingFromResponse = (response) => {
-    // Check if response contains booking confirmation pattern
-    const hasConfirmation = response.includes('Ready to schedule') || 
-                           response.includes('ready to book') ||
-                           response.includes('Click confirm') ||
-                           response.includes('confirm to create');
-    
-    if (!hasConfirmation) return null;
-
-    // Extract booking details using regex
-    const titleMatch = response.match(/[""]([^""]+)[""]\s+for/i) || response.match(/schedule\s+[""]?([^""]+)[""]?\s+for/i);
-    const dateMatch = response.match(/for\s+(\d{4}-\d{2}-\d{2})/i) || response.match(/(\d{4}-\d{2}-\d{2})/);
-    const timeMatch = response.match(/at\s+(\d{1,2}:\d{2})/i);
-    const emailMatch = response.match(/Attendees?:\s*([^\s\n]+@[^\s\n]+)/i) || response.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-    const durationMatch = response.match(/Duration:\s*(\d+)\s*minutes?/i) || response.match(/(\d+)\s*minutes?/i);
-    const notesMatch = response.match(/Notes:\s*(.+?)(?:\n|$)/i);
-
-    if (dateMatch && timeMatch && emailMatch) {
-      return {
-        title: titleMatch ? titleMatch[1] : 'Meeting',
-        date: dateMatch[1],
-        time: timeMatch[1],
-        attendee_email: emailMatch[1],
-        duration: durationMatch ? parseInt(durationMatch[1]) : 30,
-        notes: notesMatch && notesMatch[1] !== 'None' ? notesMatch[1] : ''
-      };
-    }
-
-    return null;
-  };
-
   const handleSend = async () => {
     if (!message.trim() || loading) return;
 
@@ -116,22 +84,49 @@ export default function AISchedulerChat() {
 
     setLoading(true);
     try {
-      const response = await api.ai.schedule(userMessage, chatHistory);
-      const aiMessage = response.data.message || response.data.response || 'I understood your request.';
-      
-      // Check if AI is asking for confirmation
-      const bookingData = parseBookingFromResponse(aiMessage);
-      
-      if (bookingData) {
-        setPendingBooking(bookingData);
+      // Include pending booking context if exists
+      let contextMessage = userMessage;
+      if (pendingBooking) {
+        contextMessage = `[Current pending booking: "${pendingBooking.title}" on ${pendingBooking.date} at ${pendingBooking.time} for ${pendingBooking.duration} minutes with ${pendingBooking.attendee_email}]\n\nUser says: ${userMessage}`;
       }
 
-      setChatHistory(prev => [...prev, { 
-        role: 'assistant', 
-        content: aiMessage,
-        timestamp: new Date(),
-        hasBooking: !!bookingData
-      }]);
+      const response = await api.ai.schedule(contextMessage, chatHistory);
+      const responseData = response.data;
+      
+      // Handle different response types
+      if (responseData.type === 'update_pending' && responseData.data?.updatedBooking) {
+        // Update the pending booking with new values
+        setPendingBooking(responseData.data.updatedBooking);
+        setChatHistory(prev => [...prev, { 
+          role: 'assistant', 
+          content: responseData.message,
+          timestamp: new Date()
+        }]);
+      } else if (responseData.type === 'confirmation' && responseData.data?.bookingData) {
+        // New booking confirmation
+        const bookingData = responseData.data.bookingData;
+        setPendingBooking({
+          title: bookingData.title || 'Meeting',
+          date: bookingData.date,
+          time: bookingData.time,
+          attendee_email: bookingData.attendee_email || bookingData.attendees?.[0],
+          duration: bookingData.duration || 30,
+          notes: bookingData.notes || ''
+        });
+        setChatHistory(prev => [...prev, { 
+          role: 'assistant', 
+          content: responseData.message,
+          timestamp: new Date()
+        }]);
+      } else {
+        // Regular message (slots, list, clarify, etc.)
+        const aiMessage = responseData.message || responseData.response || 'I understood your request.';
+        setChatHistory(prev => [...prev, { 
+          role: 'assistant', 
+          content: aiMessage,
+          timestamp: new Date()
+        }]);
+      }
     } catch (error) {
       console.error('AI chat error:', error);
       setChatHistory(prev => [...prev, { 
@@ -350,20 +345,52 @@ export default function AISchedulerChat() {
                   
                   <div className="space-y-2 text-sm mb-4">
                     <div className="flex items-center gap-2 text-gray-600">
-                      <FileText className="h-4 w-4" />
-                      <span>{pendingBooking.title}</span>
+                      <FileText className="h-4 w-4 flex-shrink-0" />
+                      <input
+                        type="text"
+                        value={pendingBooking.title}
+                        onChange={(e) => setPendingBooking({...pendingBooking, title: e.target.value})}
+                        className="flex-1 bg-gray-50 border border-gray-200 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-purple-500"
+                      />
                     </div>
                     <div className="flex items-center gap-2 text-gray-600">
-                      <Calendar className="h-4 w-4" />
-                      <span>{pendingBooking.date} at {pendingBooking.time}</span>
+                      <Calendar className="h-4 w-4 flex-shrink-0" />
+                      <input
+                        type="date"
+                        value={pendingBooking.date}
+                        onChange={(e) => setPendingBooking({...pendingBooking, date: e.target.value})}
+                        className="bg-gray-50 border border-gray-200 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-purple-500"
+                      />
+                      <input
+                        type="time"
+                        value={pendingBooking.time}
+                        onChange={(e) => setPendingBooking({...pendingBooking, time: e.target.value})}
+                        className="bg-gray-50 border border-gray-200 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-purple-500"
+                      />
                     </div>
                     <div className="flex items-center gap-2 text-gray-600">
-                      <Mail className="h-4 w-4" />
-                      <span>{pendingBooking.attendee_email}</span>
+                      <Mail className="h-4 w-4 flex-shrink-0" />
+                      <input
+                        type="email"
+                        value={pendingBooking.attendee_email}
+                        onChange={(e) => setPendingBooking({...pendingBooking, attendee_email: e.target.value})}
+                        className="flex-1 bg-gray-50 border border-gray-200 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-purple-500"
+                      />
                     </div>
                     <div className="flex items-center gap-2 text-gray-600">
-                      <Clock className="h-4 w-4" />
-                      <span>{pendingBooking.duration} minutes</span>
+                      <Clock className="h-4 w-4 flex-shrink-0" />
+                      <select
+                        value={pendingBooking.duration}
+                        onChange={(e) => setPendingBooking({...pendingBooking, duration: parseInt(e.target.value)})}
+                        className="bg-gray-50 border border-gray-200 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-purple-500"
+                      >
+                        <option value={15}>15 minutes</option>
+                        <option value={30}>30 minutes</option>
+                        <option value={45}>45 minutes</option>
+                        <option value={60}>1 hour</option>
+                        <option value={90}>1.5 hours</option>
+                        <option value={120}>2 hours</option>
+                      </select>
                     </div>
                   </div>
 
