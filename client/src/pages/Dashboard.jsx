@@ -12,6 +12,10 @@ import {
   Loader2,
   Bot,
   Settings,
+  TrendingUp,
+  Zap,
+  Mail,
+  Star,
 } from 'lucide-react';
 
 import api, {
@@ -152,6 +156,12 @@ export default function Dashboard() {
     { label: 'Active Teams', value: stats.activeTeams, icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
+  // Helper to determine current tier and usage
+  const currentTier = user?.tier || 'free';
+  const usage = user?.usage || { chatgpt_used: 0, chatgpt_limit: 3 };
+  const bookingCount = stats.totalBookings;
+  const bookingLimit = currentTier === 'free' ? 25 : currentTier === 'pro' ? 500 : 99999;
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30">
       <header className="bg-white border-b border-gray-200 shadow-sm">
@@ -195,6 +205,23 @@ export default function Dashboard() {
                   Setup ChatGPT
                 </button>
               )}
+
+              {/* Usage Indicator - only show for non-team users */}
+              {currentTier !== 'team' && (
+                <div className="flex items-center gap-2 bg-purple-50 px-3 py-2 rounded-xl border border-purple-200">
+                  <span className="text-sm text-purple-700 font-medium">
+                    {usage.chatgpt_used}/{usage.chatgpt_limit} AI queries
+                  </span>
+                  {usage.chatgpt_used >= usage.chatgpt_limit - 1 && (
+                    <button 
+                      onClick={() => navigate('/pricing')}
+                      className="text-xs bg-purple-600 text-white px-2 py-1 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+                    >
+                      Upgrade
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -204,10 +231,143 @@ export default function Dashboard() {
         <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8">
           <div className="space-y-6">
             
-            {/* Usage Widget - NEW! */}
-            <div className="mb-6">
-              <UsageWidget />
+            {/* Enhanced Usage Section */}
+            <div className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-purple-200 rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900 text-lg flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-purple-600" />
+                  📊 Usage This Month
+                </h3>
+                {currentTier !== 'team' && (
+                  <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">
+                    {currentTier === 'free' ? 'Free Plan' : 'Pro Plan'}
+                  </span>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* ChatGPT Queries */}
+                <div className="bg-white rounded-lg p-4 border border-gray-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600 flex items-center gap-2">
+                      <Bot className="h-4 w-4" />
+                      🤖 ChatGPT Queries
+                    </span>
+                    {currentTier === 'free' && usage.chatgpt_used >= usage.chatgpt_limit - 1 && (
+                      <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded font-medium">
+                        Almost full!
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {currentTier === 'team' ? '∞ Unlimited' : `${usage.chatgpt_used}/${usage.chatgpt_limit}`}
+                  </div>
+                  {currentTier !== 'team' && (
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                      <div 
+                        className="bg-purple-600 h-2 rounded-full transition-all"
+                        style={{width: `${Math.min(100, (usage.chatgpt_used / usage.chatgpt_limit) * 100)}%`}}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Bookings */}
+                <div className="bg-white rounded-lg p-4 border border-gray-200">
+                  <span className="text-sm text-gray-600 flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    📅 Bookings
+                  </span>
+                  <div className="text-xl font-bold text-gray-900">
+                    {currentTier === 'team' ? '∞ Unlimited' : `${bookingCount}/${bookingLimit}`}
+                  </div>
+                  {currentTier !== 'team' && (
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all"
+                        style={{width: `${Math.min(100, (bookingCount / bookingLimit) * 100)}%`}}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Upgrade CTA for Free/Pro users */}
+              {currentTier !== 'team' && (usage.chatgpt_used >= usage.chatgpt_limit - 1 || bookingCount >= bookingLimit * 0.8) && (
+                <div className="mt-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold flex items-center gap-2">
+                        <Zap className="h-4 w-4" />
+                        🚀 Running low on usage?
+                      </p>
+                      <p className="text-sm text-purple-100">
+                        {currentTier === 'free' 
+                          ? 'Upgrade to Pro for unlimited AI + 500 bookings'
+                          : 'Upgrade to Team for unlimited bookings + collaboration'
+                        }
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => navigate('/pricing')}
+                      className="bg-white text-purple-600 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+                    >
+                      Upgrade
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Upgrade Card for Non-Team Users */}
+            {currentTier !== 'team' && (
+              <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-2xl p-6 shadow-lg">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-bold text-xl mb-2 flex items-center gap-2">
+                      <Star className="h-5 w-5" />
+                      🎯 Supercharge Your Scheduling
+                    </h3>
+                    <p className="text-purple-100 mb-4">
+                      {currentTier === 'free' 
+                        ? 'Unlimited AI assistance + 500 bookings/month + custom email templates'
+                        : 'Unlimited bookings + team collaboration + white-label options'
+                      }
+                    </p>
+                    <ul className="text-sm text-purple-100 space-y-1 mb-4">
+                      <li className="flex items-center gap-2">
+                        <Zap className="h-3 w-3" />
+                        ✨ Unlimited AI queries
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Mail className="h-3 w-3" />
+                        📧 Advanced email templates
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Settings className="h-3 w-3" />
+                        ⚡ Priority support
+                      </li>
+                      {currentTier === 'pro' && (
+                        <li className="flex items-center gap-2">
+                          <Users className="h-3 w-3" />
+                          👥 Team collaboration
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold">${currentTier === 'free' ? '15' : '45'}</div>
+                    <div className="text-sm text-purple-200">per month</div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => navigate('/pricing')}
+                  className="w-full bg-white text-purple-600 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors mt-4"
+                >
+                  {currentTier === 'free' ? 'Upgrade to Pro' : 'Upgrade to Team'}
+                </button>
+              </div>
+            )}
 
             {/* Timezone Display */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 px-4 py-3 flex items-center justify-between">
@@ -266,6 +426,11 @@ export default function Dashboard() {
                     <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-500 font-medium">No bookings yet</p>
                     <p className="text-gray-400 text-sm mt-1">Share your booking link to get started</p>
+                    {currentTier === 'free' && (
+                      <p className="text-gray-400 text-xs mt-2">
+                        💡 Upgrade to Pro for unlimited AI scheduling assistance
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -298,6 +463,23 @@ export default function Dashboard() {
                         </div>
                       </div>
                     ))}
+                    
+                    {/* Upgrade hint for free users with many bookings */}
+                    {currentTier === 'free' && bookingCount >= 20 && (
+                      <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                        <p className="text-sm text-orange-800 flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4" />
+                          💡 You're at {bookingCount}/25 bookings this month. 
+                          <button 
+                            onClick={() => navigate('/pricing')}
+                            className="text-orange-600 underline ml-1 font-medium hover:text-orange-700"
+                          >
+                            Upgrade to Pro
+                          </button> 
+                          for 500/month + unlimited AI.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
