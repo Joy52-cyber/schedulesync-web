@@ -251,7 +251,7 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-gray-600 flex items-center gap-2">
                       <Bot className="h-4 w-4" />
-                      🤖 ChatGPT Queries
+                      🤖 AI Queries
                     </span>
                     {currentTier === 'free' && usage.chatgpt_used >= usage.chatgpt_limit - 1 && (
                       <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded font-medium">
@@ -260,7 +260,7 @@ export default function Dashboard() {
                     )}
                   </div>
                   <div className="text-xl font-bold text-gray-900">
-                    {currentTier === 'team' ? '∞ Unlimited' : `${usage.chatgpt_used}/${usage.chatgpt_limit}`}
+                    {currentTier === 'team' ? '∞ Unlimited' : `${usage.ai_queries_used || 0}/${usage.ai_queries_limit || 3}`}
                   </div>
                   {currentTier !== 'team' && (
                     <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
