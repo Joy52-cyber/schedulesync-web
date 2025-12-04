@@ -10208,6 +10208,93 @@ app.get('/api/billing/subscription', authenticateToken, async (req, res) => {
   }
 });
 
+// Cancel subscription (billing page version)
+app.post('/api/billing/cancel', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    console.log(`🔴 Cancelling subscription for user ${userId}`);
+    
+    // Get current plan
+    const userResult = await pool.query(
+      'SELECT subscription_tier FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    const currentPlan = userResult.rows[0]?.subscription_tier || 'free';
+    
+    if (currentPlan === 'free') {
+      return res.status(400).json({ error: 'No active subscription to cancel' });
+    }
+    
+    // Calculate when access ends
+    const accessEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    
+    // Update subscription status
+    await pool.query(
+      `UPDATE users 
+       SET subscription_status = 'cancelled',
+           updated_at = NOW()
+       WHERE id = $1`,
+      [userId]
+    );
+    
+    console.log(`✅ Successfully cancelled subscription for user ${userId}`);
+    
+    res.json({ 
+      success: true,
+      message: 'Subscription cancelled successfully',
+      plan: currentPlan,
+      status: 'cancelled',
+      current_period_end: accessEndsAt.toISOString(),
+      cancel_at: accessEndsAt.toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Cancel subscription error:', error);
+    res.status(500).json({ error: 'Failed to cancel subscription' });
+  }
+});
+
+// Billing portal (billing page version)
+app.post('/api/billing/portal', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    console.log(`🏪 Creating billing portal for user ${userId}`);
+    
+    const userResult = await pool.query(
+      'SELECT stripe_customer_id, subscription_tier FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    const user = userResult.rows[0];
+    
+    // If real Stripe customer, create real portal
+    if (user?.stripe_customer_id && user.stripe_customer_id.startsWith('cus_') && typeof stripe !== 'undefined') {
+      try {
+        const session = await stripe.billingPortal.sessions.create({
+          customer: user.stripe_customer_id,
+          return_url: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/billing`,
+        });
+        
+        return res.json({ url: session.url, is_simulated: false });
+      } catch (stripeError) {
+        console.error('Stripe portal error:', stripeError);
+      }
+    }
+    
+    // Fallback for simulated mode
+    res.json({ 
+      url: null,
+      is_simulated: true,
+      message: 'Billing management - contact support for payment changes'
+    });
+    
+  } catch (error) {
+    console.error('❌ Billing portal error:', error);
+    res.status(500).json({ error: 'Failed to create billing portal session' });
+  }
+});
 
 // ============ CHATGPT INTEGRATION ENDPOINTS ============
 
