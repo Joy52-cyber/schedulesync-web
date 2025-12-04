@@ -8312,9 +8312,6 @@ Return JSON structure:
       });
     }
 
-    // ============ DEFAULT RESPONSE ============
-
-    }
     
     // ============ DEFAULT RESPONSE ============
     console.log(`🚀 About to increment AI usage for user ${userId}`);
