@@ -10296,6 +10296,47 @@ app.post('/api/billing/portal', authenticateToken, async (req, res) => {
   }
 });
 
+// POST /api/billing/reactivate
+app.post('/api/billing/reactivate', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    console.log(`🟢 Reactivating subscription for user ${userId}`);
+    
+    const userResult = await pool.query(
+      'SELECT subscription_tier, subscription_status FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    const user = userResult.rows[0];
+    
+    if (!user || user.subscription_tier === 'free') {
+      return res.status(400).json({ error: 'No subscription to reactivate' });
+    }
+    
+    if (user.subscription_status !== 'cancelled') {
+      return res.status(400).json({ error: 'Subscription is not cancelled' });
+    }
+    
+    await pool.query(
+      `UPDATE users SET subscription_status = 'active', updated_at = NOW() WHERE id = $1`,
+      [userId]
+    );
+    
+    console.log(`✅ Subscription reactivated for user ${userId}`);
+    
+    res.json({ 
+      success: true,
+      message: 'Subscription reactivated successfully',
+      status: 'active'
+    });
+  } catch (error) {
+    console.error('❌ Reactivate error:', error);
+    res.status(500).json({ error: 'Failed to reactivate subscription' });
+  }
+});
+
+
 // ============ CHATGPT INTEGRATION ENDPOINTS ============
 
 // ChatGPT OAuth verification

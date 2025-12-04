@@ -28,6 +28,9 @@ import CalendlyMigration from './pages/CalendlyMigration';
 import EmailTemplates from './pages/EmailTemplates';
 import MyLinks from './pages/MyLinks';
 import BillingSettings from './pages/BillingSettings';
+import BillingPage from './pages/BillingPage'; // or './components/BillingPage'
+
+
 
 // Team
 import Teams from './pages/Teams';
@@ -128,7 +131,7 @@ function InnerApp() {
             <Route path="/availability" element={<Availability />} />
             <Route path="/email-templates" element={<EmailTemplates />} />
             <Route path="/my-links" element={<MyLinks />} />
-
+            <Route path="/billing" element={<BillingPage />} />
 
 
             {/* Event Types */}
