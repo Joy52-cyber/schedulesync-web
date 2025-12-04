@@ -72,8 +72,11 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
 console.log('? AXIOS LOADED:', !!axios, 'Version:', axios.VERSION); // ADD THIS
+const { trackChatGptUsage, getCurrentUsage } = require('./middleware/usage-limits');
+const subscriptionRoutes = require('./server/routes/subscription');
 
 const app = express();
+app.use('/api/user', subscriptionRoutes);
 
 const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
   try {
@@ -318,12 +321,108 @@ async function createMicrosoftCalendarEvent(accessToken, refreshToken, eventData
 app.use(cors());
 app.use(express.json());
 
+
+// ============ USAGE ENFORCEMENT MIDDLEWARE ============
+
+const checkUsageLimits = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    // ? UPDATE: Use the columns we actually set up
+    const userResult = await pool.query(
+      `SELECT tier, ai_queries_used, ai_queries_limit, monthly_bookings
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    const tier = user.tier || 'free';
+    
+    // ? UPDATE: Use the new better limits  
+    const usageLimits = {
+      free: { chatgpt: 10, bookings: 50 },     // ? Changed from 3 to 10, 25 to 50
+      pro: { chatgpt: -1, bookings: -1 },     // -1 = unlimited
+      team: { chatgpt: -1, bookings: -1 }
+    };
+    
+    const currentLimits = usageLimits[tier];
+    
+    // Check what feature is being accessed
+    const endpoint = req.route.path;
+    
+    // ? UPDATE: ChatGPT usage check with new column names
+    if (endpoint.includes('/ai/') && currentLimits.chatgpt !== -1) {
+      const used = user.ai_queries_used || 0;  // ? Updated column name
+      
+      if (used >= currentLimits.chatgpt) {
+        return res.status(402).json({ 
+          error: 'AI limit reached',
+          type: 'usage_limit_exceeded',
+          feature: 'ai',
+          usage: { used, limit: currentLimits.chatgpt },
+          tier: tier,
+          upgrade_required: true,
+          message: `You've used all ${currentLimits.chatgpt} AI queries this month. Upgrade to Pro for unlimited AI assistance!`
+        });
+      }
+    }
+    
+    // ? UPDATE: Booking creation check with new limits
+    if ((endpoint.includes('/bookings') && req.method === 'POST') && currentLimits.bookings !== -1) {
+      const bookingsUsed = user.monthly_bookings || 0;  // ? Use the column we set up
+      
+      if (bookingsUsed >= currentLimits.bookings) {
+        return res.status(402).json({
+          error: 'Booking limit reached',
+          type: 'usage_limit_exceeded', 
+          feature: 'bookings',
+          usage: { used: bookingsUsed, limit: currentLimits.bookings },
+          tier: tier,
+          upgrade_required: true,
+          message: `You've created ${currentLimits.bookings} bookings this month. Upgrade for unlimited bookings!`
+        });
+      }
+    }
+    
+    // ? UPDATE: Add usage info to request
+    req.userUsage = {
+      tier,
+      limits: currentLimits,
+      ai_used: user.ai_queries_used || 0,      // ? Updated
+      ai_limit: user.ai_queries_limit || currentLimits.chatgpt,  // ? Updated
+      bookings_used: user.monthly_bookings || 0
+    };
+    
+    next();
+  } catch (error) {
+    console.error('Usage check error:', error);
+    res.status(500).json({ error: 'Usage check failed' });
+  }
+};
+// Helper function to increment usage
+const incrementChatGPTUsage = async (userId) => {
+  try {
+    await pool.query(
+      'UPDATE users SET chatgpt_queries_used = chatgpt_queries_used + 1 WHERE id = $1',
+      [userId]
+    );
+  } catch (error) {
+    console.error('Failed to increment ChatGPT usage:', error);
+  }
+};
+
+
+
 // ============ LOG ALL 404s FOR DEBUGGING ============
 app.use((req, res, next) => {
   const originalSend = res.send;
   res.send = function(data) {
     if (res.statusCode === 404) {
-      console.log('🔴 404 ERROR:', {
+      console.log('?? 404 ERROR:', {
         method: req.method,
         path: req.path,
         url: req.originalUrl,
@@ -400,6 +499,30 @@ async function initDB() {
     booking_count INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT NOW()
   )
+`);
+
+// Email Templates Table
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS email_templates (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    subject VARCHAR(500) NOT NULL,
+    body TEXT NOT NULL,
+    is_default BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
+    variables JSONB DEFAULT '[]',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(user_id, name)
+  )
+`);
+
+// Create index for faster lookups
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_email_templates_user_type 
+  ON email_templates(user_id, type)
 `);
 
     await pool.query(`
@@ -596,18 +719,22 @@ await pool.query(`
       }'::jsonb
     `);
     
-    console.log('✅ Database migrations completed');
+    console.log('? Database migrations completed');
   } catch (error) {
-    console.error('❌ Migration error:', error);
+    console.error('? Migration error:', error);
   }
 }
 
-// ============ EVENT TYPES COLUMN MIGRATION (For Existing Databases) ============
+
+// ============================================
+// DATABASE MIGRATIONS
+// ============================================
+
+// Event Types columns migration
 async function migrateEventTypesColumns() {
   try {
-    console.log('🔄 Checking Event Types columns...');
+    console.log('?? Checking Event Types columns...');
     
-    // Add new columns if they don't exist (safe for existing databases)
     await pool.query(`
       ALTER TABLE event_types 
       ADD COLUMN IF NOT EXISTS location VARCHAR(255),
@@ -618,17 +745,94 @@ async function migrateEventTypesColumns() {
       ADD COLUMN IF NOT EXISTS require_approval BOOLEAN DEFAULT false
     `);
     
-    console.log('✅ Event Types columns updated');
+    console.log('? Event Types columns updated');
   } catch (error) {
-    console.error('❌ Event Types migration error:', error);
+    console.error('? Event Types migration error:', error);
   }
 }
 
-// Initialize database with proper promise chain
+// Username column migration
+async function migrateUsernameColumn() {
+  try {
+    console.log('?? Adding username column to users table...');
+    
+    await pool.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS username VARCHAR(255) UNIQUE
+    `);
+    
+    await pool.query(`
+      UPDATE users
+      SET username = LOWER(SPLIT_PART(email, '@', 1))
+      WHERE username IS NULL
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_users_username 
+      ON users(LOWER(username))
+    `);
+    
+    console.log('? Username column migration completed');
+  } catch (error) {
+    console.error('? Username migration failed:', error);
+  }
+}
+
+// Public bookings migration
+async function migratePublicBookings() {
+  try {
+    console.log('?? Running public bookings migration...');
+    
+    await pool.query(`
+      ALTER TABLE bookings
+      ADD COLUMN IF NOT EXISTS host_user_id INTEGER REFERENCES users(id),
+      ADD COLUMN IF NOT EXISTS event_type_id INTEGER REFERENCES event_types(id),
+      ADD COLUMN IF NOT EXISTS guest_timezone VARCHAR(100) DEFAULT 'UTC'
+    `);
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS booking_attendees (
+        id SERIAL PRIMARY KEY,
+        booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+        email VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_booking_attendees_booking_id 
+      ON booking_attendees(booking_id)
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_bookings_host_user_id 
+      ON bookings(host_user_id)
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_bookings_event_type_id 
+      ON bookings(event_type_id)
+    `);
+    
+    console.log('? Public bookings migration completed');
+  } catch (error) {
+    console.error('? Public bookings migration failed:', error);
+  }
+}
+
+// Migration chain
 initDB()
   .then(() => migrateDatabase())
-  .then(() => migrateEventTypesColumns());
-
+  .then(() => migrateEventTypesColumns())
+  .then(() => migrateUsernameColumn())
+  .then(() => migratePublicBookings())
+  .then(() => {
+    console.log('? All migrations completed successfully');
+  })
+  .catch(err => {
+    console.error('? Migration chain failed:', err);
+    process.exit(1);
+  });
 
 // ============ OAUTH CODE TRACKING (PREVENT DOUBLE USE) ============
 
@@ -710,8 +914,6 @@ setInterval(() => {
 
 // ============================================
 // PUBLIC EVENT TYPE BOOKING ENDPOINT
-// Add this to server.js BEFORE authentication middleware
-// Place it around line 500-600 with other PUBLIC routes
 // ============================================
 
 app.get('/api/public/booking/:username/:eventSlug', async (req, res) => {
@@ -777,6 +979,486 @@ app.get('/api/public/booking/:username/:eventSlug', async (req, res) => {
   }
 });
 
+// ============================================
+// PUBLIC EVENT TYPE AVAILABLE SLOTS
+// ============================================
+app.get('/api/public/available-slots', async (req, res) => {
+  try {
+    const { username, event_slug, date, timezone = 'UTC' } = req.query;
+
+    console.log('?? Fetching public available slots:', { username, event_slug, date, timezone });
+
+    if (!username || !event_slug || !date) {
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+
+    // ========== FIND USER ==========
+    const userResult = await pool.query(
+      `SELECT id, name, email, google_access_token, google_refresh_token, 
+              microsoft_access_token, microsoft_refresh_token, provider 
+       FROM users 
+       WHERE LOWER(username) = LOWER($1) 
+          OR LOWER(email) LIKE LOWER($2)
+       LIMIT 1`,
+      [username, `${username}%`]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const host = userResult.rows[0];
+
+    // ========== FIND EVENT TYPE ==========
+    const eventResult = await pool.query(
+      `SELECT id, duration, buffer_before, buffer_after, max_bookings_per_day 
+       FROM event_types 
+       WHERE user_id = $1 
+         AND LOWER(slug) = LOWER($2) 
+         AND is_active = true`,
+      [host.id, event_slug]
+    );
+
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Event type not found or inactive' });
+    }
+
+    const eventType = eventResult.rows[0];
+    const duration = eventType.duration;
+    const bufferBefore = eventType.buffer_before || 0;
+    const bufferAfter = eventType.buffer_after || 0;
+
+    console.log('? Event type found:', { duration, bufferBefore, bufferAfter });
+
+    // ========== GET HOST'S CALENDAR EVENTS ==========
+    let calendarEvents = [];
+
+    try {
+      if (host.provider === 'google' && host.google_access_token) {
+        console.log('?? Fetching Google Calendar events...');
+        
+        const oauth2Client = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET,
+          process.env.GOOGLE_REDIRECT_URI
+        );
+
+        oauth2Client.setCredentials({
+          access_token: host.google_access_token,
+          refresh_token: host.google_refresh_token
+        });
+
+        const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+        
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const response = await calendar.events.list({
+          calendarId: 'primary',
+          timeMin: startOfDay.toISOString(),
+          timeMax: endOfDay.toISOString(),
+          singleEvents: true,
+          orderBy: 'startTime'
+        });
+
+        calendarEvents = response.data.items || [];
+        console.log(`? Found ${calendarEvents.length} Google Calendar events`);
+        
+      } else if (host.provider === 'microsoft' && host.microsoft_access_token) {
+        console.log('?? Fetching Microsoft Calendar events...');
+        
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+        
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const response = await fetch(
+          `https://graph.microsoft.com/v1.0/me/calendarview?startdatetime=${startOfDay.toISOString()}&enddatetime=${endOfDay.toISOString()}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${host.microsoft_access_token}`
+            }
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          calendarEvents = data.value || [];
+          console.log(`? Found ${calendarEvents.length} Microsoft Calendar events`);
+        }
+      }
+    } catch (calendarError) {
+      console.error('?? Calendar fetch failed:', calendarError.message);
+      // Continue with empty calendar (show all slots as available)
+    }
+
+    // ========== GET EXISTING BOOKINGS ==========
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const bookingsResult = await pool.query(
+      `SELECT start_time, end_time 
+       FROM bookings 
+       WHERE host_user_id = $1 
+         AND event_type_id = $2
+         AND status != 'cancelled'
+         AND start_time >= $3 
+         AND start_time < $4`,
+      [host.id, eventType.id, startOfDay.toISOString(), endOfDay.toISOString()]
+    );
+
+    const existingBookings = bookingsResult.rows;
+    console.log(`?? Found ${existingBookings.length} existing bookings`);
+
+    // ========== GENERATE TIME SLOTS ==========
+    const slots = [];
+    const startHour = 9;  // 9 AM
+    const endHour = 17;   // 5 PM
+    const intervalMinutes = 30; // Generate slots every 30 minutes
+
+    for (let hour = startHour; hour < endHour; hour++) {
+      for (let minute = 0; minute < 60; minute += intervalMinutes) {
+        const slotStart = new Date(date);
+        slotStart.setHours(hour, minute, 0, 0);
+        
+        const slotEnd = new Date(slotStart.getTime() + duration * 60000);
+        
+        // Skip if slot end goes past working hours
+        if (slotEnd.getHours() >= endHour || (slotEnd.getHours() === endHour && slotEnd.getMinutes() > 0)) {
+          continue;
+        }
+
+        // Check if slot conflicts with calendar events
+        let hasConflict = false;
+
+        // Check calendar events
+        for (const event of calendarEvents) {
+          const eventStart = new Date(event.start?.dateTime || event.start?.date);
+          const eventEnd = new Date(event.end?.dateTime || event.end?.date);
+          
+          // Add buffers
+          const slotStartWithBuffer = new Date(slotStart.getTime() - bufferBefore * 60000);
+          const slotEndWithBuffer = new Date(slotEnd.getTime() + bufferAfter * 60000);
+          
+          if (
+            (slotStartWithBuffer < eventEnd && slotEndWithBuffer > eventStart)
+          ) {
+            hasConflict = true;
+            break;
+          }
+        }
+
+        // Check existing bookings
+        if (!hasConflict) {
+          for (const booking of existingBookings) {
+            const bookingStart = new Date(booking.start_time);
+            const bookingEnd = new Date(booking.end_time);
+            
+            const slotStartWithBuffer = new Date(slotStart.getTime() - bufferBefore * 60000);
+            const slotEndWithBuffer = new Date(slotEnd.getTime() + bufferAfter * 60000);
+            
+            if (
+              (slotStartWithBuffer < bookingEnd && slotEndWithBuffer > bookingStart)
+            ) {
+              hasConflict = true;
+              break;
+            }
+          }
+        }
+
+        // Add slot if no conflict
+        if (!hasConflict) {
+          slots.push({
+            start: slotStart.toISOString(),
+            end: slotEnd.toISOString()
+          });
+        }
+      }
+    }
+
+    console.log(`? Generated ${slots.length} available slots`);
+
+    res.json({
+      success: true,
+      slots: slots,
+      date: date,
+      timezone: timezone
+    });
+
+  } catch (error) {
+    console.error('? Error fetching public available slots:', error);
+    res.status(500).json({ error: 'Failed to fetch available slots' });
+  }
+});
+
+
+// ============ PUBLIC BOOKING CREATION ENDPOINT ============
+// Add this to server.js after the /api/public/booking/:username/:eventSlug endpoint
+
+app.post('/api/public/booking/create', async (req, res) => {
+  try {
+    const {
+      username,
+      event_slug,
+      start_time,
+      end_time,
+      attendee_name,
+      attendee_email,
+      notes,
+      additional_attendees,
+      guest_timezone
+    } = req.body;
+
+    console.log('?? Creating public event type booking:', { username, event_slug, attendee_email });
+
+    // Find user by username
+    const userResult = await pool.query(
+      `SELECT id, name, email, username, google_access_token, microsoft_access_token 
+       FROM users 
+       WHERE LOWER(username) = LOWER($1) 
+          OR LOWER(email) LIKE LOWER($2)
+       LIMIT 1`,
+      [username, `${username}%`]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const host = userResult.rows[0];
+
+    // Find event type
+    const eventResult = await pool.query(
+      `SELECT id, title, duration, description, location, location_type
+       FROM event_types 
+       WHERE user_id = $1 
+         AND LOWER(slug) = LOWER($2) 
+         AND is_active = true`,
+      [host.id, event_slug]
+    );
+
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Event type not found or inactive' });
+    }
+
+    const eventType = eventResult.rows[0];
+
+    // Generate manage token
+    const manageToken = crypto.randomBytes(32).toString('hex');
+
+    // Create booking
+    const bookingResult = await pool.query(
+      `INSERT INTO bookings (
+        host_user_id,
+        event_type_id,
+        attendee_name,
+        attendee_email,
+        start_time,
+        end_time,
+        notes,
+        manage_token,
+        guest_timezone,
+        status,
+        title
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10)
+      RETURNING *`,
+      [
+        host.id,
+        eventType.id,
+        attendee_name,
+        attendee_email,
+        start_time,
+        end_time,
+        notes || null,
+        manageToken,
+        guest_timezone || 'UTC',
+        eventType.title
+      ]
+    );
+
+    const booking = bookingResult.rows[0];
+
+    // Store additional attendees if provided
+    if (additional_attendees && additional_attendees.length > 0) {
+      for (const email of additional_attendees) {
+        await pool.query(
+          `INSERT INTO booking_attendees (booking_id, email)
+           VALUES ($1, $2)`,
+          [booking.id, email]
+        );
+      }
+    }
+
+    console.log('? Public booking created:', booking.id);
+
+    // ========== RESPOND IMMEDIATELY ==========
+    res.json({
+      success: true,
+      booking: {
+        id: booking.id,
+        start_time: booking.start_time,
+        end_time: booking.end_time,
+        manage_token: booking.manage_token,
+        status: booking.status
+      },
+      message: 'Booking confirmed! Confirmation email will arrive shortly.'
+    });
+
+    // ?? SEND EMAILS IN BACKGROUND
+    (async () => {
+      try {
+        console.log('?? Preparing to send emails...');
+        
+        const manageUrl = `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/manage/${manageToken}`;
+        const duration = eventType.duration;
+
+        const startDate = new Date(start_time);
+        const endDate = new Date(end_time);
+        
+        const formattedDateTime = startDate.toLocaleString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: guest_timezone || 'UTC'
+        });
+
+        // Create ICS file
+        const icsContent = generateICS({
+          id: booking.id,
+          start_time: start_time,
+          end_time: end_time,
+          attendee_name: attendee_name,
+          attendee_email: attendee_email,
+          organizer_name: host.name,
+          organizer_email: host.email,
+          team_name: `${host.name}'s Events`,
+          notes: notes || '',
+        });
+
+        // 1. PRIMARY ATTENDEE EMAIL
+        await resend.emails.send({
+          from: 'ScheduleSync <bookings@trucal.xyz>',
+          to: attendee_email,
+          subject: `? Booking Confirmed: ${eventType.title}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                <h1 style="color: white; margin: 0;">Booking Confirmed! ?</h1>
+              </div>
+              
+              <div style="padding: 30px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+                <p style="font-size: 16px; color: #374151;">Hi ${attendee_name},</p>
+                
+                <p style="font-size: 16px; color: #374151;">Your meeting with <strong>${host.name}</strong> is confirmed!</p>
+                
+                <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
+                  <h2 style="margin-top: 0; color: #1f2937;">${eventType.title}</h2>
+                  <p style="margin: 10px 0; color: #6b7280;">
+                    <strong>?? When:</strong> ${formattedDateTime}<br>
+                    <strong>?? Duration:</strong> ${duration} minutes<br>
+                    <strong>?? Timezone:</strong> ${guest_timezone || 'UTC'}<br>
+                    ${eventType.location ? `<strong>?? Location:</strong> ${eventType.location}<br>` : ''}
+                    ${additional_attendees?.length > 0 ? `<strong>?? Others:</strong> ${additional_attendees.join(', ')}<br>` : ''}
+                  </p>
+                  ${notes ? `<p style="margin-top: 15px; padding: 10px; background: #f3f4f6; border-radius: 4px;"><strong>Notes:</strong><br>${notes}</p>` : ''}
+                </div>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${manageUrl}" style="display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">Manage Booking</a>
+                </div>
+                
+                <p style="font-size: 14px; color: #6b7280; text-align: center;">
+                  Need to reschedule or cancel? Use the link above.
+                </p>
+              </div>
+            </div>
+          `,
+          attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+        });
+        console.log('? Email sent to primary attendee:', attendee_email);
+
+        // 2. ADDITIONAL ATTENDEES
+        if (additional_attendees && Array.isArray(additional_attendees) && additional_attendees.length > 0) {
+          console.log(`?? Sending to ${additional_attendees.length} additional attendees...`);
+          for (const email of additional_attendees) {
+            await resend.emails.send({
+              from: 'ScheduleSync <bookings@trucal.xyz>',
+              to: email,
+              subject: `Meeting Invitation: ${eventType.title}`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <h2 style="color: #2563eb;">You're invited!</h2>
+                  <p><strong>${attendee_name}</strong> has invited you to a meeting with <strong>${host.name}</strong>.</p>
+                  <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <p style="margin: 5px 0;"><strong>?? When:</strong> ${formattedDateTime}</p>
+                    <p style="margin: 5px 0;"><strong>?? Duration:</strong> ${duration} minutes</p>
+                    <p style="margin: 5px 0;"><strong>?? Invited by:</strong> ${attendee_name} (${attendee_email})</p>
+                    ${notes ? `<p style="margin: 5px 0;"><strong>?? Notes:</strong> ${notes}</p>` : ''}
+                  </div>
+                </div>
+              `,
+              attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+            });
+            console.log(`? Email sent to: ${email}`);
+          }
+        }
+
+        // 3. HOST EMAIL
+        await resend.emails.send({
+          from: 'ScheduleSync <bookings@trucal.xyz>',
+          to: host.email,
+          subject: `?? New Booking: ${eventType.title}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                <h1 style="color: white; margin: 0;">New Booking Received ??</h1>
+              </div>
+              
+              <div style="padding: 30px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+                <p style="font-size: 16px; color: #374151;">Hi ${host.name},</p>
+                
+                <p style="font-size: 16px; color: #374151;">You have a new booking!</p>
+                
+                <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981;">
+                  <h2 style="margin-top: 0; color: #1f2937;">${eventType.title}</h2>
+                  <p style="margin: 10px 0; color: #6b7280;">
+                    <strong>?? Guest:</strong> ${attendee_name}<br>
+                    <strong>?? Email:</strong> ${attendee_email}<br>
+                    ${additional_attendees?.length > 0 ? `<strong>?? Others:</strong> ${additional_attendees.join(', ')}<br>` : ''}
+                    <strong>?? When:</strong> ${formattedDateTime}<br>
+                    <strong>?? Duration:</strong> ${duration} minutes
+                  </p>
+                  ${notes ? `<p style="margin-top: 15px; padding: 10px; background: #f3f4f6; border-radius: 4px;"><strong>Guest Notes:</strong><br>${notes}</p>` : ''}
+                </div>
+              </div>
+            </div>
+          `,
+          attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+        });
+        console.log('? Email sent to host:', host.email);
+        console.log('? All confirmation emails sent');
+
+      } catch (emailError) {
+        console.error('?? Email send failed:', emailError);
+      }
+    })();
+
+  } catch (error) {
+    console.error('? Public booking creation error:', error);
+    res.status(500).json({ error: 'Failed to create booking' });
+  }
+});
+
 // ========== BOOKING CREATION ENDPOINT ==========
 app.post('/api/bookings', async (req, res) => {
   try {
@@ -793,7 +1475,7 @@ app.post('/api/bookings', async (req, res) => {
       reschedule_token
     } = req.body;
 
-    console.log('📋 REQUEST BODY DEBUG:', {
+    console.log('?? REQUEST BODY DEBUG:', {
       attendee_name,
       attendee_email,
       additional_attendees,
@@ -802,7 +1484,7 @@ app.post('/api/bookings', async (req, res) => {
       additional_attendees_isArray: Array.isArray(additional_attendees)
     });
 
-    console.log('🔧 Creating booking:', { 
+    console.log('?? Creating booking:', { 
       token: token?.substring(0, 10) + '...', 
       attendee_name, 
       attendee_email,
@@ -812,7 +1494,7 @@ app.post('/api/bookings', async (req, res) => {
 
     // ========== STEP 1: VALIDATION ==========
     if (!token || !slot || !attendee_name || !attendee_email) {
-      console.error('❌ Missing required fields:', {
+      console.error('? Missing required fields:', {
         hasToken: !!token,
         hasSlot: !!slot,
         hasName: !!attendee_name,
@@ -822,7 +1504,7 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     if (!slot.start || !slot.end) {
-      console.error('❌ Invalid slot data:', slot);
+      console.error('? Invalid slot data:', slot);
       return res.status(400).json({ 
         error: 'Invalid booking slot data',
         debug: { slot }
@@ -838,19 +1520,19 @@ app.post('/api/bookings', async (req, res) => {
         throw new Error('Invalid date format');
       }
       
-      console.log('✅ Slot validation passed:', {
+      console.log('? Slot validation passed:', {
         start: startDate.toISOString(),
         end: endDate.toISOString()
       });
     } catch (dateError) {
-      console.error('❌ Invalid slot dates:', dateError.message);
+      console.error('? Invalid slot dates:', dateError.message);
       return res.status(400).json({ 
         error: 'Invalid booking time format',
         details: dateError.message
       });
     }
 
-    // 🔥 ADD EMAIL VALIDATION HERE (AFTER line ~1530)
+    // ?? ADD EMAIL VALIDATION HERE (AFTER line ~1530)
     // Enhanced email validation function
     async function validateEmailExists(email) {
       try {
@@ -887,7 +1569,7 @@ app.post('/api/bookings', async (req, res) => {
     const emailCheck = await validateEmailExists(attendee_email);
     if (!emailCheck.valid) {
       return res.status(400).json({ 
-        error: `❌ Invalid email: ${attendee_email}`,
+        error: `? Invalid email: ${attendee_email}`,
         details: emailCheck.reason,
         hint: 'Please provide a real email address to receive booking confirmations'
       });
@@ -899,7 +1581,7 @@ app.post('/api/bookings', async (req, res) => {
         const additionalCheck = await validateEmailExists(email);
         if (!additionalCheck.valid) {
           return res.status(400).json({ 
-            error: `❌ Invalid additional attendee email: ${email}`,
+            error: `? Invalid additional attendee email: ${email}`,
             details: additionalCheck.reason
           });
         }
@@ -910,7 +1592,7 @@ app.post('/api/bookings', async (req, res) => {
     let memberResult;
     
     if (token.length === 64) {
-      console.log('🔍 Looking up single-use link...');
+      console.log('?? Looking up single-use link...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 t.name as team_name, 
@@ -934,8 +1616,8 @@ app.post('/api/bookings', async (req, res) => {
         [token]
       );
     } else {
-      // ✅ FIRST: Check if it's a TEAM token
-      console.log('🔍 Checking if team token...');
+      // ? FIRST: Check if it's a TEAM token
+      console.log('?? Checking if team token...');
       const teamCheck = await pool.query(
         `SELECT t.id as team_id, t.booking_mode
          FROM teams t
@@ -946,7 +1628,7 @@ app.post('/api/bookings', async (req, res) => {
       if (teamCheck.rows.length > 0) {
         // Team token found - use the first active member
         const teamData = teamCheck.rows[0];
-        console.log('✅ Team token detected for booking, loading first active member...');
+        console.log('? Team token detected for booking, loading first active member...');
         
         memberResult = await pool.query(
           `SELECT tm.*, 
@@ -972,7 +1654,7 @@ app.post('/api/bookings', async (req, res) => {
         );
       } else {
         // Not a team token, check regular member token
-        console.log('🔍 Looking up regular token...');
+        console.log('?? Looking up regular token...');
         memberResult = await pool.query(
           `SELECT tm.*, 
                   t.name as team_name, 
@@ -996,14 +1678,14 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     if (memberResult.rows.length === 0) {
-      console.log('❌ Invalid or expired booking token');
+      console.log('? Invalid or expired booking token');
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
     const member = memberResult.rows[0];
     const bookingMode = member.booking_mode || 'individual';
 
-    console.log('✅ Token found:', {
+    console.log('? Token found:', {
       memberName: member.name || member.member_name,
       teamName: member.team_name,
       mode: bookingMode
@@ -1254,6 +1936,7 @@ app.post('/api/bookings', async (req, res) => {
             console.error('?? Microsoft calendar creation failed:', calendarError.message);
           }
         }
+
 
 
         // ========== SEND CONFIRMATION EMAILS ==========
@@ -1516,7 +2199,7 @@ function getTimezoneOffset(timezone) {
       }
     });
   } catch (error) {
-    console.error('❌ Calendar status error:', error);
+    console.error('? Calendar status error:', error);
     res.status(500).json({ error: 'Failed to get calendar status' });
   }
 });
@@ -2326,7 +3009,7 @@ app.get('/api/book/auth/google/url', async (req, res) => {
       return res.status(400).json({ error: 'Booking token required' });
     }
 
-    // ✅ CHECK BOTH TEAM AND MEMBER TOKENS
+    // ? CHECK BOTH TEAM AND MEMBER TOKENS
     const memberCheck = await pool.query(
       'SELECT id FROM team_members WHERE booking_token = $1',
       [bookingToken]
@@ -2361,10 +3044,10 @@ app.get('/api/book/auth/google/url', async (req, res) => {
       state: `guest-booking:${bookingToken}:google`,
     });
 
-    console.log('✅ Generated Google guest OAuth URL');
+    console.log('? Generated Google guest OAuth URL');
     res.json({ url: authUrl });
   } catch (error) {
-    console.error('❌ Error generating Google guest OAuth URL:', error);
+    console.error('? Error generating Google guest OAuth URL:', error);
     res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
 });
@@ -2374,13 +3057,13 @@ app.get('/api/book/auth/microsoft/url', async (req, res) => {
   try {
     const { bookingToken } = req.query;
     
-    console.log('🔍 Microsoft guest OAuth URL request:', bookingToken);
+    console.log('?? Microsoft guest OAuth URL request:', bookingToken);
     
     if (!bookingToken) {
       return res.status(400).json({ error: 'Booking token required' });
     }
 
-    // ✅ CHECK BOTH TEAM AND MEMBER TOKENS
+    // ? CHECK BOTH TEAM AND MEMBER TOKENS
     const memberCheck = await pool.query(
       'SELECT id FROM team_members WHERE booking_token = $1',
       [bookingToken]
@@ -2414,10 +3097,10 @@ app.get('/api/book/auth/microsoft/url', async (req, res) => {
       `&state=guest-booking:${bookingToken}:microsoft` +
       `&prompt=select_account`;
     
-    console.log('✅ Microsoft guest OAuth URL generated');
+    console.log('? Microsoft guest OAuth URL generated');
     res.json({ url: authUrl });
   } catch (error) {
-    console.error('❌ Error generating Microsoft guest OAuth URL:', error);
+    console.error('? Error generating Microsoft guest OAuth URL:', error);
     res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
 });
@@ -3655,13 +4338,281 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       timezone = 'America/New_York'
     } = req.body;
 
-    console.log('📅 Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
+    console.log('?? Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
 
+    // ?? DETECT PUBLIC BOOKING PSEUDO-TOKEN
+if (token && token.startsWith('public:')) {
+  const parts = token.split(':');
+  const username = parts[1];
+  const eventSlug = parts[2];
+
+  console.log('?? Public booking slots request detected:', { username, eventSlug });
+
+  // ?? GET DATE RANGE FROM REQUEST
+  // If 'date' is provided, generate slots for that month
+  // If not, generate slots for next 30 days
+  const requestedDate = req.body.date;
+  let startDate, endDate, daysToGenerate;
+
+  if (requestedDate) {
+    // Generate slots for the entire month of the requested date
+    const targetDate = new Date(requestedDate);
+    startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+    endDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
+    daysToGenerate = endDate.getDate();
+    console.log(`?? Generating slots for entire month: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+  
+    // In server.js, find the public booking section:
+} else {
+  // Generate slots for next 90 days  // ?? CHANGE
+  startDate = new Date();
+  endDate = new Date();
+  endDate.setDate(endDate.getDate() + 90);  // ?? CHANGE
+  daysToGenerate = 90;  // ?? CHANGE
+  console.log(`?? Generating slots for next 90 days`);
+}
+
+  // Find user
+  const userResult = await pool.query(
+    `SELECT id, name, email, google_access_token, google_refresh_token, 
+            microsoft_access_token, microsoft_refresh_token, provider 
+     FROM users 
+     WHERE LOWER(username) = LOWER($1) 
+        OR LOWER(email) LIKE LOWER($2)
+     LIMIT 1`,
+    [username, `${username}%`]
+  );
+
+  if (userResult.rows.length === 0) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const host = userResult.rows[0];
+
+  // Find event type
+  const eventResult = await pool.query(
+    `SELECT id, duration, buffer_before, buffer_after, max_bookings_per_day 
+     FROM event_types 
+     WHERE user_id = $1 
+       AND LOWER(slug) = LOWER($2) 
+       AND is_active = true`,
+    [host.id, eventSlug]
+  );
+
+  if (eventResult.rows.length === 0) {
+    return res.status(404).json({ error: 'Event type not found or inactive' });
+  }
+
+  const eventType = eventResult.rows[0];
+  const eventDuration = eventType.duration;
+  const bufferBefore = eventType.buffer_before || 0;
+  const bufferAfter = eventType.buffer_after || 0;
+
+  console.log('? Public event type found:', { duration: eventDuration, bufferBefore, bufferAfter });
+
+  // ?? FETCH ALL CALENDAR EVENTS FOR THE ENTIRE RANGE (More Efficient)
+  let allCalendarEvents = [];
+  
+  try {
+    if (host.provider === 'google' && host.google_access_token) {
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        process.env.GOOGLE_REDIRECT_URI
+      );
+
+      oauth2Client.setCredentials({
+        access_token: host.google_access_token,
+        refresh_token: host.google_refresh_token
+      });
+
+      const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+      const response = await calendar.events.list({
+        calendarId: 'primary',
+        timeMin: startDate.toISOString(),
+        timeMax: endDate.toISOString(),
+        singleEvents: true,
+        orderBy: 'startTime'
+      });
+
+      allCalendarEvents = response.data.items || [];
+      console.log(`?? Found ${allCalendarEvents.length} Google Calendar events in range`);
+      
+    } else if (host.provider === 'microsoft' && host.microsoft_access_token) {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/calendarview?startdatetime=${startDate.toISOString()}&enddatetime=${endDate.toISOString()}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${host.microsoft_access_token}`
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        allCalendarEvents = data.value || [];
+        console.log(`?? Found ${allCalendarEvents.length} Microsoft Calendar events in range`);
+      }
+    }
+  } catch (calendarError) {
+    console.error('?? Calendar fetch failed:', calendarError.message);
+  }
+
+  // ?? FETCH ALL BOOKINGS FOR THE ENTIRE RANGE
+  const allBookingsResult = await pool.query(
+    `SELECT start_time, end_time 
+     FROM bookings 
+     WHERE host_user_id = $1 
+       AND event_type_id = $2
+       AND status != 'cancelled'
+       AND start_time >= $3 
+       AND start_time < $4`,
+    [host.id, eventType.id, startDate.toISOString(), endDate.toISOString()]
+  );
+
+  const allExistingBookings = allBookingsResult.rows;
+  console.log(`?? Found ${allExistingBookings.length} existing bookings in range`);
+
+  // ?? GENERATE SLOTS FOR EACH DAY IN RANGE
+  const allSlots = {};
+  let totalAvailableSlots = 0;
+
+  const currentDate = new Date(startDate);
+  while (currentDate <= endDate) {
+    const dateString = currentDate.toISOString().split('T')[0];
+
+    // Skip past dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (currentDate < today) {
+      currentDate.setDate(currentDate.getDate() + 1);
+      continue;
+    }
+
+    // Filter calendar events for this day
+    const dayStart = new Date(dateString);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dateString);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const dayCalendarEvents = allCalendarEvents.filter(event => {
+      const eventStart = new Date(event.start?.dateTime || event.start?.date);
+      const eventEnd = new Date(event.end?.dateTime || event.end?.date);
+      return (eventStart < dayEnd && eventEnd > dayStart);
+    });
+
+    const dayBookings = allExistingBookings.filter(booking => {
+      const bookingStart = new Date(booking.start_time);
+      const bookingEnd = new Date(booking.end_time);
+      return (bookingStart < dayEnd && bookingEnd > dayStart);
+    });
+
+    // Generate time slots for this day
+    const daySlots = [];
+    const startHour = 9;
+    const endHour = 17;
+    const intervalMinutes = 30;
+
+    for (let hour = startHour; hour < endHour; hour++) {
+      for (let minute = 0; minute < 60; minute += intervalMinutes) {
+        const slotStart = new Date(dateString);
+        slotStart.setHours(hour, minute, 0, 0);
+        
+        const slotEnd = new Date(slotStart.getTime() + eventDuration * 60000);
+        
+        if (slotEnd.getHours() >= endHour || (slotEnd.getHours() === endHour && slotEnd.getMinutes() > 0)) {
+          continue;
+        }
+
+        // Skip slots in the past
+        if (slotStart < new Date()) {
+          continue;
+        }
+
+        let hasConflict = false;
+
+        // Check calendar events
+        for (const event of dayCalendarEvents) {
+          const eventStart = new Date(event.start?.dateTime || event.start?.date);
+          const eventEnd = new Date(event.end?.dateTime || event.end?.date);
+          
+          const slotStartWithBuffer = new Date(slotStart.getTime() - bufferBefore * 60000);
+          const slotEndWithBuffer = new Date(slotEnd.getTime() + bufferAfter * 60000);
+          
+          if (slotStartWithBuffer < eventEnd && slotEndWithBuffer > eventStart) {
+            hasConflict = true;
+            break;
+          }
+        }
+
+        // Check existing bookings
+        if (!hasConflict) {
+          for (const booking of dayBookings) {
+            const bookingStart = new Date(booking.start_time);
+            const bookingEnd = new Date(booking.end_time);
+            
+            const slotStartWithBuffer = new Date(slotStart.getTime() - bufferBefore * 60000);
+            const slotEndWithBuffer = new Date(slotEnd.getTime() + bufferAfter * 60000);
+            
+            if (slotStartWithBuffer < bookingEnd && slotEndWithBuffer > bookingStart) {
+              hasConflict = true;
+              break;
+            }
+          }
+        }
+
+        if (!hasConflict) {
+          daySlots.push({
+            start: slotStart.toISOString(),
+            end: slotEnd.toISOString(),
+            status: 'available',
+            time: slotStart.toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true,
+              timeZone: timezone
+            }),
+            matchScore: null,
+            matchColor: 'gray',
+            matchLabel: 'Available'
+          });
+        }
+      }
+    }
+
+    // Only add days that have available slots
+    if (daySlots.length > 0) {
+      allSlots[dateString] = daySlots;
+      totalAvailableSlots += daySlots.length;
+    }
+
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  console.log(`? Generated ${totalAvailableSlots} slots across ${Object.keys(allSlots).length} days`);
+
+  // Return in SmartSlotPicker format
+  return res.json({
+    slots: allSlots,
+    summary: {
+      availableSlots: totalAvailableSlots,
+      settings: {
+        horizonDays: daysToGenerate,
+        duration: eventDuration,
+        timezone: timezone
+      }
+    }
+  });
+}
+
+// ========== REGULAR TOKEN-BASED BOOKING CONTINUES BELOW ==========
+console.log('?? Checking if team token...');
     // ========== 1. GET MEMBER & SETTINGS ==========
     let memberResult;
     
     if (token.length === 64) {
-      console.log('🔍 Looking up single-use link...');
+      console.log('?? Looking up single-use link...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 tm.buffer_time,
@@ -3686,8 +4637,8 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         [token]
       );
     } else {
-      // ✅ ADD THIS: First check if it's a TEAM token
-      console.log('🔍 Checking if team token...');
+      // ? ADD THIS: First check if it's a TEAM token
+      console.log('?? Checking if team token...');
       const teamCheck = await pool.query(
         `SELECT t.id as team_id, t.booking_mode
          FROM teams t
@@ -3698,7 +4649,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       if (teamCheck.rows.length > 0) {
         // Team token found - use the first active member
         const teamData = teamCheck.rows[0];
-        console.log('✅ Team token detected, loading first active member...');
+        console.log('? Team token detected, loading first active member...');
         
         memberResult = await pool.query(
           `SELECT tm.*, 
@@ -3725,7 +4676,7 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         );
       } else {
         // Not a team token, check regular member token
-        console.log('🔍 Looking up regular member token...');
+        console.log('?? Looking up regular member token...');
         memberResult = await pool.query(
           `SELECT tm.*, 
                   tm.buffer_time,
@@ -4622,7 +5573,7 @@ app.delete('/api/event-types/:id', authenticateToken, async (req, res) => {
 app.patch('/api/event-types/:id/toggle', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { active } = req.body;  // ✅ Frontend sends 'active', not 'is_active'
+    const { active } = req.body;  // ? Frontend sends 'active', not 'is_active'
 
     const result = await pool.query(
       `UPDATE event_types 
@@ -4642,7 +5593,7 @@ app.patch('/api/event-types/:id/toggle', authenticateToken, async (req, res) => 
       message: 'Event type status updated'
     });
   } catch (error) {
-    console.error('❌ Toggle event type error:', error);
+    console.error('? Toggle event type error:', error);
     res.status(500).json({ error: 'Failed to toggle event type status' });
   }
 });
@@ -4852,11 +5803,11 @@ app.get('/api/admin/fix-working-hours-data', authenticateToken, async (req, res)
 app.get('/api/bookings/:token', async (req, res) => {
   try {
     const { token } = req.params;
-    console.log('🔍 Looking up token:', token, 'Length:', token.length);
+    console.log('?? Looking up token:', token, 'Length:', token.length);
     
     // ========== CHECK 1: Single-Use Link (64 chars) ==========
     if (token.length === 64) {
-      console.log('🔍 Checking single-use link...');
+      console.log('?? Checking single-use link...');
       const singleUseResult = await pool.query(
         `SELECT sul.*, 
                 tm.id as member_id,
@@ -4876,7 +5827,7 @@ app.get('/api/bookings/:token', async (req, res) => {
       
       if (singleUseResult.rows.length > 0) {
         const link = singleUseResult.rows[0];
-        console.log('✅ Single-use link found for:', link.member_name);
+        console.log('? Single-use link found for:', link.member_name);
         
         return res.json({
           data: {
@@ -4898,7 +5849,7 @@ app.get('/api/bookings/:token', async (req, res) => {
           }
         });
       } else {
-        console.log('❌ Single-use link expired or already used');
+        console.log('? Single-use link expired or already used');
         return res.status(404).json({ error: 'This link has expired or been used' });
       }
     }
@@ -4916,7 +5867,7 @@ app.get('/api/bookings/:token', async (req, res) => {
     
     if (teamResult.rows.length > 0) {
       const team = teamResult.rows[0];
-      console.log('✅ Team token found:', team.name);
+      console.log('? Team token found:', team.name);
       
       const membersResult = await pool.query(
         `SELECT tm.id, tm.name, tm.email, tm.booking_token, tm.user_id
@@ -4936,7 +5887,7 @@ app.get('/api/bookings/:token', async (req, res) => {
         [team.owner_id]
       );
       
-      console.log('📊 Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
+      console.log('?? Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
       
       return res.json({
         data: {
@@ -4986,10 +5937,10 @@ app.get('/api/bookings/:token', async (req, res) => {
     
     if (memberResult.rows.length > 0) {
       const member = memberResult.rows[0];
-      console.log('✅ Member token found:', member.name || member.user_name);
+      console.log('? Member token found:', member.name || member.user_name);
       
       if (member.external_booking_link) {
-        console.log('🔗 External link detected:', member.external_booking_link);
+        console.log('?? External link detected:', member.external_booking_link);
         return res.json({
           data: {
             team: {
@@ -5009,7 +5960,7 @@ app.get('/api/bookings/:token', async (req, res) => {
         });
       }
       
-      // ✅ FIXED: Use user_id, not team_id
+      // ? FIXED: Use user_id, not team_id
       let eventTypesResult = { rows: [] };
       if (member.user_id) {
         eventTypesResult = await pool.query(
@@ -5050,11 +6001,11 @@ app.get('/api/bookings/:token', async (req, res) => {
       });
     }
     
-    console.log('❌ Token not found:', token);
+    console.log('? Token not found:', token);
     return res.status(404).json({ error: 'Invalid booking link' });
     
   } catch (error) {
-    console.error('❌ Booking lookup error:', error);
+    console.error('? Booking lookup error:', error);
     return res.status(500).json({ error: 'Failed to load booking information' });
   }
 });
@@ -5063,11 +6014,11 @@ app.get('/api/bookings/:token', async (req, res) => {
 app.get('/api/book/:token', async (req, res) => {
   try {
     const { token } = req.params;
-    console.log('🔍 Looking up token (via /api/book):', token, 'Length:', token.length);
+    console.log('?? Looking up token (via /api/book):', token, 'Length:', token.length);
     
     // ========== CHECK 1: Single-Use Link (64 chars) ==========
     if (token.length === 64) {
-      console.log('🔍 Checking single-use link...');
+      console.log('?? Checking single-use link...');
       const singleUseResult = await pool.query(
         `SELECT sul.*, 
                 tm.id as member_id,
@@ -5087,7 +6038,7 @@ app.get('/api/book/:token', async (req, res) => {
       
       if (singleUseResult.rows.length > 0) {
         const link = singleUseResult.rows[0];
-        console.log('✅ Single-use link found for:', link.member_name);
+        console.log('? Single-use link found for:', link.member_name);
         
         return res.json({
           data: {
@@ -5109,7 +6060,7 @@ app.get('/api/book/:token', async (req, res) => {
           }
         });
       } else {
-        console.log('❌ Single-use link expired or already used');
+        console.log('? Single-use link expired or already used');
         return res.status(404).json({ error: 'This link has expired or been used' });
       }
     }
@@ -5127,7 +6078,7 @@ app.get('/api/book/:token', async (req, res) => {
     
     if (teamResult.rows.length > 0) {
       const team = teamResult.rows[0];
-      console.log('✅ Team token found:', team.name);
+      console.log('? Team token found:', team.name);
       
       const membersResult = await pool.query(
         `SELECT tm.id, tm.name, tm.email, tm.booking_token, tm.user_id
@@ -5147,7 +6098,7 @@ app.get('/api/book/:token', async (req, res) => {
         [team.owner_id]
       );
       
-      console.log('📊 Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
+      console.log('?? Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
       
       return res.json({
         data: {
@@ -5197,10 +6148,10 @@ app.get('/api/book/:token', async (req, res) => {
     
     if (memberResult.rows.length > 0) {
       const member = memberResult.rows[0];
-      console.log('✅ Member token found:', member.name || member.user_name);
+      console.log('? Member token found:', member.name || member.user_name);
       
       if (member.external_booking_link) {
-        console.log('🔗 External link detected:', member.external_booking_link);
+        console.log('?? External link detected:', member.external_booking_link);
         return res.json({
           data: {
             team: {
@@ -5220,7 +6171,7 @@ app.get('/api/book/:token', async (req, res) => {
         });
       }
       
-      // ✅ FIXED: Use user_id, not team_id
+      // ? FIXED: Use user_id, not team_id
       let eventTypesResult = { rows: [] };
       if (member.user_id) {
         eventTypesResult = await pool.query(
@@ -5261,11 +6212,11 @@ app.get('/api/book/:token', async (req, res) => {
       });
     }
     
-    console.log('❌ Token not found:', token);
+    console.log('? Token not found:', token);
     return res.status(404).json({ error: 'Invalid booking link' });
     
   } catch (error) {
-    console.error('❌ Booking lookup error:', error);
+    console.error('? Booking lookup error:', error);
     return res.status(500).json({ error: 'Failed to load booking information' });
   }
 });
@@ -5282,7 +6233,7 @@ app.post('/api/bookings', async (req, res) => {
       additional_attendees = []
     } = req.body;
 
-    console.log('🔧 Creating booking:', { 
+    console.log('?? Creating booking:', { 
       token: token?.substring(0, 10) + '...', 
       attendee_name, 
       attendee_email,
@@ -5291,12 +6242,12 @@ app.post('/api/bookings', async (req, res) => {
 
     // ========== VALIDATION ==========
     if (!token || !slot || !attendee_name || !attendee_email) {
-      console.error('❌ Missing required fields');
+      console.error('? Missing required fields');
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     if (!slot.start || !slot.end) {
-      console.error('❌ Invalid slot data:', slot);
+      console.error('? Invalid slot data:', slot);
       return res.status(400).json({ error: 'Invalid booking slot data' });
     }
 
@@ -5308,12 +6259,12 @@ app.post('/api/bookings', async (req, res) => {
         throw new Error('Invalid date format');
       }
       
-      console.log('✅ Slot validation passed:', {
+      console.log('? Slot validation passed:', {
         start: startDate.toISOString(),
         end: endDate.toISOString()
       });
     } catch (dateError) {
-      console.error('❌ Invalid slot dates:', dateError.message);
+      console.error('? Invalid slot dates:', dateError.message);
       return res.status(400).json({ 
         error: 'Invalid booking time format',
         details: dateError.message
@@ -5325,7 +6276,7 @@ app.post('/api/bookings', async (req, res) => {
     
     // CHECK 1: Single-use link (64 chars)
     if (token.length === 64) {
-      console.log('🔍 Looking up single-use link...');
+      console.log('?? Looking up single-use link...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 t.name as team_name, 
@@ -5350,7 +6301,7 @@ app.post('/api/bookings', async (req, res) => {
       );
     } else {
       // CHECK 2: Team token
-      console.log('🔍 Checking if team token...');
+      console.log('?? Checking if team token...');
       const teamCheck = await pool.query(
         `SELECT t.id as team_id, t.booking_mode
          FROM teams t
@@ -5360,7 +6311,7 @@ app.post('/api/bookings', async (req, res) => {
 
       if (teamCheck.rows.length > 0) {
         const teamData = teamCheck.rows[0];
-        console.log('✅ Team token detected, loading first active member...');
+        console.log('? Team token detected, loading first active member...');
         
         memberResult = await pool.query(
           `SELECT tm.*, 
@@ -5386,7 +6337,7 @@ app.post('/api/bookings', async (req, res) => {
         );
       } else {
         // CHECK 3: Regular member token
-        console.log('🔍 Looking up regular token...');
+        console.log('?? Looking up regular token...');
         memberResult = await pool.query(
           `SELECT tm.*, 
                   t.name as team_name, 
@@ -5410,14 +6361,14 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     if (memberResult.rows.length === 0) {
-      console.log('❌ Invalid or expired booking token');
+      console.log('? Invalid or expired booking token');
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
     const member = memberResult.rows[0];
     const bookingMode = member.booking_mode || 'individual';
 
-    console.log('✅ Token found:', {
+    console.log('? Token found:', {
       memberName: member.name || member.member_name,
       teamName: member.team_name,
       mode: bookingMode
@@ -5433,7 +6384,7 @@ app.post('/api/bookings', async (req, res) => {
           name: member.name || member.member_name, 
           user_id: member.user_id 
         }];
-        console.log('👤 Individual mode: Assigning to', assignedMembers[0].name);
+        console.log('?? Individual mode: Assigning to', assignedMembers[0].name);
         break;
 
       case 'round_robin':
@@ -5450,7 +6401,7 @@ app.post('/api/bookings', async (req, res) => {
         assignedMembers = rrResult.rows.length > 0 
           ? [rrResult.rows[0]] 
           : [{ id: member.id, name: member.name || member.member_name, user_id: member.user_id }];
-        console.log('🔄 Round-robin: Assigning to', assignedMembers[0].name);
+        console.log('?? Round-robin: Assigning to', assignedMembers[0].name);
         break;
 
       case 'first_available':
@@ -5475,7 +6426,7 @@ app.post('/api/bookings', async (req, res) => {
         assignedMembers = faResult.rows.length > 0 
           ? [faResult.rows[0]] 
           : [{ id: member.id, name: member.name || member.member_name, user_id: member.user_id }];
-        console.log('⚡ First-available: Assigning to', assignedMembers[0].name);
+        console.log('? First-available: Assigning to', assignedMembers[0].name);
         break;
 
       case 'collective':
@@ -5484,7 +6435,7 @@ app.post('/api/bookings', async (req, res) => {
           [member.team_id]
         );
         assignedMembers = collectiveResult.rows;
-        console.log('👥 Collective mode: Assigning to all', assignedMembers.length, 'members');
+        console.log('?? Collective mode: Assigning to all', assignedMembers.length, 'members');
         break;
 
       default:
@@ -5501,7 +6452,7 @@ app.post('/api/bookings', async (req, res) => {
     for (const assignedMember of assignedMembers) {
       const manageToken = crypto.randomBytes(16).toString('hex');
       
-      console.log(`📝 Creating booking for member ${assignedMember.id}...`);
+      console.log(`?? Creating booking for member ${assignedMember.id}...`);
       
       const bookingResult = await pool.query(
         `INSERT INTO bookings (
@@ -5530,13 +6481,13 @@ app.post('/api/bookings', async (req, res) => {
       );
       
       createdBookings.push(bookingResult.rows[0]);
-      console.log(`✅ Booking created: ID ${bookingResult.rows[0].id}, manage_token: ${manageToken}`);
+      console.log(`? Booking created: ID ${bookingResult.rows[0].id}, manage_token: ${manageToken}`);
     }
 
     // ========== MARK SINGLE-USE LINK AS USED ==========
     if (token.length === 64) {
       await pool.query('UPDATE single_use_links SET used = true WHERE token = $1', [token]);
-      console.log('✅ Single-use link marked as used');
+      console.log('? Single-use link marked as used');
     }
 
     // ========== NOTIFY ORGANIZER ==========
@@ -5545,7 +6496,7 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     // ========== RESPOND IMMEDIATELY ==========
-    console.log('✅ Sending success response');
+    console.log('? Sending success response');
     res.json({ 
       success: true,
       booking: createdBookings[0],
@@ -6672,15 +7623,55 @@ app.delete('/api/notifications/:id', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete' });
   }
 });
-// ============ COMPLETE AI SCHEDULING ENDPOINT WITH FIXED VARIABLE NAMES ============
+// ? ADD THIS MIDDLEWARE BEFORE YOUR AI ENDPOINT:
+const enforceUsageLimits = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    const result = await pool.query(
+      'SELECT ai_queries_used, ai_queries_limit FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = result.rows[0];
+    const used = user.ai_queries_used || 0;
+    const limit = user.ai_queries_limit || 3;
+    
+    if (used >= limit) {
+      return res.status(429).json({ 
+        error: 'AI query limit exceeded',
+        usage: { ai_queries_used: used, ai_queries_limit: limit }
+      });
+    }
+    
+    // Attach usage info to request for use in handlers
+    req.userUsage = { 
+      ai_queries_used: used, 
+      ai_queries_limit: limit,
+      chatgpt_queries_used: used, // For compatibility
+      limits: { chatgpt: limit }   // For compatibility
+    };
+    next();
+    
+  } catch (error) {
+    console.error('? Usage limit check failed:', error);
+    res.status(500).json({ error: 'Failed to check usage limits' });
+  }
+};
 
-app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
+// ============ CORRECTLY STRUCTURED AI SCHEDULING ENDPOINT ============
+
+app.post('/api/ai/schedule', authenticateToken, enforceUsageLimits, async (req, res) => {
   try {
     const { message, conversationHistory = [] } = req.body;
     const userId = req.user.id;
     const userEmail = req.user.email;
 
-    console.log('🤖 AI Scheduling request:', message);
+    console.log('?? AI Scheduling request from user:', userId, 'Message:', message);
 
     // Validate message
     if (!message || typeof message !== 'string' || message.trim() === '') {
@@ -6688,6 +7679,45 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
         type: 'error',
         message: 'Please enter a message'
       });
+    }
+
+    // ? INCREMENT AI USAGE FIRST
+    const usageResult = await incrementAIUsage(userId);
+    if (!usageResult.success) {
+      console.error('? Failed to increment usage:', usageResult.error);
+      return res.status(500).json({
+        type: 'error',
+        message: 'Failed to track usage'
+      });
+    }
+
+    // ? ADD THIS LINE - Define usageData for all handlers
+const usageData = {
+  ai_queries_used: usageResult.ai_queries_used,
+  ai_queries_limit: usageResult.ai_queries_limit
+};
+
+    // ? EMAIL VALIDATION FUNCTION (INSIDE FUNCTION)
+    const validateEmail = (email) => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
+    };
+
+    // Check if message contains pending booking context
+    let pendingBookingContext = null;
+    let cleanMessage = message;
+    
+    const pendingMatch = message.match(/\[Current pending booking: "([^"]+)" on (\S+) at (\S+) for (\d+) minutes with (\S+)\]/);
+    if (pendingMatch) {
+      pendingBookingContext = {
+        title: pendingMatch[1],
+        date: pendingMatch[2],
+        time: pendingMatch[3],
+        duration: parseInt(pendingMatch[4]),
+        attendee_email: pendingMatch[5]
+      };
+      cleanMessage = message.replace(/\[Current pending booking:.*?\]\s*User says:\s*/i, '').trim();
+      console.log('?? Pending booking detected:', pendingBookingContext);
     }
 
     // Get user's teams and bookings for context
@@ -6734,7 +7764,8 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
         status: b.status,
         team_name: b.team_name,
         organizer: b.organizer_name
-      }))
+      })),
+      pendingBooking: pendingBookingContext
     };
 
     // Format conversation history
@@ -6743,69 +7774,129 @@ app.post('/api/ai/schedule', authenticateToken, async (req, res) => {
       parts: [{ text: msg.content || '' }]
     })).filter(msg => msg.parts[0].text.trim() !== '');
 
-    // System instruction
-    const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
+    // Build pending booking instruction if exists
+    const pendingBookingInstruction = pendingBookingContext ? `
+IMPORTANT - PENDING BOOKING CONTEXT:
+There is currently a pending booking waiting for confirmation:
+- Title: "${pendingBookingContext.title}"
+- Date: ${pendingBookingContext.date}
+- Time: ${pendingBookingContext.time}
+- Duration: ${pendingBookingContext.duration} minutes
+- Attendee: ${pendingBookingContext.attendee_email}
+
+If the user wants to UPDATE this pending booking (change time, duration, date, etc.):
+1. Set intent to "update_pending"
+2. Include the updated fields in "extracted"
+3. Keep unchanged fields from the original booking
+4. DO NOT ask for confirmation again - the UI will handle that
+` : '';
+
+    // Enhanced system instruction with email functionality
+   // ============================================================
+// UPDATED SYSTEM INSTRUCTION FOR AI SCHEDULER
+// ============================================================
+
+const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
 
 User context: ${JSON.stringify(userContext)}
+${pendingBookingInstruction}
 
-**IMPORTANT: Current date/time is ${new Date().toISOString()}**
-**When parsing dates:**
-- "Monday December 1" means the NEXT occurrence of Monday, December 1
-- Always use year 2025 or later for future dates
-- "2 pm" = "14:00" in 24-hour format
-- If only day/month given, assume current year or next year if date has passed
+AVAILABLE INTENTS:
+- "create_meeting" - Schedule a new meeting
+- "show_bookings" - List upcoming bookings (default: confirmed)
+- "show_confirmed_bookings" - List confirmed bookings only
+- "show_cancelled_bookings" - List cancelled bookings
+- "show_rescheduled_bookings" - List rescheduled bookings
+- "booking_stats" - Show booking statistics
+- "find_time" - Find available time slots
+- "get_event_types" - List all event types
+- "get_event_type" - Get specific event type details
+- "get_personal_link" - Get user's personal booking link
+- "get_magic_link" - Create a single-use magic link
+- "get_team_links" - Get all team booking links
+- "get_member_link" - Get a specific team member's link
+- "schedule_team_meeting" - Schedule with a specific team
+- "send_email" - Send an email using templates
+- "update_pending" - Update pending booking
+- "cancel_booking" - Cancel a booking
+- "clarify" - Need more information
+
+INTENT EXAMPLES:
+
+LINK REQUESTS:
+- "get my link" or "my booking page" ? intent: "get_personal_link"
+- "create magic link for John" ? intent: "get_magic_link", extracted: { link_name: "John" }
+- "get team links" or "show team pages" ? intent: "get_team_links"
+- "get Sarah's link" ? intent: "get_member_link", extracted: { member_name: "Sarah" }
+
+EVENT TYPE QUERIES:
+- "what are my event types" or "show event types" ? intent: "get_event_types"
+- "show my 30 minute meeting" or "get consultation event" ? intent: "get_event_type", extracted: { event_type_name: "..." }
+
+BOOKING STATUS QUERIES:
+- "show my bookings" or "upcoming meetings" ? intent: "show_bookings"
+- "show confirmed bookings" ? intent: "show_confirmed_bookings"
+- "show cancelled bookings" or "what got cancelled" ? intent: "show_cancelled_bookings"
+- "show rescheduled bookings" ? intent: "show_rescheduled_bookings"
+- "how many bookings" or "booking stats" or "stats this month" ? intent: "booking_stats"
+
+TEAM SCHEDULING:
+- "schedule with Marketing team" ? intent: "schedule_team_meeting", extracted: { team_name: "Marketing" }
 
 Return JSON structure:
 {
-  "intent": "create_meeting" | "show_bookings" | "find_time" | "cancel_booking" | "reschedule" | "check_availability" | "clarify",
+  "intent": "get_personal_link" | "get_magic_link" | "get_team_links" | "get_member_link" | "get_event_types" | "get_event_type" | "show_bookings" | "show_confirmed_bookings" | "show_cancelled_bookings" | "show_rescheduled_bookings" | "booking_stats" | "schedule_team_meeting" | "create_meeting" | "find_time" | "send_email" | "update_pending" | "cancel_booking" | "clarify",
   "confidence": 0-100,
   "extracted": {
-    "title": "string or null",
+    "link_name": "custom name for magic link",
+    "team_name": "team name to schedule with",
+    "member_name": "member name for link lookup",
+    "event_type_name": "event type name to lookup",
+    "status_filter": "confirmed" | "cancelled" | "rescheduled" | "all",
+    "date_range": "today" | "this_week" | "this_month" | "all",
+    "title": "meeting title",
     "attendees": ["email@example.com"],
-    "date": "YYYY-MM-DD (always use 2025 or later)",
+    "attendee_email": "email for single attendee",
+    "date": "YYYY-MM-DD",
     "time": "HH:MM in 24-hour format", 
-    "duration_minutes": number or null,
-    "notes": "string or null",
-    "time_window": "tomorrow morning" | "next week" | "this afternoon" etc
+    "duration_minutes": number,
+    "notes": "string or null"
   },
-  "missing_fields": ["field1", "field2"],
-  "clarifying_question": "What time works best for you?",
-  "action": "create" | "list" | "suggest_slots" | "cancel" | null
+  "missing_fields": [],
+  "clarifying_question": "question if needed",
+  "action": "create" | "update" | "list" | "get_link" | "suggest_slots" | "cancel" | "stats" | null,
+  "response_message": "Clean text response without markdown"
 }
 
-For "show bookings" intent, set action to "list".
-For "find time" or vague scheduling, set action to "suggest_slots".
-For specific time/date provided, set action to "create".
-If missing info, set intent to "clarify".`;
-
-    // Call Google Gemini API - CONSISTENT VARIABLE NAME
+Current date/time: ${new Date().toISOString()}
+User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
+    
+// Call Google Gemini API
     const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-    method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    contents: [
-      ...formattedHistory,
-      {
-        role: 'user',
-        parts: [{ text: `${systemInstruction}\n\nUser message: ${message.trim()}` }]
-      }
-    ],
-    generationConfig: {
-      temperature: 0.1,
-      topK: 1,
-      topP: 0.8,
-      maxOutputTokens: 1500,
-    }
-  })
-});
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [
+          ...formattedHistory,
+          {
+            role: 'user',
+            parts: [{ text: `${systemInstruction}\n\nUser message: ${cleanMessage}` }]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          topK: 1,
+          topP: 0.8,
+          maxOutputTokens: 1500,
+        }
+      })
+    });
 
-    // Error handling - SAME VARIABLE NAME
+    // Error handling
     if (!geminiResponse.ok) {
       console.error('Gemini API error:', geminiResponse.status, geminiResponse.statusText);
-      const errorText = await geminiResponse.text();
-      console.error('Gemini error body:', errorText);
       return res.status(500).json({
         type: 'error',
         message: 'AI service temporarily unavailable. Please try again.'
@@ -6814,7 +7905,7 @@ If missing info, set intent to "clarify".`;
 
     const geminiData = await geminiResponse.json();
 
-    if (!geminiData || !geminiData.candidates || !geminiData.candidates[0] || !geminiData.candidates[0].content) {
+    if (!geminiData?.candidates?.[0]?.content) {
       console.error('Invalid Gemini response:', geminiData);
       return res.status(500).json({
         type: 'error',
@@ -6831,7 +7922,11 @@ If missing info, set intent to "clarify".`;
       if (!jsonMatch) {
         return res.json({
           type: 'error',
-          message: 'I had trouble understanding that. Could you rephrase?'
+          message: 'I had trouble understanding that. Could you rephrase?',
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
         });
       }
       parsedIntent = JSON.parse(jsonMatch[0]);
@@ -6839,238 +7934,2444 @@ If missing info, set intent to "clarify".`;
       console.error('Failed to parse AI JSON:', e.message);
       return res.json({
         type: 'error',
-        message: 'I had trouble understanding that. Could you rephrase?'
+        message: 'I had trouble understanding that. Could you rephrase?',
+        usage: {
+          ai_queries_used: usageResult.ai_queries_used,
+          ai_queries_limit: usageResult.ai_queries_limit
+        }
       });
     }
 
-    console.log('🤖 Parsed intent:', parsedIntent);
+    console.log('?? Parsed intent:', parsedIntent);
 
-    // Handle different intents
-    if (parsedIntent.intent === 'show_bookings' || parsedIntent.action === 'list') {
-      if (userContext.upcomingBookings.length === 0) {
+    // ============ HANDLE HELP/CLARIFY INTENT ============
+    if (parsedIntent.intent === 'clarify' || cleanMessage.toLowerCase().includes('help') || cleanMessage.toLowerCase().includes('what can you do')) {
+      return res.json({
+        type: 'help',
+        message: `I can help with:\n\n?? **Meeting scheduling**\n• "Schedule with client@company.com tomorrow at 2pm"\n• "Find available times this week"\n• "Show my bookings"\n\n?? **Professional emails**\n• "Send reminder to someone@email.com"\n• "Send thank you to client@company.com"\n• "Send confirmation to team@startup.com"\n\n?? Try any of these commands!`,
+        usage: {
+          ai_queries_used: usageResult.ai_queries_used,
+          ai_queries_limit: usageResult.ai_queries_limit
+        }
+      });
+    }
+
+   // ============ HANDLE EMAIL SENDING INTENTS ============
+if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
+  const { type, recipient, meeting_details } = parsedIntent.email_action;
+  
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!recipient || !emailRegex.test(recipient)) {
+    return res.json({
+      type: 'clarify',
+      message: `? Invalid or missing email address${recipient ? `: ${recipient}` : ''}.\n\nPlease provide a valid email address.\n\nExample: "Send reminder to john@company.com"`,
+      usage: usageData
+    });
+  }
+  
+  // Validate email type
+  const validTypes = ['reminder', 'confirmation', 'follow_up', 'cancellation'];
+  if (!type || !validTypes.includes(type)) {
+    return res.json({
+      type: 'clarify',
+      message: `?? What type of email would you like to send to ${recipient}?\n\nAvailable types:\n• Reminder\n• Confirmation\n• Follow-up\n• Cancellation\n\nExample: "Send reminder to ${recipient}"`,
+      usage: usageData
+    });
+  }
+  
+  // Check if template exists
+  const template = await selectBestTemplate(userId, type, meeting_details);
+  
+  if (!template) {
+    // List available templates
+    const templatesResult = await pool.query(
+      `SELECT name, type FROM email_templates WHERE user_id = $1 ORDER BY type, name`,
+      [userId]
+    );
+
+    if (templatesResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: `? No ${type} email template found.\n\nYou don't have any email templates yet.\n\nGo to Email Templates to create one, or I can send a default ${type} email.`,
+        usage: usageData
+      });
+    }
+
+    const templateList = templatesResult.rows.map(t => 
+      `• ${t.name} (${t.type})`
+    ).join('\n');
+
+    return res.json({
+      type: 'info',
+      message: `? No ${type} template found.\n\nYour templates:\n${templateList}\n\nCreate a ${type} template or try a different email type.`,
+      usage: usageData
+    });
+  }
+  
+  // Prepare meeting details
+  const emailDetails = {
+    date: meeting_details?.date || new Date().toLocaleDateString(),
+    time: meeting_details?.time || 'TBD',
+    link: meeting_details?.link || userContext.upcomingBookings?.[0]?.meet_link || 'Will be provided',
+    title: meeting_details?.title || userContext.upcomingBookings?.[0]?.title || 'Meeting'
+  };
+  
+  // Send email
+  const emailSent = await sendEmailWithTemplate(template, recipient, emailDetails, userId);
+  
+  if (emailSent) {
+    if (template.id) {
+      await trackTemplateUsage(template.id, userId, 'sent');
+    }
+    
+    return res.json({
+      type: 'email_sent',
+      message: `? ${type.charAt(0).toUpperCase() + type.slice(1)} email sent!\n\n?? To: ${recipient}\n?? Template: "${template.name}"`,
+      data: {
+        template_used: template.name,
+        recipient: recipient,
+        email_type: type
+      },
+      usage: usageData
+    });
+  } else {
+    return res.json({
+      type: 'error',
+      message: `? Failed to send ${type} email to ${recipient}.\n\nPlease try again or check your email settings.`,
+      usage: usageData
+    });
+  }
+}
+
+    // ============ HANDLE UPDATE PENDING INTENT ============
+    if (parsedIntent.intent === 'update_pending' && pendingBookingContext) {
+      const updated = {
+        ...pendingBookingContext,
+        ...parsedIntent.extracted
+      };
+      
+      // Handle attendees array to single email
+      if (parsedIntent.extracted.attendees && parsedIntent.extracted.attendees.length > 0) {
+        updated.attendee_email = parsedIntent.extracted.attendees[0];
+      }
+      
+      // Rename duration_minutes to duration for consistency
+      if (parsedIntent.extracted.duration_minutes) {
+        updated.duration = parsedIntent.extracted.duration_minutes;
+      }
+
+      const changeDescription = [];
+      if (parsedIntent.extracted.duration_minutes && parsedIntent.extracted.duration_minutes !== pendingBookingContext.duration) {
+        changeDescription.push(`duration to ${parsedIntent.extracted.duration_minutes} minutes`);
+      }
+      if (parsedIntent.extracted.time && parsedIntent.extracted.time !== pendingBookingContext.time) {
+        changeDescription.push(`time to ${parsedIntent.extracted.time}`);
+      }
+      if (parsedIntent.extracted.date && parsedIntent.extracted.date !== pendingBookingContext.date) {
+        changeDescription.push(`date to ${parsedIntent.extracted.date}`);
+      }
+
+      return res.json({
+        type: 'update_pending',
+        message: changeDescription.length > 0 
+          ? `? Updated ${changeDescription.join(' and ')}. Please review and confirm.`
+          : 'Booking details updated. Please review and confirm.',
+        data: {
+          updatedBooking: updated
+        },
+        usage: {
+          ai_queries_used: usageResult.ai_queries_used,
+          ai_queries_limit: usageResult.ai_queries_limit
+        }
+      });
+    }
+
+     // ============ HANDLE GET PERSONAL LINK ============
+if (parsedIntent.intent === 'get_personal_link') {
+  try {
+    const memberResult = await pool.query(
+      `SELECT tm.booking_token, tm.name, t.name as team_name
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       WHERE tm.user_id = $1 OR t.owner_id = $1
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '? No booking profile found. Please set up your team first.',
+        usage: usageData
+      });
+    }
+
+    const member = memberResult.rows[0];
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    const bookingUrl = `${baseUrl}/book/${member.booking_token}`;
+
+    return res.json({
+      type: 'personal_link',
+      message: `?? Your Personal Booking Link\n\n?? ${member.name}\n?? ${member.team_name}`,
+      data: {
+        url: bookingUrl,
+        short_url: `/book/${member.booking_token.substring(0, 8)}...`,
+        name: member.name,
+        team_name: member.team_name,
+        type: 'personal'
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Get personal link error:', error);
+    return res.json({
+      type: 'error',
+      message: '? Failed to get your booking link. Please try again.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE GET/CREATE MAGIC LINK ============
+if (parsedIntent.intent === 'get_magic_link') {
+  try {
+    const linkName = parsedIntent.extracted?.link_name || 'Quick Meeting';
+    
+    // Create magic link token
+    const magicToken = crypto.randomBytes(16).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
+
+    // Get user's default event type (optional)
+    const eventTypeResult = await pool.query(
+      `SELECT id FROM event_types WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
+    const eventTypeId = eventTypeResult.rows[0]?.id || null;
+
+    // Insert into magic_links using correct columns
+    await pool.query(
+      `INSERT INTO magic_links (token, created_by_user_id, event_type_id, expires_at, is_active, is_used, created_at)
+       VALUES ($1, $2, $3, $4, true, false, NOW())`,
+      [magicToken, userId, eventTypeId, expiresAt]
+    );
+
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    const magicUrl = `${baseUrl}/m/${magicToken}`;
+
+    return res.json({
+      type: 'link',
+      message: `? Magic link created for "${linkName}"!\n\n?? /m/${magicToken.substring(0, 8)}...\n? Expires: ${expiresAt.toLocaleDateString()}\n?? Single-use: Yes`,
+      data: {
+        url: magicUrl,
+        token: magicToken,
+        name: linkName,
+        expires_at: expiresAt,
+        type: 'magic'
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Create magic link error:', error);
+    return res.json({
+      type: 'error',
+      message: '? Failed to create magic link. Please try again.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE GET TEAM LINKS ============
+if (parsedIntent.intent === 'get_team_links') {
+  try {
+    const teamsResult = await pool.query(
+      `SELECT t.id, t.name, t.team_booking_token,
+              COUNT(tm.id) as member_count
+       FROM teams t
+       LEFT JOIN team_members tm ON t.id = tm.team_id
+       WHERE t.owner_id = $1
+       GROUP BY t.id
+       ORDER BY t.name`,
+      [userId]
+    );
+
+    if (teamsResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '? No teams found. Create a team first to get booking links.',
+        usage: usageData
+      });
+    }
+
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    
+    const teamLinks = teamsResult.rows.map((team, index) => {
+      const isPersonal = team.name.toLowerCase().includes('personal');
+      const label = isPersonal ? '?' : '??';
+      return `${index + 1}. ${team.name} ${label}\n   ?? ${team.member_count} members`;
+    }).join('\n\n');
+
+    return res.json({
+      type: 'team_links',
+      message: `?? Your Team Booking Links:\n\n${teamLinks}`,
+      data: {
+        teams: teamsResult.rows.map(team => ({
+          id: team.id,
+          name: team.name,
+          url: `${baseUrl}/book/${team.team_booking_token}`,
+          short_url: `/book/${team.team_booking_token.substring(0, 8)}...`,
+          member_count: team.member_count
+        }))
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Get team links error:', error);
+    return res.json({
+      type: 'error',
+      message: '? Failed to get team links. Please try again.',
+      usage: usageData
+    });
+  }
+}
+// ============ HANDLE GET MEMBER LINK ============
+if (parsedIntent.intent === 'get_member_link') {
+  try {
+    const memberName = parsedIntent.extracted?.member_name;
+    
+    if (!memberName || memberName.trim() === '') {
+      // List all available members
+      const allMembersResult = await pool.query(
+        `SELECT tm.name, u.name as user_name, t.name as team_name
+         FROM team_members tm
+         JOIN teams t ON tm.team_id = t.id
+         LEFT JOIN users u ON tm.user_id = u.id
+         WHERE t.owner_id = $1
+         ORDER BY tm.name`,
+        [userId]
+      );
+
+      if (allMembersResult.rows.length === 0) {
         return res.json({
           type: 'info',
-          message: '📅 You have no upcoming bookings scheduled.'
+          message: '? No team members found. Add members to your teams first.',
+          usage: usageData
         });
       }
 
-      // Format bookings with complete details
+      const memberList = allMembersResult.rows.map(m => 
+        `• ${m.user_name || m.name} (${m.team_name})`
+      ).join('\n');
+
+      return res.json({
+        type: 'clarify',
+        message: `?? Which team member's link do you need?\n\nAvailable members:\n${memberList}\n\nSay "Get [name]'s booking link"`,
+        usage: usageData
+      });
+    }
+
+    // Search for member by name
+    const memberResult = await pool.query(
+      `SELECT tm.id, tm.name, tm.booking_token, t.name as team_name,
+              u.email as user_email, u.name as user_name
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       LEFT JOIN users u ON tm.user_id = u.id
+       WHERE t.owner_id = $1 
+         AND (LOWER(tm.name) LIKE LOWER($2) OR LOWER(u.name) LIKE LOWER($2))
+       LIMIT 5`,
+      [userId, `%${memberName}%`]
+    );
+
+    if (memberResult.rows.length === 0) {
+      // Member not found - show available members
+      const allMembersResult = await pool.query(
+        `SELECT tm.name, u.name as user_name, t.name as team_name
+         FROM team_members tm
+         JOIN teams t ON tm.team_id = t.id
+         LEFT JOIN users u ON tm.user_id = u.id
+         WHERE t.owner_id = $1
+         ORDER BY tm.name`,
+        [userId]
+      );
+
+      if (allMembersResult.rows.length === 0) {
+        return res.json({
+          type: 'info',
+          message: `? No team member found matching "${memberName}".\n\nYou don't have any team members yet. Add members to your teams first.`,
+          usage: usageData
+        });
+      }
+
+      const memberList = allMembersResult.rows.map(m => 
+        `• ${m.user_name || m.name} (${m.team_name})`
+      ).join('\n');
+
+      return res.json({
+        type: 'info',
+        message: `? No team member found matching "${memberName}".\n\nAvailable members:\n${memberList}`,
+        usage: usageData
+      });
+    }
+
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+
+    if (memberResult.rows.length === 1) {
+      const member = memberResult.rows[0];
+      const memberUrl = `${baseUrl}/book/${member.booking_token}`;
+      const displayName = member.user_name || member.name || 'Team Member';
+      const displayEmail = member.user_email || 'No email';
+      
+      return res.json({
+        type: 'member_link',
+        message: `?? ${displayName}'s Booking Link\n\n?? ${displayEmail}\n?? ${member.team_name}`,
+        data: {
+          url: memberUrl,
+          short_url: `/book/${member.booking_token.substring(0, 8)}...`,
+          name: displayName,
+          email: displayEmail,
+          team_name: member.team_name,
+          type: 'member'
+        },
+        usage: usageData
+      });
+    }
+
+    // Multiple matches
+    return res.json({
+      type: 'member_links',
+      message: `Found ${memberResult.rows.length} members matching "${memberName}":`,
+      data: {
+        members: memberResult.rows.map(m => ({
+          name: m.user_name || m.name || 'Team Member',
+          team_name: m.team_name,
+          url: `${baseUrl}/book/${m.booking_token}`,
+          short_url: `/book/${m.booking_token.substring(0, 8)}...`
+        }))
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Get member link error:', error);
+    return res.json({
+      type: 'error',
+      message: '? Failed to get member link. Please try again.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE GET EVENT TYPES ============
+if (parsedIntent.intent === 'get_event_types') {
+  try {
+    // Get user info for username
+    const userResult = await pool.query(
+      `SELECT username, email FROM users WHERE id = $1`,
+      [userId]
+    );
+    const username = userResult.rows[0]?.username || userResult.rows[0]?.email?.split('@')[0] || 'user';
+
+    const eventTypesResult = await pool.query(
+      `SELECT et.id, et.title, et.slug, et.duration, et.description, 
+              et.price, et.is_active, et.color, et.location_type,
+              COUNT(b.id) as total_bookings
+       FROM event_types et
+       LEFT JOIN bookings b ON b.event_type_id = et.id
+       WHERE et.user_id = $1
+       GROUP BY et.id
+       ORDER BY et.is_active DESC, et.title ASC`,
+      [userId]
+    );
+
+    if (eventTypesResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '?? You don\'t have any event types yet.\n\nGo to Event Types to create your first one!',
+        usage: usageData
+      });
+    }
+
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    
+    const eventTypesList = eventTypesResult.rows.map((et, index) => {
+      const status = et.is_active ? '? Active' : '?? Inactive';
+      const price = et.price ? `?? $${et.price}` : '?? Free';
+      
+      return `${index + 1}. ${et.title} ${status}
+   ?? ${et.duration} min | ${price} | ?? ${et.total_bookings || 0} bookings
+   ?? /${username}/${et.slug}${et.description ? `\n   ?? ${et.description}` : ''}`;
+    }).join('\n\n');
+
+    return res.json({
+      type: 'list',
+      message: `?? Your Event Types:\n\n${eventTypesList}\n\n?? Full links: ${baseUrl}/book/[slug]`,
+      data: {
+        event_types: eventTypesResult.rows.map(et => ({
+          ...et,
+          booking_url: `${baseUrl}/book/${username}/${et.slug}`
+        })),
+        count: eventTypesResult.rows.length,
+        base_url: baseUrl,
+        username: username
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Get event types error:', error);
+    return res.json({
+      type: 'error',
+      message: '? Failed to get event types. Please try again.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE GET SPECIFIC EVENT TYPE ============
+if (parsedIntent.intent === 'get_event_type') {
+  try {
+    const eventTypeName = parsedIntent.extracted?.event_type_name;
+    
+    if (!eventTypeName || eventTypeName.trim() === '') {
+      // List all available event types
+      const allEventsResult = await pool.query(
+        `SELECT title, duration, is_active FROM event_types WHERE user_id = $1 ORDER BY title`,
+        [userId]
+      );
+
+      if (allEventsResult.rows.length === 0) {
+        return res.json({
+          type: 'info',
+          message: '? You don\'t have any event types yet.\n\nGo to Event Types to create your first one!',
+          usage: usageData
+        });
+      }
+
+      const eventList = allEventsResult.rows.map(e => 
+        `• ${e.title} (${e.duration} min) ${e.is_active ? '?' : '??'}`
+      ).join('\n');
+
+      return res.json({
+        type: 'clarify',
+        message: `?? Which event type do you want to see?\n\nYour event types:\n${eventList}\n\nSay "Show my [event name]"`,
+        usage: usageData
+      });
+    }
+
+    // Get user info for username
+    const userResult = await pool.query(
+      `SELECT username, email FROM users WHERE id = $1`,
+      [userId]
+    );
+    const username = userResult.rows[0]?.username || userResult.rows[0]?.email?.split('@')[0] || 'user';
+
+    const eventTypeResult = await pool.query(
+      `SELECT et.*,
+              COUNT(b.id) FILTER (WHERE b.status = 'confirmed') as confirmed_count,
+              COUNT(b.id) FILTER (WHERE b.status = 'cancelled') as cancelled_count
+       FROM event_types et
+       LEFT JOIN bookings b ON b.event_type_id = et.id
+       WHERE et.user_id = $1
+         AND LOWER(et.title) LIKE LOWER($2)
+       GROUP BY et.id
+       LIMIT 1`,
+      [userId, `%${eventTypeName}%`]
+    );
+
+    if (eventTypeResult.rows.length === 0) {
+      // Event type not found - show available ones
+      const allEventsResult = await pool.query(
+        `SELECT title, duration, is_active FROM event_types WHERE user_id = $1 ORDER BY title`,
+        [userId]
+      );
+
+      if (allEventsResult.rows.length === 0) {
+        return res.json({
+          type: 'info',
+          message: `? No event type found matching "${eventTypeName}".\n\nYou don't have any event types yet. Go to Event Types to create one!`,
+          usage: usageData
+        });
+      }
+
+      const eventList = allEventsResult.rows.map(e => 
+        `• ${e.title} (${e.duration} min)`
+      ).join('\n');
+
+      return res.json({
+        type: 'info',
+        message: `? No event type found matching "${eventTypeName}".\n\nYour event types:\n${eventList}`,
+        usage: usageData
+      });
+    }
+
+    const et = eventTypeResult.rows[0];
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    const bookingUrl = `${baseUrl}/book/${username}/${et.slug}`;
+
+    return res.json({
+      type: 'event_type',
+      message: `?? ${et.title}\n\n${et.is_active ? '? Active' : '?? Inactive'}\n?? Duration: ${et.duration} minutes\n?? Price: ${et.price ? `$${et.price}` : 'Free'}\n?? Description: ${et.description || 'None'}\n\n?? Stats:\n   ? Confirmed: ${et.confirmed_count}\n   ? Cancelled: ${et.cancelled_count}`,
+      data: {
+        event_type: et,
+        url: bookingUrl,
+        short_url: `/${username}/${et.slug}`,
+        type: 'event_type'
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Get event type error:', error);
+    return res.json({
+      type: 'error',
+      message: '? Failed to get event type. Please try again.',
+      usage: usageData
+    });
+  }
+}
+// ============ HANDLE SHOW CONFIRMED BOOKINGS ============
+if (parsedIntent.intent === 'show_confirmed_bookings' || 
+    (parsedIntent.intent === 'show_bookings' && parsedIntent.extracted?.status_filter === 'confirmed')) {
+  try {
+    const bookingsResult = await pool.query(
+      `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.name as event_type_name
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN event_types et ON b.event_type_id = et.id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND b.status = 'confirmed'
+       ORDER BY b.start_time ASC
+       LIMIT 15`,
+      [userId]
+    );
+
+    if (bookingsResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '? No confirmed bookings found.',
+        usage: usageData
+      });
+    }
+
+    const bookingsList = bookingsResult.rows.map((b, index) => {
+      const startDate = new Date(b.start_time);
+      const isPast = startDate < new Date();
+      const timeLabel = isPast ? '(Past)' : '(Upcoming)';
+      
+      return `${index + 1}. ${b.attendee_name || 'Guest'} ${timeLabel}
+   ?? ${b.attendee_email}
+   ?? ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+   ?? ${b.duration || 30} min | ?? ${b.event_type_name || 'Meeting'}
+   ?? ${b.team_name || 'Personal'}`;
+    }).join('\n\n');
+
+    return res.json({
+      type: 'list',
+      message: `? Confirmed Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
+      data: { bookings: bookingsResult.rows, status: 'confirmed' },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Show confirmed bookings error:', error);
+    return res.json({
+      type: 'error',
+      message: '? Failed to get confirmed bookings.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE SHOW CANCELLED BOOKINGS ============
+if (parsedIntent.intent === 'show_cancelled_bookings' ||
+    (parsedIntent.intent === 'show_bookings' && parsedIntent.extracted?.status_filter === 'cancelled')) {
+  try {
+    const bookingsResult = await pool.query(
+      `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.title as event_type_name
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN event_types et ON b.event_type_id = et.id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND b.status = 'cancelled'
+       ORDER BY b.updated_at DESC
+       LIMIT 15`,
+      [userId]
+    );
+
+    if (bookingsResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '?? No cancelled bookings! All your meetings are going as planned.',
+        usage: usageData
+      });
+    }
+
+    const bookingsList = bookingsResult.rows.map((b, index) => {
+      const startDate = new Date(b.start_time);
+      
+      return `${index + 1}. ${b.attendee_name || 'Guest'} ?
+   ?? ${b.attendee_email}
+   ?? Was scheduled: ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+    }).join('\n\n');
+
+    return res.json({
+      type: 'list',
+      message: `? Cancelled Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
+      data: { bookings: bookingsResult.rows, status: 'cancelled' },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Show cancelled bookings error:', error);
+    return res.json({
+      type: 'error',
+      message: '? Failed to get cancelled bookings.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE SHOW RESCHEDULED BOOKINGS ============
+if (parsedIntent.intent === 'show_rescheduled_bookings' ||
+    (parsedIntent.intent === 'show_bookings' && parsedIntent.extracted?.status_filter === 'rescheduled')) {
+  try {
+    const bookingsResult = await pool.query(
+      `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.title as event_type_name
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN event_types et ON b.event_type_id = et.id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND b.status = 'rescheduled'
+       ORDER BY b.updated_at DESC
+       LIMIT 15`,
+      [userId]
+    );
+
+    if (bookingsResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '?? No rescheduled bookings found.',
+        usage: usageData
+      });
+    }
+
+    const bookingsList = bookingsResult.rows.map((b, index) => {
+      const startDate = new Date(b.start_time);
+      
+      return `${index + 1}. ${b.attendee_name || 'Guest'} ??
+   ?? ${b.attendee_email}
+   ?? ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+   ? Status: ${b.status}`;
+    }).join('\n\n');
+
+    return res.json({
+      type: 'list',
+      message: `?? Rescheduled Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
+      data: { bookings: bookingsResult.rows, status: 'rescheduled' },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Show rescheduled bookings error:', error);
+    return res.json({
+      type: 'error',
+      message: '? Failed to get rescheduled bookings.',
+      usage: usageData
+    });
+  }
+}
+// ============ HANDLE BOOKING STATS ============
+if (parsedIntent.intent === 'booking_stats') {
+  try {
+    const month = new Date().toISOString().slice(0, 7); // '2025-12'
+    const monthStart = `${month}-01`;
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    const monthEnd = `${nextMonth.toISOString().slice(0, 7)}-01`;
+
+    const statsResult = await pool.query(
+      `SELECT 
+         COUNT(*) FILTER (WHERE status = 'confirmed') as confirmed,
+         COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled,
+         COUNT(*) FILTER (WHERE status = 'pending') as pending,
+         COUNT(*) as total,
+         COUNT(*) FILTER (WHERE start_time >= NOW() AND status = 'confirmed') as upcoming
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND b.created_at >= $2 AND b.created_at < $3`,
+      [userId, monthStart, monthEnd]
+    );
+
+    // All-time stats
+    const allTimeResult = await pool.query(
+      `SELECT 
+         COUNT(*) FILTER (WHERE status = 'confirmed') as confirmed,
+         COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled,
+         COUNT(*) as total
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE t.owner_id = $1 OR tm.user_id = $1`,
+      [userId]
+    );
+
+    const thisMonth = statsResult.rows[0];
+    const allTime = allTimeResult.rows[0];
+
+    const completionRate = allTime.total > 0 
+      ? Math.round((allTime.confirmed / allTime.total) * 100) 
+      : 0;
+
+    const monthName = new Date().toLocaleString('default', { month: 'long' });
+
+    return res.json({
+      type: 'stats',
+      message: `?? Booking Statistics\n\n?? This Month (${monthName}):\n   ? Confirmed: ${thisMonth.confirmed}\n   ? Cancelled: ${thisMonth.cancelled}\n   ? Pending: ${thisMonth.pending}\n   ?? Total: ${thisMonth.total}\n   ?? Upcoming: ${thisMonth.upcoming}\n\n?? All Time:\n   ? Confirmed: ${allTime.confirmed}\n   ? Cancelled: ${allTime.cancelled}\n   ?? Total: ${allTime.total}\n   ?? Completion Rate: ${completionRate}%`,
+      data: {
+        this_month: thisMonth,
+        all_time: allTime,
+        completion_rate: completionRate
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Booking stats error:', error);
+    return res.json({
+      type: 'error',
+      message: '? Failed to get booking statistics.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE SCHEDULE TEAM MEETING ============
+if (parsedIntent.intent === 'schedule_team_meeting') {
+  try {
+    const teamName = parsedIntent.extracted?.team_name;
+    
+    // Get all teams first
+    const allTeamsResult = await pool.query(
+      `SELECT t.id, t.name FROM teams t WHERE t.owner_id = $1 ORDER BY t.name`,
+      [userId]
+    );
+
+    if (allTeamsResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '? No teams found. Create a team first to schedule team meetings.',
+        usage: usageData
+      });
+    }
+
+    if (!teamName || teamName.trim() === '') {
+      const teamList = allTeamsResult.rows.map((t, i) => `${i + 1}. ${t.name}`).join('\n');
+      
+      return res.json({
+        type: 'clarify',
+        message: `?? Which team would you like to schedule with?\n\n${teamList}\n\nSay "Schedule with [team name]" to continue.`,
+        data: { teams: allTeamsResult.rows },
+        usage: usageData
+      });
+    }
+
+    // Find the team
+    const teamResult = await pool.query(
+      `SELECT t.id, t.name, t.team_booking_token
+       FROM teams t
+       WHERE t.owner_id = $1 AND LOWER(t.name) LIKE LOWER($2)
+       LIMIT 1`,
+      [userId, `%${teamName}%`]
+    );
+
+    if (teamResult.rows.length === 0) {
+      const teamList = allTeamsResult.rows.map((t, i) => `${i + 1}. ${t.name}`).join('\n');
+
+      return res.json({
+        type: 'info',
+        message: `? No team found matching "${teamName}".\n\nYour teams:\n${teamList}\n\nSay "Schedule with [team name]" to continue.`,
+        data: { teams: allTeamsResult.rows },
+        usage: usageData
+      });
+    }
+
+    const team = teamResult.rows[0];
+
+    // Validate attendees email if provided
+    if (parsedIntent.extracted?.attendees && parsedIntent.extracted.attendees.length > 0) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const invalidEmails = parsedIntent.extracted.attendees.filter(email => !emailRegex.test(email));
+      
+      if (invalidEmails.length > 0) {
+        return res.json({
+          type: 'clarify',
+          message: `? Invalid email address: ${invalidEmails.join(', ')}\n\nPlease provide a valid email address for the attendee.`,
+          data: { team: team },
+          usage: usageData
+        });
+      }
+    }
+
+    // Check if we have all required booking info
+    if (!parsedIntent.extracted?.date || !parsedIntent.extracted?.time) {
+      return res.json({
+        type: 'clarify',
+        message: `?? When would you like to schedule with ${team.name}?\n\nPlease provide date and time.\n\nExample: "tomorrow at 2pm" or "December 10 at 3:30pm"`,
+        data: { 
+          team: team,
+          partial_booking: parsedIntent.extracted
+        },
+        usage: usageData
+      });
+    }
+
+    if (!parsedIntent.extracted?.attendees || parsedIntent.extracted.attendees.length === 0) {
+      return res.json({
+        type: 'clarify',
+        message: `?? Who should I invite to this ${team.name} meeting?\n\nPlease provide their email address.`,
+        data: { 
+          team: team,
+          partial_booking: parsedIntent.extracted
+        },
+        usage: usageData
+      });
+    }
+
+    // All info present - create confirmation
+    const attendeeEmail = parsedIntent.extracted.attendees[0];
+    const attendeeName = attendeeEmail
+      .split('@')[0]
+      .replace(/[._-]/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
+
+    const bookingData = {
+      title: parsedIntent.extracted.title || `${team.name} Meeting`,
+      date: parsedIntent.extracted.date,
+      time: parsedIntent.extracted.time,
+      duration: parsedIntent.extracted.duration_minutes || 30,
+      attendees: parsedIntent.extracted.attendees,
+      attendee_email: attendeeEmail,
+      notes: parsedIntent.extracted.notes || `Meeting with ${attendeeName}`,
+      team_id: team.id,
+      team_name: team.name
+    };
+
+    return res.json({
+      type: 'confirmation',
+      message: `? Ready to schedule ${team.name} meeting?\n\n?? ${bookingData.date} at ${bookingData.time}\n?? Attendees: ${bookingData.attendees.join(', ')}\n?? Duration: ${bookingData.duration} minutes\n?? Team: ${team.name}\n?? Notes: ${bookingData.notes}`,
+      data: { bookingData },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Schedule team meeting error:', error);
+    return res.json({
+      type: 'error',
+      message: '? Failed to schedule team meeting. Please try again.',
+      usage: usageData
+    });
+  }
+}
+    // ============ HANDLE SHOW BOOKINGS INTENT ============
+    if (parsedIntent.intent === 'show_bookings') { 
+    if (userContext.upcomingBookings.length === 0) {
+        return res.json({
+          type: 'info',
+          message: '?? You have no upcoming bookings scheduled.',
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
+        });
+      }
+
       const bookingsList = userContext.upcomingBookings.map((booking, index) => {
         const startDate = new Date(booking.start);
         const endDate = new Date(booking.end);
         
-        return `${index + 1}. **${booking.attendee_name}** ${booking.attendee_email ? `(${booking.attendee_email})` : ''}
-📞 ${booking.attendee_phone || 'No phone'}
-📅 ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { 
+        return `${index + 1}. ${booking.attendee_name} ${booking.attendee_email ? `(${booking.attendee_email})` : ''}
+?? ${booking.attendee_phone || 'No phone'}
+?? ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { 
           hour: 'numeric', 
           minute: '2-digit' 
         })} - ${endDate.toLocaleTimeString('en-US', { 
           hour: 'numeric', 
           minute: '2-digit' 
         })}
-⏱️ ${booking.duration || 30} minutes
-🏢 ${booking.team_name || 'Personal'}
-🔗 ${booking.meet_link || 'No meeting link'}
-📝 ${booking.notes || 'No notes'}
-✅ Status: ${booking.status}`;
+?? ${booking.duration || 30} minutes
+?? ${booking.team_name || 'Personal'}
+?? ${booking.meet_link || 'No meeting link'}
+?? ${booking.notes || 'No notes'}
+? Status: ${booking.status}`;
       }).join('\n\n');
 
       return res.json({
         type: 'list',
         message: `Here are your upcoming bookings:\n\n${bookingsList}`,
-        data: { bookings: userContext.upcomingBookings }
-      });
-    }
-
-    // Handle other intents (find_time, create_meeting, etc.)
-if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slots') {
-  try {
-    return res.json({
-      type: 'slots',
-      message: 'Let me find the best available times. I\'ll analyze your calendar and suggest optimal slots.',
-      needsSlots: true,
-      searchParams: parsedIntent.extracted,
-      useEnhancedFormatting: true // Flag for frontend
-    });
-  } catch (error) {
-    return res.json({
-      type: 'error', 
-      message: 'Sorry, I had trouble checking your availability.'
-    });
-  }
-}
-
-    
-  // Enhanced slot formatting function
-  function formatAvailableSlots(slots) {
-    if (!slots || slots.length === 0) {
-      return "❌ **No available slots found.** Try a different time range or check your availability settings.";
-    }
-
-    // Group slots by date
-    const slotsByDate = {};
-    slots.forEach(slot => {
-      const date = new Date(slot.start);
-      const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
-      
-      if (!slotsByDate[dateKey]) {
-        slotsByDate[dateKey] = {
-          date: date,
-          slots: []
-        };
-      }
-      slotsByDate[dateKey].slots.push(slot);
-    });
-
-    // Generate formatted response
-    let response = "🗓️ **Perfect! I found some great times for you:**\n\n";
-
-    Object.keys(slotsByDate).forEach(dateKey => {
-      const dayData = slotsByDate[dateKey];
-      const date = dayData.date;
-      
-      // Add day name and date
-      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-      const monthDay = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-      
-      response += `📅 **${dayName}, ${monthDay}**\n`;
-      
-      // Add slots for this day
-      dayData.slots.forEach(slot => {
-        const time = new Date(slot.start).toLocaleTimeString('en-US', { 
-          hour: 'numeric', 
-          minute: '2-digit',
-          hour12: true 
-        });
-        
-        // Get time context
-        const hour = new Date(slot.start).getHours();
-        let timeContext = '';
-        let emoji = '🕰️';
-        
-        if (hour >= 9 && hour < 12) {
-          timeContext = 'Morning focus time';
-          emoji = '🌅';
-        } else if (hour >= 12 && hour < 14) {
-          timeContext = 'Lunch break';
-          emoji = '🍽️';
-        } else if (hour >= 14 && hour < 17) {
-          timeContext = 'Afternoon productivity';
-          emoji = '💼';
-        } else if (hour >= 17 && hour < 19) {
-          timeContext = 'End of workday';
-          emoji = '🕰️';
-        } else if (hour >= 19 && hour < 21) {
-          timeContext = 'Prime dinner time';
-          emoji = '🍽️';
-        } else if (hour >= 21) {
-          timeContext = 'Late evening';
-          emoji = '🌙';
-        } else {
-          timeContext = 'Early morning';
-          emoji = '🌅';
+        data: { bookings: userContext.upcomingBookings },
+        usage: {
+          ai_queries_used: usageResult.ai_queries_used,
+          ai_queries_limit: usageResult.ai_queries_limit
         }
-        
-
-
-        // Get match quality emoji
-        const matchEmoji = slot.matchScore >= 90 ? '⭐' : 
-                          slot.matchScore >= 80 ? '🌟' : 
-                          slot.matchScore >= 70 ? '✨' : '💫';
-        
-        response += `   ${emoji} **${time}** • ${matchEmoji} ${slot.matchLabel || 'Available'} • ${timeContext}\n`;
       });
-      
-      response += '\n';
-    });
+    }
 
-    response += `✨ **All times show optimal availability!**\n\n`;
-    response += `👆 **Just tell me which time works best and I'll book it for you:**\n`;
-    response += `*Example: "Book 6:30 PM on Tuesday" or "Schedule the Monday 8:00 PM slot"*`;
+    // ============ HANDLE FIND TIME INTENT ============
+    if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slots') {
+      try {
+        // Get user's booking token
+        const memberResult = await pool.query(
+          `SELECT tm.id, tm.booking_token, tm.timezone
+           FROM team_members tm
+           JOIN teams t ON tm.team_id = t.id
+           WHERE tm.user_id = $1 OR t.owner_id = $1
+           LIMIT 1`,
+          [userId]
+        );
 
-    return response;
-  }
-
-
-
-
-    // Email validation function
-    const validateEmail = (email) => {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return emailRegex.test(email);
-    };
-
-    if (parsedIntent.intent === 'create_meeting') {
-      // Email validation
-      if (parsedIntent.extracted.attendees && parsedIntent.extracted.attendees.length > 0) {
-        const invalidEmails = parsedIntent.extracted.attendees.filter(email => !validateEmail(email));
-        if (invalidEmails.length > 0) {
+        if (memberResult.rows.length === 0) {
           return res.json({
-            type: 'clarify',
-            message: `❌ Invalid email address(es): **${invalidEmails.join(', ')}**\n\nPlease provide valid email addresses. Example: john@company.com`,
-            data: parsedIntent
+            type: 'error',
+            message: 'No booking profile found. Please set up your availability first.',
+            usage: {
+              ai_queries_used: usageResult.ai_queries_used,
+              ai_queries_limit: usageResult.ai_queries_limit
+            }
           });
         }
-      }
 
-      // Required field validation
-      if (!parsedIntent.extracted.date || !parsedIntent.extracted.time) {
-        return res.json({
-          type: 'clarify',
-          message: '📅 I need both a date and time to schedule your meeting. When would you like to meet?',
-          data: parsedIntent
-        });
-      }
+        const member = memberResult.rows[0];
 
-      if (!parsedIntent.extracted.attendees || parsedIntent.extracted.attendees.length === 0) {
-        return res.json({
-          type: 'clarify',
-          message: '👥 Who should I invite to this meeting? Please provide their email address.',
-          data: parsedIntent
-        });
-      }
+        // Get availability settings
+        const availResult = await pool.query(
+          `SELECT * FROM availability_settings WHERE member_id = $1`,
+          [member.id]
+        );
 
-      // Check missing fields
-      const missing = parsedIntent.missing_fields || [];
-      if (missing.length > 0) {
-        return res.json({
-          type: 'clarify',
-          message: parsedIntent.clarifying_question || `I need a bit more information. What ${missing.join(' and ')} would work for you?`,
-          data: parsedIntent
-        });
-      }
+        if (availResult.rows.length === 0) {
+          return res.json({
+            type: 'info',
+            message: '?? No availability settings found. Please set up your available hours in Settings > Availability first.',
+            usage: {
+              ai_queries_used: usageResult.ai_queries_used,
+              ai_queries_limit: usageResult.ai_queries_limit
+            }
+          });
+        }
 
-      // All validation passed
-      return res.json({
-        type: 'confirmation',
-        message: `✅ Ready to schedule "${parsedIntent.extracted.title || 'Meeting'}" for **${parsedIntent.extracted.date} at ${parsedIntent.extracted.time}**?\n\n👥 Attendees: ${parsedIntent.extracted.attendees.join(', ')}\n⏱️ Duration: ${parsedIntent.extracted.duration_minutes || 30} minutes\n📝 Notes: ${parsedIntent.extracted.notes || 'None'}\n\nClick confirm to create the booking.`,
-        data: { 
-          bookingData: {
-            title: parsedIntent.extracted.title,
-            date: parsedIntent.extracted.date,
-            time: parsedIntent.extracted.time,
-            duration: parsedIntent.extracted.duration_minutes || 30,
-            attendees: parsedIntent.extracted.attendees,
-            notes: parsedIntent.extracted.notes
+        // Generate slots for next 7 days
+        const slots = [];
+        const now = new Date();
+        const daysToCheck = 7;
+
+        for (let dayOffset = 0; dayOffset < daysToCheck; dayOffset++) {
+          const checkDate = new Date(now);
+          checkDate.setDate(checkDate.getDate() + dayOffset);
+          const dayOfWeek = checkDate.getDay();
+
+          const dayAvail = availResult.rows.find(a => a.day_of_week === dayOfWeek);
+          
+          if (dayAvail && dayAvail.is_available) {
+            const [startHour, startMin] = dayAvail.start_time.split(':').map(Number);
+            const [endHour, endMin] = dayAvail.end_time.split(':').map(Number);
+
+            let slotTime = new Date(checkDate);
+            slotTime.setHours(startHour, startMin, 0, 0);
+
+            const endTime = new Date(checkDate);
+            endTime.setHours(endHour, endMin, 0, 0);
+
+            while (slotTime < endTime && slots.length < 10) {
+              if (slotTime > now) {
+                const conflictCheck = await pool.query(
+                  `SELECT id FROM bookings 
+                   WHERE member_id = $1 
+                   AND status = 'confirmed'
+                   AND start_time <= $2 
+                   AND end_time > $2`,
+                  [member.id, slotTime.toISOString()]
+                );
+
+                if (conflictCheck.rows.length === 0) {
+                  const hour = slotTime.getHours();
+                  let matchScore = 85;
+                  let matchLabel = 'Good Match';
+
+                  if (hour >= 9 && hour <= 11) {
+                    matchScore = 95;
+                    matchLabel = 'Excellent Match';
+                  } else if (hour >= 14 && hour <= 16) {
+                    matchScore = 90;
+                    matchLabel = 'Excellent Match';
+                  }
+
+                  slots.push({
+                    start: slotTime.toISOString(),
+                    end: new Date(slotTime.getTime() + 30 * 60000).toISOString(),
+                    matchScore,
+                    matchLabel
+                  });
+                }
+              }
+
+              slotTime = new Date(slotTime.getTime() + 30 * 60000);
+            }
           }
         }
-      });
+
+        if (slots.length === 0) {
+          return res.json({
+            type: 'info',
+            message: '? No available slots found in the next 7 days. Please check your availability settings.',
+            usage: {
+              ai_queries_used: usageResult.ai_queries_used,
+              ai_queries_limit: usageResult.ai_queries_limit
+            }
+          });
+        }
+
+        const formattedSlots = slots.slice(0, 5).map((slot, index) => {
+          const date = new Date(slot.start);
+          const dateStr = date.toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric' 
+          });
+          const timeStr = date.toLocaleTimeString('en-US', { 
+            hour: 'numeric', 
+            minute: '2-digit',
+            hour12: true 
+          });
+          
+          return `${index + 1}?? ${dateStr} • ${timeStr}    (${slot.matchLabel})`;
+        }).join('\n');
+
+        return res.json({
+          type: 'slots',
+          message: `?? Here are your best available times:\n\n${formattedSlots}\n\n?? Ready to book? Just say "book slot 1" or "schedule 10 AM"! ?`,
+          data: { slots: slots.slice(0, 5) },
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
+        });
+
+      } catch (error) {
+        console.error('Slot fetch error:', error);
+        return res.json({
+          type: 'error', 
+          message: 'Sorry, I had trouble checking your availability. Please try again.',
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
+        });
+      }
     }
 
-    // Default response
+   // ============ HANDLE CREATE MEETING INTENT ============
+if (parsedIntent.intent === 'create_meeting') {
+  // Email validation function
+  const isValidEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Validate attendees emails
+  if (parsedIntent.extracted.attendees && parsedIntent.extracted.attendees.length > 0) {
+    const invalidEmails = parsedIntent.extracted.attendees.filter(email => !isValidEmail(email));
+    
+    if (invalidEmails.length > 0) {
+      return res.json({
+        type: 'clarify',
+        message: `? Invalid email address: ${invalidEmails.join(', ')}\n\nPlease provide valid email addresses.\n\nExample: john@company.com`,
+        data: parsedIntent,
+        usage: usageData
+      });
+    }
+  }
+
+  // Required field validation
+  if (!parsedIntent.extracted.date || !parsedIntent.extracted.time) {
     return res.json({
       type: 'clarify',
-      message: parsedIntent.clarifying_question || 'How can I help you with your scheduling today? You can ask me to show bookings, find available times, or schedule a new meeting.'
+      message: '?? I need both a date and time to schedule your meeting.\n\nWhen would you like to meet?\n\nExample: "tomorrow at 2pm" or "December 10 at 3:30pm"',
+      data: parsedIntent,
+      usage: usageData
+    });
+  }
+
+  if (!parsedIntent.extracted.attendees || parsedIntent.extracted.attendees.length === 0) {
+    return res.json({
+      type: 'clarify',
+      message: '?? Who should I invite to this meeting?\n\nPlease provide their email address.\n\nExample: john@company.com',
+      data: parsedIntent,
+      usage: usageData
+    });
+  }
+
+  // Check missing fields
+  const missing = parsedIntent.missing_fields || [];
+  if (missing.length > 0) {
+    return res.json({
+      type: 'clarify',
+      message: parsedIntent.clarifying_question || `I need a bit more information. What ${missing.join(' and ')} would work for you?`,
+      data: parsedIntent,
+      usage: usageData
+    });
+  }
+
+  // All validation passed - prepare booking data
+  const attendeeEmail = parsedIntent.extracted.attendees[0];
+  const attendeeName = attendeeEmail
+    .split('@')[0]
+    .replace(/[._-]/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+
+  const extractedNotes = parsedIntent.extracted.notes;
+  const cleanNotes = (extractedNotes && extractedNotes !== 'null' && extractedNotes.trim() !== '') 
+    ? extractedNotes 
+    : `Meeting with ${attendeeName}`;
+
+  const bookingData = {
+    title: parsedIntent.extracted.title || 'Meeting',
+    date: parsedIntent.extracted.date,
+    time: parsedIntent.extracted.time,
+    duration: parsedIntent.extracted.duration_minutes || 30,
+    attendees: parsedIntent.extracted.attendees,
+    attendee_email: attendeeEmail,
+    notes: cleanNotes
+  };
+  
+  return res.json({
+    type: 'confirmation',
+    message: `? Ready to schedule "${bookingData.title}" for ${bookingData.date} at ${bookingData.time}?\n\n?? Attendees: ${bookingData.attendees.join(', ')}\n?? Duration: ${bookingData.duration} minutes\n?? Notes: ${cleanNotes}`,
+    data: { bookingData },
+    usage: usageData
+  });
+}
+   
+    // ============ DEFAULT RESPONSE ============
+    return res.json({
+      type: 'clarify',
+      message: parsedIntent.response_message || 'How can I help you with your scheduling today? You can ask me to show bookings, find available times, schedule meetings, or send emails.',
+      usage: {
+        ai_queries_used: usageResult.ai_queries_used,
+        ai_queries_limit: usageResult.ai_queries_limit
+      }
     });
 
   } catch (error) {
-    console.error('🚨 AI scheduling error:', error);
+    console.error('?? AI scheduling error:', error);
     res.status(500).json({
       type: 'error',
       message: 'Something went wrong. Please try again.'
     });
   }
+}); // ? FUNCTION PROPERLY ENDS HERE WITH ALL CODE INSIDE!
+
+// ============ AI BOOKING ENDPOINT (MULTIPLE ATTENDEES) ============
+app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
+  try {
+    const {
+      title, start_time, end_time, attendees, attendee_email, 
+      attendee_name, notes, duration
+    } = req.body;
+    
+    const userId = req.user.id;
+    
+    // ? EMAIL VALIDATION FUNCTION
+    const isValidEmail = (email) => {
+      if (!email || typeof email !== 'string') return false;
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email.trim());
+    };
+    
+    // Build attendee list from either attendees array or single attendee_email
+    const rawAttendeeList = attendees || (attendee_email ? [attendee_email] : []);
+    
+    // ? Filter out empty/null/undefined values
+    const cleanedAttendees = rawAttendeeList
+      .filter(email => email && typeof email === 'string' && email.trim() !== '')
+      .map(email => email.trim().toLowerCase());
+    
+    // ? Check if we have any attendees
+    if (cleanedAttendees.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No attendees provided',
+        message: 'Please provide at least one valid email address'
+      });
+    }
+    
+    // ? Validate all email formats
+    const invalidEmails = cleanedAttendees.filter(email => !isValidEmail(email));
+    if (invalidEmails.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid email address',
+        message: `Invalid email(s): ${invalidEmails.join(', ')}. Please provide valid email addresses.`,
+        invalid_emails: invalidEmails
+      });
+    }
+    
+    // ? Remove duplicates
+    const uniqueAttendees = [...new Set(cleanedAttendees)];
+    
+    console.log('?? AI Booking request:', {
+      title, start_time, attendees: uniqueAttendees, userId
+    });
+    
+    // ? Validate required fields
+    if (!title || !start_time) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields',
+        message: 'Title and start time are required'
+      });
+    }
+    
+    // Create individual booking for each attendee
+    const bookings = [];
+    const failedBookings = [];
+    
+    for (const email of uniqueAttendees) {
+      try {
+        // Generate attendee name from email
+        const generatedName = attendee_name || email
+          .split('@')[0]
+          .replace(/[._-]/g, ' ')
+          .replace(/\b\w/g, c => c.toUpperCase());
+        
+        const result = await pool.query(`
+          INSERT INTO bookings (
+            title, start_time, end_time, attendee_email, attendee_name,
+            notes, duration, status, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed', NOW(), NOW())
+          RETURNING *
+        `, [
+          title, 
+          start_time, 
+          end_time || new Date(new Date(start_time).getTime() + (duration || 30) * 60000).toISOString(),
+          email, 
+          generatedName, 
+          notes || '', 
+          duration || 30
+        ]);
+        
+        bookings.push(result.rows[0]);
+        console.log(`? Booking created for ${email}: ${result.rows[0].id}`);
+      } catch (bookingError) {
+        console.error(`? Booking failed for ${email}:`, bookingError);
+        failedBookings.push({ email, error: bookingError.message });
+      }
+    }
+    
+    // Check if all bookings failed
+    if (bookings.length === 0) {
+      return res.status(500).json({
+        success: false,
+        error: 'All bookings failed',
+        message: 'Failed to create any bookings. Please try again.',
+        failed_bookings: failedBookings
+      });
+    }
+    
+    // Send emails to successfully booked attendees
+    const emailResults = [];
+    for (const booking of bookings) {
+      try {
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #7C3AED;">?? Meeting Confirmed</h2>
+            <p>Hi ${booking.attendee_name || 'there'},</p>
+            <p>You've been invited to a meeting!</p>
+            
+            <div style="background: #F3F4F6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="margin-top: 0;">?? Meeting Details:</h3>
+              <p><strong>Title:</strong> ${title}</p>
+              <p><strong>Date & Time:</strong> ${new Date(start_time).toLocaleString()}</p>
+              <p><strong>Duration:</strong> ${duration || 30} minutes</p>
+              <p><strong>Attendees:</strong> ${uniqueAttendees.join(', ')}</p>
+              ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ''}
+            </div>
+            
+            <p>Looking forward to meeting with you!</p>
+            <p style="color: #666; font-size: 12px;">Powered by ScheduleSync AI</p>
+          </div>
+        `;
+
+        await resend.emails.send({
+          from: process.env.EMAIL_FROM || 'ScheduleSync <notifications@resend.dev>',
+          to: booking.attendee_email,
+          subject: `Meeting Invitation: ${title}`,
+          html: emailHtml
+        });
+        
+        emailResults.push({ email: booking.attendee_email, sent: true });
+        console.log(`?? Invitation sent to ${booking.attendee_email}`);
+        
+      } catch (emailError) {
+        emailResults.push({ email: booking.attendee_email, sent: false, error: emailError.message });
+        console.error(`?? Email failed for ${booking.attendee_email}:`, emailError);
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      bookings: bookings,
+      attendee_count: uniqueAttendees.length,
+      bookings_created: bookings.length,
+      emails_sent: emailResults.filter(e => e.sent).length,
+      message: `Meeting created with ${bookings.length} attendee(s)`,
+      ...(failedBookings.length > 0 && { failed_bookings: failedBookings }),
+      ...(emailResults.some(e => !e.sent) && { email_failures: emailResults.filter(e => !e.sent) })
+    });
+    
+  } catch (error) {
+    console.error('?? AI booking error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to create AI booking',
+      details: error.message 
+    });
+  }
 });
+// ============ BOOKING LIMIT ENFORCEMENT SYSTEM ============
+
+// Add this function to your server.js
+async function checkBookingLimits(userId) {
+  try {
+    const userResult = await pool.query(
+      'SELECT tier, monthly_bookings FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      throw new Error('User not found');
+    }
+    
+    const user = userResult.rows[0];
+    const tier = user.tier || 'free';
+    const currentBookings = user.monthly_bookings || 0;
+    
+    // Define limits
+    const limits = {
+  free: { soft: 50, grace: 60, hard: 70 },      // ? More generous
+  pro: { soft: 999999, grace: 999999, hard: 999999 },  // ? Unlimited
+  team: { soft: 999999, grace: 999999, hard: 999999 }
+};
+    
+    const planLimits = limits[tier];
+    
+    return {
+      tier,
+      currentBookings,
+      limits: planLimits,
+      status: {
+        withinLimit: currentBookings < planLimits.soft,
+        inGracePeriod: currentBookings >= planLimits.soft && currentBookings < planLimits.grace,
+        overGraceLimit: currentBookings >= planLimits.grace && currentBookings < planLimits.hard,
+        hardBlocked: currentBookings >= planLimits.hard
+      }
+    };
+  } catch (error) {
+    console.error('? Failed to check booking limits:', error);
+    return null;
+  }
+}
+
+// Update your booking creation endpoint
+app.post('/api/bookings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // ? CHECK BOOKING LIMITS
+    const limitCheck = await checkBookingLimits(userId);
+    if (!limitCheck) {
+      return res.status(500).json({ error: 'Failed to check account limits' });
+    }
+    
+    const { status, limits, currentBookings, tier } = limitCheck;
+    
+    // ? HARD BLOCK - Don't allow booking
+    if (status.hardBlocked) {
+      return res.status(402).json({
+        error: 'Booking limit exceeded',
+        message: `You've reached your hard limit of ${limits.hard} bookings. Please upgrade your plan to continue.`,
+        upgrade_required: true,
+        current_bookings: currentBookings,
+        limit: limits.hard,
+        tier
+      });
+    }
+    
+    // ? GRACE PERIOD WARNING - Allow booking but warn
+    let warningMessage = null;
+    if (status.overGraceLimit) {
+      warningMessage = `?? You're at ${currentBookings}/${limits.grace} bookings. Only ${limits.hard - currentBookings} bookings remaining before account suspension.`;
+    } else if (status.inGracePeriod) {
+      warningMessage = `?? You've exceeded your ${limits.soft} booking limit. You're now in a grace period (${currentBookings}/${limits.grace}).`;
+    }
+    
+    // ? CREATE BOOKING (proceeding with warnings)
+    // ... your existing booking creation logic here ...
+    
+    // Increment monthly bookings counter
+    await pool.query(
+      'UPDATE users SET monthly_bookings = COALESCE(monthly_bookings, 0) + 1 WHERE id = $1',
+      [userId]
+    );
+    
+    // ? RETURN SUCCESS WITH OPTIONAL WARNING
+    const response = {
+      type: 'booking_created',
+      message: 'Booking created successfully!',
+      data: { /* your booking data */ },
+      limit_status: {
+        current_bookings: currentBookings + 1,
+        tier,
+        within_limit: status.withinLimit,
+        grace_period: status.inGracePeriod || status.overGraceLimit,
+        warning_message: warningMessage
+      }
+    };
+    
+    res.json(response);
+    
+  } catch (error) {
+    console.error('? Booking creation error:', error);
+    res.status(500).json({ error: 'Failed to create booking' });
+  }
+});
+
+// ? ADD: Endpoint to get current limit status
+// Get user limit status
+app.get('/api/user/limits', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const userResult = await pool.query(
+      'SELECT subscription_tier, subscription_status, monthly_bookings FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // ? FIX: Use subscription_tier directly, not based on status
+    // Cancelled users keep their tier until period ends
+    const tier = user.subscription_tier || 'free';
+    const currentBookings = user.monthly_bookings || 0;
+    
+    // Define limits based on TIER (not status)
+    const limits = {
+      free: { soft: 50, grace: 60, hard: 70 },
+      pro: { soft: 999999, grace: 999999, hard: 999999 },
+      team: { soft: 999999, grace: 999999, hard: 999999 }
+    };
+    
+    const planLimits = limits[tier] || limits.free;
+    
+    // Calculate status
+    const withinLimit = currentBookings < planLimits.soft;
+    const inGracePeriod = currentBookings >= planLimits.soft && currentBookings < planLimits.grace;
+    const overGraceLimit = currentBookings >= planLimits.grace && currentBookings < planLimits.hard;
+    const hardBlocked = currentBookings >= planLimits.hard;
+    
+    console.log('?? Limits for user:', userId, { tier, currentBookings, status: user.subscription_status });
+    
+    res.json({
+      tier: tier,  // ? Returns actual tier (pro/team), not 'free' for cancelled
+      subscription_status: user.subscription_status || 'active',
+      current_bookings: currentBookings,
+      limits: planLimits,
+      status: {
+        withinLimit,
+        inGracePeriod,
+        overGraceLimit,
+        hardBlocked
+      },
+      upgrade_recommended: tier === 'free' && (inGracePeriod || overGraceLimit || currentBookings >= planLimits.soft * 0.8)
+    });
+    
+  } catch (error) {
+    console.error('? Failed to check limits:', error);
+    res.status(500).json({ error: 'Failed to check account limits' });
+  }
+});
+
+
+
+// ============ AI TEMPLATE GENERATION ENDPOINT (GEMINI VERSION) ============
+app.post('/api/ai/generate-template', authenticateToken, checkUsageLimits, async (req, res) => {
+  try {
+    const { description, type, tone } = req.body;
+    const userId = req.user.id;
+    
+    console.log('?? AI Template generation request:', { description, type, tone, userId });
+
+    if (!description || description.trim().length < 10) {
+      return res.status(400).json({ 
+        error: 'Please provide a more detailed description (at least 10 characters)' 
+      });
+    }
+
+    const prompt = `Create a professional email template based on this request: "${description}"
+
+Template Type: ${type || 'general'}
+Tone: ${tone || 'professional but friendly'}
+
+Requirements:
+- Return ONLY valid JSON (no markdown, no explanations)
+- Use these exact variable names: {{guestName}}, {{guestEmail}}, {{organizerName}}, {{meetingDate}}, {{meetingTime}}, {{meetingLink}}, {{bookingLink}}
+- Keep subject under 60 characters
+- Make body 3-5 sentences, warm but professional
+- Include appropriate emojis sparingly
+
+Format:
+{
+  "name": "Template name (2-4 words)",
+  "subject": "Email subject line",
+  "body": "Email body with proper formatting and variables"
+}`;
+
+    // Call Google Gemini API
+    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          role: 'user',
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 1,
+          topP: 0.8,
+          maxOutputTokens: 500,
+        }
+      })
+    });
+
+    // Error handling for Gemini API
+    if (!geminiResponse.ok) {
+      console.error('Gemini API error:', geminiResponse.status, geminiResponse.statusText);
+      return res.status(500).json({ 
+        error: 'AI service temporarily unavailable',
+        details: 'Please try again in a moment'
+      });
+    }
+
+    const geminiData = await geminiResponse.json();
+    
+    // Validate Gemini response structure
+    if (!geminiData?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      console.error('Invalid Gemini response structure:', geminiData);
+      return res.status(500).json({
+        error: 'AI generated invalid response',
+        details: 'Please try again with a clearer description'
+      });
+    }
+
+    const aiText = geminiData.candidates[0].content.parts[0].text;
+    console.log('?? Raw AI response:', aiText);
+    
+    // Parse JSON response
+    let generatedTemplate;
+    try {
+      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('No JSON found in AI response:', aiText);
+        return res.status(500).json({
+          error: 'AI generated invalid response format',
+          details: 'Please try again with a clearer description'
+        });
+      }
+      
+      generatedTemplate = JSON.parse(jsonMatch[0]);
+      
+      // Validate required fields in generated template
+      if (!generatedTemplate.name || !generatedTemplate.subject || !generatedTemplate.body) {
+        throw new Error('Generated template missing required fields');
+      }
+      
+    } catch (parseError) {
+      console.error('?? JSON parsing failed:', parseError.message);
+      console.error('?? Raw AI response:', aiText);
+      return res.status(500).json({
+        error: 'AI generated invalid response format',
+        details: 'Please try again with a clearer description'
+      });
+    }
+    
+    // Add metadata to template
+    const templateData = {
+      ...generatedTemplate,
+      type: type || 'other',
+      is_default: false,
+      is_active: true,
+      generated_by_ai: true,
+      generated_at: new Date().toISOString(),
+      variables: ['guestName', 'guestEmail', 'organizerName', 'meetingDate', 'meetingTime', 'meetingLink', 'bookingLink']
+    };
+
+    // Increment AI usage for successful generation
+    await incrementAIUsage(userId);
+    console.log(`?? AI template generation completed for user ${userId}`);
+
+    res.json({
+      success: true,
+      template: templateData,
+      usage: {
+        ai_queries_used: req.userUsage.chatgpt_queries_used + 1,
+        ai_queries_limit: 10
+      }
+    });
+
+  } catch (error) {
+    console.error('?? AI template generation error:', error);
+    
+    // Handle specific error types
+    if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+      return res.status(500).json({
+        error: 'AI service connection failed',
+        details: 'Please check your internet connection and try again'
+      });
+    }
+    
+    if (error.name === 'AbortError') {
+      return res.status(500).json({
+        error: 'Request timeout',
+        details: 'The AI service took too long to respond. Please try again.'
+      });
+    }
+    
+    // Generic error response
+    res.status(500).json({
+      error: 'Failed to generate template',
+      details: 'An unexpected error occurred. Please try again.'
+    });
+  }
+});
+
+// ============ EMAIL TEMPLATE ENDPOINTS (FIXED FOR YOUR SCHEMA) ============
+
+// Get all templates for user
+app.get('/api/email-templates', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM email_templates 
+       WHERE user_id = $1 AND is_active = true
+       ORDER BY is_default DESC, name ASC`,
+      [req.user.id]
+    );
+    
+    res.json({ templates: result.rows });
+  } catch (error) {
+    console.error('Get templates error:', error);
+    res.status(500).json({ error: 'Failed to fetch templates' });
+  }
+});
+
+// Create new template (FIXED)
+app.post('/api/email-templates', authenticateToken, async (req, res) => {
+  try {
+    const { name, type, subject, body, is_default } = req.body;
+    
+    if (!name || !subject || !body) {
+      return res.status(400).json({ error: 'Name, subject, and body are required' });
+    }
+    
+    const validTypes = ['reminder', 'confirmation', 'follow_up', 'reschedule', 'cancellation', 'other'];
+    const templateType = validTypes.includes(type) ? type : 'other';
+    
+    const result = await pool.query(
+      `INSERT INTO email_templates (user_id, name, type, subject, body, is_default, is_active, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
+       RETURNING *`,
+      [req.user.id, name, templateType, subject, body, is_default || false]
+    );
+    
+    console.log('? Email template created:', result.rows[0].id);
+    res.json({ template: result.rows[0] });
+  } catch (error) {
+    console.error('Create template error:', error);
+    res.status(500).json({ error: 'Failed to create template' });
+  }
+});
+
+// Update template (FIXED)
+app.put('/api/email-templates/:id', authenticateToken, async (req, res) => {
+  try {
+    const { name, type, subject, body, is_default } = req.body;
+    
+    const result = await pool.query(
+      `UPDATE email_templates 
+       SET name = COALESCE($1, name),
+           type = COALESCE($2, type),
+           subject = COALESCE($3, subject),
+           body = COALESCE($4, body),
+           is_default = COALESCE($5, is_default),
+           updated_at = NOW()
+       WHERE id = $6 AND user_id = $7
+       RETURNING *`,
+      [name, type, subject, body, is_default, req.params.id, req.user.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    res.json({ template: result.rows[0] });
+  } catch (error) {
+    console.error('Update template error:', error);
+    res.status(500).json({ error: 'Failed to update template' });
+  }
+});
+
+// Toggle default (instead of favorite)
+app.patch('/api/email-templates/:id/favorite', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE email_templates 
+       SET is_default = NOT is_default, updated_at = NOW()
+       WHERE id = $1 AND user_id = $2
+       RETURNING *`,
+      [req.params.id, req.user.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    res.json({ template: result.rows[0] });
+  } catch (error) {
+    console.error('Toggle default error:', error);
+    res.status(500).json({ error: 'Failed to toggle default' });
+  }
+});
+
+// ============ AI TEMPLATE SELECTION FUNCTION ============
+const selectBestTemplate = async (userId, templateType, context) => {
+  try {
+    // Get user's templates
+    const templatesResult = await pool.query(`
+      SELECT * FROM email_templates 
+      WHERE user_id = $1 AND is_active = true
+      ORDER BY is_default DESC, name ASC
+    `, [userId]);
+    
+    const userTemplates = templatesResult.rows;
+    
+    // Default templates as fallback
+    const DEFAULT_TEMPLATES = {
+      'reminder': {
+        id: 'default_reminder',
+        name: 'Default Reminder',
+        subject: 'Reminder: {{meetingDate}} at {{meetingTime}}',
+        body: `Hi {{guestName}},\n\nJust a quick reminder about our meeting:\n\n?? {{meetingDate}} at {{meetingTime}}\n?? {{meetingLink}}\n\nSee you soon!\n{{organizerName}}`
+      },
+      'confirmation': {
+        id: 'default_confirmation',
+        name: 'Default Confirmation',
+        subject: 'Meeting confirmed for {{meetingDate}}',
+        body: `Hi {{guestName}},\n\nYour meeting is confirmed!\n\n?? {{meetingDate}}\n?? {{meetingTime}}\n?? {{meetingLink}}\n\nLooking forward to it!\n{{organizerName}}`
+      },
+      'follow_up': {
+        id: 'default_followup',
+        name: 'Default Follow-up',
+        subject: 'Thank you for your time!',
+        body: `Hi {{guestName}},\n\nThank you for meeting with me today!\n\nIf you need anything else: {{bookingLink}}\n\nBest regards,\n{{organizerName}}`
+      },
+      'reschedule': {
+        id: 'default_reschedule',
+        name: 'Default Reschedule',
+        subject: 'Need to reschedule our meeting',
+        body: `Hi {{guestName}},\n\nI need to reschedule our meeting on {{meetingDate}}.\n\nPlease let me know what works better for you: {{bookingLink}}\n\nApologies for any inconvenience!\n{{organizerName}}`
+      },
+      'cancellation': {
+        id: 'default_cancellation',
+        name: 'Default Cancellation',
+        subject: 'Meeting cancellation',
+        body: `Hi {{guestName}},\n\nI need to cancel our meeting scheduled for {{meetingDate}}.\n\nI'll reach out to reschedule soon.\n\nSorry for the inconvenience!\n{{organizerName}}`
+      }
+    };
+
+    // Find best matching user template
+    let selectedTemplate = userTemplates.find(t => 
+      t.type === templateType && t.is_default
+    );
+
+    // Fallback to any template of the right type
+    if (!selectedTemplate) {
+      selectedTemplate = userTemplates.find(t => t.type === templateType);
+    }
+
+    // Ultimate fallback to default template
+    if (!selectedTemplate && DEFAULT_TEMPLATES[templateType]) {
+      selectedTemplate = DEFAULT_TEMPLATES[templateType];
+    }
+
+    // Generic fallback
+    if (!selectedTemplate) {
+      selectedTemplate = DEFAULT_TEMPLATES['confirmation'];
+    }
+
+    console.log(`?? Selected template: ${selectedTemplate?.name || 'Default'} for type: ${templateType}`);
+    return selectedTemplate;
+
+  } catch (error) {
+    console.error('Template selection error:', error);
+    return DEFAULT_TEMPLATES['confirmation']; // Safe fallback
+  }
+};
+
+// ============ SEND EMAIL WITH TEMPLATE FUNCTION ============
+const sendEmailWithTemplate = async (template, recipientEmail, meetingDetails, userId) => {
+  try {
+    // Get user info
+    const userResult = await pool.query('SELECT name, email FROM users WHERE id = $1', [userId]);
+    const organizer = userResult.rows[0];
+
+    // Prepare template variables
+    const variables = {
+      guestName: recipientEmail.split('@')[0], // Default to email username
+      guestEmail: recipientEmail,
+      organizerName: organizer?.name || organizer?.email || 'Your host',
+      meetingDate: meetingDetails?.date || 'TBD',
+      meetingTime: meetingDetails?.time || 'TBD',
+      meetingLink: meetingDetails?.link || 'Will be provided',
+      bookingLink: `${process.env.BASE_URL || 'https://schedulesync.app'}/book/${userId}`
+    };
+
+    // Replace variables in template
+    let subject = template.subject;
+    let body = template.body;
+
+    Object.entries(variables).forEach(([key, value]) => {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      subject = subject.replace(regex, value);
+      body = body.replace(regex, value);
+    });
+
+    // Send email
+    const emailResult = await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'ScheduleSync <notifications@resend.dev>',
+      to: recipientEmail,
+      subject: subject,
+      html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; white-space: pre-wrap;">${body.replace(/\n/g, '<br>')}</div>`
+    });
+
+    console.log(`?? Email sent using template "${template.name}" to ${recipientEmail}`);
+    return true;
+
+  } catch (error) {
+    console.error('?? Email sending failed:', error);
+    return false;
+  }
+};
+
+// ============ TRACK TEMPLATE USAGE (FIXED) ============
+const trackTemplateUsage = async (templateId, userId, action) => {
+  try {
+    // Convert templateId to string for comparison
+    const templateIdStr = String(templateId);
+    
+    if (!templateId || templateIdStr.startsWith('default_')) {
+      return; // Don't track default templates
+    }
+
+    await pool.query(`
+      UPDATE email_templates 
+      SET usage_count = COALESCE(usage_count, 0) + 1,
+          last_used = NOW()
+      WHERE id = $1 AND user_id = $2
+    `, [templateId, userId]);
+
+    console.log(`?? Template usage tracked: ID ${templateId} for user ${userId}`);
+
+  } catch (error) {
+    console.error('Failed to track template usage:', error);
+  }
+};
+
+// ================================================================================
+// ? 2. ADD: GET /api/user/usage endpoint (fetch current usage)
+// ================================================================================
+app.get('/api/user/usage', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const result = await pool.query(
+      'SELECT ai_queries_used, ai_queries_limit FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = result.rows[0];
+    
+    console.log(`?? Usage fetched for user ${userId}:`, user);  // ? Fixed
+    
+    res.json({
+      ai_queries_used: user.ai_queries_used || 0,
+      ai_queries_limit: user.ai_queries_limit || 10,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('? Failed to fetch usage:', error);
+    res.status(500).json({ error: 'Failed to fetch usage data' });
+  }
+});
+
+// ============ AI USAGE TRACKING ============
+async function incrementAIUsage(userId) {
+  try {
+    const result = await pool.query(
+      'UPDATE users SET ai_queries_used = COALESCE(ai_queries_used, 0) + 1 WHERE id = $1 RETURNING ai_queries_used, ai_queries_limit',  // ? Fixed
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      throw new Error('User not found');
+    }
+    
+    const updated = result.rows[0];
+    console.log(`? AI usage incremented for user ${userId}: ${updated.ai_queries_used}/${updated.ai_queries_limit}`);  // ? Fixed
+    
+    return {
+      success: true,
+      ai_queries_used: updated.ai_queries_used,
+      ai_queries_limit: updated.ai_queries_limit || 10
+    };
+  } catch (error) {
+    console.error('? Failed to increment AI usage:', error);
+    return { 
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+
+// ============ SUBSCRIPTION MANAGEMENT ============
+// (Add this section after your existing payment endpoints)
+
+// Get current subscription
+// Get current subscription
+app.get('/api/subscriptions/current', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const userResult = await pool.query(
+      'SELECT subscription_tier, subscription_status, stripe_subscription_id, stripe_customer_id FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+    const plan = user.subscription_tier || 'free';
+    const isPaid = plan !== 'free';
+
+    res.json({
+      plan: plan,
+      status: user.subscription_status || 'active',
+      stripe_subscription_id: user.stripe_subscription_id,
+      stripe_customer_id: user.stripe_customer_id,
+      
+      // ? ADD: Fields the frontend expects
+      current_period_end: isPaid ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null,
+      next_billing_date: isPaid ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null,
+      cancel_at: null,
+      
+      // ? ADD: Mock payment method for paid plans
+      payment_method: isPaid ? {
+        last4: '4242',
+        brand: 'visa',
+        exp_month: 12,
+        exp_year: 2025
+      } : null
+    });
+  } catch (error) {
+    console.error('Current subscription error:', error);
+    res.status(500).json({ error: 'Failed to get subscription' });
+  }
+});
+
+// Create new subscription
+app.post('/api/subscriptions/create', authenticateToken, async (req, res) => {
+  try {
+    const { plan_id } = req.body; // 'pro' or 'team'
+    const userId = req.user.id;
+    
+    console.log(`?? Creating subscription for user ${userId}, plan: ${plan_id}`);
+
+    // Get user details
+    const userResult = await pool.query(
+      'SELECT email, name, stripe_customer_id FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+
+    // For testing, let's simulate the subscription creation
+    // Later you can add real Stripe subscription creation here
+    
+    // Update user's subscription in database
+    await pool.query(
+      `UPDATE users 
+       SET subscription_tier = $1, 
+           subscription_status = $2,
+           updated_at = NOW()
+       WHERE id = $3`,
+      [plan_id, 'active', userId]
+    );
+    
+    console.log(`? Successfully upgraded user ${userId} to ${plan_id} plan`);
+
+    // Return success response
+    res.json({ 
+      success: true,
+      message: `Successfully upgraded to ${plan_id} plan`,
+      client_secret: 'simulated_success', // Frontend expects this
+      subscription: {
+        plan: plan_id,
+        status: 'active'
+      }
+    });
+    
+  } catch (error) {
+    console.error('? Create subscription error:', error);
+    res.status(500).json({ error: 'Failed to create subscription' });
+  }
+});
+// Cancel subscription
+app.post('/api/subscriptions/cancel', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    console.log(`?? Cancelling subscription for user ${userId}`);
+    
+    // Calculate when access ends (end of current billing period)
+    const accessEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    
+    // Update subscription status (don't immediately downgrade to free)
+    await pool.query(
+      `UPDATE users 
+       SET subscription_status = $1,
+           updated_at = NOW()
+       WHERE id = $2`,
+      ['cancelled', userId]
+    );
+    
+    console.log(`? Successfully cancelled subscription for user ${userId}`);
+    
+    // ? Return full subscription object so frontend can update state
+    res.json({ 
+      success: true,
+      message: 'Subscription cancelled successfully',
+      plan: 'pro', // Keep current plan until period ends
+      status: 'cancelled',
+      current_period_end: accessEndsAt.toISOString(),
+      next_billing_date: accessEndsAt.toISOString(),
+      cancel_at: accessEndsAt.toISOString()
+    });
+  } catch (error) {
+    console.error('Cancel subscription error:', error);
+    res.status(500).json({ error: 'Failed to cancel subscription' });
+  }
+});
+
+// Billing portal
+app.post('/api/subscriptions/billing-portal', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    console.log(`?? Creating billing portal for user ${userId}`);
+    
+    // Get user's Stripe customer ID
+    const userResult = await pool.query(
+      'SELECT stripe_customer_id, subscription_tier FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    const user = userResult.rows[0];
+    
+    // If user has a real Stripe customer ID, create a real portal session
+    if (user?.stripe_customer_id && user.stripe_customer_id.startsWith('cus_')) {
+      try {
+        const session = await stripe.billingPortal.sessions.create({
+          customer: user.stripe_customer_id,
+          return_url: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/settings`,
+        });
+        
+        return res.json({ url: session.url });
+      } catch (stripeError) {
+        console.error('Stripe portal error:', stripeError);
+        // Fall through to fallback
+      }
+    }
+    
+    // ? Fallback: Return settings page URL (not /billing to avoid refresh loop)
+    res.json({ 
+      url: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/settings?tab=billing`,
+      message: 'Billing management available in settings',
+      is_simulated: true
+    });
+    
+  } catch (error) {
+    console.error('Billing portal error:', error);
+    res.status(500).json({ error: 'Failed to create billing portal session' });
+  }
+});
+// ? REPLACE your checkout endpoint with this:
+app.post('/api/billing/create-checkout', authenticateToken, async (req, res) => {
+  try {
+    const { plan } = req.body;
+    const userId = req.user.id;
+    
+    console.log(`?? Creating checkout session for user ${userId}, plan: ${plan}`);
+    
+    // Define plan details  
+    const plans = {
+      pro: { price: 12, name: 'Pro Plan' },
+      team: { price: 25, name: 'Team Plan' }
+    };
+    
+    const selectedPlan = plans[plan];
+    if (!selectedPlan) {
+      return res.status(400).json({ error: 'Invalid plan selected' });
+    }
+    
+    // Update user's plan immediately (simulated success)
+    await pool.query(
+      'UPDATE users SET subscription_tier = $1, subscription_status = $2, ai_queries_limit = $3 WHERE id = $4',
+      [plan, 'active', 999999, userId]
+    );
+    
+    console.log(`? User ${userId} upgraded to ${plan} plan - SIMULATED SUCCESS`);
+    
+    // ? FIX: Return the field name your frontend expects
+    res.json({
+      success: true,
+      checkout_url: `${process.env.CLIENT_URL || 'https://schedulesync-web-production.up.railway.app'}/billing?upgraded=true`,  // ? Fixed field name
+      session_id: `sim_${Date.now()}`
+    });
+    
+  } catch (error) {
+    console.error('? Checkout creation failed:', error);
+    res.status(500).json({ error: 'Failed to create checkout session' });
+  }
+});
+   
+// Add invoices endpoint (empty for now)
+app.get('/api/billing/invoices', authenticateToken, async (req, res) => {
+  try {
+    // Return empty invoices for now
+    // Later you can implement actual invoice tracking
+    res.json({
+      invoices: [
+        // Mock invoice for demo
+        {
+          id: 'inv_demo',
+          amount: 12.00,
+          description: 'Pro Plan - Monthly',
+          status: 'paid',
+          date: new Date().toISOString()
+        }
+      ]
+    });
+    
+  } catch (error) {
+    console.error('? Invoices error:', error);
+    res.status(500).json({ error: 'Failed to fetch invoices' });
+  }
+});
+
+// Billing subscription endpoint (used by /billing page)
+app.get('/api/billing/subscription', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const userResult = await pool.query(
+      'SELECT subscription_tier, subscription_status, stripe_subscription_id, stripe_customer_id FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    const plan = user.subscription_tier || 'free';
+    const isPaid = plan !== 'free';
+    
+    console.log('?? Billing subscription for user:', userId, { plan, isPaid });
+    
+    res.json({
+      id: user.stripe_subscription_id || 'free_plan',
+      plan: plan,
+      status: user.subscription_status || 'active',
+      price: plan === 'pro' ? 12 : plan === 'team' ? 25 : 0,
+      next_billing_date: isPaid ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null,
+      current_period_end: isPaid ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null,
+      cancel_at: null,
+      payment_method: isPaid ? {
+        last4: '4242',
+        brand: 'visa',
+        exp_month: 12,
+        exp_year: 2026
+      } : null
+    });
+  } catch (error) {
+    console.error('? Billing subscription error:', error);
+    res.status(500).json({ error: 'Failed to fetch billing subscription' });
+  }
+});
+
+// Cancel subscription (billing page version)
+app.post('/api/billing/cancel', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    console.log(`?? Cancelling subscription for user ${userId}`);
+    
+    // Get current plan
+    const userResult = await pool.query(
+      'SELECT subscription_tier FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    const currentPlan = userResult.rows[0]?.subscription_tier || 'free';
+    
+    if (currentPlan === 'free') {
+      return res.status(400).json({ error: 'No active subscription to cancel' });
+    }
+    
+    // Calculate when access ends
+    const accessEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    
+    // Update subscription status
+    await pool.query(
+      `UPDATE users 
+       SET subscription_status = 'cancelled',
+           updated_at = NOW()
+       WHERE id = $1`,
+      [userId]
+    );
+    
+    console.log(`? Successfully cancelled subscription for user ${userId}`);
+    
+    res.json({ 
+      success: true,
+      message: 'Subscription cancelled successfully',
+      plan: currentPlan,
+      status: 'cancelled',
+      current_period_end: accessEndsAt.toISOString(),
+      cancel_at: accessEndsAt.toISOString()
+    });
+  } catch (error) {
+    console.error('? Cancel subscription error:', error);
+    res.status(500).json({ error: 'Failed to cancel subscription' });
+  }
+});
+
+// Billing portal (billing page version)
+app.post('/api/billing/portal', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    console.log(`?? Creating billing portal for user ${userId}`);
+    
+    const userResult = await pool.query(
+      'SELECT stripe_customer_id, subscription_tier FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    const user = userResult.rows[0];
+    
+    // If real Stripe customer, create real portal
+    if (user?.stripe_customer_id && user.stripe_customer_id.startsWith('cus_') && typeof stripe !== 'undefined') {
+      try {
+        const session = await stripe.billingPortal.sessions.create({
+          customer: user.stripe_customer_id,
+          return_url: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/billing`,
+        });
+        
+        return res.json({ url: session.url, is_simulated: false });
+      } catch (stripeError) {
+        console.error('Stripe portal error:', stripeError);
+      }
+    }
+    
+    // Fallback for simulated mode
+    res.json({ 
+      url: null,
+      is_simulated: true,
+      message: 'Billing management - contact support for payment changes'
+    });
+    
+  } catch (error) {
+    console.error('? Billing portal error:', error);
+    res.status(500).json({ error: 'Failed to create billing portal session' });
+  }
+});
+
+// POST /api/billing/reactivate
+app.post('/api/billing/reactivate', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    console.log(`?? Reactivating subscription for user ${userId}`);
+    
+    const userResult = await pool.query(
+      'SELECT subscription_tier, subscription_status FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    const user = userResult.rows[0];
+    
+    if (!user || user.subscription_tier === 'free') {
+      return res.status(400).json({ error: 'No subscription to reactivate' });
+    }
+    
+    if (user.subscription_status !== 'cancelled') {
+      return res.status(400).json({ error: 'Subscription is not cancelled' });
+    }
+    
+    await pool.query(
+      `UPDATE users SET subscription_status = 'active', updated_at = NOW() WHERE id = $1`,
+      [userId]
+    );
+    
+    console.log(`? Subscription reactivated for user ${userId}`);
+    
+    res.json({ 
+      success: true,
+      message: 'Subscription reactivated successfully',
+      status: 'active'
+    });
+  } catch (error) {
+    console.error('? Reactivate error:', error);
+    res.status(500).json({ error: 'Failed to reactivate subscription' });
+  }
+});
+
 
 // ============ CHATGPT INTEGRATION ENDPOINTS ============
 
@@ -7209,60 +10510,204 @@ app.post('/api/chatgpt/suggest-times', authenticateToken, async (req, res) => {
   }
 });
 
-// Autonomous booking
+// ============ FIXED CHATGPT BOOK-MEETING ENDPOINT ============
+// Replace your existing /api/chatgpt/book-meeting endpoint with this
+
 app.post('/api/chatgpt/book-meeting', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { 
+   const { 
       title, 
       start_time, 
       end_time, 
+      attendees,
       attendee_email, 
       attendee_name,
       notes 
     } = req.body;
-    
-    // Get user's booking token
+
+    // Get all attendees (support both single and multiple)
+    const allAttendees = attendees || [attendee_email];
+
+    console.log('?? AI Booking request:', { title, start_time, attendee_email });
+
+    // Validate required fields
+    if (!start_time || !attendee_email) {
+      return res.status(400).json({ error: 'Start time and attendee email are required' });
+    }
+
+    // Get user's booking token and info
     const memberResult = await pool.query(
-      'SELECT id, booking_token FROM team_members WHERE user_id = $1 LIMIT 1',
+      `SELECT tm.id, tm.booking_token, tm.name, tm.email, t.name as team_name
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       WHERE tm.user_id = $1 OR t.owner_id = $1
+       LIMIT 1`,
       [userId]
     );
-    
+
     if (memberResult.rows.length === 0) {
       return res.status(400).json({ error: 'No team membership found' });
     }
-    
+
     const member = memberResult.rows[0];
+    // Fallback for member name if null
+    member.name = member.name || member.email?.split('@')[0] || 'Your Host';
     
-    // Create booking directly
+    // Create booking
     const manageToken = crypto.randomBytes(16).toString('hex');
+    const bookingTitle = title || 'Meeting';
+    const guestName = attendee_name || attendee_email.split('@')[0];
     
+    // Calculate end time if not provided (default 30 min)
+    const startDate = new Date(start_time);
+    const endDate = end_time ? new Date(end_time) : new Date(startDate.getTime() + 30 * 60000);
+    const duration = Math.round((endDate - startDate) / 60000);
     const bookingResult = await pool.query(`
-      INSERT INTO bookings (
-        member_id, user_id, attendee_name, attendee_email,
-        start_time, end_time, title, notes, status, manage_token
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'confirmed', $9)
-      RETURNING *
-    `, [
-      member.id, userId, attendee_name, attendee_email,
-      start_time, end_time, title, notes, manageToken
-    ]);
+  INSERT INTO bookings (
+    member_id, user_id, attendee_name, attendee_email,
+    start_time, end_time, title, notes, status, manage_token, duration
+  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'confirmed', $9, $10)
+  RETURNING *
+`, [
+  member.id, userId, guestName, attendee_email,
+  startDate.toISOString(), endDate.toISOString(), 
+  bookingTitle, notes || null, manageToken, duration
+]);
+
+const booking = bookingResult.rows[0];
+console.log('? AI Booking created:', booking.id);
+
+// ? Track AI usage after successful booking
+console.log(`?? About to increment AI usage for user ${userId}`);
+await incrementAIUsage(userId);
+console.log(`?? AI query used by user ${userId} for successful booking`);
+
+// Format times for email
+const formattedDate = startDate.toLocaleDateString('en-US', {
+  weekday: 'long',
+  year: 'numeric',
+  month: 'long', 
+  day: 'numeric'
+});
+const formattedTime = startDate.toLocaleTimeString('en-US', {
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true
+});
+const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${manageToken}`;
+
     
-    const booking = bookingResult.rows[0];
+    // Send confirmation email to ALL GUESTS
+    for (const guestEmail of allAttendees) {
+      const guestName = guestEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      
+      try {
+        await resend.emails.send({
+          from: `${member.name} via ScheduleSync <notifications@${process.env.RESEND_DOMAIN || 'trucal.xyz'}>`,
+          to: guestEmail,
+          subject: `? Meeting Confirmed: ${bookingTitle}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 24px;">? Meeting Confirmed!</h1>
+              </div>
+              
+              <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
+                <p style="font-size: 16px; color: #333;">Hi ${guestName},</p>
+                
+                <p style="font-size: 16px; color: #555;">Your meeting with <strong>${member.name}</strong> has been confirmed!</p>
+                
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
+                  <p style="margin: 5px 0; color: #333;"><strong>?? Date:</strong> ${formattedDate}</p>
+                  <p style="margin: 5px 0; color: #333;"><strong>?? Time:</strong> ${formattedTime}</p>
+                  <p style="margin: 5px 0; color: #333;"><strong>?? Duration:</strong> ${duration} minutes</p>
+                  ${allAttendees.length > 1 ? `<p style="margin: 5px 0; color: #333;"><strong>?? All Attendees:</strong> ${allAttendees.join(', ')}</p>` : ''}
+                </div>
+                
+                ${notes ? `
+                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                  <p style="margin: 0; color: #856404;"><strong>?? Notes:</strong> ${notes}</p>
+                </div>
+                ` : ''}
+                
+                <div style="text-align: center; margin-top: 30px;">
+                  <a href="${manageUrl}" style="display: inline-block; background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Manage Booking</a>
+                </div>
+                
+                <p style="font-size: 14px; color: #888; margin-top: 30px; text-align: center;">
+                  Scheduled via ScheduleSync
+                </p>
+              </div>
+            </div>
+          `
+        });
+        console.log('? Guest confirmation email sent to:', guestEmail);
+      } catch (emailError) {
+        console.error('? Failed to send guest email to', guestEmail, ':', emailError);
+      }
+    }
     
-    // Send confirmation emails (async)
-    // ... your existing email logic ...
-    
-    res.json({
-      success: true,
-      booking_id: booking.id,
-      manage_url: `${process.env.FRONTEND_URL}/manage/${manageToken}`,
-      message: `Meeting "${title}" booked successfully with ${attendee_name}`
-    });
-    
+
+    // Send notification email to ORGANIZER
+    try {
+      await resend.emails.send({
+        from: `ScheduleSync <notifications@${process.env.RESEND_DOMAIN || 'trucal.xyz'}>`,
+        to: member.email,
+        subject: `?? New Booking: ${guestName} - ${bookingTitle}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">?? New Booking via AI</h1>
+            </div>
+            
+            <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
+              <p style="font-size: 16px; color: #333;">Hi ${member.name},</p>
+              
+              <p style="font-size: 16px; color: #555;">You have a new booking created via your AI assistant.</p>
+              
+              <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #11998e;">
+               <p style="margin: 5px 0; color: #333;"><strong>?? Guests:</strong> ${allAttendees.join(', ')}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>?? Date:</strong> ${formattedDate}</p>
+                <p style="margin: 5px 0; color: #333;"><strong>?? Time:</strong> ${formattedTime}</p>
+                <p style="margin: 5px 0; color: #333;"><strong>?? Duration:</strong> ${duration} minutes</p>
+              </div>
+              
+              ${notes ? `
+              <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0; color: #2e7d32;"><strong>?? Notes:</strong> ${notes}</p>
+              </div>
+              ` : ''}
+              
+              <p style="font-size: 14px; color: #888; margin-top: 30px; text-align: center;">
+                Powered by ScheduleSync AI
+              </p>
+            </div>
+          </div>
+        `
+      });
+      console.log('? Organizer notification email sent to:', member.email);
+    } catch (emailError) {
+      console.error('? Failed to send organizer email:', emailError);
+    }
+
+   
+// ? Return SUCCESS response (not clarify)
+return res.json({
+  type: 'booking_created',
+  message: `? Meeting scheduled for ${formattedDate} at ${formattedTime}`,
+  data: { booking },
+  usage: {
+    ai_queries_used: req.userUsage.chatgpt_queries_used + 1,
+    ai_queries_limit: 3
+  }
+});
+
   } catch (error) {
-    console.error('Book meeting error:', error);
-    res.status(500).json({ error: 'Failed to book meeting' });
+    console.error('? ChatGPT book meeting error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to create booking' });
+    }
   }
 });
 
@@ -7288,19 +10733,232 @@ app.get('/api/chatgpt/team-members', authenticateToken, async (req, res) => {
   }
 });
 
+// ============================================
+// CHATGPT INTEGRATION ENDPOINTS
+// These allow the AI assistant to use templates
+// ============================================
+
+// Get templates for ChatGPT (simple format)
+app.get('/api/chatgpt/email-templates', authenticateToken, async (req, res) => {
+  try {
+    const { type } = req.query;
+    
+    let query = `
+      SELECT id, name, type, subject 
+      FROM email_templates 
+      WHERE user_id = $1
+    `;
+    const params = [req.user.id];
+    
+    if (type) {
+      query += ` AND type = $2`;
+      params.push(type);
+    }
+    
+    query += ` ORDER BY is_favorite DESC, name ASC`;
+    
+    const result = await pool.query(query, params);
+    
+    res.json({ 
+      templates: result.rows.map(t => ({
+        id: t.id,
+        name: t.name,
+        type: t.type,
+        subject: t.subject
+      })),
+      types: ['reminder', 'confirmation', 'follow_up', 'reschedule', 'cancellation', 'other']
+    });
+  } catch (error) {
+    console.error('ChatGPT get templates error:', error);
+    res.status(500).json({ error: 'Failed to fetch templates' });
+  }
+});
+
+// Search templates by keyword (for AI natural language)
+app.get('/api/chatgpt/find-template', authenticateToken, async (req, res) => {
+  try {
+    const { query, type } = req.query;
+    
+    if (!query && !type) {
+      return res.status(400).json({ error: 'Provide query or type parameter' });
+    }
+    
+    let sqlQuery = `
+      SELECT id, name, type, subject, body 
+      FROM email_templates 
+      WHERE user_id = $1
+    `;
+    const params = [req.user.id];
+    let paramIndex = 2;
+    
+    if (query) {
+      sqlQuery += ` AND (LOWER(name) LIKE LOWER($${paramIndex}) OR LOWER(subject) LIKE LOWER($${paramIndex}))`;
+      params.push(`%${query}%`);
+      paramIndex++;
+    }
+    
+    if (type) {
+      sqlQuery += ` AND type = $${paramIndex}`;
+      params.push(type);
+    }
+    
+    sqlQuery += ` ORDER BY is_favorite DESC LIMIT 5`;
+    
+    const result = await pool.query(sqlQuery, params);
+    
+    if (result.rows.length === 0) {
+      return res.json({ 
+        found: false,
+        message: 'No matching templates found',
+        suggestion: 'Create a new template or try different search terms'
+      });
+    }
+    
+    res.json({ 
+      found: true,
+      templates: result.rows,
+      best_match: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Find template error:', error);
+    res.status(500).json({ error: 'Failed to search templates' });
+  }
+});
+
+// Send email using a template (for ChatGPT)
+app.post('/api/chatgpt/send-email', authenticateToken, async (req, res) => {
+  try {
+    const { 
+      template_id, 
+      template_name, 
+      recipient_email, 
+      recipient_name, 
+      booking_id,
+      custom_data 
+    } = req.body;
+    
+    if (!recipient_email) {
+      return res.status(400).json({ error: 'Recipient email is required' });
+    }
+    
+    // Get template by ID or name
+    let template;
+    
+    if (template_id) {
+      const result = await pool.query(
+        `SELECT * FROM email_templates WHERE id = $1 AND user_id = $2`,
+        [template_id, req.user.id]
+      );
+      template = result.rows[0];
+    } else if (template_name) {
+      const result = await pool.query(
+        `SELECT * FROM email_templates 
+         WHERE user_id = $1 AND LOWER(name) LIKE LOWER($2)
+         ORDER BY is_favorite DESC
+         LIMIT 1`,
+        [req.user.id, `%${template_name}%`]
+      );
+      template = result.rows[0];
+    }
+    
+    if (!template) {
+      return res.status(404).json({ 
+        error: 'Template not found',
+        hint: 'List templates first with GET /api/chatgpt/email-templates'
+      });
+    }
+    
+    // Get user info
+    const userResult = await pool.query(
+      `SELECT name, email FROM users WHERE id = $1`,
+      [req.user.id]
+    );
+    const user = userResult.rows[0];
+    
+    // Get booking info if provided
+    let bookingData = {};
+    if (booking_id) {
+      const bookingResult = await pool.query(
+        `SELECT * FROM bookings WHERE id = $1`,
+        [booking_id]
+      );
+      
+      if (bookingResult.rows[0]) {
+        const booking = bookingResult.rows[0];
+        bookingData = {
+          meetingDate: new Date(booking.start_time).toLocaleDateString('en-US', { 
+            weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' 
+          }),
+          meetingTime: new Date(booking.start_time).toLocaleTimeString('en-US', { 
+            hour: 'numeric', minute: '2-digit', hour12: true 
+          }),
+          meetingLink: booking.meeting_link || '',
+        };
+      }
+    }
+    
+    // Prepare variables
+    const variables = {
+      guestName: recipient_name || 'there',
+      guestEmail: recipient_email,
+      organizerName: user.name,
+      organizerEmail: user.email,
+      bookingLink: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/book/${req.user.id}`,
+      ...bookingData,
+      ...custom_data
+    };
+    
+    // Replace variables in template
+    let subject = template.subject;
+    let body = template.body;
+    
+    Object.entries(variables).forEach(([key, value]) => {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      subject = subject.replace(regex, value || '');
+      body = body.replace(regex, value || '');
+    });
+    
+    // Send email
+    try {
+      await resend.emails.send({
+        from: `${user.name} via ScheduleSync <notifications@${process.env.RESEND_DOMAIN || 'trucal.xyz'}>`,
+        to: recipient_email,
+        subject: subject,
+        text: body,
+      });
+      
+      console.log(`? AI sent email: "${template.name}" to ${recipient_email}`);
+      
+      res.json({ 
+        success: true,
+        message: `Email sent to ${recipient_email}`,
+        template_used: template.name,
+        subject: subject
+      });
+    } catch (emailError) {
+      console.error('Email send error:', emailError);
+      res.status(500).json({ error: 'Failed to send email' });
+    }
+    
+  } catch (error) {
+    console.error('ChatGPT send email error:', error);
+    res.status(500).json({ error: 'Failed to process email request' });
+  }
+});
+
 // =============================================================================
 // JWT TOKEN MANAGEMENT FOR CHATGPT INTEGRATION (CORRECTED VERSION)
 // Replace your existing JWT endpoints with this corrected version
 // =============================================================================
 
 // Get user's current JWT token for ChatGPT integration
-app.get('/api/user/jwt-token', authenticateToken, async (req, res) => {
+app.get('/api/user/jwt-token', authenticateToken, trackChatGptUsage, async (req, res) => {
   try {
     const user_id = req.user.id;
     
     // Get user info
     const userQuery = 'SELECT id, email, name, created_at FROM users WHERE id = $1';
-    const userResult = await pool.query(userQuery, [user_id]); // ✅ FIXED: pool instead of client
+    const userResult = await pool.query(userQuery, [user_id]); // ? FIXED: pool instead of client
     
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -7328,7 +10986,7 @@ app.get('/api/user/jwt-token', authenticateToken, async (req, res) => {
       WHERE tm.user_id = $1 
       LIMIT 1
     `;
-    const teamResult = await pool.query(teamQuery, [user_id]); // ✅ FIXED: pool instead of client
+    const teamResult = await pool.query(teamQuery, [user_id]); // ? FIXED: pool instead of client
     const hasBookingSetup = teamResult.rows.length > 0;
     
     res.json({
@@ -7355,13 +11013,13 @@ app.get('/api/user/jwt-token', authenticateToken, async (req, res) => {
 });
 
 // Refresh JWT token (if user needs a new one)
-app.post('/api/user/refresh-chatgpt-token', authenticateToken, async (req, res) => {
+app.post('/api/user/refresh-chatgpt-token', authenticateToken, trackChatGptUsage, async (req, res) => {
   try {
     const user_id = req.user.id;
     
     // Get user info
     const userQuery = 'SELECT id, email, name FROM users WHERE id = $1';
-    const userResult = await pool.query(userQuery, [user_id]); // ✅ FIXED: pool instead of client
+    const userResult = await pool.query(userQuery, [user_id]); // ? FIXED: pool instead of client
     
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -7395,7 +11053,7 @@ app.post('/api/user/refresh-chatgpt-token', authenticateToken, async (req, res) 
 });
 
 // Test ChatGPT connection (verify token works)
-app.get('/api/user/test-chatgpt-connection', authenticateToken, async (req, res) => {
+app.get('/api/user/test-chatgpt-connection', authenticateToken, trackChatGptUsage, async (req, res) => {
   try {
     const user_id = req.user.id;
     
@@ -7411,7 +11069,7 @@ app.get('/api/user/test-chatgpt-connection', authenticateToken, async (req, res)
         WHERE tm.user_id = $1 AND t.name LIKE '%Personal%' 
         LIMIT 1
       `;
-      const memberResult = await pool.query(memberQuery, [user_id]); // ✅ FIXED: pool instead of client
+      const memberResult = await pool.query(memberQuery, [user_id]); // ? FIXED: pool instead of client
       tests.push({
         test: 'Get Booking Link',
         status: memberResult.rows.length > 0 ? 'PASS' : 'FAIL',
@@ -7435,7 +11093,7 @@ app.get('/api/user/test-chatgpt-connection', authenticateToken, async (req, res)
     // Test 3: Can get team members
     try {
       const teamQuery = `SELECT COUNT(*) as team_count FROM teams WHERE owner_id = $1`;
-      const teamResult = await pool.query(teamQuery, [user_id]); // ✅ FIXED: pool instead of client
+      const teamResult = await pool.query(teamQuery, [user_id]); // ? FIXED: pool instead of client
       tests.push({
         test: 'Get Team Members',
         status: 'PASS',
@@ -7472,6 +11130,11 @@ app.get('/api/user/test-chatgpt-connection', authenticateToken, async (req, res)
   }
 });
 
+app.get('/api/usage', authenticateToken, getCurrentUsage, (req, res) => {
+  res.json(req.userUsage);
+});
+
+
 // Get ChatGPT setup instructions
 app.get('/api/user/chatgpt-setup-guide', (req, res) => {
   res.json({
@@ -7487,7 +11150,7 @@ app.get('/api/user/chatgpt-setup-guide', (req, res) => {
         step: 2,
         title: 'Create Custom GPT',
         description: 'Go to ChatGPT and create a new custom GPT',
-        action: 'Visit chat.openai.com and click "Explore GPTs" → "Create a GPT"'
+        action: 'Visit chat.openai.com and click "Explore GPTs" ? "Create a GPT"'
       },
       {
         step: 3,
@@ -7506,10 +11169,10 @@ app.get('/api/user/chatgpt-setup-guide', (req, res) => {
 Always be friendly and efficient. When users ask for booking links or meeting times, use the available actions to help them immediately.
 
 Example interactions:
-- "What's my booking link?" → Use getGenericBookingLink
-- "Create a temp link for John" → Use createTemporaryBookingLink  
-- "Find time for a meeting next week" → Use suggestOptimalTimes
-- "Who's on my team?" → Use getTeamMembers
+- "What's my booking link?" ? Use getGenericBookingLink
+- "Create a temp link for John" ? Use createTemporaryBookingLink  
+- "Find time for a meeting next week" ? Use suggestOptimalTimes
+- "Who's on my team?" ? Use getTeamMembers
 
 Be conversational and helpful!`
         }
@@ -8298,6 +11961,7 @@ module.exports = {
   lastReminderRun
 };
 
+
 // ============ ONBOARDING / PROFILE UPDATE ============
 app.put('/api/users/profile', authenticateToken, async (req, res) => {
   const client = await pool.connect();
@@ -8527,6 +12191,7 @@ process.on('unhandledRejection', (err) => {
   console.error('Unhandled Promise Rejection:', err);
   if (process.env.NODE_ENV === 'production') server.close(() => process.exit(1));
 });
+
 
 module.exports = app;
 
