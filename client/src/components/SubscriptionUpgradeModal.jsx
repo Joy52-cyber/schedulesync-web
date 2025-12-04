@@ -2,7 +2,8 @@
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
+// ✅ FIX: Use Vite's env variable format (not Create React App's)
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 // Payment Form Component
 const PaymentForm = ({ plan, onSuccess, onCancel }) => {
@@ -18,30 +19,39 @@ const PaymentForm = ({ plan, onSuccess, onCancel }) => {
 
     try {
       // Create subscription
-      const response = await fetch('/api/subscriptions/create', {
+      const response = await fetch('/api/billing/create-subscription', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({ plan_id: plan.id })
+        body: JSON.stringify({ plan: plan.id })
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create subscription');
+      }
 
-      // Confirm payment with Stripe
-      const cardElement = elements.getElement(CardElement);
-      const result = await stripe.confirmCardPayment(data.client_secret, {
-        payment_method: { card: cardElement }
-      });
+      // If we get a client_secret, confirm the payment
+      if (data.clientSecret) {
+        const cardElement = elements.getElement(CardElement);
+        const result = await stripe.confirmCardPayment(data.clientSecret, {
+          payment_method: { card: cardElement }
+        });
 
-      if (result.error) {
-        setError(result.error.message);
-      } else {
+        if (result.error) {
+          setError(result.error.message);
+        } else if (result.paymentIntent.status === 'succeeded') {
+          onSuccess(plan);
+        }
+      } else if (data.success) {
+        // Subscription created without requiring payment confirmation
         onSuccess(plan);
       }
     } catch (err) {
+      console.error('Payment error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -50,16 +60,24 @@ const PaymentForm = ({ plan, onSuccess, onCancel }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="p-3 border border-gray-300 rounded-lg">
-        <CardElement options={{
-          style: {
-            base: { fontSize: '16px', color: '#374151' }
-          }
-        }} />
+      <div className="p-4 border border-gray-300 rounded-lg bg-white">
+        <CardElement 
+          options={{
+            style: {
+              base: { 
+                fontSize: '16px', 
+                color: '#374151',
+                '::placeholder': { color: '#9CA3AF' }
+              },
+              invalid: { color: '#EF4444' }
+            },
+            hidePostalCode: false
+          }} 
+        />
       </div>
 
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
           {error}
         </div>
       )}
@@ -68,19 +86,29 @@ const PaymentForm = ({ plan, onSuccess, onCancel }) => {
         <button
           type="submit"
           disabled={!stripe || loading}
-          className={`flex-1 py-3 px-4 rounded-lg font-medium ${
-            loading 
-              ? 'bg-gray-400 cursor-not-allowed' 
+          className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
+            loading || !stripe
+              ? 'bg-gray-400 cursor-not-allowed text-white' 
               : 'bg-blue-600 hover:bg-blue-700 text-white'
           }`}
         >
-          {loading ? 'Processing...' : `Pay $${plan.price}/month`}
+          {loading ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Processing...
+            </span>
+          ) : (
+            `Pay $${plan.price}/month`
+          )}
         </button>
         
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50"
+          className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
         >
           Cancel
         </button>
@@ -127,6 +155,9 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
     }
   ];
 
+  // Filter out current plan
+  const availablePlans = plans.filter(p => p.id !== currentTier);
+
   const handlePlanSelect = (plan) => {
     setSelectedPlan(plan);
     setStep('payment');
@@ -137,7 +168,6 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
     setSelectedPlan(null);
     onClose();
     
-    // Call the success handler passed from parent
     if (onSuccess) {
       onSuccess(plan);
     }
@@ -148,7 +178,16 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
     setSelectedPlan(null);
   };
 
+  const handleClose = () => {
+    setStep('select');
+    setSelectedPlan(null);
+    onClose();
+  };
+
   if (!isOpen) return null;
+
+  // Check if Stripe key is configured
+  const stripeKeyMissing = !import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -169,8 +208,8 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
               </p>
             </div>
             <button 
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+              onClick={handleClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl font-bold w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
             >
               ×
             </button>
@@ -179,11 +218,16 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
 
         {/* Content */}
         <div className="p-6">
-          {step === 'select' ? (
+          {stripeKeyMissing ? (
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
+              <p className="font-medium">⚠️ Stripe not configured</p>
+              <p className="text-sm mt-1">Please add VITE_STRIPE_PUBLISHABLE_KEY to your environment variables.</p>
+            </div>
+          ) : step === 'select' ? (
             
             /* Plan Selection */
-            <div className="grid md:grid-cols-2 gap-6">
-              {plans.map((plan) => (
+            <div className={`grid gap-6 ${availablePlans.length > 1 ? 'md:grid-cols-2' : 'max-w-md mx-auto'}`}>
+              {availablePlans.map((plan) => (
                 <div 
                   key={plan.id}
                   className={`relative border-2 rounded-xl p-6 cursor-pointer transition-all hover:shadow-lg ${
@@ -216,7 +260,7 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
                     ))}
                   </ul>
 
-                  <button className={`w-full py-3 rounded-lg font-medium ${
+                  <button className={`w-full py-3 rounded-lg font-medium transition-colors ${
                     plan.popular
                       ? 'bg-blue-600 text-white hover:bg-blue-700'
                       : 'bg-purple-600 text-white hover:bg-purple-700'
@@ -233,7 +277,7 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
             <div className="max-w-md mx-auto">
               <button 
                 onClick={handleBack}
-                className="mb-4 text-blue-600 hover:text-blue-700 text-sm"
+                className="mb-4 text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1"
               >
                 ← Back to plans
               </button>
