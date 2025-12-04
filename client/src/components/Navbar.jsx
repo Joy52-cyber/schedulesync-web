@@ -189,6 +189,14 @@ export default function Navbar() {
             </div>
           </div>
 
+          <Link 
+  to="/billing" 
+  className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors"
+>
+  <CreditCard className="h-5 w-5 text-gray-400" />
+  <span>Billing & Subscription</span>
+</Link>
+
           {/* User / Notifications (Desktop) - YOUR EXISTING CODE */}
           <div className="hidden md:flex items-center gap-4">
             <NotificationBell />

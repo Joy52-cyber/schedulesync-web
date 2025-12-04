@@ -9017,11 +9017,11 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
     
     const user = result.rows[0];
     
-    console.log(`📊 Usage fetched for user ${userId}:`, user);
+    console.log(`📊 Usage fetched for user ${userId}:`, user);  // ✅ Fixed
     
     res.json({
       ai_queries_used: user.ai_queries_used || 0,
-      ai_queries_limit: user.ai_queries_limit || 3,
+      ai_queries_limit: user.ai_queries_limit || 10,
       timestamp: new Date().toISOString()
     });
     
@@ -9031,12 +9031,11 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
   }
 });
 
-
 // ============ AI USAGE TRACKING ============
 async function incrementAIUsage(userId) {
   try {
     const result = await pool.query(
-      'UPDATE users SET ai_queries_used = ai_queries_used + 1 WHERE id = $1 RETURNING ai_queries_used, ai_queries_limit',
+      'UPDATE users SET ai_queries_used = COALESCE(ai_queries_used, 0) + 1 WHERE id = $1 RETURNING ai_queries_used, ai_queries_limit',  // ✅ Fixed
       [userId]
     );
     
@@ -9045,12 +9044,12 @@ async function incrementAIUsage(userId) {
     }
     
     const updated = result.rows[0];
-    console.log(`✅ AI usage incremented for user ${userId}: ${updated.ai_queries_used}/${updated.ai_queries_limit}`);
+    console.log(`✅ AI usage incremented for user ${userId}: ${updated.ai_queries_used}/${updated.ai_queries_limit}`);  // ✅ Fixed
     
     return {
       success: true,
       ai_queries_used: updated.ai_queries_used,
-      ai_queries_limit: updated.ai_queries_limit
+      ai_queries_limit: updated.ai_queries_limit || 10
     };
   } catch (error) {
     console.error('❌ Failed to increment AI usage:', error);

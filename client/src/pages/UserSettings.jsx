@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom'; // ✅ Added Link import
 import { useNotification } from '../contexts/NotificationContext';
 import { 
   User, 
@@ -29,6 +29,7 @@ import {
   X,
   Link2,
   FileText,
+  CreditCard, // ✅ Already imported
 } from 'lucide-react';
 import api, { 
   auth, 
@@ -39,6 +40,7 @@ import api, {
 } from '../utils/api';
 
 import SubscriptionSettings from '../components/SubscriptionSettings';
+
 
 export default function UserSettings() {
   const [searchParams] = useSearchParams();
@@ -447,6 +449,15 @@ export default function UserSettings() {
             >
               <FileText size={18} /> Email Templates
             </button>
+            
+            {/* ✅ ADD BILLING LINK HERE */}
+            <Link 
+              to="/billing" 
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-gray-600 hover:bg-gray-50"
+            >
+              <CreditCard size={18} className="text-gray-400" />
+              <span>Billing & Subscription</span>
+            </Link>
           </nav>
         </div>
 
@@ -1007,6 +1018,8 @@ export default function UserSettings() {
               </div>
             </div>
           )}
+
+
 
           {/* EMAIL TEMPLATES TAB */}
           {activeTab === 'email-templates' && (
