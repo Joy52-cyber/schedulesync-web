@@ -8164,9 +8164,8 @@ if (parsedIntent.intent === 'get_magic_link') {
 // ============ HANDLE GET TEAM LINKS ============
 if (parsedIntent.intent === 'get_team_links') {
   try {
-    // Get all teams and their links
     const teamsResult = await pool.query(
-      `SELECT t.id, t.name, t.slug, 
+      `SELECT t.id, t.name, t.team_booking_token, t.is_personal,
               COUNT(tm.id) as member_count
        FROM teams t
        LEFT JOIN team_members tm ON t.id = tm.team_id
@@ -8187,8 +8186,9 @@ if (parsedIntent.intent === 'get_team_links') {
     const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
     
     const teamLinks = teamsResult.rows.map((team, index) => {
-      const teamUrl = `${baseUrl}/team/${team.slug || team.id}`;
-      return `${index + 1}. ${team.name}\n   🔗 ${teamUrl}\n   👥 ${team.member_count} members`;
+      const teamUrl = `${baseUrl}/book/${team.team_booking_token}`;
+      const label = team.is_personal ? '⭐ Personal' : '🏢 Team';
+      return `${index + 1}. ${team.name} ${label}\n   🔗 ${teamUrl}\n   👥 ${team.member_count} members`;
     }).join('\n\n');
 
     return res.json({
@@ -8198,8 +8198,9 @@ if (parsedIntent.intent === 'get_team_links') {
         teams: teamsResult.rows.map(team => ({
           id: team.id,
           name: team.name,
-          url: `${baseUrl}/team/${team.slug || team.id}`,
-          member_count: team.member_count
+          url: `${baseUrl}/book/${team.team_booking_token}`,
+          member_count: team.member_count,
+          is_personal: team.is_personal
         }))
       },
       usage: usageData
@@ -8213,7 +8214,6 @@ if (parsedIntent.intent === 'get_team_links') {
     });
   }
 }
-
 // ============ HANDLE GET MEMBER LINK ============
 if (parsedIntent.intent === 'get_member_link') {
   try {
@@ -8227,13 +8227,15 @@ if (parsedIntent.intent === 'get_member_link') {
       });
     }
 
-    // Search for member by name (fuzzy match)
+    // Search for member by name (fuzzy match) - join with users to get email
     const memberResult = await pool.query(
-      `SELECT tm.id, tm.name, tm.email, tm.booking_token, t.name as team_name
+      `SELECT tm.id, tm.name, tm.booking_token, t.name as team_name,
+              u.email as user_email, u.name as user_name
        FROM team_members tm
        JOIN teams t ON tm.team_id = t.id
+       LEFT JOIN users u ON tm.user_id = u.id
        WHERE t.owner_id = $1 
-         AND LOWER(tm.name) LIKE LOWER($2)
+         AND (LOWER(tm.name) LIKE LOWER($2) OR LOWER(u.name) LIKE LOWER($2))
        LIMIT 5`,
       [userId, `%${memberName}%`]
     );
@@ -8251,10 +8253,12 @@ if (parsedIntent.intent === 'get_member_link') {
     if (memberResult.rows.length === 1) {
       const member = memberResult.rows[0];
       const memberUrl = `${baseUrl}/book/${member.booking_token}`;
+      const displayName = member.user_name || member.name || 'Team Member';
+      const displayEmail = member.user_email || 'No email';
       
       return res.json({
         type: 'link',
-        message: `👤 ${member.name}'s Booking Link:\n\n🔗 ${memberUrl}\n\n📧 Email: ${member.email}\n🏢 Team: ${member.team_name}`,
+        message: `👤 ${displayName}'s Booking Link:\n\n🔗 ${memberUrl}\n\n📧 Email: ${displayEmail}\n🏢 Team: ${member.team_name}`,
         data: {
           url: memberUrl,
           member: member,
@@ -8265,9 +8269,10 @@ if (parsedIntent.intent === 'get_member_link') {
     }
 
     // Multiple matches - list them
-    const memberList = memberResult.rows.map((m, i) => 
-      `${i + 1}. ${m.name} (${m.team_name})\n   🔗 ${baseUrl}/book/${m.booking_token}`
-    ).join('\n\n');
+    const memberList = memberResult.rows.map((m, i) => {
+      const displayName = m.user_name || m.name || 'Team Member';
+      return `${i + 1}. ${displayName} (${m.team_name})\n   🔗 ${baseUrl}/book/${m.booking_token}`;
+    }).join('\n\n');
 
     return res.json({
       type: 'list',
@@ -8287,28 +8292,32 @@ if (parsedIntent.intent === 'get_member_link') {
     });
   }
 }
-
 // ============ HANDLE GET EVENT TYPES ============
 if (parsedIntent.intent === 'get_event_types') {
   try {
+    // Get user info for username
+    const userResult = await pool.query(
+      `SELECT username, email FROM users WHERE id = $1`,
+      [userId]
+    );
+    const username = userResult.rows[0]?.username || userResult.rows[0]?.email?.split('@')[0] || 'user';
+
     const eventTypesResult = await pool.query(
-      `SELECT et.id, et.name, et.slug, et.duration, et.description, 
+      `SELECT et.id, et.title as name, et.slug, et.duration, et.description, 
               et.price, et.is_active, et.color,
-              t.name as team_name,
               COUNT(b.id) as total_bookings
        FROM event_types et
-       LEFT JOIN teams t ON et.team_id = t.id
        LEFT JOIN bookings b ON b.event_type_id = et.id
-       WHERE et.user_id = $1 OR t.owner_id = $1
-       GROUP BY et.id, t.name
-       ORDER BY et.is_active DESC, et.name ASC`,
+       WHERE et.user_id = $1
+       GROUP BY et.id
+       ORDER BY et.is_active DESC, et.title ASC`,
       [userId]
     );
 
     if (eventTypesResult.rows.length === 0) {
       return res.json({
         type: 'info',
-        message: '📅 You don\'t have any event types yet.\n\nGo to Settings → Event Types to create your first one!',
+        message: '📅 You don\'t have any event types yet.\n\nGo to Event Types to create your first one!',
         usage: usageData
       });
     }
@@ -8318,12 +8327,11 @@ if (parsedIntent.intent === 'get_event_types') {
     const eventTypesList = eventTypesResult.rows.map((et, index) => {
       const status = et.is_active ? '✅ Active' : '⏸️ Inactive';
       const price = et.price ? `💰 $${et.price}` : '🆓 Free';
-      const bookingUrl = `${baseUrl}/book/${et.slug}`;
+      const bookingUrl = `${baseUrl}/book/${username}/${et.slug}`;
       
       return `${index + 1}. ${et.name} ${status}
    ⏱️ ${et.duration} minutes | ${price}
-   🏢 ${et.team_name || 'Personal'}
-   📊 ${et.total_bookings} bookings
+   📊 ${et.total_bookings || 0} bookings
    🔗 ${bookingUrl}${et.description ? `\n   📝 ${et.description}` : ''}`;
     }).join('\n\n');
 
@@ -8359,16 +8367,22 @@ if (parsedIntent.intent === 'get_event_type') {
       });
     }
 
+    // Get user info for username
+    const userResult = await pool.query(
+      `SELECT username, email FROM users WHERE id = $1`,
+      [userId]
+    );
+    const username = userResult.rows[0]?.username || userResult.rows[0]?.email?.split('@')[0] || 'user';
+
     const eventTypeResult = await pool.query(
-      `SELECT et.*, t.name as team_name,
+      `SELECT et.*,
               COUNT(b.id) FILTER (WHERE b.status = 'confirmed') as confirmed_count,
               COUNT(b.id) FILTER (WHERE b.status = 'cancelled') as cancelled_count
        FROM event_types et
-       LEFT JOIN teams t ON et.team_id = t.id
        LEFT JOIN bookings b ON b.event_type_id = et.id
-       WHERE (et.user_id = $1 OR t.owner_id = $1)
-         AND LOWER(et.name) LIKE LOWER($2)
-       GROUP BY et.id, t.name
+       WHERE et.user_id = $1
+         AND LOWER(et.title) LIKE LOWER($2)
+       GROUP BY et.id
        LIMIT 1`,
       [userId, `%${eventTypeName}%`]
     );
@@ -8383,11 +8397,11 @@ if (parsedIntent.intent === 'get_event_type') {
 
     const et = eventTypeResult.rows[0];
     const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
-    const bookingUrl = `${baseUrl}/book/${et.slug}`;
+    const bookingUrl = `${baseUrl}/book/${username}/${et.slug}`;
 
     return res.json({
       type: 'info',
-      message: `📅 ${et.name}\n\n${et.is_active ? '✅ Active' : '⏸️ Inactive'}\n⏱️ Duration: ${et.duration} minutes\n💰 Price: ${et.price ? `$${et.price}` : 'Free'}\n🏢 Team: ${et.team_name || 'Personal'}\n📝 Description: ${et.description || 'None'}\n\n📊 Stats:\n   ✅ Confirmed: ${et.confirmed_count}\n   ❌ Cancelled: ${et.cancelled_count}\n\n🔗 Booking Link:\n${bookingUrl}`,
+      message: `📅 ${et.title}\n\n${et.is_active ? '✅ Active' : '⏸️ Inactive'}\n⏱️ Duration: ${et.duration} minutes\n💰 Price: ${et.price ? `$${et.price}` : 'Free'}\n📝 Description: ${et.description || 'None'}\n\n📊 Stats:\n   ✅ Confirmed: ${et.confirmed_count}\n   ❌ Cancelled: ${et.cancelled_count}\n\n🔗 Booking Link:\n${bookingUrl}`,
       data: {
         event_type: et,
         booking_url: bookingUrl
@@ -8462,15 +8476,14 @@ if (parsedIntent.intent === 'show_cancelled_bookings' ||
     (parsedIntent.intent === 'show_bookings' && parsedIntent.extracted?.status_filter === 'cancelled')) {
   try {
     const bookingsResult = await pool.query(
-      `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.name as event_type_name,
-              b.cancelled_at, b.cancellation_reason
+      `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.title as event_type_name
        FROM bookings b
        LEFT JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
        LEFT JOIN event_types et ON b.event_type_id = et.id
        WHERE (t.owner_id = $1 OR tm.user_id = $1)
          AND b.status = 'cancelled'
-       ORDER BY b.cancelled_at DESC NULLS LAST, b.start_time DESC
+       ORDER BY b.updated_at DESC
        LIMIT 15`,
       [userId]
     );
@@ -8485,12 +8498,10 @@ if (parsedIntent.intent === 'show_cancelled_bookings' ||
 
     const bookingsList = bookingsResult.rows.map((b, index) => {
       const startDate = new Date(b.start_time);
-      const cancelledDate = b.cancelled_at ? new Date(b.cancelled_at).toLocaleDateString() : 'Unknown';
       
       return `${index + 1}. ${b.attendee_name || 'Guest'} ❌
    📧 ${b.attendee_email}
-   📅 Was scheduled: ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-   🗓️ Cancelled on: ${cancelledDate}${b.cancellation_reason ? `\n   💬 Reason: ${b.cancellation_reason}` : ''}`;
+   📅 Was scheduled: ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
     }).join('\n\n');
 
     return res.json({
@@ -8514,15 +8525,14 @@ if (parsedIntent.intent === 'show_rescheduled_bookings' ||
     (parsedIntent.intent === 'show_bookings' && parsedIntent.extracted?.status_filter === 'rescheduled')) {
   try {
     const bookingsResult = await pool.query(
-      `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.name as event_type_name,
-              b.rescheduled_at, b.original_start_time
+      `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.title as event_type_name
        FROM bookings b
        LEFT JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
        LEFT JOIN event_types et ON b.event_type_id = et.id
        WHERE (t.owner_id = $1 OR tm.user_id = $1)
-         AND (b.status = 'rescheduled' OR b.rescheduled_at IS NOT NULL)
-       ORDER BY b.rescheduled_at DESC NULLS LAST
+         AND b.status = 'rescheduled'
+       ORDER BY b.updated_at DESC
        LIMIT 15`,
       [userId]
     );
@@ -8536,12 +8546,11 @@ if (parsedIntent.intent === 'show_rescheduled_bookings' ||
     }
 
     const bookingsList = bookingsResult.rows.map((b, index) => {
-      const newDate = new Date(b.start_time);
-      const originalDate = b.original_start_time ? new Date(b.original_start_time) : null;
+      const startDate = new Date(b.start_time);
       
       return `${index + 1}. ${b.attendee_name || 'Guest'} 🔄
    📧 ${b.attendee_email}
-   📅 New time: ${newDate.toLocaleDateString()} at ${newDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}${originalDate ? `\n   📅 Originally: ${originalDate.toLocaleDateString()} at ${originalDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
+   📅 ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
    ✅ Status: ${b.status}`;
     }).join('\n\n');
 
@@ -8560,7 +8569,6 @@ if (parsedIntent.intent === 'show_rescheduled_bookings' ||
     });
   }
 }
-
 // ============ HANDLE BOOKING STATS ============
 if (parsedIntent.intent === 'booking_stats') {
   try {
@@ -8574,7 +8582,6 @@ if (parsedIntent.intent === 'booking_stats') {
       `SELECT 
          COUNT(*) FILTER (WHERE status = 'confirmed') as confirmed,
          COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled,
-         COUNT(*) FILTER (WHERE status = 'rescheduled' OR rescheduled_at IS NOT NULL) as rescheduled,
          COUNT(*) FILTER (WHERE status = 'pending') as pending,
          COUNT(*) as total,
          COUNT(*) FILTER (WHERE start_time >= NOW() AND status = 'confirmed') as upcoming
@@ -8610,7 +8617,7 @@ if (parsedIntent.intent === 'booking_stats') {
 
     return res.json({
       type: 'stats',
-      message: `📊 Booking Statistics\n\n📅 This Month (${monthName}):\n   ✅ Confirmed: ${thisMonth.confirmed}\n   ❌ Cancelled: ${thisMonth.cancelled}\n   🔄 Rescheduled: ${thisMonth.rescheduled}\n   ⏳ Pending: ${thisMonth.pending}\n   📈 Total: ${thisMonth.total}\n   🔜 Upcoming: ${thisMonth.upcoming}\n\n📈 All Time:\n   ✅ Confirmed: ${allTime.confirmed}\n   ❌ Cancelled: ${allTime.cancelled}\n   📊 Total: ${allTime.total}\n   🎯 Completion Rate: ${completionRate}%`,
+      message: `📊 Booking Statistics\n\n📅 This Month (${monthName}):\n   ✅ Confirmed: ${thisMonth.confirmed}\n   ❌ Cancelled: ${thisMonth.cancelled}\n   ⏳ Pending: ${thisMonth.pending}\n   📈 Total: ${thisMonth.total}\n   🔜 Upcoming: ${thisMonth.upcoming}\n\n📈 All Time:\n   ✅ Confirmed: ${allTime.confirmed}\n   ❌ Cancelled: ${allTime.cancelled}\n   📊 Total: ${allTime.total}\n   🎯 Completion Rate: ${completionRate}%`,
       data: {
         this_month: thisMonth,
         all_time: allTime,
@@ -9859,19 +9866,16 @@ app.post('/api/subscriptions/billing-portal', authenticateToken, async (req, res
     
     console.log(`🏪 Creating billing portal for user ${userId}`);
     
-    // For now, return a placeholder URL
-    // Later you can integrate with Stripe's billing portal
+    // FOR NOW: Redirect to upgrade instead of external billing
     res.json({ 
-      url: 'https://billing.stripe.com/p/login/test_placeholder',
-      message: 'Billing portal coming soon'
+      url: `${process.env.CLIENT_URL || 'https://schedulesync-web-production.up.railway.app'}/billing`,
+      message: 'Redirecting to upgrade page'
     });
   } catch (error) {
     console.error('Billing portal error:', error);
     res.status(500).json({ error: 'Failed to create billing portal session' });
   }
 });
-
-// ✅ ADD THESE MISSING ENDPOINTS TO YOUR SERVER.JS:
 
 // Alias for billing/subscription (maps to subscriptions/current)
 app.get('/api/billing/subscription', authenticateToken, async (req, res) => {
