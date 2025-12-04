@@ -9179,6 +9179,101 @@ app.post('/api/subscriptions/billing-portal', authenticateToken, async (req, res
   }
 });
 
+// ✅ ADD THESE MISSING ENDPOINTS TO YOUR SERVER.JS:
+
+// Alias for billing/subscription (maps to subscriptions/current)
+app.get('/api/billing/subscription', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const userResult = await pool.query(
+      'SELECT subscription_tier, subscription_status, stripe_subscription_id, stripe_customer_id FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    res.json({
+      id: user.stripe_subscription_id || 'free_plan',
+      status: user.subscription_status || 'active',
+      price: user.subscription_tier === 'pro' ? 12 : user.subscription_tier === 'team' ? 25 : 0,
+      next_billing_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Mock: 30 days from now
+      manage_url: 'https://billing.stripe.com/p/login/placeholder'
+    });
+    
+  } catch (error) {
+    console.error('❌ Billing subscription error:', error);
+    res.status(500).json({ error: 'Failed to fetch billing subscription' });
+  }
+});
+
+// Alias for billing/create-checkout (maps to subscriptions/create)
+app.post('/api/billing/create-checkout', authenticateToken, async (req, res) => {
+  try {
+    const { plan } = req.body;
+    const userId = req.user.id;
+    
+    console.log(`🚀 Creating checkout session for user ${userId}, plan: ${plan}`);
+    
+    // Define plan details  
+    const plans = {
+      pro: { price: 12, name: 'Pro Plan' },
+      team: { price: 25, name: 'Team Plan' }
+    };
+    
+    const selectedPlan = plans[plan];
+    if (!selectedPlan) {
+      return res.status(400).json({ error: 'Invalid plan selected' });
+    }
+    
+    // Update user's plan immediately (simulated success)
+    await pool.query(
+      'UPDATE users SET subscription_tier = $1, subscription_status = $2, subscription_price = $3, ai_queries_limit = $4 WHERE id = $5',
+      [plan, 'active', selectedPlan.price, 999999, userId]
+    );
+    
+    console.log(`✅ User ${userId} upgraded to ${plan} plan`);
+    
+    // Return simulated checkout URL (for testing)
+    res.json({
+      checkout_url: `${process.env.CLIENT_URL || 'http://localhost:3000'}/billing?success=true&plan=${plan}`,
+      session_id: `sim_${Date.now()}`
+    });
+    
+  } catch (error) {
+    console.error('❌ Checkout creation failed:', error);
+    res.status(500).json({ error: 'Failed to create checkout session' });
+  }
+});
+
+// Add invoices endpoint (empty for now)
+app.get('/api/billing/invoices', authenticateToken, async (req, res) => {
+  try {
+    // Return empty invoices for now
+    // Later you can implement actual invoice tracking
+    res.json({
+      invoices: [
+        // Mock invoice for demo
+        {
+          id: 'inv_demo',
+          amount: 12.00,
+          description: 'Pro Plan - Monthly',
+          status: 'paid',
+          date: new Date().toISOString()
+        }
+      ]
+    });
+    
+  } catch (error) {
+    console.error('❌ Invoices error:', error);
+    res.status(500).json({ error: 'Failed to fetch invoices' });
+  }
+});
+
 
 // ============ CHATGPT INTEGRATION ENDPOINTS ============
 
