@@ -33,7 +33,7 @@ router.get('/limits', authenticateToken, async (req, res) => {
     const tier = result.rows[0]?.subscription_tier || 'free';
     
     const bookingResult = await pool.query(
-      'SELECT COUNT(*) FROM bookings WHERE organizer_id = $1',
+      'SELECT COUNT(*) FROM bookings WHERE user_id = $1',
       [req.user.id]
     );
     const currentBookings = parseInt(bookingResult.rows[0].count) || 0;
