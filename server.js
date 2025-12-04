@@ -7794,10 +7794,6 @@ If the user wants to UPDATE this pending booking (change time, duration, date, e
    // ============================================================
 // UPDATED SYSTEM INSTRUCTION FOR AI SCHEDULER
 // ============================================================
-//
-// Replace your existing systemInstruction in /api/ai/schedule
-// with this updated version that includes all new intents
-// ============================================================
 
 const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
 
@@ -8074,312 +8070,7 @@ User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
       });
     }
 
-    // ============ HANDLE SHOW BOOKINGS INTENT ============
-    if (parsedIntent.intent === 'show_bookings') { 
-    if (userContext.upcomingBookings.length === 0) {
-        return res.json({
-          type: 'info',
-          message: '📅 You have no upcoming bookings scheduled.',
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      }
-
-      const bookingsList = userContext.upcomingBookings.map((booking, index) => {
-        const startDate = new Date(booking.start);
-        const endDate = new Date(booking.end);
-        
-        return `${index + 1}. ${booking.attendee_name} ${booking.attendee_email ? `(${booking.attendee_email})` : ''}
-📞 ${booking.attendee_phone || 'No phone'}
-📅 ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { 
-          hour: 'numeric', 
-          minute: '2-digit' 
-        })} - ${endDate.toLocaleTimeString('en-US', { 
-          hour: 'numeric', 
-          minute: '2-digit' 
-        })}
-⏱️ ${booking.duration || 30} minutes
-🏢 ${booking.team_name || 'Personal'}
-🔗 ${booking.meet_link || 'No meeting link'}
-📝 ${booking.notes || 'No notes'}
-✅ Status: ${booking.status}`;
-      }).join('\n\n');
-
-      return res.json({
-        type: 'list',
-        message: `Here are your upcoming bookings:\n\n${bookingsList}`,
-        data: { bookings: userContext.upcomingBookings },
-        usage: {
-          ai_queries_used: usageResult.ai_queries_used,
-          ai_queries_limit: usageResult.ai_queries_limit
-        }
-      });
-    }
-
-    // ============ HANDLE FIND TIME INTENT ============
-    if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slots') {
-      try {
-        // Get user's booking token
-        const memberResult = await pool.query(
-          `SELECT tm.id, tm.booking_token, tm.timezone
-           FROM team_members tm
-           JOIN teams t ON tm.team_id = t.id
-           WHERE tm.user_id = $1 OR t.owner_id = $1
-           LIMIT 1`,
-          [userId]
-        );
-
-        if (memberResult.rows.length === 0) {
-          return res.json({
-            type: 'error',
-            message: 'No booking profile found. Please set up your availability first.',
-            usage: {
-              ai_queries_used: usageResult.ai_queries_used,
-              ai_queries_limit: usageResult.ai_queries_limit
-            }
-          });
-        }
-
-        const member = memberResult.rows[0];
-
-        // Get availability settings
-        const availResult = await pool.query(
-          `SELECT * FROM availability_settings WHERE member_id = $1`,
-          [member.id]
-        );
-
-        if (availResult.rows.length === 0) {
-          return res.json({
-            type: 'info',
-            message: '⚠️ No availability settings found. Please set up your available hours in Settings > Availability first.',
-            usage: {
-              ai_queries_used: usageResult.ai_queries_used,
-              ai_queries_limit: usageResult.ai_queries_limit
-            }
-          });
-        }
-
-        // Generate slots for next 7 days
-        const slots = [];
-        const now = new Date();
-        const daysToCheck = 7;
-
-        for (let dayOffset = 0; dayOffset < daysToCheck; dayOffset++) {
-          const checkDate = new Date(now);
-          checkDate.setDate(checkDate.getDate() + dayOffset);
-          const dayOfWeek = checkDate.getDay();
-
-          const dayAvail = availResult.rows.find(a => a.day_of_week === dayOfWeek);
-          
-          if (dayAvail && dayAvail.is_available) {
-            const [startHour, startMin] = dayAvail.start_time.split(':').map(Number);
-            const [endHour, endMin] = dayAvail.end_time.split(':').map(Number);
-
-            let slotTime = new Date(checkDate);
-            slotTime.setHours(startHour, startMin, 0, 0);
-
-            const endTime = new Date(checkDate);
-            endTime.setHours(endHour, endMin, 0, 0);
-
-            while (slotTime < endTime && slots.length < 10) {
-              if (slotTime > now) {
-                const conflictCheck = await pool.query(
-                  `SELECT id FROM bookings 
-                   WHERE member_id = $1 
-                   AND status = 'confirmed'
-                   AND start_time <= $2 
-                   AND end_time > $2`,
-                  [member.id, slotTime.toISOString()]
-                );
-
-                if (conflictCheck.rows.length === 0) {
-                  const hour = slotTime.getHours();
-                  let matchScore = 85;
-                  let matchLabel = 'Good Match';
-
-                  if (hour >= 9 && hour <= 11) {
-                    matchScore = 95;
-                    matchLabel = 'Excellent Match';
-                  } else if (hour >= 14 && hour <= 16) {
-                    matchScore = 90;
-                    matchLabel = 'Excellent Match';
-                  }
-
-                  slots.push({
-                    start: slotTime.toISOString(),
-                    end: new Date(slotTime.getTime() + 30 * 60000).toISOString(),
-                    matchScore,
-                    matchLabel
-                  });
-                }
-              }
-
-              slotTime = new Date(slotTime.getTime() + 30 * 60000);
-            }
-          }
-        }
-
-        if (slots.length === 0) {
-          return res.json({
-            type: 'info',
-            message: '❌ No available slots found in the next 7 days. Please check your availability settings.',
-            usage: {
-              ai_queries_used: usageResult.ai_queries_used,
-              ai_queries_limit: usageResult.ai_queries_limit
-            }
-          });
-        }
-
-        const formattedSlots = slots.slice(0, 5).map((slot, index) => {
-          const date = new Date(slot.start);
-          const dateStr = date.toLocaleDateString('en-US', { 
-            weekday: 'short', 
-            month: 'short', 
-            day: 'numeric' 
-          });
-          const timeStr = date.toLocaleTimeString('en-US', { 
-            hour: 'numeric', 
-            minute: '2-digit',
-            hour12: true 
-          });
-          
-          return `${index + 1}️⃣ ${dateStr} • ${timeStr}    (${slot.matchLabel})`;
-        }).join('\n');
-
-        return res.json({
-          type: 'slots',
-          message: `📅 Here are your best available times:\n\n${formattedSlots}\n\n💡 Ready to book? Just say "book slot 1" or "schedule 10 AM"! ⚡`,
-          data: { slots: slots.slice(0, 5) },
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-
-      } catch (error) {
-        console.error('Slot fetch error:', error);
-        return res.json({
-          type: 'error', 
-          message: 'Sorry, I had trouble checking your availability. Please try again.',
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      }
-    }
-
-    // ============ HANDLE CREATE MEETING INTENT ============
-    if (parsedIntent.intent === 'create_meeting') {
-      // Email validation
-      if (parsedIntent.extracted.attendees && parsedIntent.extracted.attendees.length > 0) {
-        const invalidEmails = parsedIntent.extracted.attendees.filter(email => !validateEmail(email));
-        if (invalidEmails.length > 0) {
-          return res.json({
-            type: 'clarify',
-            message: `❌ Invalid email address(es): ${invalidEmails.join(', ')}\n\nPlease provide valid email addresses. Example: john@company.com`,
-            data: parsedIntent,
-            usage: {
-              ai_queries_used: usageResult.ai_queries_used,
-              ai_queries_limit: usageResult.ai_queries_limit
-            }
-          });
-        }
-      }
-
-      // Required field validation
-      if (!parsedIntent.extracted.date || !parsedIntent.extracted.time) {
-        return res.json({
-          type: 'clarify',
-          message: '📅 I need both a date and time to schedule your meeting. When would you like to meet?',
-          data: parsedIntent,
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      }
-
-      if (!parsedIntent.extracted.attendees || parsedIntent.extracted.attendees.length === 0) {
-        return res.json({
-          type: 'clarify',
-          message: '👥 Who should I invite to this meeting? Please provide their email address.',
-          data: parsedIntent,
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      }
-
-      // Check missing fields
-      const missing = parsedIntent.missing_fields || [];
-      if (missing.length > 0) {
-        return res.json({
-          type: 'clarify',
-          message: parsedIntent.clarifying_question || `I need a bit more information. What ${missing.join(' and ')} would work for you?`,
-          data: parsedIntent,
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      }
-
-      // All validation passed - prepare booking data
-      const attendeeEmail = parsedIntent.extracted.attendees[0];
-      const attendeeName = attendeeEmail
-        .split('@')[0]
-        .replace(/[._-]/g, ' ')
-        .replace(/\b\w/g, c => c.toUpperCase());
-
-      // Auto-generate note with attendee name if no notes provided
-      const extractedNotes = parsedIntent.extracted.notes;
-      const cleanNotes = (extractedNotes && extractedNotes !== 'null' && extractedNotes.trim() !== '') 
-        ? extractedNotes 
-        : `Meeting with ${attendeeName}`;
-
-      const bookingData = {
-        title: parsedIntent.extracted.title || 'Meeting',
-        date: parsedIntent.extracted.date,
-        time: parsedIntent.extracted.time,
-        duration: parsedIntent.extracted.duration_minutes || 30,
-        attendees: parsedIntent.extracted.attendees,
-        attendee_email: attendeeEmail,
-        notes: cleanNotes
-      };
-      
-      let confirmationMessage = `✅ Ready to schedule "${bookingData.title}" for ${bookingData.date} at ${bookingData.time}?\n\n👥 Attendees: ${bookingData.attendees.join(', ')}\n⏱️ Duration: ${bookingData.duration} minutes\n📝 Notes: ${cleanNotes}`;
-      
-      // Try to find a confirmation template for preview
-      try {
-        const confirmationTemplate = await selectBestTemplate(userId, 'confirmation', {
-          date: bookingData.date,
-          time: bookingData.time,
-          title: bookingData.title
-        });
-
-        if (confirmationTemplate) {
-          confirmationMessage += `\n\n📧 Will use "${confirmationTemplate.name}" template for confirmation email`;
-          bookingData.selectedTemplate = confirmationTemplate;
-        }
-      } catch (templateError) {
-        console.log('📧 No confirmation template found, proceeding without auto-email');
-      }
-
-      return res.json({
-        type: 'confirmation',
-        message: confirmationMessage,
-        data: { bookingData },
-        usage: {
-          ai_queries_used: usageResult.ai_queries_used,
-          ai_queries_limit: usageResult.ai_queries_limit
-        }
-      });
-    }
-    // ============ HANDLE GET PERSONAL LINK ============
+     // ============ HANDLE GET PERSONAL LINK ============
 if (parsedIntent.intent === 'get_personal_link') {
   try {
     const memberResult = await pool.query(
@@ -9045,7 +8736,312 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
     });
   }
 }
+    // ============ HANDLE SHOW BOOKINGS INTENT ============
+    if (parsedIntent.intent === 'show_bookings') { 
+    if (userContext.upcomingBookings.length === 0) {
+        return res.json({
+          type: 'info',
+          message: '📅 You have no upcoming bookings scheduled.',
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
+        });
+      }
 
+      const bookingsList = userContext.upcomingBookings.map((booking, index) => {
+        const startDate = new Date(booking.start);
+        const endDate = new Date(booking.end);
+        
+        return `${index + 1}. ${booking.attendee_name} ${booking.attendee_email ? `(${booking.attendee_email})` : ''}
+📞 ${booking.attendee_phone || 'No phone'}
+📅 ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit' 
+        })} - ${endDate.toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit' 
+        })}
+⏱️ ${booking.duration || 30} minutes
+🏢 ${booking.team_name || 'Personal'}
+🔗 ${booking.meet_link || 'No meeting link'}
+📝 ${booking.notes || 'No notes'}
+✅ Status: ${booking.status}`;
+      }).join('\n\n');
+
+      return res.json({
+        type: 'list',
+        message: `Here are your upcoming bookings:\n\n${bookingsList}`,
+        data: { bookings: userContext.upcomingBookings },
+        usage: {
+          ai_queries_used: usageResult.ai_queries_used,
+          ai_queries_limit: usageResult.ai_queries_limit
+        }
+      });
+    }
+
+    // ============ HANDLE FIND TIME INTENT ============
+    if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slots') {
+      try {
+        // Get user's booking token
+        const memberResult = await pool.query(
+          `SELECT tm.id, tm.booking_token, tm.timezone
+           FROM team_members tm
+           JOIN teams t ON tm.team_id = t.id
+           WHERE tm.user_id = $1 OR t.owner_id = $1
+           LIMIT 1`,
+          [userId]
+        );
+
+        if (memberResult.rows.length === 0) {
+          return res.json({
+            type: 'error',
+            message: 'No booking profile found. Please set up your availability first.',
+            usage: {
+              ai_queries_used: usageResult.ai_queries_used,
+              ai_queries_limit: usageResult.ai_queries_limit
+            }
+          });
+        }
+
+        const member = memberResult.rows[0];
+
+        // Get availability settings
+        const availResult = await pool.query(
+          `SELECT * FROM availability_settings WHERE member_id = $1`,
+          [member.id]
+        );
+
+        if (availResult.rows.length === 0) {
+          return res.json({
+            type: 'info',
+            message: '⚠️ No availability settings found. Please set up your available hours in Settings > Availability first.',
+            usage: {
+              ai_queries_used: usageResult.ai_queries_used,
+              ai_queries_limit: usageResult.ai_queries_limit
+            }
+          });
+        }
+
+        // Generate slots for next 7 days
+        const slots = [];
+        const now = new Date();
+        const daysToCheck = 7;
+
+        for (let dayOffset = 0; dayOffset < daysToCheck; dayOffset++) {
+          const checkDate = new Date(now);
+          checkDate.setDate(checkDate.getDate() + dayOffset);
+          const dayOfWeek = checkDate.getDay();
+
+          const dayAvail = availResult.rows.find(a => a.day_of_week === dayOfWeek);
+          
+          if (dayAvail && dayAvail.is_available) {
+            const [startHour, startMin] = dayAvail.start_time.split(':').map(Number);
+            const [endHour, endMin] = dayAvail.end_time.split(':').map(Number);
+
+            let slotTime = new Date(checkDate);
+            slotTime.setHours(startHour, startMin, 0, 0);
+
+            const endTime = new Date(checkDate);
+            endTime.setHours(endHour, endMin, 0, 0);
+
+            while (slotTime < endTime && slots.length < 10) {
+              if (slotTime > now) {
+                const conflictCheck = await pool.query(
+                  `SELECT id FROM bookings 
+                   WHERE member_id = $1 
+                   AND status = 'confirmed'
+                   AND start_time <= $2 
+                   AND end_time > $2`,
+                  [member.id, slotTime.toISOString()]
+                );
+
+                if (conflictCheck.rows.length === 0) {
+                  const hour = slotTime.getHours();
+                  let matchScore = 85;
+                  let matchLabel = 'Good Match';
+
+                  if (hour >= 9 && hour <= 11) {
+                    matchScore = 95;
+                    matchLabel = 'Excellent Match';
+                  } else if (hour >= 14 && hour <= 16) {
+                    matchScore = 90;
+                    matchLabel = 'Excellent Match';
+                  }
+
+                  slots.push({
+                    start: slotTime.toISOString(),
+                    end: new Date(slotTime.getTime() + 30 * 60000).toISOString(),
+                    matchScore,
+                    matchLabel
+                  });
+                }
+              }
+
+              slotTime = new Date(slotTime.getTime() + 30 * 60000);
+            }
+          }
+        }
+
+        if (slots.length === 0) {
+          return res.json({
+            type: 'info',
+            message: '❌ No available slots found in the next 7 days. Please check your availability settings.',
+            usage: {
+              ai_queries_used: usageResult.ai_queries_used,
+              ai_queries_limit: usageResult.ai_queries_limit
+            }
+          });
+        }
+
+        const formattedSlots = slots.slice(0, 5).map((slot, index) => {
+          const date = new Date(slot.start);
+          const dateStr = date.toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric' 
+          });
+          const timeStr = date.toLocaleTimeString('en-US', { 
+            hour: 'numeric', 
+            minute: '2-digit',
+            hour12: true 
+          });
+          
+          return `${index + 1}️⃣ ${dateStr} • ${timeStr}    (${slot.matchLabel})`;
+        }).join('\n');
+
+        return res.json({
+          type: 'slots',
+          message: `📅 Here are your best available times:\n\n${formattedSlots}\n\n💡 Ready to book? Just say "book slot 1" or "schedule 10 AM"! ⚡`,
+          data: { slots: slots.slice(0, 5) },
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
+        });
+
+      } catch (error) {
+        console.error('Slot fetch error:', error);
+        return res.json({
+          type: 'error', 
+          message: 'Sorry, I had trouble checking your availability. Please try again.',
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
+        });
+      }
+    }
+
+    // ============ HANDLE CREATE MEETING INTENT ============
+    if (parsedIntent.intent === 'create_meeting') {
+      // Email validation
+      if (parsedIntent.extracted.attendees && parsedIntent.extracted.attendees.length > 0) {
+        const invalidEmails = parsedIntent.extracted.attendees.filter(email => !validateEmail(email));
+        if (invalidEmails.length > 0) {
+          return res.json({
+            type: 'clarify',
+            message: `❌ Invalid email address(es): ${invalidEmails.join(', ')}\n\nPlease provide valid email addresses. Example: john@company.com`,
+            data: parsedIntent,
+            usage: {
+              ai_queries_used: usageResult.ai_queries_used,
+              ai_queries_limit: usageResult.ai_queries_limit
+            }
+          });
+        }
+      }
+
+      // Required field validation
+      if (!parsedIntent.extracted.date || !parsedIntent.extracted.time) {
+        return res.json({
+          type: 'clarify',
+          message: '📅 I need both a date and time to schedule your meeting. When would you like to meet?',
+          data: parsedIntent,
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
+        });
+      }
+
+      if (!parsedIntent.extracted.attendees || parsedIntent.extracted.attendees.length === 0) {
+        return res.json({
+          type: 'clarify',
+          message: '👥 Who should I invite to this meeting? Please provide their email address.',
+          data: parsedIntent,
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
+        });
+      }
+
+      // Check missing fields
+      const missing = parsedIntent.missing_fields || [];
+      if (missing.length > 0) {
+        return res.json({
+          type: 'clarify',
+          message: parsedIntent.clarifying_question || `I need a bit more information. What ${missing.join(' and ')} would work for you?`,
+          data: parsedIntent,
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
+        });
+      }
+
+      // All validation passed - prepare booking data
+      const attendeeEmail = parsedIntent.extracted.attendees[0];
+      const attendeeName = attendeeEmail
+        .split('@')[0]
+        .replace(/[._-]/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+
+      // Auto-generate note with attendee name if no notes provided
+      const extractedNotes = parsedIntent.extracted.notes;
+      const cleanNotes = (extractedNotes && extractedNotes !== 'null' && extractedNotes.trim() !== '') 
+        ? extractedNotes 
+        : `Meeting with ${attendeeName}`;
+
+      const bookingData = {
+        title: parsedIntent.extracted.title || 'Meeting',
+        date: parsedIntent.extracted.date,
+        time: parsedIntent.extracted.time,
+        duration: parsedIntent.extracted.duration_minutes || 30,
+        attendees: parsedIntent.extracted.attendees,
+        attendee_email: attendeeEmail,
+        notes: cleanNotes
+      };
+      
+      let confirmationMessage = `✅ Ready to schedule "${bookingData.title}" for ${bookingData.date} at ${bookingData.time}?\n\n👥 Attendees: ${bookingData.attendees.join(', ')}\n⏱️ Duration: ${bookingData.duration} minutes\n📝 Notes: ${cleanNotes}`;
+      
+      // Try to find a confirmation template for preview
+      try {
+        const confirmationTemplate = await selectBestTemplate(userId, 'confirmation', {
+          date: bookingData.date,
+          time: bookingData.time,
+          title: bookingData.title
+        });
+
+        if (confirmationTemplate) {
+          confirmationMessage += `\n\n📧 Will use "${confirmationTemplate.name}" template for confirmation email`;
+          bookingData.selectedTemplate = confirmationTemplate;
+        }
+      } catch (templateError) {
+        console.log('📧 No confirmation template found, proceeding without auto-email');
+      }
+
+      return res.json({
+        type: 'confirmation',
+        message: confirmationMessage,
+        data: { bookingData },
+        usage: {
+          ai_queries_used: usageResult.ai_queries_used,
+          ai_queries_limit: usageResult.ai_queries_limit
+        }
+      });
+    }
+   
     // ============ DEFAULT RESPONSE ============
     return res.json({
       type: 'clarify',
