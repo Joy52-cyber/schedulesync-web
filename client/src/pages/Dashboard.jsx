@@ -84,16 +84,20 @@ export default function Dashboard() {
     }
   };
 
-  const loadUserTimezone = async () => {
-    try {
-      const response = await timezoneApi.get();
-      if (response.data.timezone) {
-        setTimezone(response.data.timezone);
-      }
-    } catch (error) {
-      console.error('Timezone load error:', error);
+ const loadUserTimezone = async () => {
+  try {
+    const response = await timezoneApi.get();
+    // ✅ FIX: Handle both string and object responses
+    const tz = response.data?.timezone || response.data;
+    if (typeof tz === 'string') {
+      setTimezone(tz);
+    } else if (typeof tz === 'object' && tz.timezone) {
+      setTimezone(tz.timezone);
     }
-  };
+  } catch (error) {
+    console.error('Timezone load error:', error);
+  }
+};
 
   const loadUserProfile = async () => {
     try {
@@ -257,7 +261,8 @@ export default function Dashboard() {
   ];
 
   // Helper to determine current tier and usage
-  const currentTier = limitStatus?.tier || user?.tier || 'free';
+  // ✅ Better tier detection
+const currentTier = limitStatus?.tier || user?.subscription_tier || user?.tier || 'free';
   const usage = user?.usage || { ai_queries_used: 0, ai_queries_limit: 10 }; // ✅ Updated default limit
   const bookingCount = limitStatus?.current_bookings || stats.totalBookings;
   

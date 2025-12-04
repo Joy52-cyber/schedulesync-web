@@ -9444,26 +9444,61 @@ app.post('/api/bookings', authenticateToken, async (req, res) => {
 });
 
 // ✅ ADD: Endpoint to get current limit status
+// Get user limit status
 app.get('/api/user/limits', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const limitCheck = await checkBookingLimits(userId);
     
-    if (!limitCheck) {
-      return res.status(500).json({ error: 'Failed to check limits' });
+    const userResult = await pool.query(
+      'SELECT subscription_tier, subscription_status, monthly_bookings FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
     }
     
+    const user = userResult.rows[0];
+    
+    // ✅ FIX: Use subscription_tier directly, not based on status
+    // Cancelled users keep their tier until period ends
+    const tier = user.subscription_tier || 'free';
+    const currentBookings = user.monthly_bookings || 0;
+    
+    // Define limits based on TIER (not status)
+    const limits = {
+      free: { soft: 50, grace: 60, hard: 70 },
+      pro: { soft: 999999, grace: 999999, hard: 999999 },
+      team: { soft: 999999, grace: 999999, hard: 999999 }
+    };
+    
+    const planLimits = limits[tier] || limits.free;
+    
+    // Calculate status
+    const withinLimit = currentBookings < planLimits.soft;
+    const inGracePeriod = currentBookings >= planLimits.soft && currentBookings < planLimits.grace;
+    const overGraceLimit = currentBookings >= planLimits.grace && currentBookings < planLimits.hard;
+    const hardBlocked = currentBookings >= planLimits.hard;
+    
+    console.log('📊 Limits for user:', userId, { tier, currentBookings, status: user.subscription_status });
+    
     res.json({
-      tier: limitCheck.tier,
-      current_bookings: limitCheck.currentBookings,
-      limits: limitCheck.limits,
-      status: limitCheck.status,
-      upgrade_recommended: limitCheck.status.inGracePeriod || limitCheck.status.overGraceLimit
+      tier: tier,  // ✅ Returns actual tier (pro/team), not 'free' for cancelled
+      subscription_status: user.subscription_status || 'active',
+      current_bookings: currentBookings,
+      limits: planLimits,
+      status: {
+        withinLimit,
+        inGracePeriod,
+        overGraceLimit,
+        hardBlocked
+      },
+      upgrade_recommended: tier === 'free' && (inGracePeriod || overGraceLimit || currentBookings >= planLimits.soft * 0.8)
     });
     
   } catch (error) {
-    console.error('❌ Failed to fetch limits:', error);
-    res.status(500).json({ error: 'Failed to fetch account limits' });
+    console.error('❌ Failed to check limits:', error);
+    res.status(500).json({ error: 'Failed to check account limits' });
   }
 });
 
