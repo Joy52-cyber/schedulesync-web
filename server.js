@@ -9177,47 +9177,120 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
     } = req.body;
     
     const userId = req.user.id;
-    const attendeeList = attendees || [attendee_email];
+    
+    // ✅ EMAIL VALIDATION FUNCTION
+    const isValidEmail = (email) => {
+      if (!email || typeof email !== 'string') return false;
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email.trim());
+    };
+    
+    // Build attendee list from either attendees array or single attendee_email
+    const rawAttendeeList = attendees || (attendee_email ? [attendee_email] : []);
+    
+    // ✅ Filter out empty/null/undefined values
+    const cleanedAttendees = rawAttendeeList
+      .filter(email => email && typeof email === 'string' && email.trim() !== '')
+      .map(email => email.trim().toLowerCase());
+    
+    // ✅ Check if we have any attendees
+    if (cleanedAttendees.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No attendees provided',
+        message: 'Please provide at least one valid email address'
+      });
+    }
+    
+    // ✅ Validate all email formats
+    const invalidEmails = cleanedAttendees.filter(email => !isValidEmail(email));
+    if (invalidEmails.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid email address',
+        message: `Invalid email(s): ${invalidEmails.join(', ')}. Please provide valid email addresses.`,
+        invalid_emails: invalidEmails
+      });
+    }
+    
+    // ✅ Remove duplicates
+    const uniqueAttendees = [...new Set(cleanedAttendees)];
     
     console.log('🤖 AI Booking request:', {
-      title, start_time, attendees: attendeeList, userId
+      title, start_time, attendees: uniqueAttendees, userId
     });
+    
+    // ✅ Validate required fields
+    if (!title || !start_time) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields',
+        message: 'Title and start time are required'
+      });
+    }
     
     // Create individual booking for each attendee
     const bookings = [];
+    const failedBookings = [];
     
-    for (const email of attendeeList) {
-      const result = await pool.query(`
-        INSERT INTO bookings (
-          title, start_time, end_time, attendee_email, attendee_name,
-          notes, duration, status, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed', NOW(), NOW())
-        RETURNING *
-      `, [
-        title, start_time, end_time, email, 
-        email.split('@')[0], 
-        notes || '', duration || 30
-      ]);
-      
-      bookings.push(result.rows[0]);
-      console.log(`✅ Booking created for ${email}: ${result.rows[0].id}`);
+    for (const email of uniqueAttendees) {
+      try {
+        // Generate attendee name from email
+        const generatedName = attendee_name || email
+          .split('@')[0]
+          .replace(/[._-]/g, ' ')
+          .replace(/\b\w/g, c => c.toUpperCase());
+        
+        const result = await pool.query(`
+          INSERT INTO bookings (
+            title, start_time, end_time, attendee_email, attendee_name,
+            notes, duration, status, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed', NOW(), NOW())
+          RETURNING *
+        `, [
+          title, 
+          start_time, 
+          end_time || new Date(new Date(start_time).getTime() + (duration || 30) * 60000).toISOString(),
+          email, 
+          generatedName, 
+          notes || '', 
+          duration || 30
+        ]);
+        
+        bookings.push(result.rows[0]);
+        console.log(`✅ Booking created for ${email}: ${result.rows[0].id}`);
+      } catch (bookingError) {
+        console.error(`❌ Booking failed for ${email}:`, bookingError);
+        failedBookings.push({ email, error: bookingError.message });
+      }
     }
     
-    // Send emails to all attendees
-    for (const email of attendeeList) {
+    // Check if all bookings failed
+    if (bookings.length === 0) {
+      return res.status(500).json({
+        success: false,
+        error: 'All bookings failed',
+        message: 'Failed to create any bookings. Please try again.',
+        failed_bookings: failedBookings
+      });
+    }
+    
+    // Send emails to successfully booked attendees
+    const emailResults = [];
+    for (const booking of bookings) {
       try {
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #7C3AED;">📅 Meeting Confirmed</h2>
-            <p>Hi there,</p>
+            <p>Hi ${booking.attendee_name || 'there'},</p>
             <p>You've been invited to a meeting!</p>
             
             <div style="background: #F3F4F6; padding: 20px; border-radius: 8px; margin: 20px 0;">
               <h3 style="margin-top: 0;">📋 Meeting Details:</h3>
               <p><strong>Title:</strong> ${title}</p>
               <p><strong>Date & Time:</strong> ${new Date(start_time).toLocaleString()}</p>
-              <p><strong>Duration:</strong> ${duration} minutes</p>
-              <p><strong>Attendees:</strong> ${attendeeList.join(', ')}</p>
+              <p><strong>Duration:</strong> ${duration || 30} minutes</p>
+              <p><strong>Attendees:</strong> ${uniqueAttendees.join(', ')}</p>
               ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ''}
             </div>
             
@@ -9228,34 +9301,40 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
 
         await resend.emails.send({
           from: process.env.EMAIL_FROM || 'ScheduleSync <notifications@resend.dev>',
-          to: email,
+          to: booking.attendee_email,
           subject: `Meeting Invitation: ${title}`,
           html: emailHtml
         });
         
-        console.log(`📧 Invitation sent to ${email}`);
+        emailResults.push({ email: booking.attendee_email, sent: true });
+        console.log(`📧 Invitation sent to ${booking.attendee_email}`);
         
       } catch (emailError) {
-        console.error(`📧 Email failed for ${email}:`, emailError);
+        emailResults.push({ email: booking.attendee_email, sent: false, error: emailError.message });
+        console.error(`📧 Email failed for ${booking.attendee_email}:`, emailError);
       }
     }
     
     res.json({ 
       success: true, 
       bookings: bookings,
-      attendee_count: attendeeList.length,
-      message: `Meeting created with ${attendeeList.length} attendee(s)`
+      attendee_count: uniqueAttendees.length,
+      bookings_created: bookings.length,
+      emails_sent: emailResults.filter(e => e.sent).length,
+      message: `Meeting created with ${bookings.length} attendee(s)`,
+      ...(failedBookings.length > 0 && { failed_bookings: failedBookings }),
+      ...(emailResults.some(e => !e.sent) && { email_failures: emailResults.filter(e => !e.sent) })
     });
     
   } catch (error) {
     console.error('🚨 AI booking error:', error);
     res.status(500).json({ 
+      success: false,
       error: 'Failed to create AI booking',
       details: error.message 
     });
   }
 });
-
 // ============ BOOKING LIMIT ENFORCEMENT SYSTEM ============
 
 // Add this function to your server.js
