@@ -139,7 +139,8 @@ function InnerApp() {
             <Route path="/events/new" element={<EventTypeForm />} />
             <Route path="/events/:id" element={<EventTypeDetail />} />
             <Route path="/events/:id/edit" element={<EventTypeForm />} />
-            <Route path="/billing" element={<BillingSettings />} />
+            
+            
             {/* Teams */}
             <Route path="/teams" element={<Teams />} />
             <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
