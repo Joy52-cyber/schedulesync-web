@@ -7690,6 +7690,12 @@ app.post('/api/ai/schedule', authenticateToken, enforceUsageLimits, async (req, 
       });
     }
 
+    // ✅ ADD THIS LINE - Define usageData for all handlers
+const usageData = {
+  ai_queries_used: usageResult.ai_queries_used,
+  ai_queries_limit: usageResult.ai_queries_limit
+};
+
     // ✅ EMAIL VALIDATION FUNCTION (INSIDE FUNCTION)
     const validateEmail = (email) => {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -8069,8 +8075,8 @@ User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
     }
 
     // ============ HANDLE SHOW BOOKINGS INTENT ============
-    if (parsedIntent.intent === 'show_bookings' || parsedIntent.action === 'list') {
-      if (userContext.upcomingBookings.length === 0) {
+    if (parsedIntent.intent === 'show_bookings') { 
+    if (userContext.upcomingBookings.length === 0) {
         return res.json({
           type: 'info',
           message: '📅 You have no upcoming bookings scheduled.',
@@ -8421,36 +8427,23 @@ if (parsedIntent.intent === 'get_magic_link') {
   try {
     const linkName = parsedIntent.extracted?.link_name || 'Quick Meeting';
     
-    // Get user's member ID
-    const memberResult = await pool.query(
-      `SELECT tm.id, tm.name, t.id as team_id
-       FROM team_members tm
-       JOIN teams t ON tm.team_id = t.id
-       WHERE tm.user_id = $1 OR t.owner_id = $1
-       LIMIT 1`,
-      [userId]
-    );
-
-    if (memberResult.rows.length === 0) {
-      return res.json({
-        type: 'info',
-        message: '❌ No team found. Please set up your team first.',
-        usage: usageData
-      });
-    }
-
-    const member = memberResult.rows[0];
-    
     // Create magic link token
     const magicToken = crypto.randomBytes(16).toString('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
 
-    // Insert magic link
+    // Get user's default event type (optional)
+    const eventTypeResult = await pool.query(
+      `SELECT id FROM event_types WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
+    const eventTypeId = eventTypeResult.rows[0]?.id || null;
+
+    // Insert into magic_links using correct columns
     await pool.query(
-      `INSERT INTO magic_links (token, member_id, team_id, name, expires_at, is_active)
-       VALUES ($1, $2, $3, $4, $5, true)`,
-      [magicToken, member.id, member.team_id, linkName, expiresAt]
+      `INSERT INTO magic_links (token, created_by_user_id, event_type_id, expires_at, is_active, is_used, created_at)
+       VALUES ($1, $2, $3, $4, true, false, NOW())`,
+      [magicToken, userId, eventTypeId, expiresAt]
     );
 
     const magicUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/m/${magicToken}`;
