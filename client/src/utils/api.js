@@ -389,6 +389,26 @@ export const batchRequest = async (requests) => {
 };
 
 // ============================================
+// BILLING & SUBSCRIPTIONS
+// ============================================
+export const billing = {
+  // Subscription management
+  getCurrent: () => api.get('/subscriptions/current'),
+  create: (data) => api.post('/subscriptions/create', data),
+  cancel: () => api.post('/subscriptions/cancel'),
+  reactivate: () => api.post('/subscriptions/reactivate'),
+  
+  // Billing endpoints
+  getSubscription: () => api.get('/billing/subscription'),
+  createCheckout: (data) => api.post('/billing/create-checkout', data),
+  getInvoices: () => api.get('/billing/invoices'),
+  downloadInvoice: (id) => api.get(`/billing/invoices/${id}/download`, { responseType: 'blob' }),
+  
+  // Billing portal
+  getBillingPortal: () => api.post('/subscriptions/billing-portal'),
+};
+
+// ============================================
 // ATTACH ALL MODULES TO API INSTANCE
 // ============================================
 api.auth = auth;
