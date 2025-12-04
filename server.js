@@ -8091,14 +8091,17 @@ if (parsedIntent.intent === 'get_personal_link') {
     }
 
     const member = memberResult.rows[0];
-    const bookingUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/book/${member.booking_token}`;
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    const bookingUrl = `${baseUrl}/book/${member.booking_token}`;
 
     return res.json({
-      type: 'link',
-      message: `🔗 Here's your personal booking link:\n\n${bookingUrl}\n\n📋 Anyone with this link can book time with you!\n👤 Name: ${member.name}\n🏢 Team: ${member.team_name}`,
+      type: 'personal_link',
+      message: `🔗 Your Personal Booking Link\n\n👤 ${member.name}\n🏢 ${member.team_name}`,
       data: {
         url: bookingUrl,
-        token: member.booking_token,
+        short_url: `/book/${member.booking_token.substring(0, 8)}...`,
+        name: member.name,
+        team_name: member.team_name,
         type: 'personal'
       },
       usage: usageData
@@ -8137,11 +8140,12 @@ if (parsedIntent.intent === 'get_magic_link') {
       [magicToken, userId, eventTypeId, expiresAt]
     );
 
-    const magicUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/m/${magicToken}`;
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    const magicUrl = `${baseUrl}/m/${magicToken}`;
 
     return res.json({
       type: 'link',
-      message: `✨ Magic link created!\n\n🔗 ${magicUrl}\n\n📛 Name: "${linkName}"\n⏰ Expires: ${expiresAt.toLocaleDateString()}\n🔒 Single-use: Yes\n\nShare this link - it will expire after one booking!`,
+      message: `✨ Magic link created for "${linkName}"!\n\n🔗 /m/${magicToken.substring(0, 8)}...\n⏰ Expires: ${expiresAt.toLocaleDateString()}\n🔒 Single-use: Yes`,
       data: {
         url: magicUrl,
         token: magicToken,
@@ -8186,21 +8190,20 @@ if (parsedIntent.intent === 'get_team_links') {
     const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
     
     const teamLinks = teamsResult.rows.map((team, index) => {
-      const teamUrl = `${baseUrl}/book/${team.team_booking_token}`;
-      // Check if personal by name pattern (same as frontend)
       const isPersonal = team.name.toLowerCase().includes('personal');
-      const label = isPersonal ? '⭐ Personal' : '🏢 Team';
-      return `${index + 1}. ${team.name} ${label}\n   🔗 ${teamUrl}\n   👥 ${team.member_count} members`;
+      const label = isPersonal ? '⭐' : '🏢';
+      return `${index + 1}. ${team.name} ${label}\n   👥 ${team.member_count} members`;
     }).join('\n\n');
 
     return res.json({
-      type: 'list',
-      message: `🏢 Your Team Booking Links:\n\n${teamLinks}\n\n💡 Share these links to let people book with your teams!`,
+      type: 'team_links',
+      message: `🏢 Your Team Booking Links:\n\n${teamLinks}`,
       data: {
         teams: teamsResult.rows.map(team => ({
           id: team.id,
           name: team.name,
           url: `${baseUrl}/book/${team.team_booking_token}`,
+          short_url: `/book/${team.team_booking_token.substring(0, 8)}...`,
           member_count: team.member_count
         }))
       },
@@ -8228,7 +8231,6 @@ if (parsedIntent.intent === 'get_member_link') {
       });
     }
 
-    // Search for member by name (fuzzy match) - join with users to get email
     const memberResult = await pool.query(
       `SELECT tm.id, tm.name, tm.booking_token, t.name as team_name,
               u.email as user_email, u.name as user_name
@@ -8258,29 +8260,31 @@ if (parsedIntent.intent === 'get_member_link') {
       const displayEmail = member.user_email || 'No email';
       
       return res.json({
-        type: 'link',
-        message: `👤 ${displayName}'s Booking Link:\n\n🔗 ${memberUrl}\n\n📧 Email: ${displayEmail}\n🏢 Team: ${member.team_name}`,
+        type: 'member_link',
+        message: `👤 ${displayName}'s Booking Link\n\n📧 ${displayEmail}\n🏢 ${member.team_name}`,
         data: {
           url: memberUrl,
-          member: member,
+          short_url: `/book/${member.booking_token.substring(0, 8)}...`,
+          name: displayName,
+          email: displayEmail,
+          team_name: member.team_name,
           type: 'member'
         },
         usage: usageData
       });
     }
 
-    // Multiple matches - list them
-    const memberList = memberResult.rows.map((m, i) => {
-      const displayName = m.user_name || m.name || 'Team Member';
-      return `${i + 1}. ${displayName} (${m.team_name})\n   🔗 ${baseUrl}/book/${m.booking_token}`;
-    }).join('\n\n');
-
+    // Multiple matches
     return res.json({
-      type: 'list',
-      message: `Found ${memberResult.rows.length} members matching "${memberName}":\n\n${memberList}`,
+      type: 'member_links',
+      message: `Found ${memberResult.rows.length} members matching "${memberName}":`,
       data: {
-        members: memberResult.rows,
-        type: 'member_list'
+        members: memberResult.rows.map(m => ({
+          name: m.user_name || m.name || 'Team Member',
+          team_name: m.team_name,
+          url: `${baseUrl}/book/${m.booking_token}`,
+          short_url: `/book/${m.booking_token.substring(0, 8)}...`
+        }))
       },
       usage: usageData
     });
@@ -8293,6 +8297,7 @@ if (parsedIntent.intent === 'get_member_link') {
     });
   }
 }
+
 // ============ HANDLE GET EVENT TYPES ============
 if (parsedIntent.intent === 'get_event_types') {
   try {
@@ -8328,20 +8333,23 @@ if (parsedIntent.intent === 'get_event_types') {
     const eventTypesList = eventTypesResult.rows.map((et, index) => {
       const status = et.is_active ? '✅ Active' : '⏸️ Inactive';
       const price = et.price ? `💰 $${et.price}` : '🆓 Free';
-      const bookingUrl = `${baseUrl}/book/${username}/${et.slug}`;
       
       return `${index + 1}. ${et.title} ${status}
-   ⏱️ ${et.duration} minutes | ${price}
-   📊 ${et.total_bookings || 0} bookings
-   🔗 ${bookingUrl}${et.description ? `\n   📝 ${et.description}` : ''}`;
+   ⏱️ ${et.duration} min | ${price} | 📊 ${et.total_bookings || 0} bookings
+   🔗 /${username}/${et.slug}${et.description ? `\n   📝 ${et.description}` : ''}`;
     }).join('\n\n');
 
     return res.json({
       type: 'list',
-      message: `📅 Your Event Types:\n\n${eventTypesList}`,
+      message: `📅 Your Event Types:\n\n${eventTypesList}\n\n💡 Full links: ${baseUrl}/book/[slug]`,
       data: {
-        event_types: eventTypesResult.rows,
-        count: eventTypesResult.rows.length
+        event_types: eventTypesResult.rows.map(et => ({
+          ...et,
+          booking_url: `${baseUrl}/book/${username}/${et.slug}`
+        })),
+        count: eventTypesResult.rows.length,
+        base_url: baseUrl,
+        username: username
       },
       usage: usageData
     });

@@ -1,25 +1,8 @@
 ﻿import React, { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements } from '@stripe/react-stripe-js';
-import SubscriptionPaymentForm from './SubscriptionPaymentForm'; // Import the new form
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-// Better Stripe key detection
-const getStripeKey = () => {
-  // Try different environment variable formats
-  const viteKey = typeof window !== 'undefined' && window.__VITE_STRIPE_KEY__;
-  const reactKey = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY;
-  
-  // For development, you can temporarily hardcode your test key:
-  const fallbackKey = 'pk_test_51...your_actual_key_here';
-  
-  const key = viteKey || reactKey || fallbackKey;
-  console.log('🔑 Using Stripe key:', key ? 'Found' : 'Missing');
-  return key;
-};
-
-const stripeKey = getStripeKey();
-const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
-
+const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
 
 // Payment Form Component
 const PaymentForm = ({ plan, onSuccess, onCancel }) => {
@@ -107,7 +90,7 @@ const PaymentForm = ({ plan, onSuccess, onCancel }) => {
 };
 
 // Main Upgrade Modal Component
-const SubscriptionUpgradeModal = ({ isOpen, onClose, currentTier = 'free' }) => {
+const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'free' }) => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [step, setStep] = useState('select'); // 'select' or 'payment'
 
@@ -115,11 +98,11 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, currentTier = 'free' }) => 
     {
       id: 'pro',
       name: 'Pro',
-      price: 15,
+      price: 12,
       description: 'Perfect for individuals',
       features: [
         '🤖 UNLIMITED ChatGPT queries',
-        '📅 500 bookings/month',
+        '📅 Unlimited bookings',
         '🔗 Unlimited booking links',
         '⚡ AI optimization',
         '📞 Priority support'
@@ -130,7 +113,7 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, currentTier = 'free' }) => 
     {
       id: 'team',
       name: 'Team', 
-      price: 45,
+      price: 25,
       description: 'Best for organizations',
       features: [
         '✅ Everything in Pro',
@@ -150,11 +133,14 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, currentTier = 'free' }) => 
   };
 
   const handlePaymentSuccess = (plan) => {
-    alert(`Successfully upgraded to ${plan.name} plan!`);
     setStep('select');
+    setSelectedPlan(null);
     onClose();
-    // Refresh the page or update global state
-    window.location.reload();
+    
+    // Call the success handler passed from parent
+    if (onSuccess) {
+      onSuccess(plan);
+    }
   };
 
   const handleBack = () => {
@@ -260,14 +246,13 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, currentTier = 'free' }) => 
                 <p className="text-sm text-gray-600">{selectedPlan.description}</p>
               </div>
 
-              // In SubscriptionUpgradeModal.jsx, replace the Elements wrapper:
-<Elements stripe={stripePromise}>
-  <SubscriptionPaymentForm 
-    plan={selectedPlan}
-    onSuccess={handlePaymentSuccess}
-    onCancel={handleBack}
-  />
-</Elements>
+              <Elements stripe={stripePromise}>
+                <PaymentForm 
+                  plan={selectedPlan}
+                  onSuccess={handlePaymentSuccess}
+                  onCancel={handleBack}
+                />
+              </Elements>
             </div>
           )}
         </div>

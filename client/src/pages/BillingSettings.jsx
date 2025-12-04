@@ -21,6 +21,7 @@ import {
 
 import api from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
+import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal';
 
 export default function BillingSettings() {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ export default function BillingSettings() {
   const [limits, setLimits] = useState({ current_bookings: 0, limits: { soft: 50 } });
   const [invoices, setInvoices] = useState([]);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   useEffect(() => {
     loadBillingData();
@@ -102,13 +104,13 @@ export default function BillingSettings() {
   };
 
   const handleUpgrade = async (plan) => {
-    try {
-      const response = await api.post('/billing/create-checkout', { plan });
-      window.location.href = response.data.checkout_url;
-    } catch (error) {
-      console.error('Upgrade error:', error);
-      notify.error('Failed to start upgrade process');
-    }
+    setShowUpgradeModal(true);
+  };
+
+  const handleUpgradeSuccess = async (plan) => {
+    notify.success(`Successfully upgraded to ${plan.name} plan!`);
+    setShowUpgradeModal(false);
+    await loadBillingData(); // Refresh data to show new plan
   };
 
   const handleCancelSubscription = async () => {
@@ -524,6 +526,14 @@ export default function BillingSettings() {
           </div>
         </div>
       )}
+
+      {/* Upgrade Modal */}
+      <SubscriptionUpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        onSuccess={handleUpgradeSuccess}
+        currentTier={currentTier}
+      />
     </div>
   );
 }

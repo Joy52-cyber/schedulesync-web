@@ -14,39 +14,41 @@ import {
   XCircle,
   Trash2,
   RotateCcw,
-  Zap
+  Zap,
+  Copy, 
+  Check, 
+  Link
 } from 'lucide-react';
 import api from '../utils/api';
 
 export default function AISchedulerChat() {
   console.log('🔥 AISchedulerChat component is rendering!');
 
-  // ✅ UPDATED: New greeting with all capabilities
   const GREETING_MESSAGE = `👋 Hi! I'm your AI scheduling assistant.
 
 I can help you with:
 
 📅 Bookings
-• "Book meeting with john@email.com tomorrow 2pm"
-• "Show my confirmed/cancelled/rescheduled bookings"
-• "How many bookings this month?" (stats)
+- "Book meeting with john@email.com tomorrow 2pm"
+- "Show my confirmed/cancelled/rescheduled bookings"
+- "How many bookings this month?" (stats)
 
 🔗 Links
-• "Get my booking link"
-• "Create magic link for John"
-• "Show team links"
-• "Get Sarah's booking link"
+- "Get my booking link"
+- "Create magic link for John"
+- "Show team links"
+- "Get Sarah's booking link"
 
 📋 Event Types
-• "What are my event types?"
-• "Show my consultation event"
+- "What are my event types?"
+- "Show my consultation event"
 
 🏢 Teams
-• "Schedule with Marketing team"
-• "Find available times this week"
+- "Schedule with Marketing team"
+- "Find available times this week"
 
 📧 Emails
-• "Send reminder to client@company.com"
+- "Send reminder to client@company.com"
 
 What would you like to do?`;
 
@@ -63,6 +65,7 @@ What would you like to do?`;
   });
   const [isMinimized, setIsMinimized] = useState(false);
   const [message, setMessage] = useState('');
+  const [copiedUrl, setCopiedUrl] = useState(null); // ✅ NEW: Track copied URL
 
   const [usage, setUsage] = useState({
     ai_queries_used: 0,
@@ -127,6 +130,13 @@ What would you like to do?`;
         loading: false
       });
     }
+  };
+
+  // ✅ NEW: Copy link handler
+  const handleCopyLink = (url) => {
+    navigator.clipboard.writeText(url);
+    setCopiedUrl(url);
+    setTimeout(() => setCopiedUrl(null), 2000);
   };
 
   useEffect(() => {
@@ -228,7 +238,8 @@ What would you like to do?`;
         setChatHistory(prev => [...prev, { 
           role: 'assistant', 
           content: responseData.message,
-          timestamp: new Date()
+          timestamp: new Date(),
+          data: responseData.data // ✅ Store data for link rendering
         }]);
       } else if (responseData.type === 'confirmation' && responseData.data?.bookingData) {
         const bookingData = responseData.data.bookingData;
@@ -246,14 +257,17 @@ What would you like to do?`;
         setChatHistory(prev => [...prev, { 
           role: 'assistant', 
           content: responseData.message,
-          timestamp: new Date()
+          timestamp: new Date(),
+          data: responseData.data // ✅ Store data for link rendering
         }]);
       } else {
         const aiMessage = responseData.message || responseData.response || 'I understood your request.';
         setChatHistory(prev => [...prev, { 
           role: 'assistant', 
           content: aiMessage,
-          timestamp: new Date()
+          timestamp: new Date(),
+          data: responseData.data, // ✅ Store data for link rendering
+          responseType: responseData.type // ✅ Store type for conditional rendering
         }]);
       }
 
@@ -389,7 +403,132 @@ What would you like to do?`;
     return content.replace(/\*\*/g, '');
   };
 
-  // ✅ UPDATED: New suggestions covering all capabilities
+  // ✅ NEW: Link with copy button component
+  const LinkWithCopy = ({ url, label }) => (
+    <div className="flex items-center gap-2 bg-purple-50 rounded-lg px-3 py-2 mt-2">
+      <Link className="h-4 w-4 text-purple-600 flex-shrink-0" />
+      <span className="text-xs text-purple-700 truncate flex-1 font-mono">{label || url}</span>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handleCopyLink(url);
+        }}
+        className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-all flex-shrink-0 ${
+          copiedUrl === url 
+            ? 'bg-green-500 text-white' 
+            : 'bg-purple-600 text-white hover:bg-purple-700'
+        }`}
+      >
+        {copiedUrl === url ? (
+          <>
+            <Check className="h-3 w-3" />
+            Copied!
+          </>
+        ) : (
+          <>
+            <Copy className="h-3 w-3" />
+            Copy
+          </>
+        )}
+      </button>
+    </div>
+  );
+
+  // ✅ NEW: Multiple links grid component
+  const LinksGrid = ({ links, labelKey = 'name' }) => (
+    <div className="space-y-2 mt-3">
+      {links.map((link, i) => (
+        <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">{link[labelKey] || link.title || link.name}</p>
+            <p className="text-xs text-gray-500 font-mono truncate">{link.short_url || `/book/...`}</p>
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCopyLink(link.url);
+            }}
+            className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded transition-all flex-shrink-0 ${
+              copiedUrl === link.url 
+                ? 'bg-green-500 text-white' 
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            {copiedUrl === link.url ? (
+              <>
+                <Check className="h-3 w-3" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3" />
+                Copy
+              </>
+            )}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+
+  // ✅ NEW: Render message content with links
+  const renderMessageContent = (msg) => {
+    const content = renderMessage(msg.content);
+    const data = msg.data;
+    
+    // Single link responses (personal, magic, member)
+    if (data?.url && data?.type) {
+      const shortLabel = data.short_url || 
+        (data.type === 'magic' ? `/m/${data.token?.substring(0, 8)}...` : 
+         `/book/${data.token?.substring(0, 8) || '...'}...`);
+      
+      return (
+        <>
+          <p className="text-xs sm:text-sm whitespace-pre-wrap">{content}</p>
+          <LinkWithCopy url={data.url} label={shortLabel} />
+        </>
+      );
+    }
+    
+    // Team links (multiple)
+    if (data?.teams && Array.isArray(data.teams) && data.teams.length > 0 && data.teams[0]?.url) {
+      return (
+        <>
+          <p className="text-xs sm:text-sm whitespace-pre-wrap">{content}</p>
+          <LinksGrid links={data.teams} labelKey="name" />
+        </>
+      );
+    }
+    
+    // Member links (multiple)
+    if (data?.members && Array.isArray(data.members) && data.members.length > 0 && data.members[0]?.url) {
+      return (
+        <>
+          <p className="text-xs sm:text-sm whitespace-pre-wrap">{content}</p>
+          <LinksGrid links={data.members} labelKey="name" />
+        </>
+      );
+    }
+    
+    // Event types with links
+    if (data?.event_types && Array.isArray(data.event_types) && data.event_types.length > 0 && data.event_types[0]?.booking_url) {
+      const linksWithUrl = data.event_types.map(et => ({
+        ...et,
+        url: et.booking_url,
+        short_url: `/${data.username}/${et.slug}`
+      }));
+      return (
+        <>
+          <p className="text-xs sm:text-sm whitespace-pre-wrap">{content}</p>
+          <LinksGrid links={linksWithUrl} labelKey="title" />
+        </>
+      );
+    }
+    
+    // Default text
+    return <p className="text-xs sm:text-sm whitespace-pre-wrap">{content}</p>;
+  };
+
   const suggestions = [
     "Get my booking link",
     "What are my event types?",
@@ -497,7 +636,7 @@ What would you like to do?`;
                 </div>
               )}
 
-              {/* ✅ UPDATED: New suggestions grid */}
+              {/* Suggestions grid */}
               {chatHistory.length <= 1 && (
                 <div className="text-center py-4">
                   <p className="text-sm text-gray-500 mb-3">Try saying:</p>
@@ -541,7 +680,13 @@ What would you like to do?`;
                       ? 'bg-purple-600 text-white rounded-br-md' 
                       : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md shadow-sm'
                   }`}>
-                    <p className="text-xs sm:text-sm whitespace-pre-wrap">{renderMessage(msg.content)}</p>
+                    {/* ✅ UPDATED: Use renderMessageContent for assistant messages */}
+                    {msg.role === 'user' ? (
+                      <p className="text-xs sm:text-sm whitespace-pre-wrap">{renderMessage(msg.content)}</p>
+                    ) : (
+                      renderMessageContent(msg)
+                    )}
+                    
                     <p className={`text-xs mt-1 ${msg.role === 'user' ? 'text-purple-200' : 'text-gray-400'}`}>
                       {formatTime(msg.timestamp)}
                     </p>
