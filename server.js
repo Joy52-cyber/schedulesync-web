@@ -9930,6 +9930,7 @@ async function incrementAIUsage(userId) {
 // (Add this section after your existing payment endpoints)
 
 // Get current subscription
+// Get current subscription
 app.get('/api/subscriptions/current', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -9944,12 +9945,27 @@ app.get('/api/subscriptions/current', authenticateToken, async (req, res) => {
     }
 
     const user = userResult.rows[0];
+    const plan = user.subscription_tier || 'free';
+    const isPaid = plan !== 'free';
 
     res.json({
-      plan: user.subscription_tier || 'free',
+      plan: plan,
       status: user.subscription_status || 'active',
       stripe_subscription_id: user.stripe_subscription_id,
-      stripe_customer_id: user.stripe_customer_id
+      stripe_customer_id: user.stripe_customer_id,
+      
+      // ✅ ADD: Fields the frontend expects
+      current_period_end: isPaid ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null,
+      next_billing_date: isPaid ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null,
+      cancel_at: null,
+      
+      // ✅ ADD: Mock payment method for paid plans
+      payment_method: isPaid ? {
+        last4: '4242',
+        brand: 'visa',
+        exp_month: 12,
+        exp_year: 2025
+      } : null
     });
   } catch (error) {
     console.error('Current subscription error:', error);
@@ -10008,7 +10024,6 @@ app.post('/api/subscriptions/create', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to create subscription' });
   }
 });
-
 // Cancel subscription
 app.post('/api/subscriptions/cancel', authenticateToken, async (req, res) => {
   try {
@@ -10016,21 +10031,29 @@ app.post('/api/subscriptions/cancel', authenticateToken, async (req, res) => {
     
     console.log(`🔴 Cancelling subscription for user ${userId}`);
     
-    // Update subscription status
+    // Calculate when access ends (end of current billing period)
+    const accessEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    
+    // Update subscription status (don't immediately downgrade to free)
     await pool.query(
       `UPDATE users 
-       SET subscription_tier = $1, 
-           subscription_status = $2,
+       SET subscription_status = $1,
            updated_at = NOW()
-       WHERE id = $3`,
-      ['free', 'cancelled', userId]
+       WHERE id = $2`,
+      ['cancelled', userId]
     );
     
     console.log(`✅ Successfully cancelled subscription for user ${userId}`);
     
+    // ✅ Return full subscription object so frontend can update state
     res.json({ 
       success: true,
-      message: 'Subscription cancelled successfully' 
+      message: 'Subscription cancelled successfully',
+      plan: 'pro', // Keep current plan until period ends
+      status: 'cancelled',
+      current_period_end: accessEndsAt.toISOString(),
+      next_billing_date: accessEndsAt.toISOString(),
+      cancel_at: accessEndsAt.toISOString()
     });
   } catch (error) {
     console.error('Cancel subscription error:', error);
@@ -10038,62 +10061,48 @@ app.post('/api/subscriptions/cancel', authenticateToken, async (req, res) => {
   }
 });
 
-// Billing portal (placeholder)
-
+// Billing portal
 app.post('/api/subscriptions/billing-portal', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
     console.log(`🏪 Creating billing portal for user ${userId}`);
     
-    // ✅ FIX: Return a real URL, not placeholder
+    // Get user's Stripe customer ID
+    const userResult = await pool.query(
+      'SELECT stripe_customer_id, subscription_tier FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    const user = userResult.rows[0];
+    
+    // If user has a real Stripe customer ID, create a real portal session
+    if (user?.stripe_customer_id && user.stripe_customer_id.startsWith('cus_')) {
+      try {
+        const session = await stripe.billingPortal.sessions.create({
+          customer: user.stripe_customer_id,
+          return_url: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/settings`,
+        });
+        
+        return res.json({ url: session.url });
+      } catch (stripeError) {
+        console.error('Stripe portal error:', stripeError);
+        // Fall through to fallback
+      }
+    }
+    
+    // ✅ Fallback: Return settings page URL (not /billing to avoid refresh loop)
     res.json({ 
-      url: `${process.env.CLIENT_URL || 'https://schedulesync-web-production.up.railway.app'}/billing`,
-      message: 'Redirecting to billing page'
+      url: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/settings?tab=billing`,
+      message: 'Billing management available in settings',
+      is_simulated: true
     });
+    
   } catch (error) {
     console.error('Billing portal error:', error);
     res.status(500).json({ error: 'Failed to create billing portal session' });
   }
 });
-// Alias for billing/subscription (maps to subscriptions/current)
-app.get('/api/billing/subscription', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    
-    const userResult = await pool.query(
-      'SELECT subscription_tier, subscription_status, stripe_subscription_id, stripe_customer_id FROM users WHERE id = $1',
-      [userId]
-    );
-    
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const user = userResult.rows[0];
-    
-     res.json({
-    id: user.stripe_subscription_id || 'free_plan',
-    status: user.subscription_status || 'active',
-    price: user.subscription_tier === 'pro' ? 12 : user.subscription_tier === 'team' ? 25 : 0,
-    next_billing_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    manage_url: `${process.env.CLIENT_URL || 'https://schedulesync-web-production.up.railway.app'}/billing`,  // ✅ Fixed!
-    
-    // ✅ ADD mock payment method:
-    payment_method: user.subscription_tier !== 'free' ? {
-      last4: '4242',
-      brand: 'visa',
-      exp_month: 12,
-      exp_year: 2025
-    } : null
-  });
-    } catch (error) {  // ✅ ADD THIS CATCH BLOCK
-    console.error('❌ Billing subscription error:', error);
-    res.status(500).json({ error: 'Failed to fetch billing subscription' });
-  }
-
-});
-
 // ✅ REPLACE your checkout endpoint with this:
 app.post('/api/billing/create-checkout', authenticateToken, async (req, res) => {
   try {

@@ -36,45 +36,66 @@ const SubscriptionSettings = () => {
   };
 
   const handleCancelSubscription = async () => {
-    if (!confirm('Are you sure you want to cancel your subscription?')) {
-      return;
-    }
+  if (!confirm('Are you sure you want to cancel your subscription? You\'ll keep access until the end of your billing period.')) {
+    return;
+  }
 
-    try {
-      const response = await fetch('/api/subscriptions/cancel', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setSubscription(data);
-        alert('Subscription cancelled successfully.');
+  try {
+    const response = await fetch('/api/subscriptions/cancel', {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
       }
-    } catch (error) {
-      alert('Failed to cancel subscription.');
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+      // ✅ Update state with returned subscription data
+      setSubscription(prev => ({
+        ...prev,
+        status: data.status || 'cancelled',
+        next_billing_date: data.current_period_end,
+        cancel_at: data.cancel_at
+      }));
+      alert('Subscription cancelled. You\'ll keep access until your billing period ends.');
+    } else {
+      alert(data.error || 'Failed to cancel subscription.');
     }
-  };
+  } catch (error) {
+    console.error('Cancel error:', error);
+    alert('Failed to cancel subscription. Please try again.');
+  }
+};
 
-  const openBillingPortal = async () => {
-    try {
-      const response = await fetch('/api/subscriptions/billing-portal', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
+ const openBillingPortal = async () => {
+  try {
+    const response = await fetch('/api/subscriptions/billing-portal', {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok && data.url) {
+      // ✅ Check if it's the same page to avoid refresh
+      if (data.is_simulated) {
+        alert('Billing is managed through this settings page. Update payment methods by contacting support.');
+      } else {
         window.open(data.url, '_blank');
       }
-    } catch (error) {
-      alert('Failed to open billing portal.');
+    } else {
+      alert(data.error || 'Failed to open billing portal.');
     }
-  };
-
-  if (loading) {
-    return <div className="p-4 text-center">Loading subscription details...</div>;
+  } catch (error) {
+    console.error('Billing portal error:', error);
+    alert('Failed to open billing portal.');
   }
+};
 
   const plan = subscription?.plan || 'free';
   const planName = plan.charAt(0).toUpperCase() + plan.slice(1);

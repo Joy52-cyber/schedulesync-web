@@ -40,54 +40,74 @@ const BillingManagement = () => {
     alert(`Successfully upgraded to ${plan.name} plan!`);
   };
 
-  const handleCancelSubscription = async () => {
-    if (!confirm('Are you sure you want to cancel your subscription? You\'ll lose access to Pro features at the end of your billing period.')) {
-      return;
-    }
+  // Update handleCancelSubscription (around line 44)
+const handleCancelSubscription = async () => {
+  if (!confirm('Are you sure you want to cancel your subscription? You\'ll lose access to Pro features at the end of your billing period.')) {
+    return;
+  }
 
-    setActionLoading(true);
-    try {
-      const response = await fetch('/api/subscriptions/cancel', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      if (response.ok) {
-        await fetchSubscriptionDetails(); // Refresh data
-        alert('Subscription cancelled successfully');
+  setActionLoading(true);
+  try {
+    const response = await fetch('/api/subscriptions/cancel', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
       }
-    } catch (error) {
-      console.error('Failed to cancel subscription:', error);
-      alert('Failed to cancel subscription');
-    } finally {
-      setActionLoading(false);
+    });
+
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+      // ✅ Update local state with returned data
+      setSubscription(prev => ({
+        ...prev,
+        status: 'cancelled',
+        current_period_end: data.current_period_end,
+        cancel_at: data.cancel_at
+      }));
+      alert('Subscription cancelled successfully');
+    } else {
+      alert(data.error || 'Failed to cancel subscription');
     }
-  };
+  } catch (error) {
+    console.error('Failed to cancel subscription:', error);
+    alert('Failed to cancel subscription');
+  } finally {
+    setActionLoading(false);
+  }
+};
 
-  const handleUpdateBilling = async () => {
-    setActionLoading(true);
-    try {
-      const response = await fetch('/api/subscriptions/billing-portal', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      if (response.ok) {
-        const { url } = await response.json();
-        window.open(url, '_blank');
+// Update handleUpdateBilling (around line 62)
+const handleUpdateBilling = async () => {
+  setActionLoading(true);
+  try {
+    const response = await fetch('/api/subscriptions/billing-portal', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
       }
-    } catch (error) {
-      console.error('Failed to open billing portal:', error);
-      alert('Failed to open billing management');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+    });
 
+    const data = await response.json();
+    
+    if (response.ok && data.url) {
+      if (data.is_simulated) {
+        alert('Billing management is available through your settings. For payment method changes, please contact support.');
+      } else {
+        window.open(data.url, '_blank');
+      }
+    } else {
+      alert(data.error || 'Failed to open billing portal');
+    }
+  } catch (error) {
+    console.error('Failed to open billing portal:', error);
+    alert('Failed to open billing management');
+  } finally {
+    setActionLoading(false);
+  }
+};
   if (loading) {
     return (
       <div className="bg-white p-6 rounded-lg shadow animate-pulse">
