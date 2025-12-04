@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users,
@@ -10,6 +10,10 @@ import {
   MoreVertical,
   AlertCircle,
   Star,
+  Trash2,
+  Edit,
+  ExternalLink,
+  X,
 } from 'lucide-react';
 import { teams } from '../utils/api';
 
@@ -20,21 +24,34 @@ export default function Teams() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
   const [newTeam, setNewTeam] = useState({ name: '', description: '' });
+  
+  // ✅ NEW: Dropdown and edit modal state
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [editingTeam, setEditingTeam] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     loadTeams();
   }, []);
 
+  // ✅ Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const isPersonalTeam = (team) => {
     if (!team) return false;
-
-    // 1) Explicit flag from backend
     if (team.is_personal === true) return true;
-
-    // 2) Name pattern (handles "Test User's Personal Bookings")
     const name = (team.name || '').toLowerCase();
     if (name.includes('personal') && name.includes('booking')) return true;
-
     return false;
   };
 
@@ -43,30 +60,13 @@ export default function Teams() {
       const response = await teams.getAll();
       const allTeams = response.data.teams || [];
 
-      console.log('📊 Raw teams from API:', allTeams);
-
       const sortedTeams = [...allTeams].sort((a, b) => {
         const aIsPersonal = isPersonalTeam(a);
         const bIsPersonal = isPersonalTeam(b);
-
-        // Personal team always first
         if (aIsPersonal && !bIsPersonal) return -1;
         if (!aIsPersonal && bIsPersonal) return 1;
-
-        // Fallback: alphabetical by name
         return (a.name || '').localeCompare(b.name || '');
       });
-
-      console.log(
-        '✅ Sorted teams (personal first):',
-        sortedTeams.map((t) => ({
-          id: t.id,
-          name: t.name,
-          is_personal: t.is_personal,
-          booking_token: t.booking_token,
-          team_booking_token: t.team_booking_token,
-        }))
-      );
 
       setTeamsList(sortedTeams);
     } catch (error) {
@@ -76,25 +76,22 @@ export default function Teams() {
     }
   };
 
-  // Get the appropriate booking link for a team
   const getBookingLink = (team) => {
     const personal = isPersonalTeam(team);
     
     if (personal) {
-      // Personal teams use member's direct link
       if (!team.booking_token) return null;
       return {
         url: `${window.location.origin}/book/${team.booking_token}`,
         token: team.booking_token,
       };
-  } else {
-  // Regular teams use team booking token
-  if (!team.team_booking_token) return null;
-  return {
-    url: `${window.location.origin}/book/${team.team_booking_token}`, // ✅ No /team/
-    token: team.team_booking_token,
-  };
-}
+    } else {
+      if (!team.team_booking_token) return null;
+      return {
+        url: `${window.location.origin}/book/${team.team_booking_token}`,
+        token: team.team_booking_token,
+      };
+    }
   };
 
   const handleCopyLink = (team) => {
@@ -102,16 +99,12 @@ export default function Teams() {
     
     if (!linkInfo) {
       alert('⚠️ Booking link not available. Please refresh the page or contact support.');
-      console.error('❌ No booking token for team:', team.id);
       return;
     }
-
-    console.log('📋 Copying booking link:', linkInfo.url);
 
     navigator.clipboard
       .writeText(linkInfo.url)
       .then(() => {
-        console.log('✅ Link copied successfully');
         setCopiedId(linkInfo.token);
         setTimeout(() => setCopiedId(null), 2000);
       })
@@ -132,6 +125,144 @@ export default function Teams() {
       console.error('❌ Error creating team:', error);
       alert('Failed to create team. Please try again.');
     }
+  };
+
+  // ✅ NEW: Edit team handler
+  const handleEditTeam = async (e) => {
+    e.preventDefault();
+    if (!editingTeam) return;
+    
+    setActionLoading(true);
+    try {
+      await teams.update(editingTeam.id, {
+        name: editingTeam.name,
+        description: editingTeam.description,
+      });
+      setEditingTeam(null);
+      loadTeams();
+    } catch (error) {
+      console.error('❌ Error updating team:', error);
+      alert('Failed to update team. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // ✅ NEW: Delete team handler
+  const handleDeleteTeam = async (teamId) => {
+    setActionLoading(true);
+    try {
+      await teams.delete(teamId);
+      setDeleteConfirm(null);
+      loadTeams();
+    } catch (error) {
+      console.error('❌ Error deleting team:', error);
+      alert('Failed to delete team. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // ✅ NEW: Open booking page in new tab
+  const handleOpenBookingPage = (team) => {
+    const linkInfo = getBookingLink(team);
+    if (linkInfo) {
+      window.open(linkInfo.url, '_blank');
+    }
+    setOpenMenuId(null);
+  };
+
+  // ✅ NEW: Dropdown Menu Component
+  const TeamDropdownMenu = ({ team }) => {
+    const personal = isPersonalTeam(team);
+    const linkInfo = getBookingLink(team);
+    const isOpen = openMenuId === team.id;
+
+    return (
+      <div className="relative" ref={isOpen ? menuRef : null}>
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenMenuId(isOpen ? null : team.id);
+          }}
+          className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center hover:bg-white/30 transition-colors"
+        >
+          <MoreVertical className="h-4 w-4 text-white" />
+        </button>
+
+        {isOpen && (
+          <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+            {/* Settings */}
+            <button
+              onClick={() => {
+                navigate(`/teams/${team.id}/settings`);
+                setOpenMenuId(null);
+              }}
+              className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+            >
+              <Settings className="h-4 w-4 text-gray-500" />
+              Team Settings
+            </button>
+
+            {/* Edit */}
+            {!personal && (
+              <button
+                onClick={() => {
+                  setEditingTeam({ ...team });
+                  setOpenMenuId(null);
+                }}
+                className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+              >
+                <Edit className="h-4 w-4 text-gray-500" />
+                Edit Team
+              </button>
+            )}
+
+            {/* Open Booking Page */}
+            {linkInfo && (
+              <button
+                onClick={() => handleOpenBookingPage(team)}
+                className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+              >
+                <ExternalLink className="h-4 w-4 text-gray-500" />
+                Open Booking Page
+              </button>
+            )}
+
+            {/* Copy Link */}
+            {linkInfo && (
+              <button
+                onClick={() => {
+                  handleCopyLink(team);
+                  setOpenMenuId(null);
+                }}
+                className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+              >
+                <Copy className="h-4 w-4 text-gray-500" />
+                Copy Booking Link
+              </button>
+            )}
+
+            {/* Delete - Only for non-personal teams */}
+            {!personal && (
+              <>
+                <div className="border-t border-gray-100 my-2" />
+                <button
+                  onClick={() => {
+                    setDeleteConfirm(team);
+                    setOpenMenuId(null);
+                  }}
+                  className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Team
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (loading) {
@@ -207,10 +338,9 @@ export default function Teams() {
                       </div>
                     )}
 
+                    {/* ✅ FIXED: Working dropdown menu */}
                     <div className="absolute top-4 right-4">
-                      <button className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center hover:bg-white/30 transition-colors">
-                        <MoreVertical className="h-4 w-4 text-white" />
-                      </button>
+                      <TeamDropdownMenu team={team} />
                     </div>
 
                     <div
@@ -292,10 +422,19 @@ export default function Teams() {
         )}
       </div>
 
+      {/* Create Team Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Create New Team</h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Create New Team</h2>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
             <form onSubmit={handleCreateTeam} className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Team Name *</label>
@@ -334,6 +473,114 @@ export default function Teams() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ NEW: Edit Team Modal */}
+      {editingTeam && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Edit Team</h2>
+              <button
+                onClick={() => setEditingTeam(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+            <form onSubmit={handleEditTeam} className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Team Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={editingTeam.name}
+                  onChange={(e) => setEditingTeam({ ...editingTeam, name: e.target.value })}
+                  placeholder="Sales Team"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Description</label>
+                <textarea
+                  value={editingTeam.description || ''}
+                  onChange={(e) => setEditingTeam({ ...editingTeam, description: e.target.value })}
+                  placeholder="Book time with our sales team"
+                  rows="3"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none resize-none transition-all"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setEditingTeam(null)}
+                  disabled={actionLoading}
+                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {actionLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ NEW: Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="h-8 w-8 text-red-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Delete Team?</h2>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete <strong>{deleteConfirm.name}</strong>? 
+                This action cannot be undone. All team members will be removed.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  disabled={actionLoading}
+                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteTeam(deleteConfirm.id)}
+                  disabled={actionLoading}
+                  className="flex-1 px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {actionLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      Delete Team
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
