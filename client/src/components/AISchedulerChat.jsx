@@ -13,7 +13,8 @@ import {
   CheckCircle,
   XCircle,
   Trash2,
-  RotateCcw
+  RotateCcw,
+  Zap
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -44,6 +45,13 @@ What would you like to do?`;
   });
   const [isMinimized, setIsMinimized] = useState(false);
   const [message, setMessage] = useState('');
+
+  // ✅ ADD: Usage tracking state
+  const [usage, setUsage] = useState({
+    ai_queries_used: 0,
+    ai_queries_limit: 3,
+    loading: true
+  });
 
   const [chatHistory, setChatHistory] = useState(() => {
     try {
@@ -81,6 +89,29 @@ What would you like to do?`;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // ✅ ADD: Fetch initial usage when component mounts
+  const fetchUsage = async () => {
+    try {
+      console.log('📊 Fetching AI usage...');
+      const response = await api.get('/user/usage');
+      console.log('📊 Usage response:', response.data);
+      
+      setUsage({
+        ai_queries_used: response.data.ai_queries_used || 0,
+        ai_queries_limit: response.data.ai_queries_limit || 3,
+        loading: false
+      });
+    } catch (error) {
+      console.error('❌ Failed to fetch usage:', error);
+      // Set default values on error
+      setUsage({
+        ai_queries_used: 0,
+        ai_queries_limit: 3,
+        loading: false
+      });
+    }
   };
 
   useEffect(() => {
@@ -127,8 +158,25 @@ What would you like to do?`;
     scrollToBottom();
   }, [chatHistory]);
 
+  // ✅ ADD: Fetch usage when component mounts or opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchUsage();
+    }
+  }, [isOpen]);
+
   const handleSend = async () => {
     if (!message.trim() || loading) return;
+
+    // ✅ CHECK: Usage limit before sending
+    if (usage.ai_queries_used >= usage.ai_queries_limit) {
+      setChatHistory(prev => [...prev, { 
+        role: 'assistant', 
+        content: `❌ You've reached your AI query limit (${usage.ai_queries_limit}). Please upgrade your plan to continue using AI features.`,
+        timestamp: new Date()
+      }]);
+      return;
+    }
 
     const userMessage = message.trim();
     setMessage('');
@@ -146,9 +194,23 @@ What would you like to do?`;
         contextMessage = `[Current pending booking: "${pendingBooking.title}" on ${pendingBooking.date} at ${pendingBooking.time} for ${pendingBooking.duration} minutes with ${pendingBooking.attendee_email}]\n\nUser says: ${userMessage}`;
       }
 
+      console.log('📤 Sending AI request:', contextMessage);
+
       const response = await api.ai.schedule(contextMessage, chatHistory);
       const responseData = response.data;
       
+      console.log('📥 AI response received:', responseData);
+
+      // ✅ UPDATE: Usage state when response includes usage info
+      if (responseData.usage) {
+        console.log('✅ Updating usage state:', responseData.usage);
+        setUsage(prev => ({
+          ...prev,
+          ai_queries_used: responseData.usage.ai_queries_used,
+          ai_queries_limit: responseData.usage.ai_queries_limit
+        }));
+      }
+
       if (responseData.type === 'update_pending' && responseData.data?.updatedBooking) {
         setPendingBooking(responseData.data.updatedBooking);
         setChatHistory(prev => [...prev, { 
@@ -180,6 +242,7 @@ What would you like to do?`;
           timestamp: new Date()
         }]);
       }
+
     } catch (error) {
       console.error('AI chat error:', error);
       setChatHistory(prev => [...prev, { 
@@ -353,7 +416,19 @@ What would you like to do?`;
               <p className="text-xs text-purple-200">Natural language booking</p>
             </div>
           </div>
-          <div className="flex items-center gap-1 sm:gap-2">
+
+          {/* ✅ ADD: Usage display in header */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-white/10 rounded-lg px-2 py-1">
+              <Zap className="h-3 w-3 text-yellow-300" />
+              {usage.loading ? (
+                <span className="text-xs text-white">...</span>
+              ) : (
+                <span className="text-xs text-white font-medium">
+                  {usage.ai_queries_used}/{usage.ai_queries_limit}
+                </span>
+              )}
+            </div>
             <button 
               onClick={() => setIsMinimized(!isMinimized)}
               className="p-2 hover:bg-white/20 rounded-lg transition-colors"
@@ -379,6 +454,26 @@ What would you like to do?`;
           <>
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50">
+              {/* ✅ ADD: Usage warning when near limit */}
+              {!usage.loading && usage.ai_queries_used >= usage.ai_queries_limit - 1 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-yellow-600" />
+                    <span className="text-sm text-yellow-700 font-medium">
+                      {usage.ai_queries_used >= usage.ai_queries_limit 
+                        ? `You've reached your AI query limit (${usage.ai_queries_limit})`
+                        : `Only ${usage.ai_queries_limit - usage.ai_queries_used} AI query remaining`
+                      }
+                    </span>
+                  </div>
+                  {usage.ai_queries_used >= usage.ai_queries_limit && (
+                    <p className="text-xs text-yellow-600 mt-1">
+                      Upgrade your plan to continue using AI features.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {chatHistory.length <= 1 && (
                 <div className="text-center py-4">
                   <p className="text-sm text-gray-500 mb-3">Try saying:</p>
@@ -602,12 +697,13 @@ What would you like to do?`;
                   onKeyPress={(e) => e.key === 'Enter' && handleSend()}
                   placeholder="Try: 'Book a call with...' "
                   className="flex-1 px-3 sm:px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                  disabled={loading}
+                  disabled={loading || (usage.ai_queries_used >= usage.ai_queries_limit)}
                 />
                 <button
                   onClick={handleSend}
-                  disabled={loading || !message.trim()}
+                  disabled={loading || !message.trim() || (usage.ai_queries_used >= usage.ai_queries_limit)}
                   className="p-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-xl transition-colors"
+                  title={usage.ai_queries_used >= usage.ai_queries_limit ? 'AI query limit reached' : 'Send message'}
                 >
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                 </button>

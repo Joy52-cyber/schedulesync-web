@@ -323,6 +323,8 @@ export const user = {
   updateProfile: (data) => api.put('/profile', data),
   updatePassword: (data) => api.put('/profile/password', data),
   deleteAccount: () => api.delete('/profile'),
+  // ✅ ADD: Usage tracking for AI features
+  usage: () => api.get('/user/usage'),
 };
 
 // ============================================

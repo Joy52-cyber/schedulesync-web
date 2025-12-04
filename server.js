@@ -7637,13 +7637,12 @@ app.delete('/api/notifications/:id', authenticateToken, async (req, res) => {
 });
 // ============ COMPLETE AI SCHEDULING ENDPOINT WITH EMAIL TEMPLATE INTEGRATION ============
 
-app.post('/api/ai/schedule', authenticateToken, checkUsageLimits, async (req, res) => {
+app.post('/api/ai/schedule', authenticateToken, enforceUsageLimits, async (req, res) => {
   try {
     const { message, conversationHistory = [] } = req.body;
     const userId = req.user.id;
-    const userEmail = req.user.email;
 
-    console.log('🤖 AI Scheduling request:', message);
+    console.log('🤖 AI Scheduling request from user:', userId, 'Message:', message);
 
     // Validate message
     if (!message || typeof message !== 'string' || message.trim() === '') {
@@ -7652,6 +7651,74 @@ app.post('/api/ai/schedule', authenticateToken, checkUsageLimits, async (req, re
         message: 'Please enter a message'
       });
     }
+
+    // ✅ INCREMENT AI USAGE FIRST
+    const usageResult = await incrementAIUsage(userId);
+    if (!usageResult.success) {
+      console.error('❌ Failed to increment usage:', usageResult.error);
+      return res.status(500).json({
+        type: 'error',
+        message: 'Failed to track usage'
+      });
+    }
+
+    // ✅ SIMPLE AI INTENT PARSING (replace with your actual AI logic)
+    console.log('🔍 Parsing message:', message);
+    
+    let responseMessage = '';
+    let responseType = 'response';
+    let responseData = null;
+
+    // Basic intent patterns
+    if (message.toLowerCase().includes('book') || message.toLowerCase().includes('schedule')) {
+      responseType = 'confirmation';
+      responseMessage = '📅 I can help you schedule that meeting. Let me prepare the booking details...';
+      
+      // Extract basic booking info (enhance this with your actual AI parsing)
+      const emailMatch = message.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
+      const timeMatch = message.match(/(\d{1,2}:\d{2}|\d{1,2}\s*(am|pm))/i);
+      const dateMatch = message.match(/(tomorrow|today|next week|monday|tuesday|wednesday|thursday|friday)/i);
+      
+      if (emailMatch) {
+        responseData = {
+          bookingData: {
+            attendee_email: emailMatch[0],
+            date: new Date().toISOString().split('T')[0], // Default to today
+            time: timeMatch ? timeMatch[0] : '14:00',
+            duration: 30,
+            title: 'Meeting'
+          }
+        };
+      }
+    } else if (message.toLowerCase().includes('available') || message.toLowerCase().includes('free')) {
+      responseMessage = '🕐 Let me check your available time slots...';
+    } else if (message.toLowerCase().includes('bookings') || message.toLowerCase().includes('meetings')) {
+      responseMessage = '📋 Here are your upcoming bookings...';
+    } else {
+      responseMessage = `I understand you want to: "${message}". How can I help you with that?`;
+    }
+
+    // ✅ RETURN RESPONSE WITH UPDATED USAGE
+    return res.json({
+      type: responseType,
+      message: responseMessage,
+      data: responseData,
+      usage: {
+        ai_queries_used: usageResult.ai_queries_used,
+        ai_queries_limit: usageResult.ai_queries_limit
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ AI scheduling error:', error);
+    res.status(500).json({ 
+      error: 'AI service temporarily unavailable',
+      type: 'error'
+    });
+  }
+});
+
 
     // Check if message contains pending booking context
     let pendingBookingContext = null;
@@ -8818,18 +8885,68 @@ const trackTemplateUsage = async (templateId, userId, action) => {
   }
 };
 
-// ============ AI USAGE TRACKING ============
-const incrementAIUsage = async (userId) => {
+// ================================================================================
+// ✅ 2. ADD: GET /api/user/usage endpoint (fetch current usage)
+// ================================================================================
+app.get('/api/user/usage', authenticateToken, async (req, res) => {
   try {
-    await pool.query(
-      'UPDATE users SET chatgpt_queries_used = chatgpt_queries_used + 1 WHERE id = $1',
+    const userId = req.user.id;
+    
+    const result = await pool.query(
+      'SELECT ai_queries_used, ai_queries_limit FROM users WHERE id = $1',
       [userId]
     );
-    console.log(`✅ AI usage incremented for user ${userId}`);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = result.rows[0];
+    
+    console.log(`📊 Usage fetched for user ${userId}:`, user);
+    
+    res.json({
+      ai_queries_used: user.ai_queries_used || 0,
+      ai_queries_limit: user.ai_queries_limit || 3,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Failed to fetch usage:', error);
+    res.status(500).json({ error: 'Failed to fetch usage data' });
+  }
+});
+
+
+// ============ AI USAGE TRACKING ============
+async function incrementAIUsage(userId) {
+  try {
+    const result = await pool.query(
+      'UPDATE users SET ai_queries_used = ai_queries_used + 1 WHERE id = $1 RETURNING ai_queries_used, ai_queries_limit',
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      throw new Error('User not found');
+    }
+    
+    const updated = result.rows[0];
+    console.log(`✅ AI usage incremented for user ${userId}: ${updated.ai_queries_used}/${updated.ai_queries_limit}`);
+    
+    return {
+      success: true,
+      ai_queries_used: updated.ai_queries_used,
+      ai_queries_limit: updated.ai_queries_limit
+    };
   } catch (error) {
     console.error('❌ Failed to increment AI usage:', error);
+    return { 
+      success: false,
+      error: error.message
+    };
   }
-};
+}
+
 
 // ============ SUBSCRIPTION MANAGEMENT ============
 // (Add this section after your existing payment endpoints)
