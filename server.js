@@ -7955,77 +7955,93 @@ User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
       });
     }
 
-    // ============ HANDLE EMAIL SENDING INTENTS ============
-    if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
-      const { type, recipient, meeting_details } = parsedIntent.email_action;
-      
-      // Validate email
-      if (!validateEmail(recipient)) {
-        return res.json({
-          type: 'error',
-          message: `❌ Invalid email address: ${recipient}. Please provide a valid email.`,
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      }
-      
-      // Select best template from user's templates
-      const template = await selectBestTemplate(userId, type, meeting_details);
-      
-      if (!template) {
-        return res.json({
-          type: 'error',
-          message: `❌ No ${type} template found. Please create one in Email Templates first, or I'll use a default template.`,
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      }
-      
-      // Prepare meeting details with context from recent bookings
-      const emailDetails = {
-        date: meeting_details?.date || new Date().toLocaleDateString(),
-        time: meeting_details?.time || 'TBD',
-        link: meeting_details?.link || userContext.upcomingBookings?.[0]?.meet_link || 'Will be provided',
-        title: meeting_details?.title || userContext.upcomingBookings?.[0]?.title || 'Meeting'
-      };
-      
-      // Send email with selected template
-      const emailSent = await sendEmailWithTemplate(template, recipient, emailDetails, userId);
-      
-      if (emailSent) {
-        // Track template usage (if template has ID)
-        if (template.id) {
-          await trackTemplateUsage(template.id, userId, 'sent');
-        }
-        
-        return res.json({
-          type: 'email_sent',
-          message: `✅ ${type.charAt(0).toUpperCase() + type.slice(1)} email sent to ${recipient} using "${template.name}" template! 📧`,
-          data: {
-            template_used: template.name,
-            recipient: recipient,
-            email_type: type
-          },
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      } else {
-        return res.json({
-          type: 'error',
-          message: `❌ Failed to send ${type} email to ${recipient}. Please try again.`,
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      }
+   // ============ HANDLE EMAIL SENDING INTENTS ============
+if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
+  const { type, recipient, meeting_details } = parsedIntent.email_action;
+  
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!recipient || !emailRegex.test(recipient)) {
+    return res.json({
+      type: 'clarify',
+      message: `❌ Invalid or missing email address${recipient ? `: ${recipient}` : ''}.\n\nPlease provide a valid email address.\n\nExample: "Send reminder to john@company.com"`,
+      usage: usageData
+    });
+  }
+  
+  // Validate email type
+  const validTypes = ['reminder', 'confirmation', 'follow_up', 'cancellation'];
+  if (!type || !validTypes.includes(type)) {
+    return res.json({
+      type: 'clarify',
+      message: `📧 What type of email would you like to send to ${recipient}?\n\nAvailable types:\n• Reminder\n• Confirmation\n• Follow-up\n• Cancellation\n\nExample: "Send reminder to ${recipient}"`,
+      usage: usageData
+    });
+  }
+  
+  // Check if template exists
+  const template = await selectBestTemplate(userId, type, meeting_details);
+  
+  if (!template) {
+    // List available templates
+    const templatesResult = await pool.query(
+      `SELECT name, type FROM email_templates WHERE user_id = $1 ORDER BY type, name`,
+      [userId]
+    );
+
+    if (templatesResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: `❌ No ${type} email template found.\n\nYou don't have any email templates yet.\n\nGo to Email Templates to create one, or I can send a default ${type} email.`,
+        usage: usageData
+      });
     }
+
+    const templateList = templatesResult.rows.map(t => 
+      `• ${t.name} (${t.type})`
+    ).join('\n');
+
+    return res.json({
+      type: 'info',
+      message: `❌ No ${type} template found.\n\nYour templates:\n${templateList}\n\nCreate a ${type} template or try a different email type.`,
+      usage: usageData
+    });
+  }
+  
+  // Prepare meeting details
+  const emailDetails = {
+    date: meeting_details?.date || new Date().toLocaleDateString(),
+    time: meeting_details?.time || 'TBD',
+    link: meeting_details?.link || userContext.upcomingBookings?.[0]?.meet_link || 'Will be provided',
+    title: meeting_details?.title || userContext.upcomingBookings?.[0]?.title || 'Meeting'
+  };
+  
+  // Send email
+  const emailSent = await sendEmailWithTemplate(template, recipient, emailDetails, userId);
+  
+  if (emailSent) {
+    if (template.id) {
+      await trackTemplateUsage(template.id, userId, 'sent');
+    }
+    
+    return res.json({
+      type: 'email_sent',
+      message: `✅ ${type.charAt(0).toUpperCase() + type.slice(1)} email sent!\n\n📧 To: ${recipient}\n📝 Template: "${template.name}"`,
+      data: {
+        template_used: template.name,
+        recipient: recipient,
+        email_type: type
+      },
+      usage: usageData
+    });
+  } else {
+    return res.json({
+      type: 'error',
+      message: `❌ Failed to send ${type} email to ${recipient}.\n\nPlease try again or check your email settings.`,
+      usage: usageData
+    });
+  }
+}
 
     // ============ HANDLE UPDATE PENDING INTENT ============
     if (parsedIntent.intent === 'update_pending' && pendingBookingContext) {
@@ -8223,14 +8239,38 @@ if (parsedIntent.intent === 'get_member_link') {
   try {
     const memberName = parsedIntent.extracted?.member_name;
     
-    if (!memberName) {
+    if (!memberName || memberName.trim() === '') {
+      // List all available members
+      const allMembersResult = await pool.query(
+        `SELECT tm.name, u.name as user_name, t.name as team_name
+         FROM team_members tm
+         JOIN teams t ON tm.team_id = t.id
+         LEFT JOIN users u ON tm.user_id = u.id
+         WHERE t.owner_id = $1
+         ORDER BY tm.name`,
+        [userId]
+      );
+
+      if (allMembersResult.rows.length === 0) {
+        return res.json({
+          type: 'info',
+          message: '❌ No team members found. Add members to your teams first.',
+          usage: usageData
+        });
+      }
+
+      const memberList = allMembersResult.rows.map(m => 
+        `• ${m.user_name || m.name} (${m.team_name})`
+      ).join('\n');
+
       return res.json({
         type: 'clarify',
-        message: '👤 Which team member\'s link do you need? Please provide their name.',
+        message: `👤 Which team member's link do you need?\n\nAvailable members:\n${memberList}\n\nSay "Get [name]'s booking link"`,
         usage: usageData
       });
     }
 
+    // Search for member by name
     const memberResult = await pool.query(
       `SELECT tm.id, tm.name, tm.booking_token, t.name as team_name,
               u.email as user_email, u.name as user_name
@@ -8244,9 +8284,32 @@ if (parsedIntent.intent === 'get_member_link') {
     );
 
     if (memberResult.rows.length === 0) {
+      // Member not found - show available members
+      const allMembersResult = await pool.query(
+        `SELECT tm.name, u.name as user_name, t.name as team_name
+         FROM team_members tm
+         JOIN teams t ON tm.team_id = t.id
+         LEFT JOIN users u ON tm.user_id = u.id
+         WHERE t.owner_id = $1
+         ORDER BY tm.name`,
+        [userId]
+      );
+
+      if (allMembersResult.rows.length === 0) {
+        return res.json({
+          type: 'info',
+          message: `❌ No team member found matching "${memberName}".\n\nYou don't have any team members yet. Add members to your teams first.`,
+          usage: usageData
+        });
+      }
+
+      const memberList = allMembersResult.rows.map(m => 
+        `• ${m.user_name || m.name} (${m.team_name})`
+      ).join('\n');
+
       return res.json({
         type: 'info',
-        message: `❌ No team member found matching "${memberName}". Check the name and try again.`,
+        message: `❌ No team member found matching "${memberName}".\n\nAvailable members:\n${memberList}`,
         usage: usageData
       });
     }
@@ -8368,10 +8431,28 @@ if (parsedIntent.intent === 'get_event_type') {
   try {
     const eventTypeName = parsedIntent.extracted?.event_type_name;
     
-    if (!eventTypeName) {
+    if (!eventTypeName || eventTypeName.trim() === '') {
+      // List all available event types
+      const allEventsResult = await pool.query(
+        `SELECT title, duration, is_active FROM event_types WHERE user_id = $1 ORDER BY title`,
+        [userId]
+      );
+
+      if (allEventsResult.rows.length === 0) {
+        return res.json({
+          type: 'info',
+          message: '❌ You don\'t have any event types yet.\n\nGo to Event Types to create your first one!',
+          usage: usageData
+        });
+      }
+
+      const eventList = allEventsResult.rows.map(e => 
+        `• ${e.title} (${e.duration} min) ${e.is_active ? '✅' : '⏸️'}`
+      ).join('\n');
+
       return res.json({
         type: 'clarify',
-        message: '📅 Which event type do you want to see? Please provide the name.',
+        message: `📅 Which event type do you want to see?\n\nYour event types:\n${eventList}\n\nSay "Show my [event name]"`,
         usage: usageData
       });
     }
@@ -8397,9 +8478,27 @@ if (parsedIntent.intent === 'get_event_type') {
     );
 
     if (eventTypeResult.rows.length === 0) {
+      // Event type not found - show available ones
+      const allEventsResult = await pool.query(
+        `SELECT title, duration, is_active FROM event_types WHERE user_id = $1 ORDER BY title`,
+        [userId]
+      );
+
+      if (allEventsResult.rows.length === 0) {
+        return res.json({
+          type: 'info',
+          message: `❌ No event type found matching "${eventTypeName}".\n\nYou don't have any event types yet. Go to Event Types to create one!`,
+          usage: usageData
+        });
+      }
+
+      const eventList = allEventsResult.rows.map(e => 
+        `• ${e.title} (${e.duration} min)`
+      ).join('\n');
+
       return res.json({
         type: 'info',
-        message: `❌ No event type found matching "${eventTypeName}".`,
+        message: `❌ No event type found matching "${eventTypeName}".\n\nYour event types:\n${eventList}`,
         usage: usageData
       });
     }
@@ -8409,11 +8508,13 @@ if (parsedIntent.intent === 'get_event_type') {
     const bookingUrl = `${baseUrl}/book/${username}/${et.slug}`;
 
     return res.json({
-      type: 'info',
-      message: `📅 ${et.title}\n\n${et.is_active ? '✅ Active' : '⏸️ Inactive'}\n⏱️ Duration: ${et.duration} minutes\n📝 Description: ${et.description || 'None'}\n\n📊 Stats:\n   ✅ Confirmed: ${et.confirmed_count}\n   ❌ Cancelled: ${et.cancelled_count}\n\n🔗 Booking Link:\n${bookingUrl}`,
+      type: 'event_type',
+      message: `📅 ${et.title}\n\n${et.is_active ? '✅ Active' : '⏸️ Inactive'}\n⏱️ Duration: ${et.duration} minutes\n💰 Price: ${et.price ? `$${et.price}` : 'Free'}\n📝 Description: ${et.description || 'None'}\n\n📊 Stats:\n   ✅ Confirmed: ${et.confirmed_count}\n   ❌ Cancelled: ${et.cancelled_count}`,
       data: {
         event_type: et,
-        booking_url: bookingUrl
+        url: bookingUrl,
+        short_url: `/${username}/${et.slug}`,
+        type: 'event_type'
       },
       usage: usageData
     });
@@ -8426,7 +8527,6 @@ if (parsedIntent.intent === 'get_event_type') {
     });
   }
 }
-
 // ============ HANDLE SHOW CONFIRMED BOOKINGS ============
 if (parsedIntent.intent === 'show_confirmed_bookings' || 
     (parsedIntent.intent === 'show_bookings' && parsedIntent.extracted?.status_filter === 'confirmed')) {
@@ -8649,34 +8749,34 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
   try {
     const teamName = parsedIntent.extracted?.team_name;
     
-    if (!teamName) {
-      // List available teams
-      const teamsResult = await pool.query(
-        `SELECT t.id, t.name FROM teams t WHERE t.owner_id = $1`,
-        [userId]
-      );
-      
-      if (teamsResult.rows.length === 0) {
-        return res.json({
-          type: 'info',
-          message: '❌ No teams found. Create a team first.',
-          usage: usageData
-        });
-      }
-      
-      const teamList = teamsResult.rows.map((t, i) => `${i + 1}. ${t.name}`).join('\n');
+    // Get all teams first
+    const allTeamsResult = await pool.query(
+      `SELECT t.id, t.name FROM teams t WHERE t.owner_id = $1 ORDER BY t.name`,
+      [userId]
+    );
+
+    if (allTeamsResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '❌ No teams found. Create a team first to schedule team meetings.',
+        usage: usageData
+      });
+    }
+
+    if (!teamName || teamName.trim() === '') {
+      const teamList = allTeamsResult.rows.map((t, i) => `${i + 1}. ${t.name}`).join('\n');
       
       return res.json({
         type: 'clarify',
-        message: `Which team would you like to schedule with?\n\n${teamList}\n\nSay "Schedule with [team name]" to continue.`,
-        data: { teams: teamsResult.rows },
+        message: `🏢 Which team would you like to schedule with?\n\n${teamList}\n\nSay "Schedule with [team name]" to continue.`,
+        data: { teams: allTeamsResult.rows },
         usage: usageData
       });
     }
 
     // Find the team
     const teamResult = await pool.query(
-      `SELECT t.id, t.name, t.slug
+      `SELECT t.id, t.name, t.team_booking_token
        FROM teams t
        WHERE t.owner_id = $1 AND LOWER(t.name) LIKE LOWER($2)
        LIMIT 1`,
@@ -8684,20 +8784,38 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
     );
 
     if (teamResult.rows.length === 0) {
+      const teamList = allTeamsResult.rows.map((t, i) => `${i + 1}. ${t.name}`).join('\n');
+
       return res.json({
         type: 'info',
-        message: `❌ No team found matching "${teamName}". Please check the name and try again.`,
+        message: `❌ No team found matching "${teamName}".\n\nYour teams:\n${teamList}\n\nSay "Schedule with [team name]" to continue.`,
+        data: { teams: allTeamsResult.rows },
         usage: usageData
       });
     }
 
     const team = teamResult.rows[0];
 
+    // Validate attendees email if provided
+    if (parsedIntent.extracted?.attendees && parsedIntent.extracted.attendees.length > 0) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const invalidEmails = parsedIntent.extracted.attendees.filter(email => !emailRegex.test(email));
+      
+      if (invalidEmails.length > 0) {
+        return res.json({
+          type: 'clarify',
+          message: `❌ Invalid email address: ${invalidEmails.join(', ')}\n\nPlease provide a valid email address for the attendee.`,
+          data: { team: team },
+          usage: usageData
+        });
+      }
+    }
+
     // Check if we have all required booking info
     if (!parsedIntent.extracted?.date || !parsedIntent.extracted?.time) {
       return res.json({
         type: 'clarify',
-        message: `📅 When would you like to schedule with ${team.name}? Please provide date and time.\n\nExample: "tomorrow at 2pm" or "December 10 at 3:30pm"`,
+        message: `📅 When would you like to schedule with ${team.name}?\n\nPlease provide date and time.\n\nExample: "tomorrow at 2pm" or "December 10 at 3:30pm"`,
         data: { 
           team: team,
           partial_booking: parsedIntent.extracted
@@ -8709,7 +8827,7 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
     if (!parsedIntent.extracted?.attendees || parsedIntent.extracted.attendees.length === 0) {
       return res.json({
         type: 'clarify',
-        message: `👥 Who should I invite to this ${team.name} meeting? Please provide their email address.`,
+        message: `👥 Who should I invite to this ${team.name} meeting?\n\nPlease provide their email address.`,
         data: { 
           team: team,
           partial_booking: parsedIntent.extracted
@@ -8949,114 +9067,87 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
       }
     }
 
-    // ============ HANDLE CREATE MEETING INTENT ============
-    if (parsedIntent.intent === 'create_meeting') {
-      // Email validation
-      if (parsedIntent.extracted.attendees && parsedIntent.extracted.attendees.length > 0) {
-        const invalidEmails = parsedIntent.extracted.attendees.filter(email => !validateEmail(email));
-        if (invalidEmails.length > 0) {
-          return res.json({
-            type: 'clarify',
-            message: `❌ Invalid email address(es): ${invalidEmails.join(', ')}\n\nPlease provide valid email addresses. Example: john@company.com`,
-            data: parsedIntent,
-            usage: {
-              ai_queries_used: usageResult.ai_queries_used,
-              ai_queries_limit: usageResult.ai_queries_limit
-            }
-          });
-        }
-      }
+   // ============ HANDLE CREATE MEETING INTENT ============
+if (parsedIntent.intent === 'create_meeting') {
+  // Email validation function
+  const isValidEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
-      // Required field validation
-      if (!parsedIntent.extracted.date || !parsedIntent.extracted.time) {
-        return res.json({
-          type: 'clarify',
-          message: '📅 I need both a date and time to schedule your meeting. When would you like to meet?',
-          data: parsedIntent,
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      }
-
-      if (!parsedIntent.extracted.attendees || parsedIntent.extracted.attendees.length === 0) {
-        return res.json({
-          type: 'clarify',
-          message: '👥 Who should I invite to this meeting? Please provide their email address.',
-          data: parsedIntent,
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      }
-
-      // Check missing fields
-      const missing = parsedIntent.missing_fields || [];
-      if (missing.length > 0) {
-        return res.json({
-          type: 'clarify',
-          message: parsedIntent.clarifying_question || `I need a bit more information. What ${missing.join(' and ')} would work for you?`,
-          data: parsedIntent,
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      }
-
-      // All validation passed - prepare booking data
-      const attendeeEmail = parsedIntent.extracted.attendees[0];
-      const attendeeName = attendeeEmail
-        .split('@')[0]
-        .replace(/[._-]/g, ' ')
-        .replace(/\b\w/g, c => c.toUpperCase());
-
-      // Auto-generate note with attendee name if no notes provided
-      const extractedNotes = parsedIntent.extracted.notes;
-      const cleanNotes = (extractedNotes && extractedNotes !== 'null' && extractedNotes.trim() !== '') 
-        ? extractedNotes 
-        : `Meeting with ${attendeeName}`;
-
-      const bookingData = {
-        title: parsedIntent.extracted.title || 'Meeting',
-        date: parsedIntent.extracted.date,
-        time: parsedIntent.extracted.time,
-        duration: parsedIntent.extracted.duration_minutes || 30,
-        attendees: parsedIntent.extracted.attendees,
-        attendee_email: attendeeEmail,
-        notes: cleanNotes
-      };
-      
-      let confirmationMessage = `✅ Ready to schedule "${bookingData.title}" for ${bookingData.date} at ${bookingData.time}?\n\n👥 Attendees: ${bookingData.attendees.join(', ')}\n⏱️ Duration: ${bookingData.duration} minutes\n📝 Notes: ${cleanNotes}`;
-      
-      // Try to find a confirmation template for preview
-      try {
-        const confirmationTemplate = await selectBestTemplate(userId, 'confirmation', {
-          date: bookingData.date,
-          time: bookingData.time,
-          title: bookingData.title
-        });
-
-        if (confirmationTemplate) {
-          confirmationMessage += `\n\n📧 Will use "${confirmationTemplate.name}" template for confirmation email`;
-          bookingData.selectedTemplate = confirmationTemplate;
-        }
-      } catch (templateError) {
-        console.log('📧 No confirmation template found, proceeding without auto-email');
-      }
-
+  // Validate attendees emails
+  if (parsedIntent.extracted.attendees && parsedIntent.extracted.attendees.length > 0) {
+    const invalidEmails = parsedIntent.extracted.attendees.filter(email => !isValidEmail(email));
+    
+    if (invalidEmails.length > 0) {
       return res.json({
-        type: 'confirmation',
-        message: confirmationMessage,
-        data: { bookingData },
-        usage: {
-          ai_queries_used: usageResult.ai_queries_used,
-          ai_queries_limit: usageResult.ai_queries_limit
-        }
+        type: 'clarify',
+        message: `❌ Invalid email address: ${invalidEmails.join(', ')}\n\nPlease provide valid email addresses.\n\nExample: john@company.com`,
+        data: parsedIntent,
+        usage: usageData
       });
     }
+  }
+
+  // Required field validation
+  if (!parsedIntent.extracted.date || !parsedIntent.extracted.time) {
+    return res.json({
+      type: 'clarify',
+      message: '📅 I need both a date and time to schedule your meeting.\n\nWhen would you like to meet?\n\nExample: "tomorrow at 2pm" or "December 10 at 3:30pm"',
+      data: parsedIntent,
+      usage: usageData
+    });
+  }
+
+  if (!parsedIntent.extracted.attendees || parsedIntent.extracted.attendees.length === 0) {
+    return res.json({
+      type: 'clarify',
+      message: '👥 Who should I invite to this meeting?\n\nPlease provide their email address.\n\nExample: john@company.com',
+      data: parsedIntent,
+      usage: usageData
+    });
+  }
+
+  // Check missing fields
+  const missing = parsedIntent.missing_fields || [];
+  if (missing.length > 0) {
+    return res.json({
+      type: 'clarify',
+      message: parsedIntent.clarifying_question || `I need a bit more information. What ${missing.join(' and ')} would work for you?`,
+      data: parsedIntent,
+      usage: usageData
+    });
+  }
+
+  // All validation passed - prepare booking data
+  const attendeeEmail = parsedIntent.extracted.attendees[0];
+  const attendeeName = attendeeEmail
+    .split('@')[0]
+    .replace(/[._-]/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+
+  const extractedNotes = parsedIntent.extracted.notes;
+  const cleanNotes = (extractedNotes && extractedNotes !== 'null' && extractedNotes.trim() !== '') 
+    ? extractedNotes 
+    : `Meeting with ${attendeeName}`;
+
+  const bookingData = {
+    title: parsedIntent.extracted.title || 'Meeting',
+    date: parsedIntent.extracted.date,
+    time: parsedIntent.extracted.time,
+    duration: parsedIntent.extracted.duration_minutes || 30,
+    attendees: parsedIntent.extracted.attendees,
+    attendee_email: attendeeEmail,
+    notes: cleanNotes
+  };
+  
+  return res.json({
+    type: 'confirmation',
+    message: `✅ Ready to schedule "${bookingData.title}" for ${bookingData.date} at ${bookingData.time}?\n\n👥 Attendees: ${bookingData.attendees.join(', ')}\n⏱️ Duration: ${bookingData.duration} minutes\n📝 Notes: ${cleanNotes}`,
+    data: { bookingData },
+    usage: usageData
+  });
+}
    
     // ============ DEFAULT RESPONSE ============
     return res.json({
@@ -9917,6 +10008,11 @@ app.get('/api/billing/subscription', authenticateToken, async (req, res) => {
       exp_year: 2025
     } : null
   });
+    } catch (error) {  // ✅ ADD THIS CATCH BLOCK
+    console.error('❌ Billing subscription error:', error);
+    res.status(500).json({ error: 'Failed to fetch billing subscription' });
+  }
+
 });
 
 // ✅ REPLACE your checkout endpoint with this:
