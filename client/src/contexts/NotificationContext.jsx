@@ -1,5 +1,18 @@
 ﻿import { createContext, useContext, useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Info, AlertTriangle, X, Bell, Loader2 } from 'lucide-react';
+import { 
+  CheckCircle, 
+  XCircle, 
+  Info, 
+  AlertTriangle, 
+  X, 
+  Bell, 
+  Loader2,
+  Calendar,
+  DollarSign,
+  Clock,
+  Users,
+  RefreshCw
+} from 'lucide-react';
 import { notifications as notificationsAPI } from '../utils/api';
 
 // Create Notification Context
@@ -13,13 +26,13 @@ export const NOTIFICATION_TYPES = {
   WARNING: 'warning',
 };
 
-// Toast Component
+// Toast Component - Mobile Responsive
 const Toast = ({ notification, onClose }) => {
   const icons = {
-    success: <CheckCircle className="w-5 h-5 text-green-500" />,
-    error: <XCircle className="w-5 h-5 text-red-500" />,
-    info: <Info className="w-5 h-5 text-blue-500" />,
-    warning: <AlertTriangle className="w-5 h-5 text-yellow-500" />,
+    success: <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />,
+    error: <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />,
+    info: <Info className="w-5 h-5 text-blue-500 flex-shrink-0" />,
+    warning: <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0" />,
   };
 
   const bgColors = {
@@ -41,20 +54,20 @@ const Toast = ({ notification, onClose }) => {
 
   return (
     <div
-      className={`flex items-start gap-3 p-4 rounded-lg border shadow-lg ${
+      className={`flex items-start gap-3 p-3 sm:p-4 rounded-lg border shadow-lg ${
         bgColors[notification.type]
-      } animate-in slide-in-from-right duration-300`}
+      } animate-in slide-in-from-right duration-300 max-w-[calc(100vw-2rem)] sm:max-w-sm`}
     >
       {icons[notification.type]}
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         {notification.title && (
-          <h4 className="font-semibold text-gray-900">{notification.title}</h4>
+          <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{notification.title}</h4>
         )}
-        <p className="text-sm text-gray-600">{notification.message}</p>
+        <p className="text-xs sm:text-sm text-gray-600 line-clamp-2">{notification.message}</p>
       </div>
       <button
         onClick={() => onClose(notification.id)}
-        className="text-gray-400 hover:text-gray-600"
+        className="text-gray-400 hover:text-gray-600 flex-shrink-0"
       >
         <X className="w-4 h-4" />
       </button>
@@ -134,7 +147,6 @@ export function NotificationProvider({ children }) {
 
   const prompt = async (message, title = 'Input Required', defaultValue = '') => {
     return new Promise((resolve) => {
-      // This is a simplified version - you might want to create a custom modal
       const result = window.prompt(message, defaultValue);
       resolve(result);
     });
@@ -199,9 +211,9 @@ export function NotificationProvider({ children }) {
     );
   };
 
-  const calendarSyncFailed = (error) => {
+  const calendarSyncFailed = (errorMsg) => {
     error(
-      error || 'Failed to sync calendar. Please try again.',
+      errorMsg || 'Failed to sync calendar. Please try again.',
       'Sync Failed'
     );
   };
@@ -241,8 +253,8 @@ export function NotificationProvider({ children }) {
     <NotificationContext.Provider value={value}>
       {children}
       
-      {/* Toast Container */}
-      <div className="fixed top-4 right-4 z-50 space-y-2 pointer-events-none">
+      {/* Toast Container - Mobile Responsive */}
+      <div className="fixed top-2 right-2 sm:top-4 sm:right-4 z-[99999] space-y-2 pointer-events-none max-w-full">
         <div className="pointer-events-auto space-y-2">
           {toasts.map((notification) => (
             <Toast
@@ -266,13 +278,51 @@ export function useNotification() {
   return context;
 }
 
-// Enhanced Notification Bell Component - With pagination (10 at a time)
+// ✅ Helper to clean broken emojis from database text
+const cleanText = (text) => {
+  if (!text) return '';
+  // Remove common broken emoji patterns (?, ??, boxes, etc.)
+  return text
+    .replace(/^[\?\s]+/, '') // Remove leading ? marks
+    .replace(/[\uFFFD\u0000-\u001F]/g, '') // Remove replacement chars and control chars
+    .trim();
+};
+
+// ✅ Get icon component instead of emoji (more reliable)
+const NotificationIcon = ({ type }) => {
+  const iconClass = "w-5 h-5";
+  
+  switch (type) {
+    case 'booking':
+    case 'booking_created':
+    case 'booking_confirmed':
+      return <Calendar className={`${iconClass} text-blue-500`} />;
+    case 'booking_cancelled':
+      return <XCircle className={`${iconClass} text-red-500`} />;
+    case 'booking_rescheduled':
+      return <RefreshCw className={`${iconClass} text-orange-500`} />;
+    case 'payment':
+    case 'payment_received':
+      return <DollarSign className={`${iconClass} text-green-500`} />;
+    case 'reminder':
+    case 'reminder_sent':
+      return <Clock className={`${iconClass} text-yellow-500`} />;
+    case 'team':
+      return <Users className={`${iconClass} text-purple-500`} />;
+    case 'calendar':
+      return <Calendar className={`${iconClass} text-indigo-500`} />;
+    default:
+      return <Bell className={`${iconClass} text-gray-500`} />;
+  }
+};
+
+// Enhanced Notification Bell Component - Mobile Responsive
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [showAll, setShowAll] = useState(false); // ✅ Track if showing all
+  const [showAll, setShowAll] = useState(false);
   const context = useContext(NotificationContext);
   
   if (!context) {
@@ -280,14 +330,12 @@ export function NotificationBell() {
     return null;
   }
 
-  // ✅ Limit to 10 notifications initially
   const displayLimit = 10;
   const displayedNotifications = showAll 
     ? notifications 
     : notifications.slice(0, displayLimit);
   const hasMore = notifications.length > displayLimit && !showAll;
 
-  // Fetch notifications when bell is opened
   const fetchNotifications = async () => {
     setLoading(true);
     try {
@@ -300,7 +348,6 @@ export function NotificationBell() {
     }
   };
 
-  // Fetch unread count periodically
   const fetchUnreadCount = async () => {
     try {
       const response = await notificationsAPI.getUnreadCount();
@@ -312,14 +359,14 @@ export function NotificationBell() {
 
   useEffect(() => {
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000); // Every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
     if (isOpen) {
       fetchNotifications();
-      setShowAll(false); // Reset to showing limited when reopening
+      setShowAll(false);
     }
   }, [isOpen]);
 
@@ -369,7 +416,6 @@ export function NotificationBell() {
       await notificationsAPI.delete(notificationId);
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
       
-      // Update unread count if the deleted notification was unread
       const deletedNotification = notifications.find(n => n.id === notificationId);
       if (deletedNotification && !deletedNotification.is_read) {
         setUnreadCount(prev => Math.max(0, prev - 1));
@@ -379,23 +425,6 @@ export function NotificationBell() {
     } catch (error) {
       console.error('Failed to delete notification:', error);
       context.error('Failed to delete notification');
-    }
-  };
-
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case 'booking':
-        return '📅';
-      case 'payment':
-        return '💰';
-      case 'reminder':
-        return '⏰';
-      case 'team':
-        return '👥';
-      case 'calendar':
-        return '📆';
-      default:
-        return '🔔';
     }
   };
 
@@ -423,14 +452,14 @@ export function NotificationBell() {
             onClick={() => setIsOpen(false)}
           />
 
-          {/* Notification Panel */}
-          <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border z-50 max-h-[600px] flex flex-col">
+          {/* ✅ Mobile-Responsive Notification Panel */}
+          <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-14 sm:top-auto sm:mt-2 w-auto sm:w-80 md:w-96 bg-white rounded-lg shadow-xl border z-50 max-h-[70vh] sm:max-h-[600px] flex flex-col">
             {/* Header */}
-            <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">
+            <div className="p-3 sm:p-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 text-sm sm:text-base">
                 Notifications
                 {notifications.length > 0 && (
-                  <span className="ml-2 text-sm text-gray-500 font-normal">
+                  <span className="ml-2 text-xs sm:text-sm text-gray-500 font-normal">
                     ({notifications.length})
                   </span>
                 )}
@@ -438,7 +467,7 @@ export function NotificationBell() {
               {notifications.length > 0 && unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllAsRead}
-                  className="text-sm text-blue-600 hover:text-blue-800"
+                  className="text-xs sm:text-sm text-blue-600 hover:text-blue-800"
                 >
                   Mark all read
                 </button>
@@ -452,10 +481,10 @@ export function NotificationBell() {
                   <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                 </div>
               ) : notifications.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">
-                  <Bell className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p className="font-medium">No notifications yet</p>
-                  <p className="text-sm text-gray-400 mt-1">
+                <div className="p-6 sm:p-8 text-center text-gray-500">
+                  <Bell className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 text-gray-300" />
+                  <p className="font-medium text-sm sm:text-base">No notifications yet</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mt-1">
                     We'll notify you when something happens
                   </p>
                 </div>
@@ -464,28 +493,30 @@ export function NotificationBell() {
                   {displayedNotifications.map((notification) => (
                     <div
                       key={notification.id}
-                      className={`p-4 hover:bg-gray-50 transition-colors ${
+                      className={`p-3 sm:p-4 hover:bg-gray-50 transition-colors ${
                         !notification.is_read ? 'bg-blue-50' : ''
                       }`}
                     >
-                      <div className="flex gap-3">
-                        <div className="flex-shrink-0 text-2xl">
-                          {getNotificationIcon(notification.type)}
+                      <div className="flex gap-2 sm:gap-3">
+                        {/* ✅ Use Lucide icon instead of emoji */}
+                        <div className="flex-shrink-0 mt-0.5">
+                          <NotificationIcon type={notification.type} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-gray-900">
-                                {notification.title}
+                            <div className="flex-1 min-w-0">
+                              {/* ✅ Clean the title text */}
+                              <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">
+                                {cleanText(notification.title) || 'New Notification'}
                               </p>
-                              <p className="text-sm text-gray-600 mt-0.5">
-                                {notification.message}
+                              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 line-clamp-2">
+                                {cleanText(notification.message)}
                               </p>
                               <p className="text-xs text-gray-400 mt-1">
                                 {formatTimeAgo(notification.created_at)}
                               </p>
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 flex-shrink-0">
                               {!notification.is_read && (
                                 <button
                                   onClick={(e) => handleMarkAsRead(e, notification)}
@@ -514,22 +545,22 @@ export function NotificationBell() {
 
             {/* Footer - Show More Button */}
             {hasMore && (
-              <div className="p-3 border-t bg-gray-50">
+              <div className="p-2 sm:p-3 border-t bg-gray-50">
                 <button
                   onClick={() => setShowAll(true)}
-                  className="block w-full text-center text-sm text-blue-600 hover:text-blue-800 font-medium py-1"
+                  className="block w-full text-center text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium py-1"
                 >
-                  Show {notifications.length - displayLimit} more notifications
+                  Show {notifications.length - displayLimit} more
                 </button>
               </div>
             )}
 
-            {/* Footer - Collapse Button (when showing all) */}
+            {/* Footer - Collapse Button */}
             {showAll && notifications.length > displayLimit && (
-              <div className="p-3 border-t bg-gray-50">
+              <div className="p-2 sm:p-3 border-t bg-gray-50">
                 <button
                   onClick={() => setShowAll(false)}
-                  className="block w-full text-center text-sm text-gray-600 hover:text-gray-800 font-medium py-1"
+                  className="block w-full text-center text-xs sm:text-sm text-gray-600 hover:text-gray-800 font-medium py-1"
                 >
                   Show less
                 </button>

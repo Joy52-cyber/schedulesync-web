@@ -559,7 +559,7 @@ What would you like to do?`;
         overflow-hidden 
         transition-all 
         flex flex-col 
-        ${isMinimized ? 'h-16' : 'h-screen sm:h-[600px]'}
+        ${isMinimized ? 'h-16' : 'h-[80vh] sm:h-[600px]'}
         max-h-screen
       `}>
         

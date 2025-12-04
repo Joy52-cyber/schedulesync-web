@@ -16,6 +16,9 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -27,6 +30,7 @@ export default function AdminPanel() {
       setLoading(true);
       const response = await api.get('/admin/users');
       setUsers(response.data.users);
+      setSelectedUserIds([]);
     } catch (err) {
       console.error('Failed to load users:', err);
       if (err.response?.status === 403) {
@@ -40,28 +44,108 @@ export default function AdminPanel() {
   };
 
   const handleDeleteUser = async (userId, userEmail) => {
-    if (!window.confirm(`Are you sure you want to PERMANENTLY delete ${userEmail}? This will remove all their teams and bookings. This cannot be undone.`)) {
+    if (
+      !window.confirm(
+        `Are you sure you want to PERMANENTLY delete ${userEmail}? This will remove all their teams and bookings. This cannot be undone.`
+      )
+    ) {
       return;
     }
 
     try {
       // Optimistic update: remove from UI immediately
-      setUsers(prev => prev.filter(u => u.id !== userId));
-      
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      setSelectedUserIds((prev) => prev.filter((id) => id !== userId));
+
       await api.delete(`/admin/users/${userId}`);
       alert(`User ${userEmail} deleted successfully.`);
     } catch (err) {
       console.error('Delete failed:', err);
-      alert('Failed to delete user: ' + (err.response?.data?.error || err.message));
+      alert(
+        'Failed to delete user: ' +
+          (err.response?.data?.error || err.message)
+      );
       // Revert optimistic update on failure
       loadUsers();
     }
   };
 
-  const filteredUsers = users.filter(user => 
+  const filteredUsers = users.filter((user) =>
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    (user.name &&
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  const allVisibleSelected =
+    filteredUsers.length > 0 &&
+    filteredUsers.every((u) => selectedUserIds.includes(u.id));
+
+  const toggleSelectUser = (userId) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      // Unselect all visible
+      const visibleIds = filteredUsers.map((u) => u.id);
+      setSelectedUserIds((prev) =>
+        prev.filter((id) => !visibleIds.includes(id))
+      );
+    } else {
+      // Add all visible
+      const visibleIds = filteredUsers.map((u) => u.id);
+      setSelectedUserIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedUserIds.length === 0) return;
+
+    const selectedUsers = users.filter((u) =>
+      selectedUserIds.includes(u.id)
+    );
+    const emailList = selectedUsers.map((u) => u.email).join('\n');
+
+    const confirmed = window.confirm(
+      `You are about to PERMANENTLY delete ${selectedUserIds.length} user(s).\n\n` +
+      `This will remove all their teams and bookings.\n` +
+      `This CANNOT be undone.\n\n` +
+      `Users:\n${emailList}\n\nContinue?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setBulkDeleting(true);
+
+      // Optimistic update
+      setUsers((prev) =>
+        prev.filter((u) => !selectedUserIds.includes(u.id))
+      );
+
+      await Promise.all(
+        selectedUserIds.map((userId) =>
+          api.delete(`/admin/users/${userId}`)
+        )
+      );
+
+      alert(`Deleted ${selectedUserIds.length} user(s) successfully.`);
+      setSelectedUserIds([]);
+    } catch (err) {
+      console.error('Bulk delete failed:', err);
+      alert(
+        'Failed to delete some users: ' +
+          (err.response?.data?.error || err.message)
+      );
+      loadUsers();
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -78,9 +162,11 @@ export default function AdminPanel() {
           <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
             <ShieldAlert size={32} />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Access Denied
+          </h2>
           <p className="text-gray-600 mb-6">{error}</p>
-          <button 
+          <button
             onClick={() => navigate('/dashboard')}
             className="px-6 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors"
           >
@@ -94,18 +180,39 @@ export default function AdminPanel() {
   return (
     <div className="min-h-screen bg-gray-50 p-6 sm:p-10">
       <div className="max-w-7xl mx-auto">
-        
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <ShieldAlert className="text-blue-600" /> 
+              <ShieldAlert className="text-blue-600" />
               Admin Panel
             </h1>
-            <p className="text-gray-500 mt-1">Manage system users and data.</p>
+            <p className="text-gray-500 mt-1">
+              Manage system users and data.
+            </p>
           </div>
-          <div className="bg-white px-4 py-2 rounded-xl border shadow-sm text-sm font-medium text-gray-600">
-            Total Users: <span className="text-gray-900 font-bold">{users.length}</span>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="bg-white px-4 py-2 rounded-xl border shadow-sm text-sm font-medium text-gray-600">
+              Total Users:{' '}
+              <span className="text-gray-900 font-bold">
+                {users.length}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              disabled={selectedUserIds.length === 0 || bulkDeleting}
+              className={`inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                selectedUserIds.length === 0 || bulkDeleting
+                  ? 'border-gray-200 text-gray-400 bg-gray-100 cursor-not-allowed'
+                  : 'border-red-200 text-red-700 bg-red-50 hover:bg-red-100'
+              }`}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              {bulkDeleting
+                ? 'Deleting...'
+                : `Delete Selected (${selectedUserIds.length})`}
+            </button>
           </div>
         </div>
 
@@ -129,35 +236,72 @@ export default function AdminPanel() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleSelectAllVisible}
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     User
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Stats
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Joined
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Provider
                   </th>
-                  <th scope="col" className="relative px-6 py-3">
-                    <span className="sr-only">Actions</span>
+                  <th
+                    scope="col"
+                    className="relative px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                  <tr
+                    key={user.id}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedUserIds.includes(user.id)}
+                        onChange={() => toggleSelectUser(user.id)}
+                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
                           <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
-                            {user.name?.[0] || user.email[0].toUpperCase()}
+                            {user.name?.[0] ||
+                              user.email[0].toUpperCase()}
                           </div>
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{user.name || 'No Name'}</div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {user.name || 'No Name'}
+                          </div>
                           <div className="text-sm text-gray-500 flex items-center gap-1">
                             <Mail size={12} /> {user.email}
                           </div>
@@ -167,24 +311,36 @@ export default function AdminPanel() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex gap-3">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          <Users size={12} className="mr-1" /> {user.team_count || 0} Teams
+                          <Users size={12} className="mr-1" />{' '}
+                          {user.team_count || 0} Teams
                         </span>
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          <Calendar size={12} className="mr-1" /> {user.booking_count || 0} Bookings
+                          <Calendar size={12} className="mr-1" />{' '}
+                          {user.booking_count || 0} Bookings
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(user.created_at).toLocaleDateString()}
+                      {user.created_at
+                        ? new Date(user.created_at).toLocaleDateString()
+                        : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className={`capitalize px-2 py-1 rounded-md text-xs border ${user.provider === 'google' ? 'bg-white border-gray-200' : 'bg-gray-100'}`}>
+                      <span
+                        className={`capitalize px-2 py-1 rounded-md text-xs border ${
+                          user.provider === 'google'
+                            ? 'bg-white border-gray-200'
+                            : 'bg-gray-100'
+                        }`}
+                      >
                         {user.provider || 'Email'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
-                        onClick={() => handleDeleteUser(user.id, user.email)}
+                        onClick={() =>
+                          handleDeleteUser(user.id, user.email)
+                        }
                         className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 p-2 rounded-lg transition-colors"
                         title="Delete User"
                       >
