@@ -1,9 +1,22 @@
-﻿import { useState, useEffect } from 'react';
+﻿// client/src/pages/EventTypeForm.jsx
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
-  ArrowLeft, Clock, MapPin, FileText, Loader2, Save,
-  Link as LinkIcon, Palette, Shield,
-  Video, Phone, Building2, Globe, Zap, AlertCircle
+  ArrowLeft,
+  Clock,
+  MapPin,
+  FileText,
+  Loader2,
+  Save,
+  Link as LinkIcon,
+  Palette,
+  Shield,
+  Video,
+  Phone,
+  Building2,
+  Globe,
+  Zap,
+  AlertCircle,
 } from 'lucide-react';
 import { events } from '../utils/api';
 
@@ -16,7 +29,7 @@ export default function EventTypeForm() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
@@ -26,13 +39,16 @@ export default function EventTypeForm() {
     location_type: 'google_meet',
     color: 'blue',
     is_active: true,
-    
+
     // Advanced settings
     buffer_before: 0,
     buffer_after: 0,
     max_bookings_per_day: null,
     require_approval: false,
-    
+
+    // Pricing (already used in populateForm + handleSubmit)
+    price: 0,
+    currency: 'USD',
   });
 
   const colors = [
@@ -55,10 +71,30 @@ export default function EventTypeForm() {
   ];
 
   const templates = [
-    { name: '15-min Quick Chat', duration: 15, slug: 'quick-chat', description: 'Brief introductory conversation' },
-    { name: '30-min Meeting', duration: 30, slug: 'meeting', description: 'Standard meeting for discussions' },
-    { name: '60-min Consultation', duration: 60, slug: 'consultation', description: 'In-depth consultation session' },
-    { name: '45-min Discovery Call', duration: 45, slug: 'discovery', description: 'Learn about needs and goals' },
+    {
+      name: '15-min Quick Chat',
+      duration: 15,
+      slug: 'quick-chat',
+      description: 'Brief introductory conversation',
+    },
+    {
+      name: '30-min Meeting',
+      duration: 30,
+      slug: 'meeting',
+      description: 'Standard meeting for discussions',
+    },
+    {
+      name: '60-min Consultation',
+      duration: 60,
+      slug: 'consultation',
+      description: 'In-depth consultation session',
+    },
+    {
+      name: '45-min Discovery Call',
+      duration: 45,
+      slug: 'discovery',
+      description: 'Learn about needs and goals',
+    },
   ];
 
   useEffect(() => {
@@ -69,6 +105,7 @@ export default function EventTypeForm() {
         loadEventTypeFromList();
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const populateForm = (event) => {
@@ -88,8 +125,13 @@ export default function EventTypeForm() {
       price: event.price || 0,
       currency: event.currency || 'USD',
     });
-    
-    if (event.buffer_before || event.buffer_after || event.max_bookings_per_day || event.require_approval) {
+
+    if (
+      event.buffer_before ||
+      event.buffer_after ||
+      event.max_bookings_per_day ||
+      event.require_approval
+    ) {
       setShowAdvanced(true);
     }
   };
@@ -98,9 +140,13 @@ export default function EventTypeForm() {
     setLoading(true);
     try {
       const response = await events.getAll();
-      const list = response.data.eventTypes || response.data.event_types || response.data || [];
-      const event = list.find(e => String(e.id) === String(id));
-      
+      const list =
+        response.data.eventTypes ||
+        response.data.event_types ||
+        response.data ||
+        [];
+      const event = list.find((e) => String(e.id) === String(id));
+
       if (event) {
         populateForm(event);
       } else {
@@ -118,9 +164,9 @@ export default function EventTypeForm() {
   const handleTitleChange = (e) => {
     const title = e.target.value;
     if (!formData.slug || formData.slug === slugify(formData.title)) {
-      setFormData(prev => ({ ...prev, title, slug: slugify(title) }));
+      setFormData((prev) => ({ ...prev, title, slug: slugify(title) }));
     } else {
-      setFormData(prev => ({ ...prev, title }));
+      setFormData((prev) => ({ ...prev, title }));
     }
   };
 
@@ -136,8 +182,13 @@ export default function EventTypeForm() {
   };
 
   const applyTemplate = (template) => {
-    if (!confirm(`Apply template "${template.name}"? This will overwrite some fields.`)) return;
-    setFormData(prev => ({
+    if (
+      !window.confirm(
+        `Apply template "${template.name}"? This will overwrite some fields.`
+      )
+    )
+      return;
+    setFormData((prev) => ({
       ...prev,
       title: template.name,
       slug: template.slug,
@@ -150,7 +201,7 @@ export default function EventTypeForm() {
     e.preventDefault();
     if (!formData.title.trim()) return alert('Event name is required');
     if (!formData.slug.trim()) return alert('URL Slug is required');
-    
+
     setSaving(true);
     try {
       const payload = {
@@ -160,7 +211,9 @@ export default function EventTypeForm() {
         location: formData.location.trim(),
         buffer_before: parseInt(formData.buffer_before) || 0,
         buffer_after: parseInt(formData.buffer_after) || 0,
-        max_bookings_per_day: formData.max_bookings_per_day ? parseInt(formData.max_bookings_per_day) : null,
+        max_bookings_per_day: formData.max_bookings_per_day
+          ? parseInt(formData.max_bookings_per_day)
+          : null,
         price: parseFloat(formData.price) || 0,
       };
 
@@ -172,7 +225,10 @@ export default function EventTypeForm() {
       navigate('/events');
     } catch (error) {
       console.error('Failed to save:', error);
-      alert('Failed to save: ' + (error.response?.data?.error || error.message));
+      alert(
+        'Failed to save: ' +
+          (error.response?.data?.error || error.message)
+      );
     } finally {
       setSaving(false);
     }
@@ -186,13 +242,15 @@ export default function EventTypeForm() {
     );
   }
 
-  const selectedLocationType = locationTypes.find(t => t.value === formData.location_type);
+  const selectedLocationType = locationTypes.find(
+    (t) => t.value === formData.location_type
+  );
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="mb-8">
-        <button 
-          onClick={() => navigate('/events')} 
+        <button
+          onClick={() => navigate('/events')}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" /> Back
@@ -201,7 +259,7 @@ export default function EventTypeForm() {
           {isEditing ? 'Edit Event Type' : 'Create Event Type'}
         </h1>
         <p className="text-gray-600 mt-2">
-          {isEditing 
+          {isEditing
             ? 'Update the settings for this meeting template.'
             : 'Define a new meeting template with custom settings.'}
         </p>
@@ -222,8 +280,12 @@ export default function EventTypeForm() {
                 onClick={() => applyTemplate(template)}
                 className="p-3 bg-white border border-blue-200 rounded-xl hover:border-blue-400 hover:shadow-sm transition-all text-left"
               >
-                <p className="font-semibold text-gray-900 text-sm">{template.name}</p>
-                <p className="text-xs text-gray-500 mt-1">{template.duration} min</p>
+                <p className="font-semibold text-gray-900 text-sm">
+                  {template.name}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {template.duration} min
+                </p>
               </button>
             ))}
           </div>
@@ -231,7 +293,6 @@ export default function EventTypeForm() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        
         {/* Basic Information */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
@@ -256,7 +317,7 @@ export default function EventTypeForm() {
 
             <div>
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                <LinkIcon className="h-4 w-4 text-gray-400" /> 
+                <LinkIcon className="h-4 w-4 text-gray-400" />
                 URL Slug *
               </label>
               <div className="flex items-center">
@@ -266,13 +327,20 @@ export default function EventTypeForm() {
                 <input
                   type="text"
                   value={formData.slug}
-                  onChange={(e) => setFormData({ ...formData, slug: slugify(e.target.value) })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      slug: slugify(e.target.value),
+                    })
+                  }
                   className="flex-1 px-4 py-3 border border-gray-300 rounded-r-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="strategy-session"
                   required
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1.5">This will be the shareable booking link.</p>
+              <p className="text-xs text-gray-500 mt-1.5">
+                This will be the shareable booking link.
+              </p>
             </div>
 
             <div>
@@ -281,7 +349,9 @@ export default function EventTypeForm() {
               </label>
               <textarea
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows={3}
                 placeholder="What should invitees know about this meeting?"
@@ -290,7 +360,7 @@ export default function EventTypeForm() {
 
             <div>
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-3">
-                <Palette className="h-4 w-4 text-gray-400" /> 
+                <Palette className="h-4 w-4 text-gray-400" />
                 Event Color
               </label>
               <div className="flex gap-3">
@@ -298,10 +368,12 @@ export default function EventTypeForm() {
                   <button
                     key={c.name}
                     type="button"
-                    onClick={() => setFormData({ ...formData, color: c.name })}
+                    onClick={() =>
+                      setFormData({ ...formData, color: c.name })
+                    }
                     className={`w-10 h-10 rounded-full ${c.bg} transition-all ${
-                      formData.color === c.name 
-                        ? 'ring-4 ring-offset-2 ring-gray-300 scale-110' 
+                      formData.color === c.name
+                        ? 'ring-4 ring-offset-2 ring-gray-300 scale-110'
                         : 'hover:scale-105 opacity-70 hover:opacity-100'
                     }`}
                     title={c.name}
@@ -322,12 +394,17 @@ export default function EventTypeForm() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                <Clock className="h-4 w-4 text-gray-400" /> 
+                <Clock className="h-4 w-4 text-gray-400" />
                 Duration *
               </label>
               <select
                 value={formData.duration}
-                onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    duration: parseInt(e.target.value),
+                  })
+                }
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value={15}>15 minutes</option>
@@ -341,12 +418,17 @@ export default function EventTypeForm() {
 
             <div>
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                <MapPin className="h-4 w-4 text-gray-400" /> 
+                <MapPin className="h-4 w-4 text-gray-400" />
                 Location Type
               </label>
               <select
                 value={formData.location_type}
-                onChange={(e) => setFormData({ ...formData, location_type: e.target.value })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    location_type: e.target.value,
+                  })
+                }
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 {locationTypes.map((type) => (
@@ -366,112 +448,170 @@ export default function EventTypeForm() {
               <input
                 type="text"
                 value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, location: e.target.value })
+                }
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder={
-                  formData.location_type === 'phone' ? 'Phone number or instructions' :
-                  formData.location_type === 'zoom' ? 'Zoom meeting link' :
-                  formData.location_type === 'in_person' ? 'Address or meeting place' :
-                  'Enter custom location or link'
+                  formData.location_type === 'phone'
+                    ? 'Phone number or instructions'
+                    : formData.location_type === 'zoom'
+                    ? 'Zoom meeting link'
+                    : formData.location_type === 'in_person'
+                    ? 'Address or meeting place'
+                    : 'Enter custom location or link'
                 }
               />
             </div>
           )}
+
+          {/* Advanced Settings Toggle */}
+          <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">
+                Advanced settings
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((prev) => !prev)}
+              className="text-sm font-medium text-blue-600 hover:text-blue-700"
+            >
+              {showAdvanced ? 'Hide' : 'Show'}
+            </button>
+          </div>
         </div>
 
+        {/* Advanced Settings Card */}
         {showAdvanced && (
-  <div className="px-6 pb-6 space-y-5 border-t border-gray-100 pt-6">
-    
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-      <div>
-        <label className="text-sm font-medium text-gray-700 mb-2 block">
-          Buffer Before (minutes)
-        </label>
-        <input
-          type="number"
-          min="0"
-          max="60"
-          value={formData.buffer_before}
-          onChange={(e) => setFormData({ ...formData, buffer_before: e.target.value })}
-          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-          placeholder="0"
-        />
-        <p className="text-xs text-gray-500 mt-1.5">Time before the meeting starts</p>
-      </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Shield className="h-5 w-5 text-gray-600" />
+              Advanced Booking Rules
+            </h2>
 
-      <div>
-        <label className="text-sm font-medium text-gray-700 mb-2 block">
-          Buffer After (minutes)
-        </label>
-        <input
-          type="number"
-          min="0"
-          max="60"
-          value={formData.buffer_after}
-          onChange={(e) => setFormData({ ...formData, buffer_after: e.target.value })}
-          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-          placeholder="0"
-        />
-        <p className="text-xs text-gray-500 mt-1.5">Time after the meeting ends</p>
-      </div>
-    </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Buffer Before (minutes)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={formData.buffer_before}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      buffer_before: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+                  placeholder="0"
+                />
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Time before the meeting starts.
+                </p>
+              </div>
 
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-      <div>
-        <label className="text-sm font-medium text-gray-700 mb-2 block">
-          Max Bookings Per Day
-        </label>
-        <input
-          type="number"
-          min="1"
-          value={formData.max_bookings_per_day || ''}
-          onChange={(e) => setFormData({ ...formData, max_bookings_per_day: e.target.value })}
-          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-          placeholder="Unlimited"
-        />
-        <p className="text-xs text-gray-500 mt-1.5">Leave empty for unlimited bookings</p>
-      </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Buffer After (minutes)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={formData.buffer_after}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      buffer_after: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+                  placeholder="0"
+                />
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Time after the meeting ends.
+                </p>
+              </div>
+            </div>
 
-      <div>
-        <label className="text-sm font-medium text-gray-700 mb-2 block">
-          Booking Approval
-        </label>
-        <label className="flex items-center gap-3 p-4 border border-gray-300 rounded-xl cursor-pointer hover:bg-gray-50">
-          <input
-            type="checkbox"
-            checked={formData.require_approval}
-            onChange={(e) => setFormData({ ...formData, require_approval: e.target.checked })}
-            className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-          />
-          <span className="text-sm text-gray-700">Require manual approval</span>
-        </label>
-      </div>
-    </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Max Bookings Per Day
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={formData.max_bookings_per_day || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      max_bookings_per_day: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+                  placeholder="Unlimited"
+                />
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Leave empty for unlimited bookings.
+                </p>
+              </div>
 
-    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
-      <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-      <div>
-        <p className="text-sm font-medium text-blue-900">Advanced Settings Info</p>
-        <p className="text-xs text-blue-700 mt-1">
-          Buffer times prevent back-to-back meetings. Booking limits help manage your availability.
-        </p>
-      </div>
-    </div>
-  </div>
-)}
-        
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Booking Approval
+                </label>
+                <label className="flex items-center gap-3 p-4 border border-gray-300 rounded-xl cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={formData.require_approval}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        require_approval: e.target.checked,
+                      })
+                    }
+                    className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Require manual approval
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3 mt-5">
+              <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-blue-900">
+                  Advanced Settings Info
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  Buffer times prevent back-to-back meetings. Booking limits
+                  help manage your availability.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex gap-4">
-          <button 
-            type="button" 
-            onClick={() => navigate('/events')} 
+          <button
+            type="button"
+            onClick={() => navigate('/events')}
             className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
           >
             Cancel
           </button>
-          <button 
-            type="submit" 
-            disabled={saving} 
+          <button
+            type="submit"
+            disabled={saving}
             className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? (
