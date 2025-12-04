@@ -8165,7 +8165,7 @@ if (parsedIntent.intent === 'get_magic_link') {
 if (parsedIntent.intent === 'get_team_links') {
   try {
     const teamsResult = await pool.query(
-      `SELECT t.id, t.name, t.team_booking_token, t.is_personal,
+      `SELECT t.id, t.name, t.team_booking_token,
               COUNT(tm.id) as member_count
        FROM teams t
        LEFT JOIN team_members tm ON t.id = tm.team_id
@@ -8187,7 +8187,9 @@ if (parsedIntent.intent === 'get_team_links') {
     
     const teamLinks = teamsResult.rows.map((team, index) => {
       const teamUrl = `${baseUrl}/book/${team.team_booking_token}`;
-      const label = team.is_personal ? '⭐ Personal' : '🏢 Team';
+      // Check if personal by name pattern (same as frontend)
+      const isPersonal = team.name.toLowerCase().includes('personal');
+      const label = isPersonal ? '⭐ Personal' : '🏢 Team';
       return `${index + 1}. ${team.name} ${label}\n   🔗 ${teamUrl}\n   👥 ${team.member_count} members`;
     }).join('\n\n');
 
@@ -8199,8 +8201,7 @@ if (parsedIntent.intent === 'get_team_links') {
           id: team.id,
           name: team.name,
           url: `${baseUrl}/book/${team.team_booking_token}`,
-          member_count: team.member_count,
-          is_personal: team.is_personal
+          member_count: team.member_count
         }))
       },
       usage: usageData
@@ -8303,8 +8304,8 @@ if (parsedIntent.intent === 'get_event_types') {
     const username = userResult.rows[0]?.username || userResult.rows[0]?.email?.split('@')[0] || 'user';
 
     const eventTypesResult = await pool.query(
-      `SELECT et.id, et.title as name, et.slug, et.duration, et.description, 
-              et.price, et.is_active, et.color,
+      `SELECT et.id, et.title, et.slug, et.duration, et.description, 
+              et.price, et.is_active, et.color, et.location_type,
               COUNT(b.id) as total_bookings
        FROM event_types et
        LEFT JOIN bookings b ON b.event_type_id = et.id
@@ -8329,7 +8330,7 @@ if (parsedIntent.intent === 'get_event_types') {
       const price = et.price ? `💰 $${et.price}` : '🆓 Free';
       const bookingUrl = `${baseUrl}/book/${username}/${et.slug}`;
       
-      return `${index + 1}. ${et.name} ${status}
+      return `${index + 1}. ${et.title} ${status}
    ⏱️ ${et.duration} minutes | ${price}
    📊 ${et.total_bookings || 0} bookings
    🔗 ${bookingUrl}${et.description ? `\n   📝 ${et.description}` : ''}`;
@@ -8401,7 +8402,7 @@ if (parsedIntent.intent === 'get_event_type') {
 
     return res.json({
       type: 'info',
-      message: `📅 ${et.title}\n\n${et.is_active ? '✅ Active' : '⏸️ Inactive'}\n⏱️ Duration: ${et.duration} minutes\n💰 Price: ${et.price ? `$${et.price}` : 'Free'}\n📝 Description: ${et.description || 'None'}\n\n📊 Stats:\n   ✅ Confirmed: ${et.confirmed_count}\n   ❌ Cancelled: ${et.cancelled_count}\n\n🔗 Booking Link:\n${bookingUrl}`,
+      message: `📅 ${et.title}\n\n${et.is_active ? '✅ Active' : '⏸️ Inactive'}\n⏱️ Duration: ${et.duration} minutes\n📝 Description: ${et.description || 'None'}\n\n📊 Stats:\n   ✅ Confirmed: ${et.confirmed_count}\n   ❌ Cancelled: ${et.cancelled_count}\n\n🔗 Booking Link:\n${bookingUrl}`,
       data: {
         event_type: et,
         booking_url: bookingUrl
