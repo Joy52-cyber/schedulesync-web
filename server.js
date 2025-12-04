@@ -7785,66 +7785,90 @@ If the user wants to UPDATE this pending booking (change time, duration, date, e
 ` : '';
 
     // Enhanced system instruction with email functionality
-    const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
+   // ============================================================
+// UPDATED SYSTEM INSTRUCTION FOR AI SCHEDULER
+// ============================================================
+//
+// Replace your existing systemInstruction in /api/ai/schedule
+// with this updated version that includes all new intents
+// ============================================================
+
+const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
 
 User context: ${JSON.stringify(userContext)}
 ${pendingBookingInstruction}
 
-CRITICAL INSTRUCTIONS:
-1. When user requests "create meeting" or "schedule with [email]", extract ALL details in ONE response
-2. When user wants to send emails, detect email intent and extract recipient/type
-3. Parse natural language intelligently:
-   - "tomorrow" = next day from ${new Date().toISOString()}
-   - "1 hour" or "an hour" = 60 minutes duration
-   - "2 hours" = 120 minutes duration
-   - "5pm" or "5:00 PM" = "17:00" in 24-hour format
-4. NEVER use markdown formatting (no **, no ##, no *)
-5. Keep responses clean and professional
+AVAILABLE INTENTS:
+- "create_meeting" - Schedule a new meeting
+- "show_bookings" - List upcoming bookings (default: confirmed)
+- "show_confirmed_bookings" - List confirmed bookings only
+- "show_cancelled_bookings" - List cancelled bookings
+- "show_rescheduled_bookings" - List rescheduled bookings
+- "booking_stats" - Show booking statistics
+- "find_time" - Find available time slots
+- "get_event_types" - List all event types
+- "get_event_type" - Get specific event type details
+- "get_personal_link" - Get user's personal booking link
+- "get_magic_link" - Create a single-use magic link
+- "get_team_links" - Get all team booking links
+- "get_member_link" - Get a specific team member's link
+- "schedule_team_meeting" - Schedule with a specific team
+- "send_email" - Send an email using templates
+- "update_pending" - Update pending booking
+- "cancel_booking" - Cancel a booking
+- "clarify" - Need more information
 
-EMAIL INTENTS:
-- "send reminder to john@email.com" → intent: "send_email", email_action: {type: "reminder", recipient: "john@email.com"}
-- "send thank you to jane@email.com" → intent: "send_email", email_action: {type: "follow_up", recipient: "jane@email.com"}  
-- "confirm meeting with bob@email.com" → intent: "send_email", email_action: {type: "confirmation", recipient: "bob@email.com"}
+INTENT EXAMPLES:
 
-Current date/time: ${new Date().toISOString()}
-User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
+LINK REQUESTS:
+- "get my link" or "my booking page" → intent: "get_personal_link"
+- "create magic link for John" → intent: "get_magic_link", extracted: { link_name: "John" }
+- "get team links" or "show team pages" → intent: "get_team_links"
+- "get Sarah's link" → intent: "get_member_link", extracted: { member_name: "Sarah" }
 
-MULTIPLE ATTENDEE PARSING EXAMPLES:
-- "Schedule with alice@company.com and bob@startup.com tomorrow" 
-  → attendees: ["alice@company.com", "bob@startup.com"], date: "2025-12-04"
-- "Meeting with john@email.com, jane@company.com at 3pm"
-  → attendees: ["john@email.com", "jane@company.com"], time: "15:00"
+EVENT TYPE QUERIES:
+- "what are my event types" or "show event types" → intent: "get_event_types"
+- "show my 30 minute meeting" or "get consultation event" → intent: "get_event_type", extracted: { event_type_name: "..." }
 
-CRITICAL: Extract ALL email addresses found in the message.
-Use regex pattern /\S+@\S+\.\S+/g to find all emails.
-When multiple emails are connected by "and", commas, or "with", include ALL in attendees array.
-NEVER ignore any email addresses found in the user message.
+BOOKING STATUS QUERIES:
+- "show my bookings" or "upcoming meetings" → intent: "show_bookings"
+- "show confirmed bookings" → intent: "show_confirmed_bookings"
+- "show cancelled bookings" or "what got cancelled" → intent: "show_cancelled_bookings"
+- "show rescheduled bookings" → intent: "show_rescheduled_bookings"
+- "how many bookings" or "booking stats" or "stats this month" → intent: "booking_stats"
+
+TEAM SCHEDULING:
+- "schedule with Marketing team" → intent: "schedule_team_meeting", extracted: { team_name: "Marketing" }
 
 Return JSON structure:
 {
-  "intent": "create_meeting" | "send_email" | "update_pending" | "show_bookings" | "find_time" | "cancel_booking" | "reschedule" | "check_availability" | "clarify",
+  "intent": "get_personal_link" | "get_magic_link" | "get_team_links" | "get_member_link" | "get_event_types" | "get_event_type" | "show_bookings" | "show_confirmed_bookings" | "show_cancelled_bookings" | "show_rescheduled_bookings" | "booking_stats" | "schedule_team_meeting" | "create_meeting" | "find_time" | "send_email" | "update_pending" | "cancel_booking" | "clarify",
   "confidence": 0-100,
   "extracted": {
-    "title": "string or null",
+    "link_name": "custom name for magic link",
+    "team_name": "team name to schedule with",
+    "member_name": "member name for link lookup",
+    "event_type_name": "event type name to lookup",
+    "status_filter": "confirmed" | "cancelled" | "rescheduled" | "all",
+    "date_range": "today" | "this_week" | "this_month" | "all",
+    "title": "meeting title",
     "attendees": ["email@example.com"],
     "attendee_email": "email for single attendee",
     "date": "YYYY-MM-DD",
     "time": "HH:MM in 24-hour format", 
-    "duration_minutes": number (15, 30, 45, 60, 90, 120),
+    "duration_minutes": number,
     "notes": "string or null"
   },
-  "email_action": {
-    "type": "reminder|confirmation|follow_up",
-    "recipient": "email@example.com",
-    "meeting_details": { ... }
-  },
-  "missing_fields": ["field1", "field2"],
+  "missing_fields": [],
   "clarifying_question": "question if needed",
-  "action": "create" | "update" | "list" | "suggest_slots" | "cancel" | null,
+  "action": "create" | "update" | "list" | "get_link" | "suggest_slots" | "cancel" | "stats" | null,
   "response_message": "Clean text response without markdown"
-}`;
+}
 
-    // Call Google Gemini API
+Current date/time: ${new Date().toISOString()}
+User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
+    
+// Call Google Gemini API
     const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
@@ -8349,6 +8373,685 @@ Return JSON structure:
         }
       });
     }
+    // ============ HANDLE GET PERSONAL LINK ============
+if (parsedIntent.intent === 'get_personal_link') {
+  try {
+    const memberResult = await pool.query(
+      `SELECT tm.booking_token, tm.name, t.name as team_name
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       WHERE tm.user_id = $1 OR t.owner_id = $1
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '❌ No booking profile found. Please set up your team first.',
+        usage: usageData
+      });
+    }
+
+    const member = memberResult.rows[0];
+    const bookingUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/book/${member.booking_token}`;
+
+    return res.json({
+      type: 'link',
+      message: `🔗 Here's your personal booking link:\n\n${bookingUrl}\n\n📋 Anyone with this link can book time with you!\n👤 Name: ${member.name}\n🏢 Team: ${member.team_name}`,
+      data: {
+        url: bookingUrl,
+        token: member.booking_token,
+        type: 'personal'
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Get personal link error:', error);
+    return res.json({
+      type: 'error',
+      message: '❌ Failed to get your booking link. Please try again.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE GET/CREATE MAGIC LINK ============
+if (parsedIntent.intent === 'get_magic_link') {
+  try {
+    const linkName = parsedIntent.extracted?.link_name || 'Quick Meeting';
+    
+    // Get user's member ID
+    const memberResult = await pool.query(
+      `SELECT tm.id, tm.name, t.id as team_id
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       WHERE tm.user_id = $1 OR t.owner_id = $1
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '❌ No team found. Please set up your team first.',
+        usage: usageData
+      });
+    }
+
+    const member = memberResult.rows[0];
+    
+    // Create magic link token
+    const magicToken = crypto.randomBytes(16).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
+
+    // Insert magic link
+    await pool.query(
+      `INSERT INTO magic_links (token, member_id, team_id, name, expires_at, is_active)
+       VALUES ($1, $2, $3, $4, $5, true)`,
+      [magicToken, member.id, member.team_id, linkName, expiresAt]
+    );
+
+    const magicUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/m/${magicToken}`;
+
+    return res.json({
+      type: 'link',
+      message: `✨ Magic link created!\n\n🔗 ${magicUrl}\n\n📛 Name: "${linkName}"\n⏰ Expires: ${expiresAt.toLocaleDateString()}\n🔒 Single-use: Yes\n\nShare this link - it will expire after one booking!`,
+      data: {
+        url: magicUrl,
+        token: magicToken,
+        name: linkName,
+        expires_at: expiresAt,
+        type: 'magic'
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Create magic link error:', error);
+    return res.json({
+      type: 'error',
+      message: '❌ Failed to create magic link. Please try again.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE GET TEAM LINKS ============
+if (parsedIntent.intent === 'get_team_links') {
+  try {
+    // Get all teams and their links
+    const teamsResult = await pool.query(
+      `SELECT t.id, t.name, t.slug, 
+              COUNT(tm.id) as member_count
+       FROM teams t
+       LEFT JOIN team_members tm ON t.id = tm.team_id
+       WHERE t.owner_id = $1
+       GROUP BY t.id
+       ORDER BY t.name`,
+      [userId]
+    );
+
+    if (teamsResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '❌ No teams found. Create a team first to get booking links.',
+        usage: usageData
+      });
+    }
+
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    
+    const teamLinks = teamsResult.rows.map((team, index) => {
+      const teamUrl = `${baseUrl}/team/${team.slug || team.id}`;
+      return `${index + 1}. ${team.name}\n   🔗 ${teamUrl}\n   👥 ${team.member_count} members`;
+    }).join('\n\n');
+
+    return res.json({
+      type: 'list',
+      message: `🏢 Your Team Booking Links:\n\n${teamLinks}\n\n💡 Share these links to let people book with your teams!`,
+      data: {
+        teams: teamsResult.rows.map(team => ({
+          id: team.id,
+          name: team.name,
+          url: `${baseUrl}/team/${team.slug || team.id}`,
+          member_count: team.member_count
+        }))
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Get team links error:', error);
+    return res.json({
+      type: 'error',
+      message: '❌ Failed to get team links. Please try again.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE GET MEMBER LINK ============
+if (parsedIntent.intent === 'get_member_link') {
+  try {
+    const memberName = parsedIntent.extracted?.member_name;
+    
+    if (!memberName) {
+      return res.json({
+        type: 'clarify',
+        message: '👤 Which team member\'s link do you need? Please provide their name.',
+        usage: usageData
+      });
+    }
+
+    // Search for member by name (fuzzy match)
+    const memberResult = await pool.query(
+      `SELECT tm.id, tm.name, tm.email, tm.booking_token, t.name as team_name
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       WHERE t.owner_id = $1 
+         AND LOWER(tm.name) LIKE LOWER($2)
+       LIMIT 5`,
+      [userId, `%${memberName}%`]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: `❌ No team member found matching "${memberName}". Check the name and try again.`,
+        usage: usageData
+      });
+    }
+
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+
+    if (memberResult.rows.length === 1) {
+      const member = memberResult.rows[0];
+      const memberUrl = `${baseUrl}/book/${member.booking_token}`;
+      
+      return res.json({
+        type: 'link',
+        message: `👤 ${member.name}'s Booking Link:\n\n🔗 ${memberUrl}\n\n📧 Email: ${member.email}\n🏢 Team: ${member.team_name}`,
+        data: {
+          url: memberUrl,
+          member: member,
+          type: 'member'
+        },
+        usage: usageData
+      });
+    }
+
+    // Multiple matches - list them
+    const memberList = memberResult.rows.map((m, i) => 
+      `${i + 1}. ${m.name} (${m.team_name})\n   🔗 ${baseUrl}/book/${m.booking_token}`
+    ).join('\n\n');
+
+    return res.json({
+      type: 'list',
+      message: `Found ${memberResult.rows.length} members matching "${memberName}":\n\n${memberList}`,
+      data: {
+        members: memberResult.rows,
+        type: 'member_list'
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Get member link error:', error);
+    return res.json({
+      type: 'error',
+      message: '❌ Failed to get member link. Please try again.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE GET EVENT TYPES ============
+if (parsedIntent.intent === 'get_event_types') {
+  try {
+    const eventTypesResult = await pool.query(
+      `SELECT et.id, et.name, et.slug, et.duration, et.description, 
+              et.price, et.is_active, et.color,
+              t.name as team_name,
+              COUNT(b.id) as total_bookings
+       FROM event_types et
+       LEFT JOIN teams t ON et.team_id = t.id
+       LEFT JOIN bookings b ON b.event_type_id = et.id
+       WHERE et.user_id = $1 OR t.owner_id = $1
+       GROUP BY et.id, t.name
+       ORDER BY et.is_active DESC, et.name ASC`,
+      [userId]
+    );
+
+    if (eventTypesResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '📅 You don\'t have any event types yet.\n\nGo to Settings → Event Types to create your first one!',
+        usage: usageData
+      });
+    }
+
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    
+    const eventTypesList = eventTypesResult.rows.map((et, index) => {
+      const status = et.is_active ? '✅ Active' : '⏸️ Inactive';
+      const price = et.price ? `💰 $${et.price}` : '🆓 Free';
+      const bookingUrl = `${baseUrl}/book/${et.slug}`;
+      
+      return `${index + 1}. ${et.name} ${status}
+   ⏱️ ${et.duration} minutes | ${price}
+   🏢 ${et.team_name || 'Personal'}
+   📊 ${et.total_bookings} bookings
+   🔗 ${bookingUrl}${et.description ? `\n   📝 ${et.description}` : ''}`;
+    }).join('\n\n');
+
+    return res.json({
+      type: 'list',
+      message: `📅 Your Event Types:\n\n${eventTypesList}`,
+      data: {
+        event_types: eventTypesResult.rows,
+        count: eventTypesResult.rows.length
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Get event types error:', error);
+    return res.json({
+      type: 'error',
+      message: '❌ Failed to get event types. Please try again.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE GET SPECIFIC EVENT TYPE ============
+if (parsedIntent.intent === 'get_event_type') {
+  try {
+    const eventTypeName = parsedIntent.extracted?.event_type_name;
+    
+    if (!eventTypeName) {
+      return res.json({
+        type: 'clarify',
+        message: '📅 Which event type do you want to see? Please provide the name.',
+        usage: usageData
+      });
+    }
+
+    const eventTypeResult = await pool.query(
+      `SELECT et.*, t.name as team_name,
+              COUNT(b.id) FILTER (WHERE b.status = 'confirmed') as confirmed_count,
+              COUNT(b.id) FILTER (WHERE b.status = 'cancelled') as cancelled_count
+       FROM event_types et
+       LEFT JOIN teams t ON et.team_id = t.id
+       LEFT JOIN bookings b ON b.event_type_id = et.id
+       WHERE (et.user_id = $1 OR t.owner_id = $1)
+         AND LOWER(et.name) LIKE LOWER($2)
+       GROUP BY et.id, t.name
+       LIMIT 1`,
+      [userId, `%${eventTypeName}%`]
+    );
+
+    if (eventTypeResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: `❌ No event type found matching "${eventTypeName}".`,
+        usage: usageData
+      });
+    }
+
+    const et = eventTypeResult.rows[0];
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    const bookingUrl = `${baseUrl}/book/${et.slug}`;
+
+    return res.json({
+      type: 'info',
+      message: `📅 ${et.name}\n\n${et.is_active ? '✅ Active' : '⏸️ Inactive'}\n⏱️ Duration: ${et.duration} minutes\n💰 Price: ${et.price ? `$${et.price}` : 'Free'}\n🏢 Team: ${et.team_name || 'Personal'}\n📝 Description: ${et.description || 'None'}\n\n📊 Stats:\n   ✅ Confirmed: ${et.confirmed_count}\n   ❌ Cancelled: ${et.cancelled_count}\n\n🔗 Booking Link:\n${bookingUrl}`,
+      data: {
+        event_type: et,
+        booking_url: bookingUrl
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Get event type error:', error);
+    return res.json({
+      type: 'error',
+      message: '❌ Failed to get event type. Please try again.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE SHOW CONFIRMED BOOKINGS ============
+if (parsedIntent.intent === 'show_confirmed_bookings' || 
+    (parsedIntent.intent === 'show_bookings' && parsedIntent.extracted?.status_filter === 'confirmed')) {
+  try {
+    const bookingsResult = await pool.query(
+      `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.name as event_type_name
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN event_types et ON b.event_type_id = et.id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND b.status = 'confirmed'
+       ORDER BY b.start_time ASC
+       LIMIT 15`,
+      [userId]
+    );
+
+    if (bookingsResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '✅ No confirmed bookings found.',
+        usage: usageData
+      });
+    }
+
+    const bookingsList = bookingsResult.rows.map((b, index) => {
+      const startDate = new Date(b.start_time);
+      const isPast = startDate < new Date();
+      const timeLabel = isPast ? '(Past)' : '(Upcoming)';
+      
+      return `${index + 1}. ${b.attendee_name || 'Guest'} ${timeLabel}
+   📧 ${b.attendee_email}
+   📅 ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+   ⏱️ ${b.duration || 30} min | 📅 ${b.event_type_name || 'Meeting'}
+   🏢 ${b.team_name || 'Personal'}`;
+    }).join('\n\n');
+
+    return res.json({
+      type: 'list',
+      message: `✅ Confirmed Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
+      data: { bookings: bookingsResult.rows, status: 'confirmed' },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Show confirmed bookings error:', error);
+    return res.json({
+      type: 'error',
+      message: '❌ Failed to get confirmed bookings.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE SHOW CANCELLED BOOKINGS ============
+if (parsedIntent.intent === 'show_cancelled_bookings' ||
+    (parsedIntent.intent === 'show_bookings' && parsedIntent.extracted?.status_filter === 'cancelled')) {
+  try {
+    const bookingsResult = await pool.query(
+      `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.name as event_type_name,
+              b.cancelled_at, b.cancellation_reason
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN event_types et ON b.event_type_id = et.id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND b.status = 'cancelled'
+       ORDER BY b.cancelled_at DESC NULLS LAST, b.start_time DESC
+       LIMIT 15`,
+      [userId]
+    );
+
+    if (bookingsResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '🎉 No cancelled bookings! All your meetings are going as planned.',
+        usage: usageData
+      });
+    }
+
+    const bookingsList = bookingsResult.rows.map((b, index) => {
+      const startDate = new Date(b.start_time);
+      const cancelledDate = b.cancelled_at ? new Date(b.cancelled_at).toLocaleDateString() : 'Unknown';
+      
+      return `${index + 1}. ${b.attendee_name || 'Guest'} ❌
+   📧 ${b.attendee_email}
+   📅 Was scheduled: ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+   🗓️ Cancelled on: ${cancelledDate}${b.cancellation_reason ? `\n   💬 Reason: ${b.cancellation_reason}` : ''}`;
+    }).join('\n\n');
+
+    return res.json({
+      type: 'list',
+      message: `❌ Cancelled Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
+      data: { bookings: bookingsResult.rows, status: 'cancelled' },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Show cancelled bookings error:', error);
+    return res.json({
+      type: 'error',
+      message: '❌ Failed to get cancelled bookings.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE SHOW RESCHEDULED BOOKINGS ============
+if (parsedIntent.intent === 'show_rescheduled_bookings' ||
+    (parsedIntent.intent === 'show_bookings' && parsedIntent.extracted?.status_filter === 'rescheduled')) {
+  try {
+    const bookingsResult = await pool.query(
+      `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.name as event_type_name,
+              b.rescheduled_at, b.original_start_time
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN event_types et ON b.event_type_id = et.id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND (b.status = 'rescheduled' OR b.rescheduled_at IS NOT NULL)
+       ORDER BY b.rescheduled_at DESC NULLS LAST
+       LIMIT 15`,
+      [userId]
+    );
+
+    if (bookingsResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: '📅 No rescheduled bookings found.',
+        usage: usageData
+      });
+    }
+
+    const bookingsList = bookingsResult.rows.map((b, index) => {
+      const newDate = new Date(b.start_time);
+      const originalDate = b.original_start_time ? new Date(b.original_start_time) : null;
+      
+      return `${index + 1}. ${b.attendee_name || 'Guest'} 🔄
+   📧 ${b.attendee_email}
+   📅 New time: ${newDate.toLocaleDateString()} at ${newDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}${originalDate ? `\n   📅 Originally: ${originalDate.toLocaleDateString()} at ${originalDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
+   ✅ Status: ${b.status}`;
+    }).join('\n\n');
+
+    return res.json({
+      type: 'list',
+      message: `🔄 Rescheduled Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
+      data: { bookings: bookingsResult.rows, status: 'rescheduled' },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Show rescheduled bookings error:', error);
+    return res.json({
+      type: 'error',
+      message: '❌ Failed to get rescheduled bookings.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE BOOKING STATS ============
+if (parsedIntent.intent === 'booking_stats') {
+  try {
+    const month = new Date().toISOString().slice(0, 7); // '2025-12'
+    const monthStart = `${month}-01`;
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    const monthEnd = `${nextMonth.toISOString().slice(0, 7)}-01`;
+
+    const statsResult = await pool.query(
+      `SELECT 
+         COUNT(*) FILTER (WHERE status = 'confirmed') as confirmed,
+         COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled,
+         COUNT(*) FILTER (WHERE status = 'rescheduled' OR rescheduled_at IS NOT NULL) as rescheduled,
+         COUNT(*) FILTER (WHERE status = 'pending') as pending,
+         COUNT(*) as total,
+         COUNT(*) FILTER (WHERE start_time >= NOW() AND status = 'confirmed') as upcoming
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND b.created_at >= $2 AND b.created_at < $3`,
+      [userId, monthStart, monthEnd]
+    );
+
+    // All-time stats
+    const allTimeResult = await pool.query(
+      `SELECT 
+         COUNT(*) FILTER (WHERE status = 'confirmed') as confirmed,
+         COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled,
+         COUNT(*) as total
+       FROM bookings b
+       LEFT JOIN teams t ON b.team_id = t.id
+       LEFT JOIN team_members tm ON b.member_id = tm.id
+       WHERE t.owner_id = $1 OR tm.user_id = $1`,
+      [userId]
+    );
+
+    const thisMonth = statsResult.rows[0];
+    const allTime = allTimeResult.rows[0];
+
+    const completionRate = allTime.total > 0 
+      ? Math.round((allTime.confirmed / allTime.total) * 100) 
+      : 0;
+
+    const monthName = new Date().toLocaleString('default', { month: 'long' });
+
+    return res.json({
+      type: 'stats',
+      message: `📊 Booking Statistics\n\n📅 This Month (${monthName}):\n   ✅ Confirmed: ${thisMonth.confirmed}\n   ❌ Cancelled: ${thisMonth.cancelled}\n   🔄 Rescheduled: ${thisMonth.rescheduled}\n   ⏳ Pending: ${thisMonth.pending}\n   📈 Total: ${thisMonth.total}\n   🔜 Upcoming: ${thisMonth.upcoming}\n\n📈 All Time:\n   ✅ Confirmed: ${allTime.confirmed}\n   ❌ Cancelled: ${allTime.cancelled}\n   📊 Total: ${allTime.total}\n   🎯 Completion Rate: ${completionRate}%`,
+      data: {
+        this_month: thisMonth,
+        all_time: allTime,
+        completion_rate: completionRate
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Booking stats error:', error);
+    return res.json({
+      type: 'error',
+      message: '❌ Failed to get booking statistics.',
+      usage: usageData
+    });
+  }
+}
+
+// ============ HANDLE SCHEDULE TEAM MEETING ============
+if (parsedIntent.intent === 'schedule_team_meeting') {
+  try {
+    const teamName = parsedIntent.extracted?.team_name;
+    
+    if (!teamName) {
+      // List available teams
+      const teamsResult = await pool.query(
+        `SELECT t.id, t.name FROM teams t WHERE t.owner_id = $1`,
+        [userId]
+      );
+      
+      if (teamsResult.rows.length === 0) {
+        return res.json({
+          type: 'info',
+          message: '❌ No teams found. Create a team first.',
+          usage: usageData
+        });
+      }
+      
+      const teamList = teamsResult.rows.map((t, i) => `${i + 1}. ${t.name}`).join('\n');
+      
+      return res.json({
+        type: 'clarify',
+        message: `Which team would you like to schedule with?\n\n${teamList}\n\nSay "Schedule with [team name]" to continue.`,
+        data: { teams: teamsResult.rows },
+        usage: usageData
+      });
+    }
+
+    // Find the team
+    const teamResult = await pool.query(
+      `SELECT t.id, t.name, t.slug
+       FROM teams t
+       WHERE t.owner_id = $1 AND LOWER(t.name) LIKE LOWER($2)
+       LIMIT 1`,
+      [userId, `%${teamName}%`]
+    );
+
+    if (teamResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: `❌ No team found matching "${teamName}". Please check the name and try again.`,
+        usage: usageData
+      });
+    }
+
+    const team = teamResult.rows[0];
+
+    // Check if we have all required booking info
+    if (!parsedIntent.extracted?.date || !parsedIntent.extracted?.time) {
+      return res.json({
+        type: 'clarify',
+        message: `📅 When would you like to schedule with ${team.name}? Please provide date and time.\n\nExample: "tomorrow at 2pm" or "December 10 at 3:30pm"`,
+        data: { 
+          team: team,
+          partial_booking: parsedIntent.extracted
+        },
+        usage: usageData
+      });
+    }
+
+    if (!parsedIntent.extracted?.attendees || parsedIntent.extracted.attendees.length === 0) {
+      return res.json({
+        type: 'clarify',
+        message: `👥 Who should I invite to this ${team.name} meeting? Please provide their email address.`,
+        data: { 
+          team: team,
+          partial_booking: parsedIntent.extracted
+        },
+        usage: usageData
+      });
+    }
+
+    // All info present - create confirmation
+    const attendeeEmail = parsedIntent.extracted.attendees[0];
+    const attendeeName = attendeeEmail
+      .split('@')[0]
+      .replace(/[._-]/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
+
+    const bookingData = {
+      title: parsedIntent.extracted.title || `${team.name} Meeting`,
+      date: parsedIntent.extracted.date,
+      time: parsedIntent.extracted.time,
+      duration: parsedIntent.extracted.duration_minutes || 30,
+      attendees: parsedIntent.extracted.attendees,
+      attendee_email: attendeeEmail,
+      notes: parsedIntent.extracted.notes || `Meeting with ${attendeeName}`,
+      team_id: team.id,
+      team_name: team.name
+    };
+
+    return res.json({
+      type: 'confirmation',
+      message: `✅ Ready to schedule ${team.name} meeting?\n\n📅 ${bookingData.date} at ${bookingData.time}\n👥 Attendees: ${bookingData.attendees.join(', ')}\n⏱️ Duration: ${bookingData.duration} minutes\n🏢 Team: ${team.name}\n📝 Notes: ${bookingData.notes}`,
+      data: { bookingData },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Schedule team meeting error:', error);
+    return res.json({
+      type: 'error',
+      message: '❌ Failed to schedule team meeting. Please try again.',
+      usage: usageData
+    });
+  }
+}
 
     // ============ DEFAULT RESPONSE ============
     return res.json({

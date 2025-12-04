@@ -21,14 +21,32 @@ import api from '../utils/api';
 export default function AISchedulerChat() {
   console.log('🔥 AISchedulerChat component is rendering!');
 
+  // ✅ UPDATED: New greeting with all capabilities
   const GREETING_MESSAGE = `👋 Hi! I'm your AI scheduling assistant.
 
-I can help you:
+I can help you with:
 
-📅 Book meetings ("Schedule with john@email.com tomorrow at 2pm")
-🕐 Find available times ("When can I meet this week?")  
-📋 View your bookings ("Show my upcoming meetings")
-📧 Send professional emails ("Send reminder to client@company.com")
+📅 Bookings
+• "Book meeting with john@email.com tomorrow 2pm"
+• "Show my confirmed/cancelled/rescheduled bookings"
+• "How many bookings this month?" (stats)
+
+🔗 Links
+• "Get my booking link"
+• "Create magic link for John"
+• "Show team links"
+• "Get Sarah's booking link"
+
+📋 Event Types
+• "What are my event types?"
+• "Show my consultation event"
+
+🏢 Teams
+• "Schedule with Marketing team"
+• "Find available times this week"
+
+📧 Emails
+• "Send reminder to client@company.com"
 
 What would you like to do?`;
 
@@ -46,10 +64,9 @@ What would you like to do?`;
   const [isMinimized, setIsMinimized] = useState(false);
   const [message, setMessage] = useState('');
 
-  // ✅ ADD: Usage tracking state
   const [usage, setUsage] = useState({
     ai_queries_used: 0,
-    ai_queries_limit: 3,
+    ai_queries_limit: 10,
     loading: true
   });
 
@@ -91,7 +108,6 @@ What would you like to do?`;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // ✅ ADD: Fetch initial usage when component mounts
   const fetchUsage = async () => {
     try {
       console.log('📊 Fetching AI usage...');
@@ -100,15 +116,14 @@ What would you like to do?`;
       
       setUsage({
         ai_queries_used: response.data.ai_queries_used || 0,
-        ai_queries_limit: response.data.ai_queries_limit || 3,
+        ai_queries_limit: response.data.ai_queries_limit || 10,
         loading: false
       });
     } catch (error) {
       console.error('❌ Failed to fetch usage:', error);
-      // Set default values on error
       setUsage({
         ai_queries_used: 0,
-        ai_queries_limit: 3,
+        ai_queries_limit: 10,
         loading: false
       });
     }
@@ -158,7 +173,6 @@ What would you like to do?`;
     scrollToBottom();
   }, [chatHistory]);
 
-  // ✅ ADD: Fetch usage when component mounts or opens
   useEffect(() => {
     if (isOpen) {
       fetchUsage();
@@ -168,7 +182,6 @@ What would you like to do?`;
   const handleSend = async () => {
     if (!message.trim() || loading) return;
 
-    // ✅ CHECK: Usage limit before sending
     if (usage.ai_queries_used >= usage.ai_queries_limit) {
       setChatHistory(prev => [...prev, { 
         role: 'assistant', 
@@ -201,7 +214,6 @@ What would you like to do?`;
       
       console.log('📥 AI response received:', responseData);
 
-      // ✅ UPDATE: Usage state when response includes usage info
       if (responseData.usage) {
         console.log('✅ Updating usage state:', responseData.usage);
         setUsage(prev => ({
@@ -227,7 +239,9 @@ What would you like to do?`;
           attendees: bookingData.attendees || [bookingData.attendee_email],
           attendee_email: bookingData.attendee_email || bookingData.attendees?.[0],
           duration: bookingData.duration || 30,
-          notes: bookingData.notes || ''
+          notes: bookingData.notes || '',
+          team_id: bookingData.team_id || null,
+          team_name: bookingData.team_name || null
         });
         setChatHistory(prev => [...prev, { 
           role: 'assistant', 
@@ -255,7 +269,6 @@ What would you like to do?`;
     }
   };
 
-  // ✅ FIXED: Booking confirmation with attendees array
   const handleConfirmBooking = async () => {
     if (!pendingBooking) return;
     setLoading(true);
@@ -271,7 +284,8 @@ What would you like to do?`;
         attendees: allAttendees,
         attendee_email: allAttendees[0],
         attendee_name: allAttendees[0].split('@')[0],
-        notes: pendingBooking.notes || ''
+        notes: pendingBooking.notes || '',
+        team_id: pendingBooking.team_id || null
       };
 
       console.log('📤 Sending AI booking request:', bookingData);
@@ -282,7 +296,7 @@ What would you like to do?`;
 
       setChatHistory(prev => [...prev, { 
         role: 'assistant', 
-        content: `✅ Booking Confirmed!\n\n📅 ${pendingBooking.title || 'Meeting'}\n🕐 ${formatDateTime(startDateTime)}\n👤 ${allAttendees.join(', ')}\n\nConfirmation emails sent!`,
+        content: `✅ Booking Confirmed!\n\n📅 ${pendingBooking.title || 'Meeting'}\n🕐 ${formatDateTime(startDateTime)}\n👤 ${allAttendees.join(', ')}${pendingBooking.team_name ? `\n🏢 Team: ${pendingBooking.team_name}` : ''}\n\nConfirmation emails sent!`,
         timestamp: new Date(),
         isConfirmation: true
       }]);
@@ -375,6 +389,16 @@ What would you like to do?`;
     return content.replace(/\*\*/g, '');
   };
 
+  // ✅ UPDATED: New suggestions covering all capabilities
+  const suggestions = [
+    "Get my booking link",
+    "What are my event types?",
+    "Show confirmed bookings",
+    "Create magic link for VIP",
+    "How many bookings this month?",
+    "Show team links"
+  ];
+
   if (!isOpen) {
     return (
       <button
@@ -401,7 +425,7 @@ What would you like to do?`;
         overflow-hidden 
         transition-all 
         flex flex-col 
-        ${isMinimized ? 'h-16' : 'h-screen sm:h-[550px]'}
+        ${isMinimized ? 'h-16' : 'h-screen sm:h-[600px]'}
         max-h-screen
       `}>
         
@@ -417,7 +441,6 @@ What would you like to do?`;
             </div>
           </div>
 
-          {/* ✅ ADD: Usage display in header */}
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 bg-white/10 rounded-lg px-2 py-1">
               <Zap className="h-3 w-3 text-yellow-300" />
@@ -454,7 +477,7 @@ What would you like to do?`;
           <>
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50">
-              {/* ✅ ADD: Usage warning when near limit */}
+              {/* Usage warning when near limit */}
               {!usage.loading && usage.ai_queries_used >= usage.ai_queries_limit - 1 && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
                   <div className="flex items-center gap-2">
@@ -474,20 +497,16 @@ What would you like to do?`;
                 </div>
               )}
 
+              {/* ✅ UPDATED: New suggestions grid */}
               {chatHistory.length <= 1 && (
                 <div className="text-center py-4">
                   <p className="text-sm text-gray-500 mb-3">Try saying:</p>
-                  <div className="space-y-2">
-                    {[
-                      "Book a meeting with john@email.com tomorrow at 2pm",
-                      "Find available times this week",
-                      "Show my bookings",
-                      "Send reminder to client@company.com"
-                    ].map((suggestion, i) => (
+                  <div className="grid grid-cols-2 gap-2">
+                    {suggestions.map((suggestion, i) => (
                       <button
                         key={i}
                         onClick={() => setMessage(suggestion)}
-                        className="block w-full text-left text-xs sm:text-sm p-2 sm:p-3 bg-white rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors"
+                        className="text-left text-xs p-2 bg-white rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors"
                       >
                         "{suggestion}"
                       </button>
@@ -561,6 +580,11 @@ What would you like to do?`;
                     <h4 className="font-semibold text-gray-800 text-sm sm:text-base flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-purple-600" />
                       Confirm Booking
+                      {pendingBooking.team_name && (
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                          {pendingBooking.team_name}
+                        </span>
+                      )}
                     </h4>
                     <button onClick={() => setPendingBooking(null)} className="text-gray-400 hover:text-red-500">
                       <X className="h-4 w-4" />
@@ -695,7 +719,7 @@ What would you like to do?`;
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder="Try: 'Book a call with...' "
+                  placeholder="Try: 'Get my booking link' "
                   className="flex-1 px-3 sm:px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                   disabled={loading || (usage.ai_queries_used >= usage.ai_queries_limit)}
                 />
