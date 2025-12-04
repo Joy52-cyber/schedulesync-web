@@ -410,6 +410,7 @@ api.notifications = notifications;
 api.timezone = timezone;
 api.user = user;
 api.chatgptIntegration = chatgptIntegration;
+api.billing = billing;
 
 
 // Default export

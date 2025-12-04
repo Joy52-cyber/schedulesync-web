@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿
+import React, { useState, useEffect } from 'react';
 import SubscriptionUpgradeModal from './SubscriptionUpgradeModal';
 
 const SubscriptionSettings = () => {
@@ -25,6 +26,13 @@ const SubscriptionSettings = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✅ ADDED: Handle upgrade success
+  const handleUpgradeSuccess = (plan) => {
+    setShowUpgradeModal(false);
+    fetchSubscription(); // Refresh subscription data
+    alert(`Successfully upgraded to ${plan.name} plan!`);
   };
 
   const handleCancelSubscription = async () => {
@@ -70,7 +78,9 @@ const SubscriptionSettings = () => {
 
   const plan = subscription?.plan || 'free';
   const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
-  const planPrice = plan === 'free' ? 0 : plan === 'pro' ? 15 : 45;
+  
+  // ✅ FIXED: Updated pricing to match our strategy
+  const planPrice = plan === 'free' ? 0 : plan === 'pro' ? 12 : 25;  // Changed from 15/45 to 12/25
 
   return (
     <>
@@ -152,13 +162,15 @@ const SubscriptionSettings = () => {
           <div className="space-y-2 text-sm">
             <div className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
-              {plan === 'free' ? '3 ChatGPT queries/month' : '🤖 Unlimited ChatGPT queries'}
+              {/* ✅ FIXED: Updated to match our new strategy */}
+              {plan === 'free' ? '10 AI queries/month' : '🤖 Unlimited AI queries'}
             </div>
             <div className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
-              {plan === 'free' ? '25 bookings/month' : 
-               plan === 'pro' ? '500 bookings/month' : 
-               'Unlimited bookings/month'}
+              {/* ✅ FIXED: Updated to match our new strategy */}
+              {plan === 'free' ? '50 bookings/month' : 
+               plan === 'pro' ? 'Unlimited bookings' : 
+               'Unlimited bookings'}
             </div>
             <div className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
@@ -180,10 +192,11 @@ const SubscriptionSettings = () => {
         </div>
       </div>
 
-      {/* Upgrade Modal */}
+      {/* ✅ FIXED: Upgrade Modal with onSuccess prop */}
       <SubscriptionUpgradeModal
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
+        onSuccess={handleUpgradeSuccess}  {/* ✅ Added missing onSuccess prop */}
         currentTier={plan}
       />
     </>
