@@ -144,7 +144,7 @@ export default function EventTypeDetail() {
   const colorClass = colorClasses[event.color] || colorClasses.blue;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="max-w-5xl mx-auto px-4 py-8 overflow-x-hidden">
       {/* Header */}
       <div className="mb-6">
         <button
@@ -155,29 +155,29 @@ export default function EventTypeDetail() {
         </button>
 
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full ${colorClass}`} />
-              <h1 className="text-3xl font-bold text-gray-900">{event.title}</h1>
+              <div className={`w-3 h-3 rounded-full ${colorClass} flex-shrink-0`} />
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 truncate">{event.title}</h1>
               {event.is_active ? (
-                <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
+                <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full flex-shrink-0">
                   Active
                 </span>
               ) : (
-                <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-semibold rounded-full">
+                <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-semibold rounded-full flex-shrink-0">
                   Inactive
                 </span>
               )}
             </div>
-            <p className="text-gray-500 mt-2 text-sm">
+            <p className="text-gray-500 mt-2 text-sm break-all">
               <span className="text-gray-400">/{event.slug}</span>
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               onClick={toggleActive}
-              className={`px-4 py-2 border rounded-xl font-medium transition-colors ${
+              className={`px-4 py-2 border rounded-xl font-medium transition-colors text-sm ${
                 event.is_active
                   ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
                   : 'border-green-200 text-green-700 hover:bg-green-50'
@@ -189,13 +189,13 @@ export default function EventTypeDetail() {
               onClick={() =>
                 navigate(`/events/${id}/edit`, { state: { event } })
               }
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors text-sm"
             >
               <Edit className="h-4 w-4" /> Edit
             </button>
             <button
               onClick={handleDelete}
-              className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-xl hover:bg-red-50 font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-xl hover:bg-red-50 font-medium transition-colors text-sm"
             >
               <Trash2 className="h-4 w-4" />
               Delete
@@ -206,7 +206,7 @@ export default function EventTypeDetail() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Details */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 min-w-0">
           {/* Overview Card */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -215,17 +215,17 @@ export default function EventTypeDetail() {
             </h2>
 
             {event.description ? (
-              <p className="text-gray-600 mb-6">{event.description}</p>
+              <p className="text-gray-600 mb-6 break-words">{event.description}</p>
             ) : (
               <p className="text-gray-400 italic mb-6">No description provided.</p>
             )}
 
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-50 rounded-lg">
                   <Clock className="h-5 w-5 text-blue-600" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-gray-500">Duration</p>
                   <p className="font-semibold text-gray-900">
                     {event.duration} min
@@ -237,7 +237,7 @@ export default function EventTypeDetail() {
                 <div className="p-2 bg-purple-50 rounded-lg">
                   <LocationIcon className="h-5 w-5 text-purple-600" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-gray-500">Location</p>
                   <p className="font-semibold text-gray-900 truncate">
                     {event.location || 'Auto-generated'}
@@ -300,11 +300,11 @@ export default function EventTypeDetail() {
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Share Card */}
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border border-blue-200 p-4 sm:p-6">
+        <div className="space-y-6 min-w-0">
+          {/* ✅ FIXED: Share Card with proper mobile overflow handling */}
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border border-blue-200 p-4 sm:p-6 overflow-hidden">
             <h2 className="text-lg font-semibold text-blue-900 mb-2 flex items-center gap-2">
-              <Globe className="h-5 w-5" /> Share Event
+              <Globe className="h-5 w-5 flex-shrink-0" /> Share Event
             </h2>
             <p className="text-xs sm:text-sm text-blue-700 mb-4">
               Share this link to let people book this specific meeting type.
@@ -313,13 +313,13 @@ export default function EventTypeDetail() {
             <div className="space-y-3">
               <button
                 onClick={handleCopyLink}
-                className="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-white border border-blue-200 rounded-xl hover:border-blue-300 transition-all text-blue-800 font-medium shadow-sm text-sm"
+                className="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-white border border-blue-200 rounded-xl hover:border-blue-300 transition-all text-blue-800 font-medium shadow-sm text-sm min-w-0"
               >
-                <span>{copied ? 'Copied!' : 'Copy Link'}</span>
+                <span className="truncate flex-1 text-left">{copied ? 'Copied!' : 'Copy Link'}</span>
                 {copied ? (
-                  <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0" />
+                  <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0 ml-2" />
                 ) : (
-                  <Copy className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                  <Copy className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ml-2" />
                 )}
               </button>
 
@@ -329,15 +329,22 @@ export default function EventTypeDetail() {
                 rel="noreferrer"
                 className="w-full flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-md transition-colors text-sm"
               >
-                <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                Preview Page
+                <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span>Preview Page</span>
               </a>
             </div>
 
-            {/* Booking URL - wrapped, no overflow */}
-            <div className="mt-4 pt-4 border-t border-blue-200">
-              <div className="bg-white rounded-lg p-2">
-                <p className="text-[10px] sm:text-xs text-blue-600 break-all leading-snug">
+            {/* ✅ FIXED: Better mobile URL display with proper wrapping and overflow handling */}
+            <div className="mt-4 pt-4 border-t border-blue-200 min-w-0">
+              <div className="bg-white rounded-lg p-2 overflow-hidden">
+                <p 
+                  className="text-[10px] sm:text-xs text-blue-600 leading-relaxed"
+                  style={{
+                    wordBreak: 'break-all',
+                    overflowWrap: 'anywhere',
+                    hyphens: 'auto'
+                  }}
+                >
                   {getBookingLink()}
                 </p>
               </div>

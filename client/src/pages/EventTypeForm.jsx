@@ -247,15 +247,15 @@ export default function EventTypeForm() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="mb-8">
+    <div className="max-w-4xl mx-auto px-4 py-8 overflow-x-hidden">
+      <div className="mb-8 min-w-0">
         <button
           onClick={() => navigate('/events')}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
-        <h1 className="text-3xl font-bold text-gray-900">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
           {isEditing ? 'Edit Event Type' : 'Create Event Type'}
         </h1>
         <p className="text-gray-600 mt-2">
@@ -267,20 +267,21 @@ export default function EventTypeForm() {
 
       {/* Quick Templates */}
       {!isEditing && (
-        <div className="bg-blue-50 rounded-2xl border border-blue-200 p-6 mb-6">
+        <div className="bg-blue-50 rounded-2xl border border-blue-200 p-4 sm:p-6 mb-6 overflow-hidden">
           <h3 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
             <Zap className="h-4 w-4" />
             Quick Start Templates
           </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* ✅ FIXED: Better mobile grid - single column on mobile, 2 on small, 4 on medium+ */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {templates.map((template, idx) => (
               <button
                 key={idx}
                 type="button"
                 onClick={() => applyTemplate(template)}
-                className="p-3 bg-white border border-blue-200 rounded-xl hover:border-blue-400 hover:shadow-sm transition-all text-left"
+                className="p-3 bg-white border border-blue-200 rounded-xl hover:border-blue-400 hover:shadow-sm transition-all text-left min-w-0"
               >
-                <p className="font-semibold text-gray-900 text-sm">
+                <p className="font-semibold text-gray-900 text-sm truncate">
                   {template.name}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
@@ -294,9 +295,9 @@ export default function EventTypeForm() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Basic Information */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6 overflow-hidden">
           <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-            <FileText className="h-5 w-5 text-blue-600" />
+            <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
             Basic Information
           </h2>
 
@@ -320,10 +321,15 @@ export default function EventTypeForm() {
                 <LinkIcon className="h-4 w-4 text-gray-400" />
                 URL Slug *
               </label>
-              <div className="flex items-center">
-                <span className="px-4 py-3 bg-gray-50 border border-r-0 border-gray-300 rounded-l-xl text-gray-500 text-sm font-medium">
+              {/* ✅ FIXED: Better mobile layout for URL slug input */}
+              <div className="flex items-center min-w-0">
+                <span className="hidden sm:block px-4 py-3 bg-gray-50 border border-r-0 border-gray-300 rounded-l-xl text-gray-500 text-sm font-medium whitespace-nowrap">
                   yourname/
                 </span>
+                {/* Show prefix above input on mobile */}
+                <div className="block sm:hidden w-full mb-2">
+                  <span className="text-xs text-gray-500">yourname/</span>
+                </div>
                 <input
                   type="text"
                   value={formData.slug}
@@ -333,7 +339,7 @@ export default function EventTypeForm() {
                       slug: slugify(e.target.value),
                     })
                   }
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-r-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="flex-1 min-w-0 px-4 py-3 border border-gray-300 rounded-xl sm:rounded-r-xl sm:rounded-l-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="strategy-session"
                   required
                 />
@@ -363,7 +369,8 @@ export default function EventTypeForm() {
                 <Palette className="h-4 w-4 text-gray-400" />
                 Event Color
               </label>
-              <div className="flex gap-3">
+              {/* ✅ FIXED: Better mobile color picker with wrapping */}
+              <div className="flex flex-wrap gap-3 max-w-full">
                 {colors.map((c) => (
                   <button
                     key={c.name}
@@ -371,7 +378,7 @@ export default function EventTypeForm() {
                     onClick={() =>
                       setFormData({ ...formData, color: c.name })
                     }
-                    className={`w-10 h-10 rounded-full ${c.bg} transition-all ${
+                    className={`w-10 h-10 rounded-full ${c.bg} transition-all flex-shrink-0 ${
                       formData.color === c.name
                         ? 'ring-4 ring-offset-2 ring-gray-300 scale-110'
                         : 'hover:scale-105 opacity-70 hover:opacity-100'
@@ -385,9 +392,9 @@ export default function EventTypeForm() {
         </div>
 
         {/* Meeting Details */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-            <Clock className="h-5 w-5 text-purple-600" />
+            <Clock className="h-5 w-5 text-purple-600 flex-shrink-0" />
             Meeting Details
           </h2>
 
@@ -485,9 +492,9 @@ export default function EventTypeForm() {
 
         {/* Advanced Settings Card */}
         {showAdvanced && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Shield className="h-5 w-5 text-gray-600" />
+              <Shield className="h-5 w-5 text-gray-600 flex-shrink-0" />
               Advanced Booking Rules
             </h2>
 
@@ -587,7 +594,7 @@ export default function EventTypeForm() {
 
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3 mt-5">
               <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-medium text-blue-900">
                   Advanced Settings Info
                 </p>
@@ -600,8 +607,8 @@ export default function EventTypeForm() {
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex gap-4">
+        {/* ✅ FIXED: Better mobile button layout */}
+        <div className="flex flex-col sm:flex-row gap-4">
           <button
             type="button"
             onClick={() => navigate('/events')}
