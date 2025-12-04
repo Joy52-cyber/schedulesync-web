@@ -7635,12 +7635,53 @@ app.delete('/api/notifications/:id', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete' });
   }
 });
-// ============ COMPLETE AI SCHEDULING ENDPOINT WITH EMAIL TEMPLATE INTEGRATION ============
+// ✅ ADD THIS MIDDLEWARE BEFORE YOUR AI ENDPOINT:
+const enforceUsageLimits = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    const result = await pool.query(
+      'SELECT ai_queries_used, ai_queries_limit FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = result.rows[0];
+    const used = user.ai_queries_used || 0;
+    const limit = user.ai_queries_limit || 3;
+    
+    if (used >= limit) {
+      return res.status(429).json({ 
+        error: 'AI query limit exceeded',
+        usage: { ai_queries_used: used, ai_queries_limit: limit }
+      });
+    }
+    
+    // Attach usage info to request for use in handlers
+    req.userUsage = { 
+      ai_queries_used: used, 
+      ai_queries_limit: limit,
+      chatgpt_queries_used: used, // For compatibility
+      limits: { chatgpt: limit }   // For compatibility
+    };
+    next();
+    
+  } catch (error) {
+    console.error('❌ Usage limit check failed:', error);
+    res.status(500).json({ error: 'Failed to check usage limits' });
+  }
+};
+
+// ============ CORRECTLY STRUCTURED AI SCHEDULING ENDPOINT ============
 
 app.post('/api/ai/schedule', authenticateToken, enforceUsageLimits, async (req, res) => {
   try {
     const { message, conversationHistory = [] } = req.body;
     const userId = req.user.id;
+    const userEmail = req.user.email;
 
     console.log('🤖 AI Scheduling request from user:', userId, 'Message:', message);
 
@@ -7662,63 +7703,11 @@ app.post('/api/ai/schedule', authenticateToken, enforceUsageLimits, async (req, 
       });
     }
 
-    // ✅ SIMPLE AI INTENT PARSING (replace with your actual AI logic)
-    console.log('🔍 Parsing message:', message);
-    
-    let responseMessage = '';
-    let responseType = 'response';
-    let responseData = null;
-
-    // Basic intent patterns
-    if (message.toLowerCase().includes('book') || message.toLowerCase().includes('schedule')) {
-      responseType = 'confirmation';
-      responseMessage = '📅 I can help you schedule that meeting. Let me prepare the booking details...';
-      
-      // Extract basic booking info (enhance this with your actual AI parsing)
-      const emailMatch = message.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
-      const timeMatch = message.match(/(\d{1,2}:\d{2}|\d{1,2}\s*(am|pm))/i);
-      const dateMatch = message.match(/(tomorrow|today|next week|monday|tuesday|wednesday|thursday|friday)/i);
-      
-      if (emailMatch) {
-        responseData = {
-          bookingData: {
-            attendee_email: emailMatch[0],
-            date: new Date().toISOString().split('T')[0], // Default to today
-            time: timeMatch ? timeMatch[0] : '14:00',
-            duration: 30,
-            title: 'Meeting'
-          }
-        };
-      }
-    } else if (message.toLowerCase().includes('available') || message.toLowerCase().includes('free')) {
-      responseMessage = '🕐 Let me check your available time slots...';
-    } else if (message.toLowerCase().includes('bookings') || message.toLowerCase().includes('meetings')) {
-      responseMessage = '📋 Here are your upcoming bookings...';
-    } else {
-      responseMessage = `I understand you want to: "${message}". How can I help you with that?`;
-    }
-
-    // ✅ RETURN RESPONSE WITH UPDATED USAGE
-    return res.json({
-      type: responseType,
-      message: responseMessage,
-      data: responseData,
-      usage: {
-        ai_queries_used: usageResult.ai_queries_used,
-        ai_queries_limit: usageResult.ai_queries_limit
-      },
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('❌ AI scheduling error:', error);
-    res.status(500).json({ 
-      error: 'AI service temporarily unavailable',
-      type: 'error'
-    });
-  }
-});
-
+    // ✅ EMAIL VALIDATION FUNCTION (INSIDE FUNCTION)
+    const validateEmail = (email) => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
+    };
 
     // Check if message contains pending booking context
     let pendingBookingContext = null;
@@ -7838,10 +7827,6 @@ MULTIPLE ATTENDEE PARSING EXAMPLES:
   → attendees: ["alice@company.com", "bob@startup.com"], date: "2025-12-04"
 - "Meeting with john@email.com, jane@company.com at 3pm"
   → attendees: ["john@email.com", "jane@company.com"], time: "15:00"
-- "Book team meeting with bob@startup.com and alice@company.com"
-  → attendees: ["bob@startup.com", "alice@company.com"]
-- "Schedule with team: john@email.com, jane@company.com, bob@startup.com"
-  → attendees: ["john@email.com", "jane@company.com", "bob@startup.com"]
 
 CRITICAL: Extract ALL email addresses found in the message.
 Use regex pattern /\S+@\S+\.\S+/g to find all emails.
@@ -7923,7 +7908,11 @@ Return JSON structure:
       if (!jsonMatch) {
         return res.json({
           type: 'error',
-          message: 'I had trouble understanding that. Could you rephrase?'
+          message: 'I had trouble understanding that. Could you rephrase?',
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
         });
       }
       parsedIntent = JSON.parse(jsonMatch[0]);
@@ -7931,28 +7920,27 @@ Return JSON structure:
       console.error('Failed to parse AI JSON:', e.message);
       return res.json({
         type: 'error',
-        message: 'I had trouble understanding that. Could you rephrase?'
+        message: 'I had trouble understanding that. Could you rephrase?',
+        usage: {
+          ai_queries_used: usageResult.ai_queries_used,
+          ai_queries_limit: usageResult.ai_queries_limit
+        }
       });
     }
 
     console.log('🤖 Parsed intent:', parsedIntent);
 
+    // ============ HANDLE HELP/CLARIFY INTENT ============
     if (parsedIntent.intent === 'clarify' || cleanMessage.toLowerCase().includes('help') || cleanMessage.toLowerCase().includes('what can you do')) {
-  return res.json({
-    type: 'help',
-    message: `I can help with:\n\n📅 **Meeting scheduling**\n• "Schedule with client@company.com tomorrow at 2pm"\n• "Find available times this week"\n• "Show my bookings"\n\n📧 **Professional emails**\n• "Send reminder to someone@email.com"\n• "Send thank you to client@company.com"\n• "Send confirmation to team@startup.com"\n\n💡 Try any of these commands!`,
-    usage: {
-      chatgpt_used: req.userUsage.chatgpt_used + 1,
-      chatgpt_limit: req.userUsage.limits.chatgpt
+      return res.json({
+        type: 'help',
+        message: `I can help with:\n\n📅 **Meeting scheduling**\n• "Schedule with client@company.com tomorrow at 2pm"\n• "Find available times this week"\n• "Show my bookings"\n\n📧 **Professional emails**\n• "Send reminder to someone@email.com"\n• "Send thank you to client@company.com"\n• "Send confirmation to team@startup.com"\n\n💡 Try any of these commands!`,
+        usage: {
+          ai_queries_used: usageResult.ai_queries_used,
+          ai_queries_limit: usageResult.ai_queries_limit
+        }
+      });
     }
-  });
-}
-
-    // Email validation function
-    const validateEmail = (email) => {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return emailRegex.test(email);
-    };
 
     // ============ HANDLE EMAIL SENDING INTENTS ============
     if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
@@ -7962,55 +7950,66 @@ Return JSON structure:
       if (!validateEmail(recipient)) {
         return res.json({
           type: 'error',
-          message: `❌ Invalid email address: ${recipient}. Please provide a valid email.`
+          message: `❌ Invalid email address: ${recipient}. Please provide a valid email.`,
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
         });
       }
       
-      // Select best template
+      // Select best template from user's templates
       const template = await selectBestTemplate(userId, type, meeting_details);
       
       if (!template) {
         return res.json({
           type: 'error',
-          message: `❌ No ${type} template found. Please create one in Email Templates first.`
+          message: `❌ No ${type} template found. Please create one in Email Templates first, or I'll use a default template.`,
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
         });
       }
       
-      // Get meeting details from context
+      // Prepare meeting details with context from recent bookings
       const emailDetails = {
         date: meeting_details?.date || new Date().toLocaleDateString(),
         time: meeting_details?.time || 'TBD',
-        link: meeting_details?.link || 'Will be provided',
-        title: meeting_details?.title || 'Meeting'
+        link: meeting_details?.link || userContext.upcomingBookings?.[0]?.meet_link || 'Will be provided',
+        title: meeting_details?.title || userContext.upcomingBookings?.[0]?.title || 'Meeting'
       };
       
-      // Send email with template
+      // Send email with selected template
       const emailSent = await sendEmailWithTemplate(template, recipient, emailDetails, userId);
       
       if (emailSent) {
-        // Track template usage
-        await trackTemplateUsage(template.id, userId, 'sent');
-        
-        // Increment AI usage
-        await incrementChatGPTUsage(userId);
+        // Track template usage (if template has ID)
+        if (template.id) {
+          await trackTemplateUsage(template.id, userId, 'sent');
+        }
         
         return res.json({
           type: 'email_sent',
-          message: `✅ ${type.charAt(0).toUpperCase() + type.slice(1)} email sent to ${recipient} using "${template.name}" template!`,
+          message: `✅ ${type.charAt(0).toUpperCase() + type.slice(1)} email sent to ${recipient} using "${template.name}" template! 📧`,
           data: {
             template_used: template.name,
             recipient: recipient,
             email_type: type
           },
           usage: {
-            chatgpt_used: req.userUsage.chatgpt_used + 1,
-            chatgpt_limit: req.userUsage.limits.chatgpt
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
           }
         });
       } else {
         return res.json({
           type: 'error',
-          message: `❌ Failed to send ${type} email to ${recipient}. Please try again.`
+          message: `❌ Failed to send ${type} email to ${recipient}. Please try again.`,
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
         });
       }
     }
@@ -8050,6 +8049,10 @@ Return JSON structure:
           : 'Booking details updated. Please review and confirm.',
         data: {
           updatedBooking: updated
+        },
+        usage: {
+          ai_queries_used: usageResult.ai_queries_used,
+          ai_queries_limit: usageResult.ai_queries_limit
         }
       });
     }
@@ -8059,7 +8062,11 @@ Return JSON structure:
       if (userContext.upcomingBookings.length === 0) {
         return res.json({
           type: 'info',
-          message: '📅 You have no upcoming bookings scheduled.'
+          message: '📅 You have no upcoming bookings scheduled.',
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
         });
       }
 
@@ -8086,7 +8093,11 @@ Return JSON structure:
       return res.json({
         type: 'list',
         message: `Here are your upcoming bookings:\n\n${bookingsList}`,
-        data: { bookings: userContext.upcomingBookings }
+        data: { bookings: userContext.upcomingBookings },
+        usage: {
+          ai_queries_used: usageResult.ai_queries_used,
+          ai_queries_limit: usageResult.ai_queries_limit
+        }
       });
     }
 
@@ -8106,7 +8117,11 @@ Return JSON structure:
         if (memberResult.rows.length === 0) {
           return res.json({
             type: 'error',
-            message: 'No booking profile found. Please set up your availability first.'
+            message: 'No booking profile found. Please set up your availability first.',
+            usage: {
+              ai_queries_used: usageResult.ai_queries_used,
+              ai_queries_limit: usageResult.ai_queries_limit
+            }
           });
         }
 
@@ -8121,7 +8136,11 @@ Return JSON structure:
         if (availResult.rows.length === 0) {
           return res.json({
             type: 'info',
-            message: '⚠️ No availability settings found. Please set up your available hours in Settings > Availability first.'
+            message: '⚠️ No availability settings found. Please set up your available hours in Settings > Availability first.',
+            usage: {
+              ai_queries_used: usageResult.ai_queries_used,
+              ai_queries_limit: usageResult.ai_queries_limit
+            }
           });
         }
 
@@ -8188,7 +8207,11 @@ Return JSON structure:
         if (slots.length === 0) {
           return res.json({
             type: 'info',
-            message: '❌ No available slots found in the next 7 days. Please check your availability settings.'
+            message: '❌ No available slots found in the next 7 days. Please check your availability settings.',
+            usage: {
+              ai_queries_used: usageResult.ai_queries_used,
+              ai_queries_limit: usageResult.ai_queries_limit
+            }
           });
         }
 
@@ -8213,8 +8236,8 @@ Return JSON structure:
           message: `📅 Here are your best available times:\n\n${formattedSlots}\n\n💡 Ready to book? Just say "book slot 1" or "schedule 10 AM"! ⚡`,
           data: { slots: slots.slice(0, 5) },
           usage: {
-            chatgpt_used: req.userUsage.chatgpt_used + 1,
-            chatgpt_limit: req.userUsage.limits.chatgpt
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
           }
         });
 
@@ -8222,74 +8245,14 @@ Return JSON structure:
         console.error('Slot fetch error:', error);
         return res.json({
           type: 'error', 
-          message: 'Sorry, I had trouble checking your availability. Please try again.'
-        });
-      }
-    }
-
-    // ============ HANDLE EMAIL SENDING INTENTS ============
-    if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
-      const { type, recipient, meeting_details } = parsedIntent.email_action;
-      
-      // Validate email
-      if (!validateEmail(recipient)) {
-        return res.json({
-          type: 'error',
-          message: `❌ Invalid email address: ${recipient}. Please provide a valid email.`
-        });
-      }
-      
-      // Select best template from user's templates
-      const template = await selectBestTemplate(userId, type, meeting_details);
-      
-      if (!template) {
-        return res.json({
-          type: 'error',
-          message: `❌ No ${type} template found. Please create one in Email Templates first, or I'll use a default template.`
-        });
-      }
-      
-      // Prepare meeting details with context from recent bookings
-      const emailDetails = {
-        date: meeting_details?.date || new Date().toLocaleDateString(),
-        time: meeting_details?.time || 'TBD',
-        link: meeting_details?.link || userContext.upcomingBookings?.[0]?.meet_link || 'Will be provided',
-        title: meeting_details?.title || userContext.upcomingBookings?.[0]?.title || 'Meeting'
-      };
-      
-      // Send email with selected template
-      const emailSent = await sendEmailWithTemplate(template, recipient, emailDetails, userId);
-      
-      if (emailSent) {
-        // Track template usage (if template has ID)
-        if (template.id) {
-          await trackTemplateUsage(template.id, userId, 'sent');
-        }
-        
-        // Increment AI usage
-        await incrementChatGPTUsage(userId);
-        
-        return res.json({
-          type: 'email_sent',
-          message: `✅ ${type.charAt(0).toUpperCase() + type.slice(1)} email sent to ${recipient} using "${template.name}" template! 📧`,
-          data: {
-            template_used: template.name,
-            recipient: recipient,
-            email_type: type
-          },
+          message: 'Sorry, I had trouble checking your availability. Please try again.',
           usage: {
-            chatgpt_used: req.userUsage.chatgpt_used + 1,
-            chatgpt_limit: req.userUsage.limits.chatgpt
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
           }
         });
-      } else {
-        return res.json({
-          type: 'error',
-          message: `❌ Failed to send ${type} email to ${recipient}. Please try again.`
-        });
       }
     }
-
 
     // ============ HANDLE CREATE MEETING INTENT ============
     if (parsedIntent.intent === 'create_meeting') {
@@ -8300,7 +8263,11 @@ Return JSON structure:
           return res.json({
             type: 'clarify',
             message: `❌ Invalid email address(es): ${invalidEmails.join(', ')}\n\nPlease provide valid email addresses. Example: john@company.com`,
-            data: parsedIntent
+            data: parsedIntent,
+            usage: {
+              ai_queries_used: usageResult.ai_queries_used,
+              ai_queries_limit: usageResult.ai_queries_limit
+            }
           });
         }
       }
@@ -8310,7 +8277,11 @@ Return JSON structure:
         return res.json({
           type: 'clarify',
           message: '📅 I need both a date and time to schedule your meeting. When would you like to meet?',
-          data: parsedIntent
+          data: parsedIntent,
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
         });
       }
 
@@ -8318,7 +8289,11 @@ Return JSON structure:
         return res.json({
           type: 'clarify',
           message: '👥 Who should I invite to this meeting? Please provide their email address.',
-          data: parsedIntent
+          data: parsedIntent,
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
         });
       }
 
@@ -8328,34 +8303,39 @@ Return JSON structure:
         return res.json({
           type: 'clarify',
           message: parsedIntent.clarifying_question || `I need a bit more information. What ${missing.join(' and ')} would work for you?`,
-          data: parsedIntent
+          data: parsedIntent,
+          usage: {
+            ai_queries_used: usageResult.ai_queries_used,
+            ai_queries_limit: usageResult.ai_queries_limit
+          }
         });
       }
+
       // All validation passed - prepare booking data
-     const attendeeEmail = parsedIntent.extracted.attendees[0];
-     const attendeeName = attendeeEmail
-       .split('@')[0]
-       .replace(/[._-]/g, ' ')
-       .replace(/\b\w/g, c => c.toUpperCase());
+      const attendeeEmail = parsedIntent.extracted.attendees[0];
+      const attendeeName = attendeeEmail
+        .split('@')[0]
+        .replace(/[._-]/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
 
-     // Auto-generate note with attendee name if no notes provided
-     const extractedNotes = parsedIntent.extracted.notes;
-     const cleanNotes = (extractedNotes && extractedNotes !== 'null' && extractedNotes.trim() !== '') 
-       ? extractedNotes 
-       : `Meeting with ${attendeeName}`;
+      // Auto-generate note with attendee name if no notes provided
+      const extractedNotes = parsedIntent.extracted.notes;
+      const cleanNotes = (extractedNotes && extractedNotes !== 'null' && extractedNotes.trim() !== '') 
+        ? extractedNotes 
+        : `Meeting with ${attendeeName}`;
 
-     const bookingData = {
-       title: parsedIntent.extracted.title || 'Meeting',
-       date: parsedIntent.extracted.date,
-       time: parsedIntent.extracted.time,
-       duration: parsedIntent.extracted.duration_minutes || 30,
-       attendees: parsedIntent.extracted.attendees,
-       attendee_email: attendeeEmail,
-       notes: cleanNotes
-     };
-     
-     let confirmationMessage = `✅ Ready to schedule "${bookingData.title}" for ${bookingData.date} at ${bookingData.time}?\n\n👥 Attendees: ${bookingData.attendees.join(', ')}\n⏱️ Duration: ${bookingData.duration} minutes\n📝 Notes: ${cleanNotes}`;
-     
+      const bookingData = {
+        title: parsedIntent.extracted.title || 'Meeting',
+        date: parsedIntent.extracted.date,
+        time: parsedIntent.extracted.time,
+        duration: parsedIntent.extracted.duration_minutes || 30,
+        attendees: parsedIntent.extracted.attendees,
+        attendee_email: attendeeEmail,
+        notes: cleanNotes
+      };
+      
+      let confirmationMessage = `✅ Ready to schedule "${bookingData.title}" for ${bookingData.date} at ${bookingData.time}?\n\n👥 Attendees: ${bookingData.attendees.join(', ')}\n⏱️ Duration: ${bookingData.duration} minutes\n📝 Notes: ${cleanNotes}`;
+      
       // Try to find a confirmation template for preview
       try {
         const confirmationTemplate = await selectBestTemplate(userId, 'confirmation', {
@@ -8375,23 +8355,24 @@ Return JSON structure:
       return res.json({
         type: 'confirmation',
         message: confirmationMessage,
-        data: { bookingData }
+        data: { bookingData },
+        usage: {
+          ai_queries_used: usageResult.ai_queries_used,
+          ai_queries_limit: usageResult.ai_queries_limit
+        }
       });
     }
 
     // ============ DEFAULT RESPONSE ============
-    console.log(`🚀 About to increment AI usage for user ${userId}`);
-    await incrementAIUsage(userId);
-    console.log(`💰 AI query used by user ${userId} for clarification/help`);
-    
     return res.json({
       type: 'clarify',
-      message: parsedIntent.clarifying_question || 'How can I help you with your scheduling today? You can ask me to show bookings, find available times, schedule meetings, or send emails.',
+      message: parsedIntent.response_message || 'How can I help you with your scheduling today? You can ask me to show bookings, find available times, schedule meetings, or send emails.',
       usage: {
-        ai_queries_used: req.userUsage.chatgpt_queries_used + 1,
-        ai_queries_limit: 3
+        ai_queries_used: usageResult.ai_queries_used,
+        ai_queries_limit: usageResult.ai_queries_limit
       }
     });
+
   } catch (error) {
     console.error('🚨 AI scheduling error:', error);
     res.status(500).json({
@@ -8399,8 +8380,7 @@ Return JSON structure:
       message: 'Something went wrong. Please try again.'
     });
   }
-});
-    
+}); // ✅ FUNCTION PROPERLY ENDS HERE WITH ALL CODE INSIDE!
 
 // ============ AI BOOKING ENDPOINT (MULTIPLE ATTENDEES) ============
 app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
