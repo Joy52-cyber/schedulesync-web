@@ -8314,6 +8314,31 @@ Return JSON structure:
 
     // ============ DEFAULT RESPONSE ============
 
+    }
+    
+    // ============ DEFAULT RESPONSE ============
+    console.log(`🚀 About to increment AI usage for user ${userId}`);
+    await incrementAIUsage(userId);
+    console.log(`💰 AI query used by user ${userId} for clarification/help`);
+    
+    return res.json({
+      type: 'clarify',
+      message: parsedIntent.clarifying_question || 'How can I help you with your scheduling today? You can ask me to show bookings, find available times, schedule meetings, or send emails.',
+      usage: {
+        ai_queries_used: req.userUsage.chatgpt_queries_used + 1,
+        ai_queries_limit: 3
+      }
+    });
+
+  } catch (error) {
+    console.error('🚨 AI scheduling error:', error);
+    res.status(500).json({
+      type: 'error',
+      message: 'Something went wrong. Please try again.'
+    });
+  }
+});
+
 // ============ AI BOOKING ENDPOINT (MULTIPLE ATTENDEES) ============
 app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
   try {
