@@ -8313,28 +8313,6 @@ Return JSON structure:
     }
 
     // ============ DEFAULT RESPONSE ============
-  console.log(`🚀 About to increment AI usage for user ${userId}`);
-
-  await incrementAIUsage(userId);
-console.log(`💰 AI query used by user ${userId} (${req.userUsage.tier} plan)`);
-
-return res.json({
-  type: 'clarify',
-  message: parsedIntent.clarifying_question || 'How can I help you with your scheduling today?',
-  usage: {
-    ai_queries_used: req.userUsage.chatgpt_queries_used + 1,  // Use existing field
-    ai_queries_limit: 3  // Hard-code for now
-  }
-});
-  } catch (error) {
-    console.error('🚨 AI scheduling error:', error);
-    res.status(500).json({
-      type: 'error',
-      message: 'Something went wrong. Please try again.'
-    });
-  }
-});
-
 
 // ============ AI BOOKING ENDPOINT (MULTIPLE ATTENDEES) ============
 app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
@@ -9119,37 +9097,41 @@ app.post('/api/chatgpt/book-meeting', authenticateToken, async (req, res) => {
     const startDate = new Date(start_time);
     const endDate = end_time ? new Date(end_time) : new Date(startDate.getTime() + 30 * 60000);
     const duration = Math.round((endDate - startDate) / 60000);
-
     const bookingResult = await pool.query(`
-      INSERT INTO bookings (
-        member_id, user_id, attendee_name, attendee_email,
-        start_time, end_time, title, notes, status, manage_token, duration
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'confirmed', $9, $10)
-      RETURNING *
-    `, [
-      member.id, userId, guestName, attendee_email,
-      startDate.toISOString(), endDate.toISOString(), 
-      bookingTitle, notes || null, manageToken, duration
-    ]);
+  INSERT INTO bookings (
+    member_id, user_id, attendee_name, attendee_email,
+    start_time, end_time, title, notes, status, manage_token, duration
+  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'confirmed', $9, $10)
+  RETURNING *
+`, [
+  member.id, userId, guestName, attendee_email,
+  startDate.toISOString(), endDate.toISOString(), 
+  bookingTitle, notes || null, manageToken, duration
+]);
 
-    const booking = bookingResult.rows[0];
-    console.log('✅ AI Booking created:', booking.id);
+const booking = bookingResult.rows[0];
+console.log('✅ AI Booking created:', booking.id);
 
-    // Format times for email
-    const formattedDate = startDate.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-    const formattedTime = startDate.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
+// ✅ Track AI usage after successful booking
+console.log(`🚀 About to increment AI usage for user ${userId}`);
+await incrementAIUsage(userId);
+console.log(`💰 AI query used by user ${userId} for successful booking`);
 
-    const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${manageToken}`;
+// Format times for email
+const formattedDate = startDate.toLocaleDateString('en-US', {
+  weekday: 'long',
+  year: 'numeric',
+  month: 'long', 
+  day: 'numeric'
+});
+const formattedTime = startDate.toLocaleTimeString('en-US', {
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true
+});
+const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${manageToken}`;
 
+    
     // Send confirmation email to ALL GUESTS
     for (const guestEmail of allAttendees) {
       const guestName = guestEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -9243,16 +9225,15 @@ app.post('/api/chatgpt/book-meeting', authenticateToken, async (req, res) => {
       console.error('❌ Failed to send organizer email:', emailError);
     }
 
-    res.json({
-      success: true,
-      booking_id: booking.id,
-      manage_url: manageUrl,
-      message: `Meeting "${bookingTitle}" booked successfully with ${guestName}`
-    });
-
-  } catch (error) {
-    console.error('🚨 AI Book meeting error:', error);
-    res.status(500).json({ error: 'Failed to book meeting' });
+   
+// ✅ Return SUCCESS response (not clarify)
+return res.json({
+  type: 'booking_created',
+  message: `✅ Meeting scheduled for ${formattedDate} at ${formattedTime}`,
+  data: { booking },
+  usage: {
+    ai_queries_used: req.userUsage.chatgpt_queries_used + 1,
+    ai_queries_limit: 3
   }
 });
 
