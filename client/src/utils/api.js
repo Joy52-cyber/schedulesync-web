@@ -1,4 +1,4 @@
-﻿import axios from 'axios';
+import axios from 'axios';
 
 // 1. Get the base URL from env or default
 let rawBaseUrl =
@@ -13,7 +13,7 @@ const API_BASE = rawBaseUrl.endsWith('/api')
   ? rawBaseUrl
   : `${rawBaseUrl}/api`;
 
-console.log('🌐 Final API Base URL:', API_BASE);
+console.log('?? Final API Base URL:', API_BASE);
 
 // Create axios instance
 export const api = axios.create({
@@ -32,8 +32,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     // Handle auth failures
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      console.log('🔐 Auth failed, clearing token and redirecting...');
+    if ((error.response?.status === 401 || error.response?.status === 403) && !error.config?.url?.includes('/subscription') && !error.config?.url?.includes('/limits')) {
+      console.log('?? Auth failed, clearing token and redirecting...');
       localStorage.removeItem('token');
       
       // Only redirect if we're not already on login page
@@ -319,14 +319,14 @@ export const chatgptIntegration = {
 // USER
 // ============================================
 
-// ✅ FIND your user object and ADD the limits method:
+// ? FIND your user object and ADD the limits method:
 export const user = {
   getProfile: () => api.get('/profile'),
   updateProfile: (data) => api.put('/profile', data),
   updatePassword: (data) => api.put('/profile/password', data),
   deleteAccount: () => api.delete('/profile'),
   usage: () => api.get('/user/usage'),
-  limits: () => api.get('/user/limits'), // ✅ ADD THIS LINE
+  limits: () => api.get('/user/limits'), // ? ADD THIS LINE
 };
 // ============================================
 // BACKWARDS COMPATIBILITY - DIRECT EXPORTS
