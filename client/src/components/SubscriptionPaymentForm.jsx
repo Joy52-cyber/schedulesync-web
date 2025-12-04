@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { Loader2, CreditCard, Lock, AlertCircle, Sparkles } from 'lucide-react';
+import { Loader2, CreditCard, Lock, AlertCircle, Sparkles, TestTube } from 'lucide-react';
 
 export default function SubscriptionPaymentForm({ 
   plan, 
@@ -126,14 +126,30 @@ export default function SubscriptionPaymentForm({
           </ul>
         </div>
 
+        {/* ✅ ADDED: Test Mode Notice */}
+        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <TestTube className="h-4 w-4 text-yellow-600" />
+            <span className="text-yellow-800 font-bold text-sm">Test Mode Active</span>
+          </div>
+          <p className="text-yellow-800 text-sm font-medium mb-1">This is a demo payment form</p>
+          <div className="text-yellow-700 text-xs space-y-1">
+            <p>Use test card: <span className="font-mono bg-yellow-100 px-2 py-1 rounded">4242 4242 4242 4242</span></p>
+            <p>Expiry: Any future date | CVC: Any 3 digits</p>
+          </div>
+        </div>
+
         {/* Card Input */}
         <div className="bg-white rounded-xl border-2 border-gray-300 p-5">
           <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
             <CreditCard className="h-5 w-5 text-blue-600" />
             Payment Information
           </label>
-          <div className="p-4 border-2 border-gray-200 rounded-lg bg-gray-50">
-            <CardElement options={cardElementOptions} />
+          <div className="p-4 border-2 border-gray-200 rounded-lg bg-gray-50 min-h-[50px] flex items-center">
+            <CardElement 
+              options={cardElementOptions} 
+              className="w-full"
+            />
           </div>
           <div className="flex items-center gap-2 mt-3 text-xs text-gray-500">
             <Lock className="h-4 w-4" />

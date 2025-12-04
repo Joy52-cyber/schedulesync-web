@@ -9902,18 +9902,21 @@ app.get('/api/billing/subscription', authenticateToken, async (req, res) => {
     
     const user = userResult.rows[0];
     
-    res.json({
-      id: user.stripe_subscription_id || 'free_plan',
-      status: user.subscription_status || 'active',
-      price: user.subscription_tier === 'pro' ? 12 : user.subscription_tier === 'team' ? 25 : 0,
-      next_billing_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Mock: 30 days from now
-      manage_url: 'https://billing.stripe.com/p/login/placeholder'
-    });
+     res.json({
+    id: user.stripe_subscription_id || 'free_plan',
+    status: user.subscription_status || 'active',
+    price: user.subscription_tier === 'pro' ? 12 : user.subscription_tier === 'team' ? 25 : 0,
+    next_billing_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    manage_url: `${process.env.CLIENT_URL || 'https://schedulesync-web-production.up.railway.app'}/billing`,  // ✅ Fixed!
     
-  } catch (error) {
-    console.error('❌ Billing subscription error:', error);
-    res.status(500).json({ error: 'Failed to fetch billing subscription' });
-  }
+    // ✅ ADD mock payment method:
+    payment_method: user.subscription_tier !== 'free' ? {
+      last4: '4242',
+      brand: 'visa',
+      exp_month: 12,
+      exp_year: 2025
+    } : null
+  });
 });
 
 // ✅ REPLACE your checkout endpoint with this:

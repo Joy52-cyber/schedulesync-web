@@ -168,7 +168,7 @@ export default function BillingSettings() {
     );
   }
 
-  const currentTier = user?.tier || 'free';
+  const currentTier = user?.subscription_tier || subscription?.plan || user?.tier || 'free';
   const isActive = subscription?.status === 'active';
   const isCancelled = subscription?.status === 'cancelled';
 
