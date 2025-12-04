@@ -9240,7 +9240,7 @@ app.post('/api/billing/create-checkout', authenticateToken, async (req, res) => 
     
     // Return simulated checkout URL (for testing)
     res.json({
-      checkout_url: `${process.env.CLIENT_URL || 'http://localhost:3000'}/billing?success=true&plan=${plan}`,
+      checkout_url: `${process.env.CLIENT_URL || 'CLIENT_URL=https://schedulesync-web-production.up.railway.app'}/billing?success=true&plan=${plan}`,
       session_id: `sim_${Date.now()}`
     });
     
