@@ -86,13 +86,15 @@ export default function Dashboard() {
 
  // ✅ REPLACE THIS in your Dashboard component:
 
+ // ✅ REPLACE your loadUserProfile function with this:
 const loadUserProfile = async () => {
   try {
+    // Load user profile
     const response = await auth.me();
     const u = response.data.user || null;
     setUser(u);
     
-    // ✅ ADD: Load fresh usage data separately
+    // ✅ ADD: Load fresh usage data separately  
     const usageResponse = await api.user.usage();
     setUser(prevUser => ({
       ...prevUser,

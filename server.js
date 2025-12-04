@@ -8470,6 +8470,140 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
   }
 });
 
+// ============ BOOKING LIMIT ENFORCEMENT SYSTEM ============
+
+// Add this function to your server.js
+async function checkBookingLimits(userId) {
+  try {
+    const userResult = await pool.query(
+      'SELECT tier, monthly_bookings FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      throw new Error('User not found');
+    }
+    
+    const user = userResult.rows[0];
+    const tier = user.tier || 'free';
+    const currentBookings = user.monthly_bookings || 0;
+    
+    // Define limits
+    const limits = {
+  free: { soft: 50, grace: 60, hard: 70 },      // ✅ More generous
+  pro: { soft: 999999, grace: 999999, hard: 999999 },  // ✅ Unlimited
+  team: { soft: 999999, grace: 999999, hard: 999999 }
+};
+    
+    const planLimits = limits[tier];
+    
+    return {
+      tier,
+      currentBookings,
+      limits: planLimits,
+      status: {
+        withinLimit: currentBookings < planLimits.soft,
+        inGracePeriod: currentBookings >= planLimits.soft && currentBookings < planLimits.grace,
+        overGraceLimit: currentBookings >= planLimits.grace && currentBookings < planLimits.hard,
+        hardBlocked: currentBookings >= planLimits.hard
+      }
+    };
+  } catch (error) {
+    console.error('❌ Failed to check booking limits:', error);
+    return null;
+  }
+}
+
+// Update your booking creation endpoint
+app.post('/api/bookings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // ✅ CHECK BOOKING LIMITS
+    const limitCheck = await checkBookingLimits(userId);
+    if (!limitCheck) {
+      return res.status(500).json({ error: 'Failed to check account limits' });
+    }
+    
+    const { status, limits, currentBookings, tier } = limitCheck;
+    
+    // ✅ HARD BLOCK - Don't allow booking
+    if (status.hardBlocked) {
+      return res.status(402).json({
+        error: 'Booking limit exceeded',
+        message: `You've reached your hard limit of ${limits.hard} bookings. Please upgrade your plan to continue.`,
+        upgrade_required: true,
+        current_bookings: currentBookings,
+        limit: limits.hard,
+        tier
+      });
+    }
+    
+    // ✅ GRACE PERIOD WARNING - Allow booking but warn
+    let warningMessage = null;
+    if (status.overGraceLimit) {
+      warningMessage = `⚠️ You're at ${currentBookings}/${limits.grace} bookings. Only ${limits.hard - currentBookings} bookings remaining before account suspension.`;
+    } else if (status.inGracePeriod) {
+      warningMessage = `⚠️ You've exceeded your ${limits.soft} booking limit. You're now in a grace period (${currentBookings}/${limits.grace}).`;
+    }
+    
+    // ✅ CREATE BOOKING (proceeding with warnings)
+    // ... your existing booking creation logic here ...
+    
+    // Increment monthly bookings counter
+    await pool.query(
+      'UPDATE users SET monthly_bookings = COALESCE(monthly_bookings, 0) + 1 WHERE id = $1',
+      [userId]
+    );
+    
+    // ✅ RETURN SUCCESS WITH OPTIONAL WARNING
+    const response = {
+      type: 'booking_created',
+      message: 'Booking created successfully!',
+      data: { /* your booking data */ },
+      limit_status: {
+        current_bookings: currentBookings + 1,
+        tier,
+        within_limit: status.withinLimit,
+        grace_period: status.inGracePeriod || status.overGraceLimit,
+        warning_message: warningMessage
+      }
+    };
+    
+    res.json(response);
+    
+  } catch (error) {
+    console.error('❌ Booking creation error:', error);
+    res.status(500).json({ error: 'Failed to create booking' });
+  }
+});
+
+// ✅ ADD: Endpoint to get current limit status
+app.get('/api/user/limits', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const limitCheck = await checkBookingLimits(userId);
+    
+    if (!limitCheck) {
+      return res.status(500).json({ error: 'Failed to check limits' });
+    }
+    
+    res.json({
+      tier: limitCheck.tier,
+      current_bookings: limitCheck.currentBookings,
+      limits: limitCheck.limits,
+      status: limitCheck.status,
+      upgrade_recommended: limitCheck.status.inGracePeriod || limitCheck.status.overGraceLimit
+    });
+    
+  } catch (error) {
+    console.error('❌ Failed to fetch limits:', error);
+    res.status(500).json({ error: 'Failed to fetch account limits' });
+  }
+});
+
+
+
 // ============ AI TEMPLATE GENERATION ENDPOINT (GEMINI VERSION) ============
 app.post('/api/ai/generate-template', authenticateToken, checkUsageLimits, async (req, res) => {
   try {
@@ -8594,7 +8728,7 @@ Format:
       template: templateData,
       usage: {
         ai_queries_used: req.userUsage.chatgpt_queries_used + 1,
-        ai_queries_limit: 3
+        ai_queries_limit: 10
       }
     });
 
