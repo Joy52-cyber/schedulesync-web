@@ -9861,23 +9861,23 @@ app.post('/api/subscriptions/cancel', authenticateToken, async (req, res) => {
 });
 
 // Billing portal (placeholder)
+
 app.post('/api/subscriptions/billing-portal', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
     console.log(`🏪 Creating billing portal for user ${userId}`);
     
-    // FOR NOW: Redirect to upgrade instead of external billing
+    // ✅ FIX: Return a real URL, not placeholder
     res.json({ 
       url: `${process.env.CLIENT_URL || 'https://schedulesync-web-production.up.railway.app'}/billing`,
-      message: 'Redirecting to upgrade page'
+      message: 'Redirecting to billing page'
     });
   } catch (error) {
     console.error('Billing portal error:', error);
     res.status(500).json({ error: 'Failed to create billing portal session' });
   }
 });
-
 // Alias for billing/subscription (maps to subscriptions/current)
 app.get('/api/billing/subscription', authenticateToken, async (req, res) => {
   try {
@@ -9908,14 +9908,13 @@ app.get('/api/billing/subscription', authenticateToken, async (req, res) => {
   }
 });
 
-// Alias for billing/create-checkout (maps to subscriptions/create)
-// ✅ FIXED VERSION - Replace your code with this:
+// ✅ REPLACE your checkout endpoint with this:
 app.post('/api/billing/create-checkout', authenticateToken, async (req, res) => {
   try {
     const { plan } = req.body;
     const userId = req.user.id;
     
-    console.log(`🚀 Creating checkout session for user ${userId}, plan: ${plan}`);  // ✅ Fixed parentheses
+    console.log(`🚀 Creating checkout session for user ${userId}, plan: ${plan}`);
     
     // Define plan details  
     const plans = {
@@ -9928,20 +9927,19 @@ app.post('/api/billing/create-checkout', authenticateToken, async (req, res) => 
       return res.status(400).json({ error: 'Invalid plan selected' });
     }
     
-    // ✅ FIXED: Update user's plan immediately (simulated success)
+    // Update user's plan immediately (simulated success)
     await pool.query(
-      'UPDATE users SET subscription_tier = $1, subscription_status = $2, ai_queries_limit = $3 WHERE id = $4',  // ✅ Fixed parameter order
-      [plan, 'active', 999999, userId]  // ✅ Fixed parameter count
+      'UPDATE users SET subscription_tier = $1, subscription_status = $2, ai_queries_limit = $3 WHERE id = $4',
+      [plan, 'active', 999999, userId]
     );
     
-    console.log(`✅ User ${userId} upgraded to ${plan} plan - SIMULATED SUCCESS`);  // ✅ Fixed parentheses
+    console.log(`✅ User ${userId} upgraded to ${plan} plan - SIMULATED SUCCESS`);
     
-    // ✅ For testing: Return success response instead of redirect
+    // ✅ FIX: Return the field name your frontend expects
     res.json({
       success: true,
-      message: `🎉 Successfully upgraded to ${selectedPlan.name}!`,
-      plan: plan,
-      redirect_url: `/dashboard?upgraded=${plan}`  // Redirect to dashboard with success
+      checkout_url: `${process.env.CLIENT_URL || 'https://schedulesync-web-production.up.railway.app'}/billing?upgraded=true`,  // ✅ Fixed field name
+      session_id: `sim_${Date.now()}`
     });
     
   } catch (error) {
@@ -9949,6 +9947,7 @@ app.post('/api/billing/create-checkout', authenticateToken, async (req, res) => 
     res.status(500).json({ error: 'Failed to create checkout session' });
   }
 });
+   
 // Add invoices endpoint (empty for now)
 app.get('/api/billing/invoices', authenticateToken, async (req, res) => {
   try {
