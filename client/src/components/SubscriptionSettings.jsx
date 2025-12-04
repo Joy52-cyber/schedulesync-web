@@ -196,7 +196,7 @@ const SubscriptionSettings = () => {
       <SubscriptionUpgradeModal
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
-        onSuccess={handleUpgradeSuccess}  {/* ✅ Added missing onSuccess prop */}
+        onSuccess={handleUpgradeSuccess}  
         currentTier={plan}
       />
     </>
