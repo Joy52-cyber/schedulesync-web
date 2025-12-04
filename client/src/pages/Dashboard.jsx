@@ -84,16 +84,31 @@ export default function Dashboard() {
     }
   };
 
-  const loadUserProfile = async () => {
-    try {
-      const response = await auth.me();
-      const u = response.data.user || null;
-      setUser(u);
-    } catch (error) {
-      console.error('Profile load error:', error);
-      notify.error('Failed to load profile');
-    }
-  };
+ // ✅ REPLACE THIS in your Dashboard component:
+
+const loadUserProfile = async () => {
+  try {
+    const response = await auth.me();
+    const u = response.data.user || null;
+    setUser(u);
+    
+    // ✅ ADD: Load fresh usage data separately
+    const usageResponse = await api.user.usage();
+    setUser(prevUser => ({
+      ...prevUser,
+      usage: {
+        ai_queries_used: usageResponse.data.ai_queries_used,
+        ai_queries_limit: usageResponse.data.ai_queries_limit,
+        chatgpt_used: usageResponse.data.ai_queries_used, // For compatibility
+        chatgpt_limit: usageResponse.data.ai_queries_limit // For compatibility
+      }
+    }));
+    
+  } catch (error) {
+    console.error('Profile load error:', error);
+    notify.error('Failed to load profile');
+  }
+};
 
   // Simple check if ChatGPT is configured
   const checkChatGptStatus = async () => {
