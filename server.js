@@ -1,4 +1,4 @@
-﻿
+
 
 // ============ STARTUP DEBUGGING ============
 console.log('========================================');
@@ -73,7 +73,7 @@ const bcrypt = require('bcryptjs');
 const axios = require('axios');
 console.log('? AXIOS LOADED:', !!axios, 'Version:', axios.VERSION); // ADD THIS
 const { trackChatGptUsage, getCurrentUsage } = require('./middleware/usage-limits');
-const subscriptionRoutes = require('./routes/subscription');
+const subscriptionRoutes = require('./server/routes/subscription');
 
 const app = express();
 app.use('/api/user', subscriptionRoutes);
@@ -328,7 +328,7 @@ const checkUsageLimits = async (req, res, next) => {
   try {
     const userId = req.user.id;
     
-    // ✅ UPDATE: Use the columns we actually set up
+    // ? UPDATE: Use the columns we actually set up
     const userResult = await pool.query(
       `SELECT tier, ai_queries_used, ai_queries_limit, monthly_bookings
        FROM users WHERE id = $1`,
@@ -342,9 +342,9 @@ const checkUsageLimits = async (req, res, next) => {
     const user = userResult.rows[0];
     const tier = user.tier || 'free';
     
-    // ✅ UPDATE: Use the new better limits  
+    // ? UPDATE: Use the new better limits  
     const usageLimits = {
-      free: { chatgpt: 10, bookings: 50 },     // ✅ Changed from 3 to 10, 25 to 50
+      free: { chatgpt: 10, bookings: 50 },     // ? Changed from 3 to 10, 25 to 50
       pro: { chatgpt: -1, bookings: -1 },     // -1 = unlimited
       team: { chatgpt: -1, bookings: -1 }
     };
@@ -354,9 +354,9 @@ const checkUsageLimits = async (req, res, next) => {
     // Check what feature is being accessed
     const endpoint = req.route.path;
     
-    // ✅ UPDATE: ChatGPT usage check with new column names
+    // ? UPDATE: ChatGPT usage check with new column names
     if (endpoint.includes('/ai/') && currentLimits.chatgpt !== -1) {
-      const used = user.ai_queries_used || 0;  // ✅ Updated column name
+      const used = user.ai_queries_used || 0;  // ? Updated column name
       
       if (used >= currentLimits.chatgpt) {
         return res.status(402).json({ 
@@ -371,9 +371,9 @@ const checkUsageLimits = async (req, res, next) => {
       }
     }
     
-    // ✅ UPDATE: Booking creation check with new limits
+    // ? UPDATE: Booking creation check with new limits
     if ((endpoint.includes('/bookings') && req.method === 'POST') && currentLimits.bookings !== -1) {
-      const bookingsUsed = user.monthly_bookings || 0;  // ✅ Use the column we set up
+      const bookingsUsed = user.monthly_bookings || 0;  // ? Use the column we set up
       
       if (bookingsUsed >= currentLimits.bookings) {
         return res.status(402).json({
@@ -388,12 +388,12 @@ const checkUsageLimits = async (req, res, next) => {
       }
     }
     
-    // ✅ UPDATE: Add usage info to request
+    // ? UPDATE: Add usage info to request
     req.userUsage = {
       tier,
       limits: currentLimits,
-      ai_used: user.ai_queries_used || 0,      // ✅ Updated
-      ai_limit: user.ai_queries_limit || currentLimits.chatgpt,  // ✅ Updated
+      ai_used: user.ai_queries_used || 0,      // ? Updated
+      ai_limit: user.ai_queries_limit || currentLimits.chatgpt,  // ? Updated
       bookings_used: user.monthly_bookings || 0
     };
     
@@ -422,7 +422,7 @@ app.use((req, res, next) => {
   const originalSend = res.send;
   res.send = function(data) {
     if (res.statusCode === 404) {
-      console.log('🔴 404 ERROR:', {
+      console.log('?? 404 ERROR:', {
         method: req.method,
         path: req.path,
         url: req.originalUrl,
@@ -719,9 +719,9 @@ await pool.query(`
       }'::jsonb
     `);
     
-    console.log('✅ Database migrations completed');
+    console.log('? Database migrations completed');
   } catch (error) {
-    console.error('❌ Migration error:', error);
+    console.error('? Migration error:', error);
   }
 }
 
@@ -733,7 +733,7 @@ await pool.query(`
 // Event Types columns migration
 async function migrateEventTypesColumns() {
   try {
-    console.log('🔄 Checking Event Types columns...');
+    console.log('?? Checking Event Types columns...');
     
     await pool.query(`
       ALTER TABLE event_types 
@@ -745,16 +745,16 @@ async function migrateEventTypesColumns() {
       ADD COLUMN IF NOT EXISTS require_approval BOOLEAN DEFAULT false
     `);
     
-    console.log('✅ Event Types columns updated');
+    console.log('? Event Types columns updated');
   } catch (error) {
-    console.error('❌ Event Types migration error:', error);
+    console.error('? Event Types migration error:', error);
   }
 }
 
 // Username column migration
 async function migrateUsernameColumn() {
   try {
-    console.log('🔄 Adding username column to users table...');
+    console.log('?? Adding username column to users table...');
     
     await pool.query(`
       ALTER TABLE users
@@ -772,16 +772,16 @@ async function migrateUsernameColumn() {
       ON users(LOWER(username))
     `);
     
-    console.log('✅ Username column migration completed');
+    console.log('? Username column migration completed');
   } catch (error) {
-    console.error('❌ Username migration failed:', error);
+    console.error('? Username migration failed:', error);
   }
 }
 
 // Public bookings migration
 async function migratePublicBookings() {
   try {
-    console.log('🔄 Running public bookings migration...');
+    console.log('?? Running public bookings migration...');
     
     await pool.query(`
       ALTER TABLE bookings
@@ -814,9 +814,9 @@ async function migratePublicBookings() {
       ON bookings(event_type_id)
     `);
     
-    console.log('✅ Public bookings migration completed');
+    console.log('? Public bookings migration completed');
   } catch (error) {
-    console.error('❌ Public bookings migration failed:', error);
+    console.error('? Public bookings migration failed:', error);
   }
 }
 
@@ -827,10 +827,10 @@ initDB()
   .then(() => migrateUsernameColumn())
   .then(() => migratePublicBookings())
   .then(() => {
-    console.log('✅ All migrations completed successfully');
+    console.log('? All migrations completed successfully');
   })
   .catch(err => {
-    console.error('❌ Migration chain failed:', err);
+    console.error('? Migration chain failed:', err);
     process.exit(1);
   });
 
@@ -986,7 +986,7 @@ app.get('/api/public/available-slots', async (req, res) => {
   try {
     const { username, event_slug, date, timezone = 'UTC' } = req.query;
 
-    console.log('🔍 Fetching public available slots:', { username, event_slug, date, timezone });
+    console.log('?? Fetching public available slots:', { username, event_slug, date, timezone });
 
     if (!username || !event_slug || !date) {
       return res.status(400).json({ error: 'Missing required parameters' });
@@ -1028,14 +1028,14 @@ app.get('/api/public/available-slots', async (req, res) => {
     const bufferBefore = eventType.buffer_before || 0;
     const bufferAfter = eventType.buffer_after || 0;
 
-    console.log('✅ Event type found:', { duration, bufferBefore, bufferAfter });
+    console.log('? Event type found:', { duration, bufferBefore, bufferAfter });
 
     // ========== GET HOST'S CALENDAR EVENTS ==========
     let calendarEvents = [];
 
     try {
       if (host.provider === 'google' && host.google_access_token) {
-        console.log('📅 Fetching Google Calendar events...');
+        console.log('?? Fetching Google Calendar events...');
         
         const oauth2Client = new google.auth.OAuth2(
           process.env.GOOGLE_CLIENT_ID,
@@ -1065,10 +1065,10 @@ app.get('/api/public/available-slots', async (req, res) => {
         });
 
         calendarEvents = response.data.items || [];
-        console.log(`✅ Found ${calendarEvents.length} Google Calendar events`);
+        console.log(`? Found ${calendarEvents.length} Google Calendar events`);
         
       } else if (host.provider === 'microsoft' && host.microsoft_access_token) {
-        console.log('📅 Fetching Microsoft Calendar events...');
+        console.log('?? Fetching Microsoft Calendar events...');
         
         const startOfDay = new Date(date);
         startOfDay.setHours(0, 0, 0, 0);
@@ -1088,11 +1088,11 @@ app.get('/api/public/available-slots', async (req, res) => {
         if (response.ok) {
           const data = await response.json();
           calendarEvents = data.value || [];
-          console.log(`✅ Found ${calendarEvents.length} Microsoft Calendar events`);
+          console.log(`? Found ${calendarEvents.length} Microsoft Calendar events`);
         }
       }
     } catch (calendarError) {
-      console.error('⚠️ Calendar fetch failed:', calendarError.message);
+      console.error('?? Calendar fetch failed:', calendarError.message);
       // Continue with empty calendar (show all slots as available)
     }
 
@@ -1115,7 +1115,7 @@ app.get('/api/public/available-slots', async (req, res) => {
     );
 
     const existingBookings = bookingsResult.rows;
-    console.log(`📊 Found ${existingBookings.length} existing bookings`);
+    console.log(`?? Found ${existingBookings.length} existing bookings`);
 
     // ========== GENERATE TIME SLOTS ==========
     const slots = [];
@@ -1183,7 +1183,7 @@ app.get('/api/public/available-slots', async (req, res) => {
       }
     }
 
-    console.log(`✅ Generated ${slots.length} available slots`);
+    console.log(`? Generated ${slots.length} available slots`);
 
     res.json({
       success: true,
@@ -1193,7 +1193,7 @@ app.get('/api/public/available-slots', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error fetching public available slots:', error);
+    console.error('? Error fetching public available slots:', error);
     res.status(500).json({ error: 'Failed to fetch available slots' });
   }
 });
@@ -1216,7 +1216,7 @@ app.post('/api/public/booking/create', async (req, res) => {
       guest_timezone
     } = req.body;
 
-    console.log('📅 Creating public event type booking:', { username, event_slug, attendee_email });
+    console.log('?? Creating public event type booking:', { username, event_slug, attendee_email });
 
     // Find user by username
     const userResult = await pool.query(
@@ -1296,7 +1296,7 @@ app.post('/api/public/booking/create', async (req, res) => {
       }
     }
 
-    console.log('✅ Public booking created:', booking.id);
+    console.log('? Public booking created:', booking.id);
 
     // ========== RESPOND IMMEDIATELY ==========
     res.json({
@@ -1311,10 +1311,10 @@ app.post('/api/public/booking/create', async (req, res) => {
       message: 'Booking confirmed! Confirmation email will arrive shortly.'
     });
 
-    // 🔥 SEND EMAILS IN BACKGROUND
+    // ?? SEND EMAILS IN BACKGROUND
     (async () => {
       try {
-        console.log('📧 Preparing to send emails...');
+        console.log('?? Preparing to send emails...');
         
         const manageUrl = `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/manage/${manageToken}`;
         const duration = eventType.duration;
@@ -1349,11 +1349,11 @@ app.post('/api/public/booking/create', async (req, res) => {
         await resend.emails.send({
           from: 'ScheduleSync <bookings@trucal.xyz>',
           to: attendee_email,
-          subject: `✅ Booking Confirmed: ${eventType.title}`,
+          subject: `? Booking Confirmed: ${eventType.title}`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                <h1 style="color: white; margin: 0;">Booking Confirmed! ✅</h1>
+                <h1 style="color: white; margin: 0;">Booking Confirmed! ?</h1>
               </div>
               
               <div style="padding: 30px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
@@ -1364,11 +1364,11 @@ app.post('/api/public/booking/create', async (req, res) => {
                 <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
                   <h2 style="margin-top: 0; color: #1f2937;">${eventType.title}</h2>
                   <p style="margin: 10px 0; color: #6b7280;">
-                    <strong>📅 When:</strong> ${formattedDateTime}<br>
-                    <strong>⏱️ Duration:</strong> ${duration} minutes<br>
-                    <strong>🌍 Timezone:</strong> ${guest_timezone || 'UTC'}<br>
-                    ${eventType.location ? `<strong>📍 Location:</strong> ${eventType.location}<br>` : ''}
-                    ${additional_attendees?.length > 0 ? `<strong>👥 Others:</strong> ${additional_attendees.join(', ')}<br>` : ''}
+                    <strong>?? When:</strong> ${formattedDateTime}<br>
+                    <strong>?? Duration:</strong> ${duration} minutes<br>
+                    <strong>?? Timezone:</strong> ${guest_timezone || 'UTC'}<br>
+                    ${eventType.location ? `<strong>?? Location:</strong> ${eventType.location}<br>` : ''}
+                    ${additional_attendees?.length > 0 ? `<strong>?? Others:</strong> ${additional_attendees.join(', ')}<br>` : ''}
                   </p>
                   ${notes ? `<p style="margin-top: 15px; padding: 10px; background: #f3f4f6; border-radius: 4px;"><strong>Notes:</strong><br>${notes}</p>` : ''}
                 </div>
@@ -1385,11 +1385,11 @@ app.post('/api/public/booking/create', async (req, res) => {
           `,
           attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
         });
-        console.log('✅ Email sent to primary attendee:', attendee_email);
+        console.log('? Email sent to primary attendee:', attendee_email);
 
         // 2. ADDITIONAL ATTENDEES
         if (additional_attendees && Array.isArray(additional_attendees) && additional_attendees.length > 0) {
-          console.log(`📧 Sending to ${additional_attendees.length} additional attendees...`);
+          console.log(`?? Sending to ${additional_attendees.length} additional attendees...`);
           for (const email of additional_attendees) {
             await resend.emails.send({
               from: 'ScheduleSync <bookings@trucal.xyz>',
@@ -1400,16 +1400,16 @@ app.post('/api/public/booking/create', async (req, res) => {
                   <h2 style="color: #2563eb;">You're invited!</h2>
                   <p><strong>${attendee_name}</strong> has invited you to a meeting with <strong>${host.name}</strong>.</p>
                   <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <p style="margin: 5px 0;"><strong>📅 When:</strong> ${formattedDateTime}</p>
-                    <p style="margin: 5px 0;"><strong>⏱️ Duration:</strong> ${duration} minutes</p>
-                    <p style="margin: 5px 0;"><strong>👤 Invited by:</strong> ${attendee_name} (${attendee_email})</p>
-                    ${notes ? `<p style="margin: 5px 0;"><strong>📝 Notes:</strong> ${notes}</p>` : ''}
+                    <p style="margin: 5px 0;"><strong>?? When:</strong> ${formattedDateTime}</p>
+                    <p style="margin: 5px 0;"><strong>?? Duration:</strong> ${duration} minutes</p>
+                    <p style="margin: 5px 0;"><strong>?? Invited by:</strong> ${attendee_name} (${attendee_email})</p>
+                    ${notes ? `<p style="margin: 5px 0;"><strong>?? Notes:</strong> ${notes}</p>` : ''}
                   </div>
                 </div>
               `,
               attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
             });
-            console.log(`✅ Email sent to: ${email}`);
+            console.log(`? Email sent to: ${email}`);
           }
         }
 
@@ -1417,11 +1417,11 @@ app.post('/api/public/booking/create', async (req, res) => {
         await resend.emails.send({
           from: 'ScheduleSync <bookings@trucal.xyz>',
           to: host.email,
-          subject: `📅 New Booking: ${eventType.title}`,
+          subject: `?? New Booking: ${eventType.title}`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                <h1 style="color: white; margin: 0;">New Booking Received 📅</h1>
+                <h1 style="color: white; margin: 0;">New Booking Received ??</h1>
               </div>
               
               <div style="padding: 30px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
@@ -1432,11 +1432,11 @@ app.post('/api/public/booking/create', async (req, res) => {
                 <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981;">
                   <h2 style="margin-top: 0; color: #1f2937;">${eventType.title}</h2>
                   <p style="margin: 10px 0; color: #6b7280;">
-                    <strong>👤 Guest:</strong> ${attendee_name}<br>
-                    <strong>✉️ Email:</strong> ${attendee_email}<br>
-                    ${additional_attendees?.length > 0 ? `<strong>👥 Others:</strong> ${additional_attendees.join(', ')}<br>` : ''}
-                    <strong>📅 When:</strong> ${formattedDateTime}<br>
-                    <strong>⏱️ Duration:</strong> ${duration} minutes
+                    <strong>?? Guest:</strong> ${attendee_name}<br>
+                    <strong>?? Email:</strong> ${attendee_email}<br>
+                    ${additional_attendees?.length > 0 ? `<strong>?? Others:</strong> ${additional_attendees.join(', ')}<br>` : ''}
+                    <strong>?? When:</strong> ${formattedDateTime}<br>
+                    <strong>?? Duration:</strong> ${duration} minutes
                   </p>
                   ${notes ? `<p style="margin-top: 15px; padding: 10px; background: #f3f4f6; border-radius: 4px;"><strong>Guest Notes:</strong><br>${notes}</p>` : ''}
                 </div>
@@ -1445,16 +1445,16 @@ app.post('/api/public/booking/create', async (req, res) => {
           `,
           attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
         });
-        console.log('✅ Email sent to host:', host.email);
-        console.log('✅ All confirmation emails sent');
+        console.log('? Email sent to host:', host.email);
+        console.log('? All confirmation emails sent');
 
       } catch (emailError) {
-        console.error('⚠️ Email send failed:', emailError);
+        console.error('?? Email send failed:', emailError);
       }
     })();
 
   } catch (error) {
-    console.error('❌ Public booking creation error:', error);
+    console.error('? Public booking creation error:', error);
     res.status(500).json({ error: 'Failed to create booking' });
   }
 });
@@ -1475,7 +1475,7 @@ app.post('/api/bookings', async (req, res) => {
       reschedule_token
     } = req.body;
 
-    console.log('📋 REQUEST BODY DEBUG:', {
+    console.log('?? REQUEST BODY DEBUG:', {
       attendee_name,
       attendee_email,
       additional_attendees,
@@ -1484,7 +1484,7 @@ app.post('/api/bookings', async (req, res) => {
       additional_attendees_isArray: Array.isArray(additional_attendees)
     });
 
-    console.log('🔧 Creating booking:', { 
+    console.log('?? Creating booking:', { 
       token: token?.substring(0, 10) + '...', 
       attendee_name, 
       attendee_email,
@@ -1494,7 +1494,7 @@ app.post('/api/bookings', async (req, res) => {
 
     // ========== STEP 1: VALIDATION ==========
     if (!token || !slot || !attendee_name || !attendee_email) {
-      console.error('❌ Missing required fields:', {
+      console.error('? Missing required fields:', {
         hasToken: !!token,
         hasSlot: !!slot,
         hasName: !!attendee_name,
@@ -1504,7 +1504,7 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     if (!slot.start || !slot.end) {
-      console.error('❌ Invalid slot data:', slot);
+      console.error('? Invalid slot data:', slot);
       return res.status(400).json({ 
         error: 'Invalid booking slot data',
         debug: { slot }
@@ -1520,19 +1520,19 @@ app.post('/api/bookings', async (req, res) => {
         throw new Error('Invalid date format');
       }
       
-      console.log('✅ Slot validation passed:', {
+      console.log('? Slot validation passed:', {
         start: startDate.toISOString(),
         end: endDate.toISOString()
       });
     } catch (dateError) {
-      console.error('❌ Invalid slot dates:', dateError.message);
+      console.error('? Invalid slot dates:', dateError.message);
       return res.status(400).json({ 
         error: 'Invalid booking time format',
         details: dateError.message
       });
     }
 
-    // 🔥 ADD EMAIL VALIDATION HERE (AFTER line ~1530)
+    // ?? ADD EMAIL VALIDATION HERE (AFTER line ~1530)
     // Enhanced email validation function
     async function validateEmailExists(email) {
       try {
@@ -1569,7 +1569,7 @@ app.post('/api/bookings', async (req, res) => {
     const emailCheck = await validateEmailExists(attendee_email);
     if (!emailCheck.valid) {
       return res.status(400).json({ 
-        error: `❌ Invalid email: ${attendee_email}`,
+        error: `? Invalid email: ${attendee_email}`,
         details: emailCheck.reason,
         hint: 'Please provide a real email address to receive booking confirmations'
       });
@@ -1581,7 +1581,7 @@ app.post('/api/bookings', async (req, res) => {
         const additionalCheck = await validateEmailExists(email);
         if (!additionalCheck.valid) {
           return res.status(400).json({ 
-            error: `❌ Invalid additional attendee email: ${email}`,
+            error: `? Invalid additional attendee email: ${email}`,
             details: additionalCheck.reason
           });
         }
@@ -1592,7 +1592,7 @@ app.post('/api/bookings', async (req, res) => {
     let memberResult;
     
     if (token.length === 64) {
-      console.log('🔍 Looking up single-use link...');
+      console.log('?? Looking up single-use link...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 t.name as team_name, 
@@ -1616,8 +1616,8 @@ app.post('/api/bookings', async (req, res) => {
         [token]
       );
     } else {
-      // ✅ FIRST: Check if it's a TEAM token
-      console.log('🔍 Checking if team token...');
+      // ? FIRST: Check if it's a TEAM token
+      console.log('?? Checking if team token...');
       const teamCheck = await pool.query(
         `SELECT t.id as team_id, t.booking_mode
          FROM teams t
@@ -1628,7 +1628,7 @@ app.post('/api/bookings', async (req, res) => {
       if (teamCheck.rows.length > 0) {
         // Team token found - use the first active member
         const teamData = teamCheck.rows[0];
-        console.log('✅ Team token detected for booking, loading first active member...');
+        console.log('? Team token detected for booking, loading first active member...');
         
         memberResult = await pool.query(
           `SELECT tm.*, 
@@ -1654,7 +1654,7 @@ app.post('/api/bookings', async (req, res) => {
         );
       } else {
         // Not a team token, check regular member token
-        console.log('🔍 Looking up regular token...');
+        console.log('?? Looking up regular token...');
         memberResult = await pool.query(
           `SELECT tm.*, 
                   t.name as team_name, 
@@ -1678,14 +1678,14 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     if (memberResult.rows.length === 0) {
-      console.log('❌ Invalid or expired booking token');
+      console.log('? Invalid or expired booking token');
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
     const member = memberResult.rows[0];
     const bookingMode = member.booking_mode || 'individual';
 
-    console.log('✅ Token found:', {
+    console.log('? Token found:', {
       memberName: member.name || member.member_name,
       teamName: member.team_name,
       mode: bookingMode
@@ -2199,7 +2199,7 @@ function getTimezoneOffset(timezone) {
       }
     });
   } catch (error) {
-    console.error('❌ Calendar status error:', error);
+    console.error('? Calendar status error:', error);
     res.status(500).json({ error: 'Failed to get calendar status' });
   }
 });
@@ -3009,7 +3009,7 @@ app.get('/api/book/auth/google/url', async (req, res) => {
       return res.status(400).json({ error: 'Booking token required' });
     }
 
-    // ✅ CHECK BOTH TEAM AND MEMBER TOKENS
+    // ? CHECK BOTH TEAM AND MEMBER TOKENS
     const memberCheck = await pool.query(
       'SELECT id FROM team_members WHERE booking_token = $1',
       [bookingToken]
@@ -3044,10 +3044,10 @@ app.get('/api/book/auth/google/url', async (req, res) => {
       state: `guest-booking:${bookingToken}:google`,
     });
 
-    console.log('✅ Generated Google guest OAuth URL');
+    console.log('? Generated Google guest OAuth URL');
     res.json({ url: authUrl });
   } catch (error) {
-    console.error('❌ Error generating Google guest OAuth URL:', error);
+    console.error('? Error generating Google guest OAuth URL:', error);
     res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
 });
@@ -3057,13 +3057,13 @@ app.get('/api/book/auth/microsoft/url', async (req, res) => {
   try {
     const { bookingToken } = req.query;
     
-    console.log('🔍 Microsoft guest OAuth URL request:', bookingToken);
+    console.log('?? Microsoft guest OAuth URL request:', bookingToken);
     
     if (!bookingToken) {
       return res.status(400).json({ error: 'Booking token required' });
     }
 
-    // ✅ CHECK BOTH TEAM AND MEMBER TOKENS
+    // ? CHECK BOTH TEAM AND MEMBER TOKENS
     const memberCheck = await pool.query(
       'SELECT id FROM team_members WHERE booking_token = $1',
       [bookingToken]
@@ -3097,10 +3097,10 @@ app.get('/api/book/auth/microsoft/url', async (req, res) => {
       `&state=guest-booking:${bookingToken}:microsoft` +
       `&prompt=select_account`;
     
-    console.log('✅ Microsoft guest OAuth URL generated');
+    console.log('? Microsoft guest OAuth URL generated');
     res.json({ url: authUrl });
   } catch (error) {
-    console.error('❌ Error generating Microsoft guest OAuth URL:', error);
+    console.error('? Error generating Microsoft guest OAuth URL:', error);
     res.status(500).json({ error: 'Failed to generate OAuth URL' });
   }
 });
@@ -4338,17 +4338,17 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       timezone = 'America/New_York'
     } = req.body;
 
-    console.log('📅 Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
+    console.log('?? Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
 
-    // 🔥 DETECT PUBLIC BOOKING PSEUDO-TOKEN
+    // ?? DETECT PUBLIC BOOKING PSEUDO-TOKEN
 if (token && token.startsWith('public:')) {
   const parts = token.split(':');
   const username = parts[1];
   const eventSlug = parts[2];
 
-  console.log('🌐 Public booking slots request detected:', { username, eventSlug });
+  console.log('?? Public booking slots request detected:', { username, eventSlug });
 
-  // 🔥 GET DATE RANGE FROM REQUEST
+  // ?? GET DATE RANGE FROM REQUEST
   // If 'date' is provided, generate slots for that month
   // If not, generate slots for next 30 days
   const requestedDate = req.body.date;
@@ -4360,16 +4360,16 @@ if (token && token.startsWith('public:')) {
     startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
     endDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
     daysToGenerate = endDate.getDate();
-    console.log(`📅 Generating slots for entire month: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+    console.log(`?? Generating slots for entire month: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
   
     // In server.js, find the public booking section:
 } else {
-  // Generate slots for next 90 days  // 🔥 CHANGE
+  // Generate slots for next 90 days  // ?? CHANGE
   startDate = new Date();
   endDate = new Date();
-  endDate.setDate(endDate.getDate() + 90);  // 🔥 CHANGE
-  daysToGenerate = 90;  // 🔥 CHANGE
-  console.log(`📅 Generating slots for next 90 days`);
+  endDate.setDate(endDate.getDate() + 90);  // ?? CHANGE
+  daysToGenerate = 90;  // ?? CHANGE
+  console.log(`?? Generating slots for next 90 days`);
 }
 
   // Find user
@@ -4408,9 +4408,9 @@ if (token && token.startsWith('public:')) {
   const bufferBefore = eventType.buffer_before || 0;
   const bufferAfter = eventType.buffer_after || 0;
 
-  console.log('✅ Public event type found:', { duration: eventDuration, bufferBefore, bufferAfter });
+  console.log('? Public event type found:', { duration: eventDuration, bufferBefore, bufferAfter });
 
-  // 🔥 FETCH ALL CALENDAR EVENTS FOR THE ENTIRE RANGE (More Efficient)
+  // ?? FETCH ALL CALENDAR EVENTS FOR THE ENTIRE RANGE (More Efficient)
   let allCalendarEvents = [];
   
   try {
@@ -4437,7 +4437,7 @@ if (token && token.startsWith('public:')) {
       });
 
       allCalendarEvents = response.data.items || [];
-      console.log(`📅 Found ${allCalendarEvents.length} Google Calendar events in range`);
+      console.log(`?? Found ${allCalendarEvents.length} Google Calendar events in range`);
       
     } else if (host.provider === 'microsoft' && host.microsoft_access_token) {
       const response = await fetch(
@@ -4452,14 +4452,14 @@ if (token && token.startsWith('public:')) {
       if (response.ok) {
         const data = await response.json();
         allCalendarEvents = data.value || [];
-        console.log(`📅 Found ${allCalendarEvents.length} Microsoft Calendar events in range`);
+        console.log(`?? Found ${allCalendarEvents.length} Microsoft Calendar events in range`);
       }
     }
   } catch (calendarError) {
-    console.error('⚠️ Calendar fetch failed:', calendarError.message);
+    console.error('?? Calendar fetch failed:', calendarError.message);
   }
 
-  // 🔥 FETCH ALL BOOKINGS FOR THE ENTIRE RANGE
+  // ?? FETCH ALL BOOKINGS FOR THE ENTIRE RANGE
   const allBookingsResult = await pool.query(
     `SELECT start_time, end_time 
      FROM bookings 
@@ -4472,9 +4472,9 @@ if (token && token.startsWith('public:')) {
   );
 
   const allExistingBookings = allBookingsResult.rows;
-  console.log(`📊 Found ${allExistingBookings.length} existing bookings in range`);
+  console.log(`?? Found ${allExistingBookings.length} existing bookings in range`);
 
-  // 🔥 GENERATE SLOTS FOR EACH DAY IN RANGE
+  // ?? GENERATE SLOTS FOR EACH DAY IN RANGE
   const allSlots = {};
   let totalAvailableSlots = 0;
 
@@ -4590,7 +4590,7 @@ if (token && token.startsWith('public:')) {
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
-  console.log(`✅ Generated ${totalAvailableSlots} slots across ${Object.keys(allSlots).length} days`);
+  console.log(`? Generated ${totalAvailableSlots} slots across ${Object.keys(allSlots).length} days`);
 
   // Return in SmartSlotPicker format
   return res.json({
@@ -4607,12 +4607,12 @@ if (token && token.startsWith('public:')) {
 }
 
 // ========== REGULAR TOKEN-BASED BOOKING CONTINUES BELOW ==========
-console.log('🔍 Checking if team token...');
+console.log('?? Checking if team token...');
     // ========== 1. GET MEMBER & SETTINGS ==========
     let memberResult;
     
     if (token.length === 64) {
-      console.log('🔍 Looking up single-use link...');
+      console.log('?? Looking up single-use link...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 tm.buffer_time,
@@ -4637,8 +4637,8 @@ console.log('🔍 Checking if team token...');
         [token]
       );
     } else {
-      // ✅ ADD THIS: First check if it's a TEAM token
-      console.log('🔍 Checking if team token...');
+      // ? ADD THIS: First check if it's a TEAM token
+      console.log('?? Checking if team token...');
       const teamCheck = await pool.query(
         `SELECT t.id as team_id, t.booking_mode
          FROM teams t
@@ -4649,7 +4649,7 @@ console.log('🔍 Checking if team token...');
       if (teamCheck.rows.length > 0) {
         // Team token found - use the first active member
         const teamData = teamCheck.rows[0];
-        console.log('✅ Team token detected, loading first active member...');
+        console.log('? Team token detected, loading first active member...');
         
         memberResult = await pool.query(
           `SELECT tm.*, 
@@ -4676,7 +4676,7 @@ console.log('🔍 Checking if team token...');
         );
       } else {
         // Not a team token, check regular member token
-        console.log('🔍 Looking up regular member token...');
+        console.log('?? Looking up regular member token...');
         memberResult = await pool.query(
           `SELECT tm.*, 
                   tm.buffer_time,
@@ -5573,7 +5573,7 @@ app.delete('/api/event-types/:id', authenticateToken, async (req, res) => {
 app.patch('/api/event-types/:id/toggle', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { active } = req.body;  // ✅ Frontend sends 'active', not 'is_active'
+    const { active } = req.body;  // ? Frontend sends 'active', not 'is_active'
 
     const result = await pool.query(
       `UPDATE event_types 
@@ -5593,7 +5593,7 @@ app.patch('/api/event-types/:id/toggle', authenticateToken, async (req, res) => 
       message: 'Event type status updated'
     });
   } catch (error) {
-    console.error('❌ Toggle event type error:', error);
+    console.error('? Toggle event type error:', error);
     res.status(500).json({ error: 'Failed to toggle event type status' });
   }
 });
@@ -5803,11 +5803,11 @@ app.get('/api/admin/fix-working-hours-data', authenticateToken, async (req, res)
 app.get('/api/bookings/:token', async (req, res) => {
   try {
     const { token } = req.params;
-    console.log('🔍 Looking up token:', token, 'Length:', token.length);
+    console.log('?? Looking up token:', token, 'Length:', token.length);
     
     // ========== CHECK 1: Single-Use Link (64 chars) ==========
     if (token.length === 64) {
-      console.log('🔍 Checking single-use link...');
+      console.log('?? Checking single-use link...');
       const singleUseResult = await pool.query(
         `SELECT sul.*, 
                 tm.id as member_id,
@@ -5827,7 +5827,7 @@ app.get('/api/bookings/:token', async (req, res) => {
       
       if (singleUseResult.rows.length > 0) {
         const link = singleUseResult.rows[0];
-        console.log('✅ Single-use link found for:', link.member_name);
+        console.log('? Single-use link found for:', link.member_name);
         
         return res.json({
           data: {
@@ -5849,7 +5849,7 @@ app.get('/api/bookings/:token', async (req, res) => {
           }
         });
       } else {
-        console.log('❌ Single-use link expired or already used');
+        console.log('? Single-use link expired or already used');
         return res.status(404).json({ error: 'This link has expired or been used' });
       }
     }
@@ -5867,7 +5867,7 @@ app.get('/api/bookings/:token', async (req, res) => {
     
     if (teamResult.rows.length > 0) {
       const team = teamResult.rows[0];
-      console.log('✅ Team token found:', team.name);
+      console.log('? Team token found:', team.name);
       
       const membersResult = await pool.query(
         `SELECT tm.id, tm.name, tm.email, tm.booking_token, tm.user_id
@@ -5887,7 +5887,7 @@ app.get('/api/bookings/:token', async (req, res) => {
         [team.owner_id]
       );
       
-      console.log('📊 Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
+      console.log('?? Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
       
       return res.json({
         data: {
@@ -5937,10 +5937,10 @@ app.get('/api/bookings/:token', async (req, res) => {
     
     if (memberResult.rows.length > 0) {
       const member = memberResult.rows[0];
-      console.log('✅ Member token found:', member.name || member.user_name);
+      console.log('? Member token found:', member.name || member.user_name);
       
       if (member.external_booking_link) {
-        console.log('🔗 External link detected:', member.external_booking_link);
+        console.log('?? External link detected:', member.external_booking_link);
         return res.json({
           data: {
             team: {
@@ -5960,7 +5960,7 @@ app.get('/api/bookings/:token', async (req, res) => {
         });
       }
       
-      // ✅ FIXED: Use user_id, not team_id
+      // ? FIXED: Use user_id, not team_id
       let eventTypesResult = { rows: [] };
       if (member.user_id) {
         eventTypesResult = await pool.query(
@@ -6001,11 +6001,11 @@ app.get('/api/bookings/:token', async (req, res) => {
       });
     }
     
-    console.log('❌ Token not found:', token);
+    console.log('? Token not found:', token);
     return res.status(404).json({ error: 'Invalid booking link' });
     
   } catch (error) {
-    console.error('❌ Booking lookup error:', error);
+    console.error('? Booking lookup error:', error);
     return res.status(500).json({ error: 'Failed to load booking information' });
   }
 });
@@ -6014,11 +6014,11 @@ app.get('/api/bookings/:token', async (req, res) => {
 app.get('/api/book/:token', async (req, res) => {
   try {
     const { token } = req.params;
-    console.log('🔍 Looking up token (via /api/book):', token, 'Length:', token.length);
+    console.log('?? Looking up token (via /api/book):', token, 'Length:', token.length);
     
     // ========== CHECK 1: Single-Use Link (64 chars) ==========
     if (token.length === 64) {
-      console.log('🔍 Checking single-use link...');
+      console.log('?? Checking single-use link...');
       const singleUseResult = await pool.query(
         `SELECT sul.*, 
                 tm.id as member_id,
@@ -6038,7 +6038,7 @@ app.get('/api/book/:token', async (req, res) => {
       
       if (singleUseResult.rows.length > 0) {
         const link = singleUseResult.rows[0];
-        console.log('✅ Single-use link found for:', link.member_name);
+        console.log('? Single-use link found for:', link.member_name);
         
         return res.json({
           data: {
@@ -6060,7 +6060,7 @@ app.get('/api/book/:token', async (req, res) => {
           }
         });
       } else {
-        console.log('❌ Single-use link expired or already used');
+        console.log('? Single-use link expired or already used');
         return res.status(404).json({ error: 'This link has expired or been used' });
       }
     }
@@ -6078,7 +6078,7 @@ app.get('/api/book/:token', async (req, res) => {
     
     if (teamResult.rows.length > 0) {
       const team = teamResult.rows[0];
-      console.log('✅ Team token found:', team.name);
+      console.log('? Team token found:', team.name);
       
       const membersResult = await pool.query(
         `SELECT tm.id, tm.name, tm.email, tm.booking_token, tm.user_id
@@ -6098,7 +6098,7 @@ app.get('/api/book/:token', async (req, res) => {
         [team.owner_id]
       );
       
-      console.log('📊 Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
+      console.log('?? Found:', membersResult.rows.length, 'members,', eventTypesResult.rows.length, 'event types');
       
       return res.json({
         data: {
@@ -6148,10 +6148,10 @@ app.get('/api/book/:token', async (req, res) => {
     
     if (memberResult.rows.length > 0) {
       const member = memberResult.rows[0];
-      console.log('✅ Member token found:', member.name || member.user_name);
+      console.log('? Member token found:', member.name || member.user_name);
       
       if (member.external_booking_link) {
-        console.log('🔗 External link detected:', member.external_booking_link);
+        console.log('?? External link detected:', member.external_booking_link);
         return res.json({
           data: {
             team: {
@@ -6171,7 +6171,7 @@ app.get('/api/book/:token', async (req, res) => {
         });
       }
       
-      // ✅ FIXED: Use user_id, not team_id
+      // ? FIXED: Use user_id, not team_id
       let eventTypesResult = { rows: [] };
       if (member.user_id) {
         eventTypesResult = await pool.query(
@@ -6212,11 +6212,11 @@ app.get('/api/book/:token', async (req, res) => {
       });
     }
     
-    console.log('❌ Token not found:', token);
+    console.log('? Token not found:', token);
     return res.status(404).json({ error: 'Invalid booking link' });
     
   } catch (error) {
-    console.error('❌ Booking lookup error:', error);
+    console.error('? Booking lookup error:', error);
     return res.status(500).json({ error: 'Failed to load booking information' });
   }
 });
@@ -6233,7 +6233,7 @@ app.post('/api/bookings', async (req, res) => {
       additional_attendees = []
     } = req.body;
 
-    console.log('🔧 Creating booking:', { 
+    console.log('?? Creating booking:', { 
       token: token?.substring(0, 10) + '...', 
       attendee_name, 
       attendee_email,
@@ -6242,12 +6242,12 @@ app.post('/api/bookings', async (req, res) => {
 
     // ========== VALIDATION ==========
     if (!token || !slot || !attendee_name || !attendee_email) {
-      console.error('❌ Missing required fields');
+      console.error('? Missing required fields');
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     if (!slot.start || !slot.end) {
-      console.error('❌ Invalid slot data:', slot);
+      console.error('? Invalid slot data:', slot);
       return res.status(400).json({ error: 'Invalid booking slot data' });
     }
 
@@ -6259,12 +6259,12 @@ app.post('/api/bookings', async (req, res) => {
         throw new Error('Invalid date format');
       }
       
-      console.log('✅ Slot validation passed:', {
+      console.log('? Slot validation passed:', {
         start: startDate.toISOString(),
         end: endDate.toISOString()
       });
     } catch (dateError) {
-      console.error('❌ Invalid slot dates:', dateError.message);
+      console.error('? Invalid slot dates:', dateError.message);
       return res.status(400).json({ 
         error: 'Invalid booking time format',
         details: dateError.message
@@ -6276,7 +6276,7 @@ app.post('/api/bookings', async (req, res) => {
     
     // CHECK 1: Single-use link (64 chars)
     if (token.length === 64) {
-      console.log('🔍 Looking up single-use link...');
+      console.log('?? Looking up single-use link...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 t.name as team_name, 
@@ -6301,7 +6301,7 @@ app.post('/api/bookings', async (req, res) => {
       );
     } else {
       // CHECK 2: Team token
-      console.log('🔍 Checking if team token...');
+      console.log('?? Checking if team token...');
       const teamCheck = await pool.query(
         `SELECT t.id as team_id, t.booking_mode
          FROM teams t
@@ -6311,7 +6311,7 @@ app.post('/api/bookings', async (req, res) => {
 
       if (teamCheck.rows.length > 0) {
         const teamData = teamCheck.rows[0];
-        console.log('✅ Team token detected, loading first active member...');
+        console.log('? Team token detected, loading first active member...');
         
         memberResult = await pool.query(
           `SELECT tm.*, 
@@ -6337,7 +6337,7 @@ app.post('/api/bookings', async (req, res) => {
         );
       } else {
         // CHECK 3: Regular member token
-        console.log('🔍 Looking up regular token...');
+        console.log('?? Looking up regular token...');
         memberResult = await pool.query(
           `SELECT tm.*, 
                   t.name as team_name, 
@@ -6361,14 +6361,14 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     if (memberResult.rows.length === 0) {
-      console.log('❌ Invalid or expired booking token');
+      console.log('? Invalid or expired booking token');
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
     const member = memberResult.rows[0];
     const bookingMode = member.booking_mode || 'individual';
 
-    console.log('✅ Token found:', {
+    console.log('? Token found:', {
       memberName: member.name || member.member_name,
       teamName: member.team_name,
       mode: bookingMode
@@ -6384,7 +6384,7 @@ app.post('/api/bookings', async (req, res) => {
           name: member.name || member.member_name, 
           user_id: member.user_id 
         }];
-        console.log('👤 Individual mode: Assigning to', assignedMembers[0].name);
+        console.log('?? Individual mode: Assigning to', assignedMembers[0].name);
         break;
 
       case 'round_robin':
@@ -6401,7 +6401,7 @@ app.post('/api/bookings', async (req, res) => {
         assignedMembers = rrResult.rows.length > 0 
           ? [rrResult.rows[0]] 
           : [{ id: member.id, name: member.name || member.member_name, user_id: member.user_id }];
-        console.log('🔄 Round-robin: Assigning to', assignedMembers[0].name);
+        console.log('?? Round-robin: Assigning to', assignedMembers[0].name);
         break;
 
       case 'first_available':
@@ -6426,7 +6426,7 @@ app.post('/api/bookings', async (req, res) => {
         assignedMembers = faResult.rows.length > 0 
           ? [faResult.rows[0]] 
           : [{ id: member.id, name: member.name || member.member_name, user_id: member.user_id }];
-        console.log('⚡ First-available: Assigning to', assignedMembers[0].name);
+        console.log('? First-available: Assigning to', assignedMembers[0].name);
         break;
 
       case 'collective':
@@ -6435,7 +6435,7 @@ app.post('/api/bookings', async (req, res) => {
           [member.team_id]
         );
         assignedMembers = collectiveResult.rows;
-        console.log('👥 Collective mode: Assigning to all', assignedMembers.length, 'members');
+        console.log('?? Collective mode: Assigning to all', assignedMembers.length, 'members');
         break;
 
       default:
@@ -6452,7 +6452,7 @@ app.post('/api/bookings', async (req, res) => {
     for (const assignedMember of assignedMembers) {
       const manageToken = crypto.randomBytes(16).toString('hex');
       
-      console.log(`📝 Creating booking for member ${assignedMember.id}...`);
+      console.log(`?? Creating booking for member ${assignedMember.id}...`);
       
       const bookingResult = await pool.query(
         `INSERT INTO bookings (
@@ -6481,13 +6481,13 @@ app.post('/api/bookings', async (req, res) => {
       );
       
       createdBookings.push(bookingResult.rows[0]);
-      console.log(`✅ Booking created: ID ${bookingResult.rows[0].id}, manage_token: ${manageToken}`);
+      console.log(`? Booking created: ID ${bookingResult.rows[0].id}, manage_token: ${manageToken}`);
     }
 
     // ========== MARK SINGLE-USE LINK AS USED ==========
     if (token.length === 64) {
       await pool.query('UPDATE single_use_links SET used = true WHERE token = $1', [token]);
-      console.log('✅ Single-use link marked as used');
+      console.log('? Single-use link marked as used');
     }
 
     // ========== NOTIFY ORGANIZER ==========
@@ -6496,7 +6496,7 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     // ========== RESPOND IMMEDIATELY ==========
-    console.log('✅ Sending success response');
+    console.log('? Sending success response');
     res.json({ 
       success: true,
       booking: createdBookings[0],
@@ -7623,7 +7623,7 @@ app.delete('/api/notifications/:id', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete' });
   }
 });
-// ✅ ADD THIS MIDDLEWARE BEFORE YOUR AI ENDPOINT:
+// ? ADD THIS MIDDLEWARE BEFORE YOUR AI ENDPOINT:
 const enforceUsageLimits = async (req, res, next) => {
   try {
     const userId = req.user.id;
@@ -7658,7 +7658,7 @@ const enforceUsageLimits = async (req, res, next) => {
     next();
     
   } catch (error) {
-    console.error('❌ Usage limit check failed:', error);
+    console.error('? Usage limit check failed:', error);
     res.status(500).json({ error: 'Failed to check usage limits' });
   }
 };
@@ -7671,7 +7671,7 @@ app.post('/api/ai/schedule', authenticateToken, enforceUsageLimits, async (req, 
     const userId = req.user.id;
     const userEmail = req.user.email;
 
-    console.log('🤖 AI Scheduling request from user:', userId, 'Message:', message);
+    console.log('?? AI Scheduling request from user:', userId, 'Message:', message);
 
     // Validate message
     if (!message || typeof message !== 'string' || message.trim() === '') {
@@ -7681,23 +7681,23 @@ app.post('/api/ai/schedule', authenticateToken, enforceUsageLimits, async (req, 
       });
     }
 
-    // ✅ INCREMENT AI USAGE FIRST
+    // ? INCREMENT AI USAGE FIRST
     const usageResult = await incrementAIUsage(userId);
     if (!usageResult.success) {
-      console.error('❌ Failed to increment usage:', usageResult.error);
+      console.error('? Failed to increment usage:', usageResult.error);
       return res.status(500).json({
         type: 'error',
         message: 'Failed to track usage'
       });
     }
 
-    // ✅ ADD THIS LINE - Define usageData for all handlers
+    // ? ADD THIS LINE - Define usageData for all handlers
 const usageData = {
   ai_queries_used: usageResult.ai_queries_used,
   ai_queries_limit: usageResult.ai_queries_limit
 };
 
-    // ✅ EMAIL VALIDATION FUNCTION (INSIDE FUNCTION)
+    // ? EMAIL VALIDATION FUNCTION (INSIDE FUNCTION)
     const validateEmail = (email) => {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       return emailRegex.test(email);
@@ -7717,7 +7717,7 @@ const usageData = {
         attendee_email: pendingMatch[5]
       };
       cleanMessage = message.replace(/\[Current pending booking:.*?\]\s*User says:\s*/i, '').trim();
-      console.log('📋 Pending booking detected:', pendingBookingContext);
+      console.log('?? Pending booking detected:', pendingBookingContext);
     }
 
     // Get user's teams and bookings for context
@@ -7824,24 +7824,24 @@ AVAILABLE INTENTS:
 INTENT EXAMPLES:
 
 LINK REQUESTS:
-- "get my link" or "my booking page" → intent: "get_personal_link"
-- "create magic link for John" → intent: "get_magic_link", extracted: { link_name: "John" }
-- "get team links" or "show team pages" → intent: "get_team_links"
-- "get Sarah's link" → intent: "get_member_link", extracted: { member_name: "Sarah" }
+- "get my link" or "my booking page" ? intent: "get_personal_link"
+- "create magic link for John" ? intent: "get_magic_link", extracted: { link_name: "John" }
+- "get team links" or "show team pages" ? intent: "get_team_links"
+- "get Sarah's link" ? intent: "get_member_link", extracted: { member_name: "Sarah" }
 
 EVENT TYPE QUERIES:
-- "what are my event types" or "show event types" → intent: "get_event_types"
-- "show my 30 minute meeting" or "get consultation event" → intent: "get_event_type", extracted: { event_type_name: "..." }
+- "what are my event types" or "show event types" ? intent: "get_event_types"
+- "show my 30 minute meeting" or "get consultation event" ? intent: "get_event_type", extracted: { event_type_name: "..." }
 
 BOOKING STATUS QUERIES:
-- "show my bookings" or "upcoming meetings" → intent: "show_bookings"
-- "show confirmed bookings" → intent: "show_confirmed_bookings"
-- "show cancelled bookings" or "what got cancelled" → intent: "show_cancelled_bookings"
-- "show rescheduled bookings" → intent: "show_rescheduled_bookings"
-- "how many bookings" or "booking stats" or "stats this month" → intent: "booking_stats"
+- "show my bookings" or "upcoming meetings" ? intent: "show_bookings"
+- "show confirmed bookings" ? intent: "show_confirmed_bookings"
+- "show cancelled bookings" or "what got cancelled" ? intent: "show_cancelled_bookings"
+- "show rescheduled bookings" ? intent: "show_rescheduled_bookings"
+- "how many bookings" or "booking stats" or "stats this month" ? intent: "booking_stats"
 
 TEAM SCHEDULING:
-- "schedule with Marketing team" → intent: "schedule_team_meeting", extracted: { team_name: "Marketing" }
+- "schedule with Marketing team" ? intent: "schedule_team_meeting", extracted: { team_name: "Marketing" }
 
 Return JSON structure:
 {
@@ -7942,13 +7942,13 @@ User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
       });
     }
 
-    console.log('🤖 Parsed intent:', parsedIntent);
+    console.log('?? Parsed intent:', parsedIntent);
 
     // ============ HANDLE HELP/CLARIFY INTENT ============
     if (parsedIntent.intent === 'clarify' || cleanMessage.toLowerCase().includes('help') || cleanMessage.toLowerCase().includes('what can you do')) {
       return res.json({
         type: 'help',
-        message: `I can help with:\n\n📅 **Meeting scheduling**\n• "Schedule with client@company.com tomorrow at 2pm"\n• "Find available times this week"\n• "Show my bookings"\n\n📧 **Professional emails**\n• "Send reminder to someone@email.com"\n• "Send thank you to client@company.com"\n• "Send confirmation to team@startup.com"\n\n💡 Try any of these commands!`,
+        message: `I can help with:\n\n?? **Meeting scheduling**\n� "Schedule with client@company.com tomorrow at 2pm"\n� "Find available times this week"\n� "Show my bookings"\n\n?? **Professional emails**\n� "Send reminder to someone@email.com"\n� "Send thank you to client@company.com"\n� "Send confirmation to team@startup.com"\n\n?? Try any of these commands!`,
         usage: {
           ai_queries_used: usageResult.ai_queries_used,
           ai_queries_limit: usageResult.ai_queries_limit
@@ -7965,7 +7965,7 @@ if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
   if (!recipient || !emailRegex.test(recipient)) {
     return res.json({
       type: 'clarify',
-      message: `❌ Invalid or missing email address${recipient ? `: ${recipient}` : ''}.\n\nPlease provide a valid email address.\n\nExample: "Send reminder to john@company.com"`,
+      message: `? Invalid or missing email address${recipient ? `: ${recipient}` : ''}.\n\nPlease provide a valid email address.\n\nExample: "Send reminder to john@company.com"`,
       usage: usageData
     });
   }
@@ -7975,7 +7975,7 @@ if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
   if (!type || !validTypes.includes(type)) {
     return res.json({
       type: 'clarify',
-      message: `📧 What type of email would you like to send to ${recipient}?\n\nAvailable types:\n• Reminder\n• Confirmation\n• Follow-up\n• Cancellation\n\nExample: "Send reminder to ${recipient}"`,
+      message: `?? What type of email would you like to send to ${recipient}?\n\nAvailable types:\n� Reminder\n� Confirmation\n� Follow-up\n� Cancellation\n\nExample: "Send reminder to ${recipient}"`,
       usage: usageData
     });
   }
@@ -7993,18 +7993,18 @@ if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
     if (templatesResult.rows.length === 0) {
       return res.json({
         type: 'info',
-        message: `❌ No ${type} email template found.\n\nYou don't have any email templates yet.\n\nGo to Email Templates to create one, or I can send a default ${type} email.`,
+        message: `? No ${type} email template found.\n\nYou don't have any email templates yet.\n\nGo to Email Templates to create one, or I can send a default ${type} email.`,
         usage: usageData
       });
     }
 
     const templateList = templatesResult.rows.map(t => 
-      `• ${t.name} (${t.type})`
+      `� ${t.name} (${t.type})`
     ).join('\n');
 
     return res.json({
       type: 'info',
-      message: `❌ No ${type} template found.\n\nYour templates:\n${templateList}\n\nCreate a ${type} template or try a different email type.`,
+      message: `? No ${type} template found.\n\nYour templates:\n${templateList}\n\nCreate a ${type} template or try a different email type.`,
       usage: usageData
     });
   }
@@ -8027,7 +8027,7 @@ if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
     
     return res.json({
       type: 'email_sent',
-      message: `✅ ${type.charAt(0).toUpperCase() + type.slice(1)} email sent!\n\n📧 To: ${recipient}\n📝 Template: "${template.name}"`,
+      message: `? ${type.charAt(0).toUpperCase() + type.slice(1)} email sent!\n\n?? To: ${recipient}\n?? Template: "${template.name}"`,
       data: {
         template_used: template.name,
         recipient: recipient,
@@ -8038,7 +8038,7 @@ if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
   } else {
     return res.json({
       type: 'error',
-      message: `❌ Failed to send ${type} email to ${recipient}.\n\nPlease try again or check your email settings.`,
+      message: `? Failed to send ${type} email to ${recipient}.\n\nPlease try again or check your email settings.`,
       usage: usageData
     });
   }
@@ -8075,7 +8075,7 @@ if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
       return res.json({
         type: 'update_pending',
         message: changeDescription.length > 0 
-          ? `✅ Updated ${changeDescription.join(' and ')}. Please review and confirm.`
+          ? `? Updated ${changeDescription.join(' and ')}. Please review and confirm.`
           : 'Booking details updated. Please review and confirm.',
         data: {
           updatedBooking: updated
@@ -8102,7 +8102,7 @@ if (parsedIntent.intent === 'get_personal_link') {
     if (memberResult.rows.length === 0) {
       return res.json({
         type: 'info',
-        message: '❌ No booking profile found. Please set up your team first.',
+        message: '? No booking profile found. Please set up your team first.',
         usage: usageData
       });
     }
@@ -8113,7 +8113,7 @@ if (parsedIntent.intent === 'get_personal_link') {
 
     return res.json({
       type: 'personal_link',
-      message: `🔗 Your Personal Booking Link\n\n👤 ${member.name}\n🏢 ${member.team_name}`,
+      message: `?? Your Personal Booking Link\n\n?? ${member.name}\n?? ${member.team_name}`,
       data: {
         url: bookingUrl,
         short_url: `/book/${member.booking_token.substring(0, 8)}...`,
@@ -8127,7 +8127,7 @@ if (parsedIntent.intent === 'get_personal_link') {
     console.error('Get personal link error:', error);
     return res.json({
       type: 'error',
-      message: '❌ Failed to get your booking link. Please try again.',
+      message: '? Failed to get your booking link. Please try again.',
       usage: usageData
     });
   }
@@ -8162,7 +8162,7 @@ if (parsedIntent.intent === 'get_magic_link') {
 
     return res.json({
       type: 'link',
-      message: `✨ Magic link created for "${linkName}"!\n\n🔗 /m/${magicToken.substring(0, 8)}...\n⏰ Expires: ${expiresAt.toLocaleDateString()}\n🔒 Single-use: Yes`,
+      message: `? Magic link created for "${linkName}"!\n\n?? /m/${magicToken.substring(0, 8)}...\n? Expires: ${expiresAt.toLocaleDateString()}\n?? Single-use: Yes`,
       data: {
         url: magicUrl,
         token: magicToken,
@@ -8176,7 +8176,7 @@ if (parsedIntent.intent === 'get_magic_link') {
     console.error('Create magic link error:', error);
     return res.json({
       type: 'error',
-      message: '❌ Failed to create magic link. Please try again.',
+      message: '? Failed to create magic link. Please try again.',
       usage: usageData
     });
   }
@@ -8199,7 +8199,7 @@ if (parsedIntent.intent === 'get_team_links') {
     if (teamsResult.rows.length === 0) {
       return res.json({
         type: 'info',
-        message: '❌ No teams found. Create a team first to get booking links.',
+        message: '? No teams found. Create a team first to get booking links.',
         usage: usageData
       });
     }
@@ -8208,13 +8208,13 @@ if (parsedIntent.intent === 'get_team_links') {
     
     const teamLinks = teamsResult.rows.map((team, index) => {
       const isPersonal = team.name.toLowerCase().includes('personal');
-      const label = isPersonal ? '⭐' : '🏢';
-      return `${index + 1}. ${team.name} ${label}\n   👥 ${team.member_count} members`;
+      const label = isPersonal ? '?' : '??';
+      return `${index + 1}. ${team.name} ${label}\n   ?? ${team.member_count} members`;
     }).join('\n\n');
 
     return res.json({
       type: 'team_links',
-      message: `🏢 Your Team Booking Links:\n\n${teamLinks}`,
+      message: `?? Your Team Booking Links:\n\n${teamLinks}`,
       data: {
         teams: teamsResult.rows.map(team => ({
           id: team.id,
@@ -8230,7 +8230,7 @@ if (parsedIntent.intent === 'get_team_links') {
     console.error('Get team links error:', error);
     return res.json({
       type: 'error',
-      message: '❌ Failed to get team links. Please try again.',
+      message: '? Failed to get team links. Please try again.',
       usage: usageData
     });
   }
@@ -8255,18 +8255,18 @@ if (parsedIntent.intent === 'get_member_link') {
       if (allMembersResult.rows.length === 0) {
         return res.json({
           type: 'info',
-          message: '❌ No team members found. Add members to your teams first.',
+          message: '? No team members found. Add members to your teams first.',
           usage: usageData
         });
       }
 
       const memberList = allMembersResult.rows.map(m => 
-        `• ${m.user_name || m.name} (${m.team_name})`
+        `� ${m.user_name || m.name} (${m.team_name})`
       ).join('\n');
 
       return res.json({
         type: 'clarify',
-        message: `👤 Which team member's link do you need?\n\nAvailable members:\n${memberList}\n\nSay "Get [name]'s booking link"`,
+        message: `?? Which team member's link do you need?\n\nAvailable members:\n${memberList}\n\nSay "Get [name]'s booking link"`,
         usage: usageData
       });
     }
@@ -8299,18 +8299,18 @@ if (parsedIntent.intent === 'get_member_link') {
       if (allMembersResult.rows.length === 0) {
         return res.json({
           type: 'info',
-          message: `❌ No team member found matching "${memberName}".\n\nYou don't have any team members yet. Add members to your teams first.`,
+          message: `? No team member found matching "${memberName}".\n\nYou don't have any team members yet. Add members to your teams first.`,
           usage: usageData
         });
       }
 
       const memberList = allMembersResult.rows.map(m => 
-        `• ${m.user_name || m.name} (${m.team_name})`
+        `� ${m.user_name || m.name} (${m.team_name})`
       ).join('\n');
 
       return res.json({
         type: 'info',
-        message: `❌ No team member found matching "${memberName}".\n\nAvailable members:\n${memberList}`,
+        message: `? No team member found matching "${memberName}".\n\nAvailable members:\n${memberList}`,
         usage: usageData
       });
     }
@@ -8325,7 +8325,7 @@ if (parsedIntent.intent === 'get_member_link') {
       
       return res.json({
         type: 'member_link',
-        message: `👤 ${displayName}'s Booking Link\n\n📧 ${displayEmail}\n🏢 ${member.team_name}`,
+        message: `?? ${displayName}'s Booking Link\n\n?? ${displayEmail}\n?? ${member.team_name}`,
         data: {
           url: memberUrl,
           short_url: `/book/${member.booking_token.substring(0, 8)}...`,
@@ -8356,7 +8356,7 @@ if (parsedIntent.intent === 'get_member_link') {
     console.error('Get member link error:', error);
     return res.json({
       type: 'error',
-      message: '❌ Failed to get member link. Please try again.',
+      message: '? Failed to get member link. Please try again.',
       usage: usageData
     });
   }
@@ -8387,7 +8387,7 @@ if (parsedIntent.intent === 'get_event_types') {
     if (eventTypesResult.rows.length === 0) {
       return res.json({
         type: 'info',
-        message: '📅 You don\'t have any event types yet.\n\nGo to Event Types to create your first one!',
+        message: '?? You don\'t have any event types yet.\n\nGo to Event Types to create your first one!',
         usage: usageData
       });
     }
@@ -8395,17 +8395,17 @@ if (parsedIntent.intent === 'get_event_types') {
     const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
     
     const eventTypesList = eventTypesResult.rows.map((et, index) => {
-      const status = et.is_active ? '✅ Active' : '⏸️ Inactive';
-      const price = et.price ? `💰 $${et.price}` : '🆓 Free';
+      const status = et.is_active ? '? Active' : '?? Inactive';
+      const price = et.price ? `?? $${et.price}` : '?? Free';
       
       return `${index + 1}. ${et.title} ${status}
-   ⏱️ ${et.duration} min | ${price} | 📊 ${et.total_bookings || 0} bookings
-   🔗 /${username}/${et.slug}${et.description ? `\n   📝 ${et.description}` : ''}`;
+   ?? ${et.duration} min | ${price} | ?? ${et.total_bookings || 0} bookings
+   ?? /${username}/${et.slug}${et.description ? `\n   ?? ${et.description}` : ''}`;
     }).join('\n\n');
 
     return res.json({
       type: 'list',
-      message: `📅 Your Event Types:\n\n${eventTypesList}\n\n💡 Full links: ${baseUrl}/book/[slug]`,
+      message: `?? Your Event Types:\n\n${eventTypesList}\n\n?? Full links: ${baseUrl}/book/[slug]`,
       data: {
         event_types: eventTypesResult.rows.map(et => ({
           ...et,
@@ -8421,7 +8421,7 @@ if (parsedIntent.intent === 'get_event_types') {
     console.error('Get event types error:', error);
     return res.json({
       type: 'error',
-      message: '❌ Failed to get event types. Please try again.',
+      message: '? Failed to get event types. Please try again.',
       usage: usageData
     });
   }
@@ -8442,18 +8442,18 @@ if (parsedIntent.intent === 'get_event_type') {
       if (allEventsResult.rows.length === 0) {
         return res.json({
           type: 'info',
-          message: '❌ You don\'t have any event types yet.\n\nGo to Event Types to create your first one!',
+          message: '? You don\'t have any event types yet.\n\nGo to Event Types to create your first one!',
           usage: usageData
         });
       }
 
       const eventList = allEventsResult.rows.map(e => 
-        `• ${e.title} (${e.duration} min) ${e.is_active ? '✅' : '⏸️'}`
+        `� ${e.title} (${e.duration} min) ${e.is_active ? '?' : '??'}`
       ).join('\n');
 
       return res.json({
         type: 'clarify',
-        message: `📅 Which event type do you want to see?\n\nYour event types:\n${eventList}\n\nSay "Show my [event name]"`,
+        message: `?? Which event type do you want to see?\n\nYour event types:\n${eventList}\n\nSay "Show my [event name]"`,
         usage: usageData
       });
     }
@@ -8488,18 +8488,18 @@ if (parsedIntent.intent === 'get_event_type') {
       if (allEventsResult.rows.length === 0) {
         return res.json({
           type: 'info',
-          message: `❌ No event type found matching "${eventTypeName}".\n\nYou don't have any event types yet. Go to Event Types to create one!`,
+          message: `? No event type found matching "${eventTypeName}".\n\nYou don't have any event types yet. Go to Event Types to create one!`,
           usage: usageData
         });
       }
 
       const eventList = allEventsResult.rows.map(e => 
-        `• ${e.title} (${e.duration} min)`
+        `� ${e.title} (${e.duration} min)`
       ).join('\n');
 
       return res.json({
         type: 'info',
-        message: `❌ No event type found matching "${eventTypeName}".\n\nYour event types:\n${eventList}`,
+        message: `? No event type found matching "${eventTypeName}".\n\nYour event types:\n${eventList}`,
         usage: usageData
       });
     }
@@ -8510,7 +8510,7 @@ if (parsedIntent.intent === 'get_event_type') {
 
     return res.json({
       type: 'event_type',
-      message: `📅 ${et.title}\n\n${et.is_active ? '✅ Active' : '⏸️ Inactive'}\n⏱️ Duration: ${et.duration} minutes\n💰 Price: ${et.price ? `$${et.price}` : 'Free'}\n📝 Description: ${et.description || 'None'}\n\n📊 Stats:\n   ✅ Confirmed: ${et.confirmed_count}\n   ❌ Cancelled: ${et.cancelled_count}`,
+      message: `?? ${et.title}\n\n${et.is_active ? '? Active' : '?? Inactive'}\n?? Duration: ${et.duration} minutes\n?? Price: ${et.price ? `$${et.price}` : 'Free'}\n?? Description: ${et.description || 'None'}\n\n?? Stats:\n   ? Confirmed: ${et.confirmed_count}\n   ? Cancelled: ${et.cancelled_count}`,
       data: {
         event_type: et,
         url: bookingUrl,
@@ -8523,7 +8523,7 @@ if (parsedIntent.intent === 'get_event_type') {
     console.error('Get event type error:', error);
     return res.json({
       type: 'error',
-      message: '❌ Failed to get event type. Please try again.',
+      message: '? Failed to get event type. Please try again.',
       usage: usageData
     });
   }
@@ -8548,7 +8548,7 @@ if (parsedIntent.intent === 'show_confirmed_bookings' ||
     if (bookingsResult.rows.length === 0) {
       return res.json({
         type: 'info',
-        message: '✅ No confirmed bookings found.',
+        message: '? No confirmed bookings found.',
         usage: usageData
       });
     }
@@ -8559,15 +8559,15 @@ if (parsedIntent.intent === 'show_confirmed_bookings' ||
       const timeLabel = isPast ? '(Past)' : '(Upcoming)';
       
       return `${index + 1}. ${b.attendee_name || 'Guest'} ${timeLabel}
-   📧 ${b.attendee_email}
-   📅 ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-   ⏱️ ${b.duration || 30} min | 📅 ${b.event_type_name || 'Meeting'}
-   🏢 ${b.team_name || 'Personal'}`;
+   ?? ${b.attendee_email}
+   ?? ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+   ?? ${b.duration || 30} min | ?? ${b.event_type_name || 'Meeting'}
+   ?? ${b.team_name || 'Personal'}`;
     }).join('\n\n');
 
     return res.json({
       type: 'list',
-      message: `✅ Confirmed Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
+      message: `? Confirmed Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
       data: { bookings: bookingsResult.rows, status: 'confirmed' },
       usage: usageData
     });
@@ -8575,7 +8575,7 @@ if (parsedIntent.intent === 'show_confirmed_bookings' ||
     console.error('Show confirmed bookings error:', error);
     return res.json({
       type: 'error',
-      message: '❌ Failed to get confirmed bookings.',
+      message: '? Failed to get confirmed bookings.',
       usage: usageData
     });
   }
@@ -8601,7 +8601,7 @@ if (parsedIntent.intent === 'show_cancelled_bookings' ||
     if (bookingsResult.rows.length === 0) {
       return res.json({
         type: 'info',
-        message: '🎉 No cancelled bookings! All your meetings are going as planned.',
+        message: '?? No cancelled bookings! All your meetings are going as planned.',
         usage: usageData
       });
     }
@@ -8609,14 +8609,14 @@ if (parsedIntent.intent === 'show_cancelled_bookings' ||
     const bookingsList = bookingsResult.rows.map((b, index) => {
       const startDate = new Date(b.start_time);
       
-      return `${index + 1}. ${b.attendee_name || 'Guest'} ❌
-   📧 ${b.attendee_email}
-   📅 Was scheduled: ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+      return `${index + 1}. ${b.attendee_name || 'Guest'} ?
+   ?? ${b.attendee_email}
+   ?? Was scheduled: ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
     }).join('\n\n');
 
     return res.json({
       type: 'list',
-      message: `❌ Cancelled Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
+      message: `? Cancelled Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
       data: { bookings: bookingsResult.rows, status: 'cancelled' },
       usage: usageData
     });
@@ -8624,7 +8624,7 @@ if (parsedIntent.intent === 'show_cancelled_bookings' ||
     console.error('Show cancelled bookings error:', error);
     return res.json({
       type: 'error',
-      message: '❌ Failed to get cancelled bookings.',
+      message: '? Failed to get cancelled bookings.',
       usage: usageData
     });
   }
@@ -8650,7 +8650,7 @@ if (parsedIntent.intent === 'show_rescheduled_bookings' ||
     if (bookingsResult.rows.length === 0) {
       return res.json({
         type: 'info',
-        message: '📅 No rescheduled bookings found.',
+        message: '?? No rescheduled bookings found.',
         usage: usageData
       });
     }
@@ -8658,15 +8658,15 @@ if (parsedIntent.intent === 'show_rescheduled_bookings' ||
     const bookingsList = bookingsResult.rows.map((b, index) => {
       const startDate = new Date(b.start_time);
       
-      return `${index + 1}. ${b.attendee_name || 'Guest'} 🔄
-   📧 ${b.attendee_email}
-   📅 ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-   ✅ Status: ${b.status}`;
+      return `${index + 1}. ${b.attendee_name || 'Guest'} ??
+   ?? ${b.attendee_email}
+   ?? ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+   ? Status: ${b.status}`;
     }).join('\n\n');
 
     return res.json({
       type: 'list',
-      message: `🔄 Rescheduled Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
+      message: `?? Rescheduled Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
       data: { bookings: bookingsResult.rows, status: 'rescheduled' },
       usage: usageData
     });
@@ -8674,7 +8674,7 @@ if (parsedIntent.intent === 'show_rescheduled_bookings' ||
     console.error('Show rescheduled bookings error:', error);
     return res.json({
       type: 'error',
-      message: '❌ Failed to get rescheduled bookings.',
+      message: '? Failed to get rescheduled bookings.',
       usage: usageData
     });
   }
@@ -8727,7 +8727,7 @@ if (parsedIntent.intent === 'booking_stats') {
 
     return res.json({
       type: 'stats',
-      message: `📊 Booking Statistics\n\n📅 This Month (${monthName}):\n   ✅ Confirmed: ${thisMonth.confirmed}\n   ❌ Cancelled: ${thisMonth.cancelled}\n   ⏳ Pending: ${thisMonth.pending}\n   📈 Total: ${thisMonth.total}\n   🔜 Upcoming: ${thisMonth.upcoming}\n\n📈 All Time:\n   ✅ Confirmed: ${allTime.confirmed}\n   ❌ Cancelled: ${allTime.cancelled}\n   📊 Total: ${allTime.total}\n   🎯 Completion Rate: ${completionRate}%`,
+      message: `?? Booking Statistics\n\n?? This Month (${monthName}):\n   ? Confirmed: ${thisMonth.confirmed}\n   ? Cancelled: ${thisMonth.cancelled}\n   ? Pending: ${thisMonth.pending}\n   ?? Total: ${thisMonth.total}\n   ?? Upcoming: ${thisMonth.upcoming}\n\n?? All Time:\n   ? Confirmed: ${allTime.confirmed}\n   ? Cancelled: ${allTime.cancelled}\n   ?? Total: ${allTime.total}\n   ?? Completion Rate: ${completionRate}%`,
       data: {
         this_month: thisMonth,
         all_time: allTime,
@@ -8739,7 +8739,7 @@ if (parsedIntent.intent === 'booking_stats') {
     console.error('Booking stats error:', error);
     return res.json({
       type: 'error',
-      message: '❌ Failed to get booking statistics.',
+      message: '? Failed to get booking statistics.',
       usage: usageData
     });
   }
@@ -8759,7 +8759,7 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
     if (allTeamsResult.rows.length === 0) {
       return res.json({
         type: 'info',
-        message: '❌ No teams found. Create a team first to schedule team meetings.',
+        message: '? No teams found. Create a team first to schedule team meetings.',
         usage: usageData
       });
     }
@@ -8769,7 +8769,7 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
       
       return res.json({
         type: 'clarify',
-        message: `🏢 Which team would you like to schedule with?\n\n${teamList}\n\nSay "Schedule with [team name]" to continue.`,
+        message: `?? Which team would you like to schedule with?\n\n${teamList}\n\nSay "Schedule with [team name]" to continue.`,
         data: { teams: allTeamsResult.rows },
         usage: usageData
       });
@@ -8789,7 +8789,7 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
 
       return res.json({
         type: 'info',
-        message: `❌ No team found matching "${teamName}".\n\nYour teams:\n${teamList}\n\nSay "Schedule with [team name]" to continue.`,
+        message: `? No team found matching "${teamName}".\n\nYour teams:\n${teamList}\n\nSay "Schedule with [team name]" to continue.`,
         data: { teams: allTeamsResult.rows },
         usage: usageData
       });
@@ -8805,7 +8805,7 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
       if (invalidEmails.length > 0) {
         return res.json({
           type: 'clarify',
-          message: `❌ Invalid email address: ${invalidEmails.join(', ')}\n\nPlease provide a valid email address for the attendee.`,
+          message: `? Invalid email address: ${invalidEmails.join(', ')}\n\nPlease provide a valid email address for the attendee.`,
           data: { team: team },
           usage: usageData
         });
@@ -8816,7 +8816,7 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
     if (!parsedIntent.extracted?.date || !parsedIntent.extracted?.time) {
       return res.json({
         type: 'clarify',
-        message: `📅 When would you like to schedule with ${team.name}?\n\nPlease provide date and time.\n\nExample: "tomorrow at 2pm" or "December 10 at 3:30pm"`,
+        message: `?? When would you like to schedule with ${team.name}?\n\nPlease provide date and time.\n\nExample: "tomorrow at 2pm" or "December 10 at 3:30pm"`,
         data: { 
           team: team,
           partial_booking: parsedIntent.extracted
@@ -8828,7 +8828,7 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
     if (!parsedIntent.extracted?.attendees || parsedIntent.extracted.attendees.length === 0) {
       return res.json({
         type: 'clarify',
-        message: `👥 Who should I invite to this ${team.name} meeting?\n\nPlease provide their email address.`,
+        message: `?? Who should I invite to this ${team.name} meeting?\n\nPlease provide their email address.`,
         data: { 
           team: team,
           partial_booking: parsedIntent.extracted
@@ -8858,7 +8858,7 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
 
     return res.json({
       type: 'confirmation',
-      message: `✅ Ready to schedule ${team.name} meeting?\n\n📅 ${bookingData.date} at ${bookingData.time}\n👥 Attendees: ${bookingData.attendees.join(', ')}\n⏱️ Duration: ${bookingData.duration} minutes\n🏢 Team: ${team.name}\n📝 Notes: ${bookingData.notes}`,
+      message: `? Ready to schedule ${team.name} meeting?\n\n?? ${bookingData.date} at ${bookingData.time}\n?? Attendees: ${bookingData.attendees.join(', ')}\n?? Duration: ${bookingData.duration} minutes\n?? Team: ${team.name}\n?? Notes: ${bookingData.notes}`,
       data: { bookingData },
       usage: usageData
     });
@@ -8866,7 +8866,7 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
     console.error('Schedule team meeting error:', error);
     return res.json({
       type: 'error',
-      message: '❌ Failed to schedule team meeting. Please try again.',
+      message: '? Failed to schedule team meeting. Please try again.',
       usage: usageData
     });
   }
@@ -8876,7 +8876,7 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
     if (userContext.upcomingBookings.length === 0) {
         return res.json({
           type: 'info',
-          message: '📅 You have no upcoming bookings scheduled.',
+          message: '?? You have no upcoming bookings scheduled.',
           usage: {
             ai_queries_used: usageResult.ai_queries_used,
             ai_queries_limit: usageResult.ai_queries_limit
@@ -8889,19 +8889,19 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
         const endDate = new Date(booking.end);
         
         return `${index + 1}. ${booking.attendee_name} ${booking.attendee_email ? `(${booking.attendee_email})` : ''}
-📞 ${booking.attendee_phone || 'No phone'}
-📅 ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { 
+?? ${booking.attendee_phone || 'No phone'}
+?? ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { 
           hour: 'numeric', 
           minute: '2-digit' 
         })} - ${endDate.toLocaleTimeString('en-US', { 
           hour: 'numeric', 
           minute: '2-digit' 
         })}
-⏱️ ${booking.duration || 30} minutes
-🏢 ${booking.team_name || 'Personal'}
-🔗 ${booking.meet_link || 'No meeting link'}
-📝 ${booking.notes || 'No notes'}
-✅ Status: ${booking.status}`;
+?? ${booking.duration || 30} minutes
+?? ${booking.team_name || 'Personal'}
+?? ${booking.meet_link || 'No meeting link'}
+?? ${booking.notes || 'No notes'}
+? Status: ${booking.status}`;
       }).join('\n\n');
 
       return res.json({
@@ -8950,7 +8950,7 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
         if (availResult.rows.length === 0) {
           return res.json({
             type: 'info',
-            message: '⚠️ No availability settings found. Please set up your available hours in Settings > Availability first.',
+            message: '?? No availability settings found. Please set up your available hours in Settings > Availability first.',
             usage: {
               ai_queries_used: usageResult.ai_queries_used,
               ai_queries_limit: usageResult.ai_queries_limit
@@ -9021,7 +9021,7 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
         if (slots.length === 0) {
           return res.json({
             type: 'info',
-            message: '❌ No available slots found in the next 7 days. Please check your availability settings.',
+            message: '? No available slots found in the next 7 days. Please check your availability settings.',
             usage: {
               ai_queries_used: usageResult.ai_queries_used,
               ai_queries_limit: usageResult.ai_queries_limit
@@ -9042,12 +9042,12 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
             hour12: true 
           });
           
-          return `${index + 1}️⃣ ${dateStr} • ${timeStr}    (${slot.matchLabel})`;
+          return `${index + 1}?? ${dateStr} � ${timeStr}    (${slot.matchLabel})`;
         }).join('\n');
 
         return res.json({
           type: 'slots',
-          message: `📅 Here are your best available times:\n\n${formattedSlots}\n\n💡 Ready to book? Just say "book slot 1" or "schedule 10 AM"! ⚡`,
+          message: `?? Here are your best available times:\n\n${formattedSlots}\n\n?? Ready to book? Just say "book slot 1" or "schedule 10 AM"! ?`,
           data: { slots: slots.slice(0, 5) },
           usage: {
             ai_queries_used: usageResult.ai_queries_used,
@@ -9083,7 +9083,7 @@ if (parsedIntent.intent === 'create_meeting') {
     if (invalidEmails.length > 0) {
       return res.json({
         type: 'clarify',
-        message: `❌ Invalid email address: ${invalidEmails.join(', ')}\n\nPlease provide valid email addresses.\n\nExample: john@company.com`,
+        message: `? Invalid email address: ${invalidEmails.join(', ')}\n\nPlease provide valid email addresses.\n\nExample: john@company.com`,
         data: parsedIntent,
         usage: usageData
       });
@@ -9094,7 +9094,7 @@ if (parsedIntent.intent === 'create_meeting') {
   if (!parsedIntent.extracted.date || !parsedIntent.extracted.time) {
     return res.json({
       type: 'clarify',
-      message: '📅 I need both a date and time to schedule your meeting.\n\nWhen would you like to meet?\n\nExample: "tomorrow at 2pm" or "December 10 at 3:30pm"',
+      message: '?? I need both a date and time to schedule your meeting.\n\nWhen would you like to meet?\n\nExample: "tomorrow at 2pm" or "December 10 at 3:30pm"',
       data: parsedIntent,
       usage: usageData
     });
@@ -9103,7 +9103,7 @@ if (parsedIntent.intent === 'create_meeting') {
   if (!parsedIntent.extracted.attendees || parsedIntent.extracted.attendees.length === 0) {
     return res.json({
       type: 'clarify',
-      message: '👥 Who should I invite to this meeting?\n\nPlease provide their email address.\n\nExample: john@company.com',
+      message: '?? Who should I invite to this meeting?\n\nPlease provide their email address.\n\nExample: john@company.com',
       data: parsedIntent,
       usage: usageData
     });
@@ -9144,7 +9144,7 @@ if (parsedIntent.intent === 'create_meeting') {
   
   return res.json({
     type: 'confirmation',
-    message: `✅ Ready to schedule "${bookingData.title}" for ${bookingData.date} at ${bookingData.time}?\n\n👥 Attendees: ${bookingData.attendees.join(', ')}\n⏱️ Duration: ${bookingData.duration} minutes\n📝 Notes: ${cleanNotes}`,
+    message: `? Ready to schedule "${bookingData.title}" for ${bookingData.date} at ${bookingData.time}?\n\n?? Attendees: ${bookingData.attendees.join(', ')}\n?? Duration: ${bookingData.duration} minutes\n?? Notes: ${cleanNotes}`,
     data: { bookingData },
     usage: usageData
   });
@@ -9161,13 +9161,13 @@ if (parsedIntent.intent === 'create_meeting') {
     });
 
   } catch (error) {
-    console.error('🚨 AI scheduling error:', error);
+    console.error('?? AI scheduling error:', error);
     res.status(500).json({
       type: 'error',
       message: 'Something went wrong. Please try again.'
     });
   }
-}); // ✅ FUNCTION PROPERLY ENDS HERE WITH ALL CODE INSIDE!
+}); // ? FUNCTION PROPERLY ENDS HERE WITH ALL CODE INSIDE!
 
 // ============ AI BOOKING ENDPOINT (MULTIPLE ATTENDEES) ============
 app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
@@ -9179,7 +9179,7 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
     
     const userId = req.user.id;
     
-    // ✅ EMAIL VALIDATION FUNCTION
+    // ? EMAIL VALIDATION FUNCTION
     const isValidEmail = (email) => {
       if (!email || typeof email !== 'string') return false;
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -9189,12 +9189,12 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
     // Build attendee list from either attendees array or single attendee_email
     const rawAttendeeList = attendees || (attendee_email ? [attendee_email] : []);
     
-    // ✅ Filter out empty/null/undefined values
+    // ? Filter out empty/null/undefined values
     const cleanedAttendees = rawAttendeeList
       .filter(email => email && typeof email === 'string' && email.trim() !== '')
       .map(email => email.trim().toLowerCase());
     
-    // ✅ Check if we have any attendees
+    // ? Check if we have any attendees
     if (cleanedAttendees.length === 0) {
       return res.status(400).json({
         success: false,
@@ -9203,7 +9203,7 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
       });
     }
     
-    // ✅ Validate all email formats
+    // ? Validate all email formats
     const invalidEmails = cleanedAttendees.filter(email => !isValidEmail(email));
     if (invalidEmails.length > 0) {
       return res.status(400).json({
@@ -9214,14 +9214,14 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
       });
     }
     
-    // ✅ Remove duplicates
+    // ? Remove duplicates
     const uniqueAttendees = [...new Set(cleanedAttendees)];
     
-    console.log('🤖 AI Booking request:', {
+    console.log('?? AI Booking request:', {
       title, start_time, attendees: uniqueAttendees, userId
     });
     
-    // ✅ Validate required fields
+    // ? Validate required fields
     if (!title || !start_time) {
       return res.status(400).json({
         success: false,
@@ -9259,9 +9259,9 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
         ]);
         
         bookings.push(result.rows[0]);
-        console.log(`✅ Booking created for ${email}: ${result.rows[0].id}`);
+        console.log(`? Booking created for ${email}: ${result.rows[0].id}`);
       } catch (bookingError) {
-        console.error(`❌ Booking failed for ${email}:`, bookingError);
+        console.error(`? Booking failed for ${email}:`, bookingError);
         failedBookings.push({ email, error: bookingError.message });
       }
     }
@@ -9282,12 +9282,12 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
       try {
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #7C3AED;">📅 Meeting Confirmed</h2>
+            <h2 style="color: #7C3AED;">?? Meeting Confirmed</h2>
             <p>Hi ${booking.attendee_name || 'there'},</p>
             <p>You've been invited to a meeting!</p>
             
             <div style="background: #F3F4F6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="margin-top: 0;">📋 Meeting Details:</h3>
+              <h3 style="margin-top: 0;">?? Meeting Details:</h3>
               <p><strong>Title:</strong> ${title}</p>
               <p><strong>Date & Time:</strong> ${new Date(start_time).toLocaleString()}</p>
               <p><strong>Duration:</strong> ${duration || 30} minutes</p>
@@ -9308,11 +9308,11 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
         });
         
         emailResults.push({ email: booking.attendee_email, sent: true });
-        console.log(`📧 Invitation sent to ${booking.attendee_email}`);
+        console.log(`?? Invitation sent to ${booking.attendee_email}`);
         
       } catch (emailError) {
         emailResults.push({ email: booking.attendee_email, sent: false, error: emailError.message });
-        console.error(`📧 Email failed for ${booking.attendee_email}:`, emailError);
+        console.error(`?? Email failed for ${booking.attendee_email}:`, emailError);
       }
     }
     
@@ -9328,7 +9328,7 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
     });
     
   } catch (error) {
-    console.error('🚨 AI booking error:', error);
+    console.error('?? AI booking error:', error);
     res.status(500).json({ 
       success: false,
       error: 'Failed to create AI booking',
@@ -9356,8 +9356,8 @@ async function checkBookingLimits(userId) {
     
     // Define limits
     const limits = {
-  free: { soft: 50, grace: 60, hard: 70 },      // ✅ More generous
-  pro: { soft: 999999, grace: 999999, hard: 999999 },  // ✅ Unlimited
+  free: { soft: 50, grace: 60, hard: 70 },      // ? More generous
+  pro: { soft: 999999, grace: 999999, hard: 999999 },  // ? Unlimited
   team: { soft: 999999, grace: 999999, hard: 999999 }
 };
     
@@ -9375,7 +9375,7 @@ async function checkBookingLimits(userId) {
       }
     };
   } catch (error) {
-    console.error('❌ Failed to check booking limits:', error);
+    console.error('? Failed to check booking limits:', error);
     return null;
   }
 }
@@ -9385,7 +9385,7 @@ app.post('/api/bookings', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
-    // ✅ CHECK BOOKING LIMITS
+    // ? CHECK BOOKING LIMITS
     const limitCheck = await checkBookingLimits(userId);
     if (!limitCheck) {
       return res.status(500).json({ error: 'Failed to check account limits' });
@@ -9393,7 +9393,7 @@ app.post('/api/bookings', authenticateToken, async (req, res) => {
     
     const { status, limits, currentBookings, tier } = limitCheck;
     
-    // ✅ HARD BLOCK - Don't allow booking
+    // ? HARD BLOCK - Don't allow booking
     if (status.hardBlocked) {
       return res.status(402).json({
         error: 'Booking limit exceeded',
@@ -9405,15 +9405,15 @@ app.post('/api/bookings', authenticateToken, async (req, res) => {
       });
     }
     
-    // ✅ GRACE PERIOD WARNING - Allow booking but warn
+    // ? GRACE PERIOD WARNING - Allow booking but warn
     let warningMessage = null;
     if (status.overGraceLimit) {
-      warningMessage = `⚠️ You're at ${currentBookings}/${limits.grace} bookings. Only ${limits.hard - currentBookings} bookings remaining before account suspension.`;
+      warningMessage = `?? You're at ${currentBookings}/${limits.grace} bookings. Only ${limits.hard - currentBookings} bookings remaining before account suspension.`;
     } else if (status.inGracePeriod) {
-      warningMessage = `⚠️ You've exceeded your ${limits.soft} booking limit. You're now in a grace period (${currentBookings}/${limits.grace}).`;
+      warningMessage = `?? You've exceeded your ${limits.soft} booking limit. You're now in a grace period (${currentBookings}/${limits.grace}).`;
     }
     
-    // ✅ CREATE BOOKING (proceeding with warnings)
+    // ? CREATE BOOKING (proceeding with warnings)
     // ... your existing booking creation logic here ...
     
     // Increment monthly bookings counter
@@ -9422,7 +9422,7 @@ app.post('/api/bookings', authenticateToken, async (req, res) => {
       [userId]
     );
     
-    // ✅ RETURN SUCCESS WITH OPTIONAL WARNING
+    // ? RETURN SUCCESS WITH OPTIONAL WARNING
     const response = {
       type: 'booking_created',
       message: 'Booking created successfully!',
@@ -9439,12 +9439,12 @@ app.post('/api/bookings', authenticateToken, async (req, res) => {
     res.json(response);
     
   } catch (error) {
-    console.error('❌ Booking creation error:', error);
+    console.error('? Booking creation error:', error);
     res.status(500).json({ error: 'Failed to create booking' });
   }
 });
 
-// ✅ ADD: Endpoint to get current limit status
+// ? ADD: Endpoint to get current limit status
 // Get user limit status
 app.get('/api/user/limits', authenticateToken, async (req, res) => {
   try {
@@ -9461,7 +9461,7 @@ app.get('/api/user/limits', authenticateToken, async (req, res) => {
     
     const user = userResult.rows[0];
     
-    // ✅ FIX: Use subscription_tier directly, not based on status
+    // ? FIX: Use subscription_tier directly, not based on status
     // Cancelled users keep their tier until period ends
     const tier = user.subscription_tier || 'free';
     const currentBookings = user.monthly_bookings || 0;
@@ -9481,10 +9481,10 @@ app.get('/api/user/limits', authenticateToken, async (req, res) => {
     const overGraceLimit = currentBookings >= planLimits.grace && currentBookings < planLimits.hard;
     const hardBlocked = currentBookings >= planLimits.hard;
     
-    console.log('📊 Limits for user:', userId, { tier, currentBookings, status: user.subscription_status });
+    console.log('?? Limits for user:', userId, { tier, currentBookings, status: user.subscription_status });
     
     res.json({
-      tier: tier,  // ✅ Returns actual tier (pro/team), not 'free' for cancelled
+      tier: tier,  // ? Returns actual tier (pro/team), not 'free' for cancelled
       subscription_status: user.subscription_status || 'active',
       current_bookings: currentBookings,
       limits: planLimits,
@@ -9498,7 +9498,7 @@ app.get('/api/user/limits', authenticateToken, async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Failed to check limits:', error);
+    console.error('? Failed to check limits:', error);
     res.status(500).json({ error: 'Failed to check account limits' });
   }
 });
@@ -9511,7 +9511,7 @@ app.post('/api/ai/generate-template', authenticateToken, checkUsageLimits, async
     const { description, type, tone } = req.body;
     const userId = req.user.id;
     
-    console.log('🤖 AI Template generation request:', { description, type, tone, userId });
+    console.log('?? AI Template generation request:', { description, type, tone, userId });
 
     if (!description || description.trim().length < 10) {
       return res.status(400).json({ 
@@ -9579,7 +9579,7 @@ Format:
     }
 
     const aiText = geminiData.candidates[0].content.parts[0].text;
-    console.log('🤖 Raw AI response:', aiText);
+    console.log('?? Raw AI response:', aiText);
     
     // Parse JSON response
     let generatedTemplate;
@@ -9601,8 +9601,8 @@ Format:
       }
       
     } catch (parseError) {
-      console.error('🚨 JSON parsing failed:', parseError.message);
-      console.error('🚨 Raw AI response:', aiText);
+      console.error('?? JSON parsing failed:', parseError.message);
+      console.error('?? Raw AI response:', aiText);
       return res.status(500).json({
         error: 'AI generated invalid response format',
         details: 'Please try again with a clearer description'
@@ -9622,7 +9622,7 @@ Format:
 
     // Increment AI usage for successful generation
     await incrementAIUsage(userId);
-    console.log(`💰 AI template generation completed for user ${userId}`);
+    console.log(`?? AI template generation completed for user ${userId}`);
 
     res.json({
       success: true,
@@ -9634,7 +9634,7 @@ Format:
     });
 
   } catch (error) {
-    console.error('🚨 AI template generation error:', error);
+    console.error('?? AI template generation error:', error);
     
     // Handle specific error types
     if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
@@ -9697,7 +9697,7 @@ app.post('/api/email-templates', authenticateToken, async (req, res) => {
       [req.user.id, name, templateType, subject, body, is_default || false]
     );
     
-    console.log('✅ Email template created:', result.rows[0].id);
+    console.log('? Email template created:', result.rows[0].id);
     res.json({ template: result.rows[0] });
   } catch (error) {
     console.error('Create template error:', error);
@@ -9774,13 +9774,13 @@ const selectBestTemplate = async (userId, templateType, context) => {
         id: 'default_reminder',
         name: 'Default Reminder',
         subject: 'Reminder: {{meetingDate}} at {{meetingTime}}',
-        body: `Hi {{guestName}},\n\nJust a quick reminder about our meeting:\n\n📅 {{meetingDate}} at {{meetingTime}}\n🔗 {{meetingLink}}\n\nSee you soon!\n{{organizerName}}`
+        body: `Hi {{guestName}},\n\nJust a quick reminder about our meeting:\n\n?? {{meetingDate}} at {{meetingTime}}\n?? {{meetingLink}}\n\nSee you soon!\n{{organizerName}}`
       },
       'confirmation': {
         id: 'default_confirmation',
         name: 'Default Confirmation',
         subject: 'Meeting confirmed for {{meetingDate}}',
-        body: `Hi {{guestName}},\n\nYour meeting is confirmed!\n\n📅 {{meetingDate}}\n🕐 {{meetingTime}}\n🔗 {{meetingLink}}\n\nLooking forward to it!\n{{organizerName}}`
+        body: `Hi {{guestName}},\n\nYour meeting is confirmed!\n\n?? {{meetingDate}}\n?? {{meetingTime}}\n?? {{meetingLink}}\n\nLooking forward to it!\n{{organizerName}}`
       },
       'follow_up': {
         id: 'default_followup',
@@ -9822,7 +9822,7 @@ const selectBestTemplate = async (userId, templateType, context) => {
       selectedTemplate = DEFAULT_TEMPLATES['confirmation'];
     }
 
-    console.log(`📧 Selected template: ${selectedTemplate?.name || 'Default'} for type: ${templateType}`);
+    console.log(`?? Selected template: ${selectedTemplate?.name || 'Default'} for type: ${templateType}`);
     return selectedTemplate;
 
   } catch (error) {
@@ -9867,11 +9867,11 @@ const sendEmailWithTemplate = async (template, recipientEmail, meetingDetails, u
       html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; white-space: pre-wrap;">${body.replace(/\n/g, '<br>')}</div>`
     });
 
-    console.log(`📧 Email sent using template "${template.name}" to ${recipientEmail}`);
+    console.log(`?? Email sent using template "${template.name}" to ${recipientEmail}`);
     return true;
 
   } catch (error) {
-    console.error('📧 Email sending failed:', error);
+    console.error('?? Email sending failed:', error);
     return false;
   }
 };
@@ -9893,7 +9893,7 @@ const trackTemplateUsage = async (templateId, userId, action) => {
       WHERE id = $1 AND user_id = $2
     `, [templateId, userId]);
 
-    console.log(`📊 Template usage tracked: ID ${templateId} for user ${userId}`);
+    console.log(`?? Template usage tracked: ID ${templateId} for user ${userId}`);
 
   } catch (error) {
     console.error('Failed to track template usage:', error);
@@ -9901,7 +9901,7 @@ const trackTemplateUsage = async (templateId, userId, action) => {
 };
 
 // ================================================================================
-// ✅ 2. ADD: GET /api/user/usage endpoint (fetch current usage)
+// ? 2. ADD: GET /api/user/usage endpoint (fetch current usage)
 // ================================================================================
 app.get('/api/user/usage', authenticateToken, async (req, res) => {
   try {
@@ -9918,7 +9918,7 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
     
     const user = result.rows[0];
     
-    console.log(`📊 Usage fetched for user ${userId}:`, user);  // ✅ Fixed
+    console.log(`?? Usage fetched for user ${userId}:`, user);  // ? Fixed
     
     res.json({
       ai_queries_used: user.ai_queries_used || 0,
@@ -9927,7 +9927,7 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Failed to fetch usage:', error);
+    console.error('? Failed to fetch usage:', error);
     res.status(500).json({ error: 'Failed to fetch usage data' });
   }
 });
@@ -9936,7 +9936,7 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
 async function incrementAIUsage(userId) {
   try {
     const result = await pool.query(
-      'UPDATE users SET ai_queries_used = COALESCE(ai_queries_used, 0) + 1 WHERE id = $1 RETURNING ai_queries_used, ai_queries_limit',  // ✅ Fixed
+      'UPDATE users SET ai_queries_used = COALESCE(ai_queries_used, 0) + 1 WHERE id = $1 RETURNING ai_queries_used, ai_queries_limit',  // ? Fixed
       [userId]
     );
     
@@ -9945,7 +9945,7 @@ async function incrementAIUsage(userId) {
     }
     
     const updated = result.rows[0];
-    console.log(`✅ AI usage incremented for user ${userId}: ${updated.ai_queries_used}/${updated.ai_queries_limit}`);  // ✅ Fixed
+    console.log(`? AI usage incremented for user ${userId}: ${updated.ai_queries_used}/${updated.ai_queries_limit}`);  // ? Fixed
     
     return {
       success: true,
@@ -9953,7 +9953,7 @@ async function incrementAIUsage(userId) {
       ai_queries_limit: updated.ai_queries_limit || 10
     };
   } catch (error) {
-    console.error('❌ Failed to increment AI usage:', error);
+    console.error('? Failed to increment AI usage:', error);
     return { 
       success: false,
       error: error.message
@@ -9990,12 +9990,12 @@ app.get('/api/subscriptions/current', authenticateToken, async (req, res) => {
       stripe_subscription_id: user.stripe_subscription_id,
       stripe_customer_id: user.stripe_customer_id,
       
-      // ✅ ADD: Fields the frontend expects
+      // ? ADD: Fields the frontend expects
       current_period_end: isPaid ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null,
       next_billing_date: isPaid ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null,
       cancel_at: null,
       
-      // ✅ ADD: Mock payment method for paid plans
+      // ? ADD: Mock payment method for paid plans
       payment_method: isPaid ? {
         last4: '4242',
         brand: 'visa',
@@ -10015,7 +10015,7 @@ app.post('/api/subscriptions/create', authenticateToken, async (req, res) => {
     const { plan_id } = req.body; // 'pro' or 'team'
     const userId = req.user.id;
     
-    console.log(`🚀 Creating subscription for user ${userId}, plan: ${plan_id}`);
+    console.log(`?? Creating subscription for user ${userId}, plan: ${plan_id}`);
 
     // Get user details
     const userResult = await pool.query(
@@ -10042,7 +10042,7 @@ app.post('/api/subscriptions/create', authenticateToken, async (req, res) => {
       [plan_id, 'active', userId]
     );
     
-    console.log(`✅ Successfully upgraded user ${userId} to ${plan_id} plan`);
+    console.log(`? Successfully upgraded user ${userId} to ${plan_id} plan`);
 
     // Return success response
     res.json({ 
@@ -10056,7 +10056,7 @@ app.post('/api/subscriptions/create', authenticateToken, async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Create subscription error:', error);
+    console.error('? Create subscription error:', error);
     res.status(500).json({ error: 'Failed to create subscription' });
   }
 });
@@ -10065,7 +10065,7 @@ app.post('/api/subscriptions/cancel', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
-    console.log(`🔴 Cancelling subscription for user ${userId}`);
+    console.log(`?? Cancelling subscription for user ${userId}`);
     
     // Calculate when access ends (end of current billing period)
     const accessEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -10079,9 +10079,9 @@ app.post('/api/subscriptions/cancel', authenticateToken, async (req, res) => {
       ['cancelled', userId]
     );
     
-    console.log(`✅ Successfully cancelled subscription for user ${userId}`);
+    console.log(`? Successfully cancelled subscription for user ${userId}`);
     
-    // ✅ Return full subscription object so frontend can update state
+    // ? Return full subscription object so frontend can update state
     res.json({ 
       success: true,
       message: 'Subscription cancelled successfully',
@@ -10102,7 +10102,7 @@ app.post('/api/subscriptions/billing-portal', authenticateToken, async (req, res
   try {
     const userId = req.user.id;
     
-    console.log(`🏪 Creating billing portal for user ${userId}`);
+    console.log(`?? Creating billing portal for user ${userId}`);
     
     // Get user's Stripe customer ID
     const userResult = await pool.query(
@@ -10127,7 +10127,7 @@ app.post('/api/subscriptions/billing-portal', authenticateToken, async (req, res
       }
     }
     
-    // ✅ Fallback: Return settings page URL (not /billing to avoid refresh loop)
+    // ? Fallback: Return settings page URL (not /billing to avoid refresh loop)
     res.json({ 
       url: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/settings?tab=billing`,
       message: 'Billing management available in settings',
@@ -10139,13 +10139,13 @@ app.post('/api/subscriptions/billing-portal', authenticateToken, async (req, res
     res.status(500).json({ error: 'Failed to create billing portal session' });
   }
 });
-// ✅ REPLACE your checkout endpoint with this:
+// ? REPLACE your checkout endpoint with this:
 app.post('/api/billing/create-checkout', authenticateToken, async (req, res) => {
   try {
     const { plan } = req.body;
     const userId = req.user.id;
     
-    console.log(`🚀 Creating checkout session for user ${userId}, plan: ${plan}`);
+    console.log(`?? Creating checkout session for user ${userId}, plan: ${plan}`);
     
     // Define plan details  
     const plans = {
@@ -10164,17 +10164,17 @@ app.post('/api/billing/create-checkout', authenticateToken, async (req, res) => 
       [plan, 'active', 999999, userId]
     );
     
-    console.log(`✅ User ${userId} upgraded to ${plan} plan - SIMULATED SUCCESS`);
+    console.log(`? User ${userId} upgraded to ${plan} plan - SIMULATED SUCCESS`);
     
-    // ✅ FIX: Return the field name your frontend expects
+    // ? FIX: Return the field name your frontend expects
     res.json({
       success: true,
-      checkout_url: `${process.env.CLIENT_URL || 'https://schedulesync-web-production.up.railway.app'}/billing?upgraded=true`,  // ✅ Fixed field name
+      checkout_url: `${process.env.CLIENT_URL || 'https://schedulesync-web-production.up.railway.app'}/billing?upgraded=true`,  // ? Fixed field name
       session_id: `sim_${Date.now()}`
     });
     
   } catch (error) {
-    console.error('❌ Checkout creation failed:', error);
+    console.error('? Checkout creation failed:', error);
     res.status(500).json({ error: 'Failed to create checkout session' });
   }
 });
@@ -10198,7 +10198,7 @@ app.get('/api/billing/invoices', authenticateToken, async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Invoices error:', error);
+    console.error('? Invoices error:', error);
     res.status(500).json({ error: 'Failed to fetch invoices' });
   }
 });
@@ -10221,7 +10221,7 @@ app.get('/api/billing/subscription', authenticateToken, async (req, res) => {
     const plan = user.subscription_tier || 'free';
     const isPaid = plan !== 'free';
     
-    console.log('📦 Billing subscription for user:', userId, { plan, isPaid });
+    console.log('?? Billing subscription for user:', userId, { plan, isPaid });
     
     res.json({
       id: user.stripe_subscription_id || 'free_plan',
@@ -10239,7 +10239,7 @@ app.get('/api/billing/subscription', authenticateToken, async (req, res) => {
       } : null
     });
   } catch (error) {
-    console.error('❌ Billing subscription error:', error);
+    console.error('? Billing subscription error:', error);
     res.status(500).json({ error: 'Failed to fetch billing subscription' });
   }
 });
@@ -10249,7 +10249,7 @@ app.post('/api/billing/cancel', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
-    console.log(`🔴 Cancelling subscription for user ${userId}`);
+    console.log(`?? Cancelling subscription for user ${userId}`);
     
     // Get current plan
     const userResult = await pool.query(
@@ -10275,7 +10275,7 @@ app.post('/api/billing/cancel', authenticateToken, async (req, res) => {
       [userId]
     );
     
-    console.log(`✅ Successfully cancelled subscription for user ${userId}`);
+    console.log(`? Successfully cancelled subscription for user ${userId}`);
     
     res.json({ 
       success: true,
@@ -10286,7 +10286,7 @@ app.post('/api/billing/cancel', authenticateToken, async (req, res) => {
       cancel_at: accessEndsAt.toISOString()
     });
   } catch (error) {
-    console.error('❌ Cancel subscription error:', error);
+    console.error('? Cancel subscription error:', error);
     res.status(500).json({ error: 'Failed to cancel subscription' });
   }
 });
@@ -10296,7 +10296,7 @@ app.post('/api/billing/portal', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
-    console.log(`🏪 Creating billing portal for user ${userId}`);
+    console.log(`?? Creating billing portal for user ${userId}`);
     
     const userResult = await pool.query(
       'SELECT stripe_customer_id, subscription_tier FROM users WHERE id = $1',
@@ -10327,7 +10327,7 @@ app.post('/api/billing/portal', authenticateToken, async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Billing portal error:', error);
+    console.error('? Billing portal error:', error);
     res.status(500).json({ error: 'Failed to create billing portal session' });
   }
 });
@@ -10337,7 +10337,7 @@ app.post('/api/billing/reactivate', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
-    console.log(`🟢 Reactivating subscription for user ${userId}`);
+    console.log(`?? Reactivating subscription for user ${userId}`);
     
     const userResult = await pool.query(
       'SELECT subscription_tier, subscription_status FROM users WHERE id = $1',
@@ -10359,7 +10359,7 @@ app.post('/api/billing/reactivate', authenticateToken, async (req, res) => {
       [userId]
     );
     
-    console.log(`✅ Subscription reactivated for user ${userId}`);
+    console.log(`? Subscription reactivated for user ${userId}`);
     
     res.json({ 
       success: true,
@@ -10367,7 +10367,7 @@ app.post('/api/billing/reactivate', authenticateToken, async (req, res) => {
       status: 'active'
     });
   } catch (error) {
-    console.error('❌ Reactivate error:', error);
+    console.error('? Reactivate error:', error);
     res.status(500).json({ error: 'Failed to reactivate subscription' });
   }
 });
@@ -10529,7 +10529,7 @@ app.post('/api/chatgpt/book-meeting', authenticateToken, async (req, res) => {
     // Get all attendees (support both single and multiple)
     const allAttendees = attendees || [attendee_email];
 
-    console.log('🤖 AI Booking request:', { title, start_time, attendee_email });
+    console.log('?? AI Booking request:', { title, start_time, attendee_email });
 
     // Validate required fields
     if (!start_time || !attendee_email) {
@@ -10576,12 +10576,12 @@ app.post('/api/chatgpt/book-meeting', authenticateToken, async (req, res) => {
 ]);
 
 const booking = bookingResult.rows[0];
-console.log('✅ AI Booking created:', booking.id);
+console.log('? AI Booking created:', booking.id);
 
-// ✅ Track AI usage after successful booking
-console.log(`🚀 About to increment AI usage for user ${userId}`);
+// ? Track AI usage after successful booking
+console.log(`?? About to increment AI usage for user ${userId}`);
 await incrementAIUsage(userId);
-console.log(`💰 AI query used by user ${userId} for successful booking`);
+console.log(`?? AI query used by user ${userId} for successful booking`);
 
 // Format times for email
 const formattedDate = startDate.toLocaleDateString('en-US', {
@@ -10606,11 +10606,11 @@ const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${
         await resend.emails.send({
           from: `${member.name} via ScheduleSync <notifications@${process.env.RESEND_DOMAIN || 'trucal.xyz'}>`,
           to: guestEmail,
-          subject: `✅ Meeting Confirmed: ${bookingTitle}`,
+          subject: `? Meeting Confirmed: ${bookingTitle}`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
               <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 24px;">✅ Meeting Confirmed!</h1>
+                <h1 style="color: white; margin: 0; font-size: 24px;">? Meeting Confirmed!</h1>
               </div>
               
               <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
@@ -10619,15 +10619,15 @@ const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${
                 <p style="font-size: 16px; color: #555;">Your meeting with <strong>${member.name}</strong> has been confirmed!</p>
                 
                 <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
-                  <p style="margin: 5px 0; color: #333;"><strong>📅 Date:</strong> ${formattedDate}</p>
-                  <p style="margin: 5px 0; color: #333;"><strong>🕐 Time:</strong> ${formattedTime}</p>
-                  <p style="margin: 5px 0; color: #333;"><strong>⏱️ Duration:</strong> ${duration} minutes</p>
-                  ${allAttendees.length > 1 ? `<p style="margin: 5px 0; color: #333;"><strong>👥 All Attendees:</strong> ${allAttendees.join(', ')}</p>` : ''}
+                  <p style="margin: 5px 0; color: #333;"><strong>?? Date:</strong> ${formattedDate}</p>
+                  <p style="margin: 5px 0; color: #333;"><strong>?? Time:</strong> ${formattedTime}</p>
+                  <p style="margin: 5px 0; color: #333;"><strong>?? Duration:</strong> ${duration} minutes</p>
+                  ${allAttendees.length > 1 ? `<p style="margin: 5px 0; color: #333;"><strong>?? All Attendees:</strong> ${allAttendees.join(', ')}</p>` : ''}
                 </div>
                 
                 ${notes ? `
                 <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                  <p style="margin: 0; color: #856404;"><strong>📝 Notes:</strong> ${notes}</p>
+                  <p style="margin: 0; color: #856404;"><strong>?? Notes:</strong> ${notes}</p>
                 </div>
                 ` : ''}
                 
@@ -10642,9 +10642,9 @@ const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${
             </div>
           `
         });
-        console.log('✅ Guest confirmation email sent to:', guestEmail);
+        console.log('? Guest confirmation email sent to:', guestEmail);
       } catch (emailError) {
-        console.error('❌ Failed to send guest email to', guestEmail, ':', emailError);
+        console.error('? Failed to send guest email to', guestEmail, ':', emailError);
       }
     }
     
@@ -10654,11 +10654,11 @@ const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${
       await resend.emails.send({
         from: `ScheduleSync <notifications@${process.env.RESEND_DOMAIN || 'trucal.xyz'}>`,
         to: member.email,
-        subject: `📅 New Booking: ${guestName} - ${bookingTitle}`,
+        subject: `?? New Booking: ${guestName} - ${bookingTitle}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">📅 New Booking via AI</h1>
+              <h1 style="color: white; margin: 0; font-size: 24px;">?? New Booking via AI</h1>
             </div>
             
             <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
@@ -10667,15 +10667,15 @@ const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${
               <p style="font-size: 16px; color: #555;">You have a new booking created via your AI assistant.</p>
               
               <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #11998e;">
-               <p style="margin: 5px 0; color: #333;"><strong>👥 Guests:</strong> ${allAttendees.join(', ')}</p>
-              <p style="margin: 5px 0; color: #333;"><strong>📅 Date:</strong> ${formattedDate}</p>
-                <p style="margin: 5px 0; color: #333;"><strong>🕐 Time:</strong> ${formattedTime}</p>
-                <p style="margin: 5px 0; color: #333;"><strong>⏱️ Duration:</strong> ${duration} minutes</p>
+               <p style="margin: 5px 0; color: #333;"><strong>?? Guests:</strong> ${allAttendees.join(', ')}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>?? Date:</strong> ${formattedDate}</p>
+                <p style="margin: 5px 0; color: #333;"><strong>?? Time:</strong> ${formattedTime}</p>
+                <p style="margin: 5px 0; color: #333;"><strong>?? Duration:</strong> ${duration} minutes</p>
               </div>
               
               ${notes ? `
               <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 0; color: #2e7d32;"><strong>📝 Notes:</strong> ${notes}</p>
+                <p style="margin: 0; color: #2e7d32;"><strong>?? Notes:</strong> ${notes}</p>
               </div>
               ` : ''}
               
@@ -10686,16 +10686,16 @@ const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${
           </div>
         `
       });
-      console.log('✅ Organizer notification email sent to:', member.email);
+      console.log('? Organizer notification email sent to:', member.email);
     } catch (emailError) {
-      console.error('❌ Failed to send organizer email:', emailError);
+      console.error('? Failed to send organizer email:', emailError);
     }
 
    
-// ✅ Return SUCCESS response (not clarify)
+// ? Return SUCCESS response (not clarify)
 return res.json({
   type: 'booking_created',
-  message: `✅ Meeting scheduled for ${formattedDate} at ${formattedTime}`,
+  message: `? Meeting scheduled for ${formattedDate} at ${formattedTime}`,
   data: { booking },
   usage: {
     ai_queries_used: req.userUsage.chatgpt_queries_used + 1,
@@ -10704,7 +10704,7 @@ return res.json({
 });
 
   } catch (error) {
-    console.error('❌ ChatGPT book meeting error:', error);
+    console.error('? ChatGPT book meeting error:', error);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to create booking' });
     }
@@ -10927,7 +10927,7 @@ app.post('/api/chatgpt/send-email', authenticateToken, async (req, res) => {
         text: body,
       });
       
-      console.log(`✅ AI sent email: "${template.name}" to ${recipient_email}`);
+      console.log(`? AI sent email: "${template.name}" to ${recipient_email}`);
       
       res.json({ 
         success: true,
@@ -10958,7 +10958,7 @@ app.get('/api/user/jwt-token', authenticateToken, trackChatGptUsage, async (req,
     
     // Get user info
     const userQuery = 'SELECT id, email, name, created_at FROM users WHERE id = $1';
-    const userResult = await pool.query(userQuery, [user_id]); // ✅ FIXED: pool instead of client
+    const userResult = await pool.query(userQuery, [user_id]); // ? FIXED: pool instead of client
     
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -10986,7 +10986,7 @@ app.get('/api/user/jwt-token', authenticateToken, trackChatGptUsage, async (req,
       WHERE tm.user_id = $1 
       LIMIT 1
     `;
-    const teamResult = await pool.query(teamQuery, [user_id]); // ✅ FIXED: pool instead of client
+    const teamResult = await pool.query(teamQuery, [user_id]); // ? FIXED: pool instead of client
     const hasBookingSetup = teamResult.rows.length > 0;
     
     res.json({
@@ -11019,7 +11019,7 @@ app.post('/api/user/refresh-chatgpt-token', authenticateToken, trackChatGptUsage
     
     // Get user info
     const userQuery = 'SELECT id, email, name FROM users WHERE id = $1';
-    const userResult = await pool.query(userQuery, [user_id]); // ✅ FIXED: pool instead of client
+    const userResult = await pool.query(userQuery, [user_id]); // ? FIXED: pool instead of client
     
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -11069,7 +11069,7 @@ app.get('/api/user/test-chatgpt-connection', authenticateToken, trackChatGptUsag
         WHERE tm.user_id = $1 AND t.name LIKE '%Personal%' 
         LIMIT 1
       `;
-      const memberResult = await pool.query(memberQuery, [user_id]); // ✅ FIXED: pool instead of client
+      const memberResult = await pool.query(memberQuery, [user_id]); // ? FIXED: pool instead of client
       tests.push({
         test: 'Get Booking Link',
         status: memberResult.rows.length > 0 ? 'PASS' : 'FAIL',
@@ -11093,7 +11093,7 @@ app.get('/api/user/test-chatgpt-connection', authenticateToken, trackChatGptUsag
     // Test 3: Can get team members
     try {
       const teamQuery = `SELECT COUNT(*) as team_count FROM teams WHERE owner_id = $1`;
-      const teamResult = await pool.query(teamQuery, [user_id]); // ✅ FIXED: pool instead of client
+      const teamResult = await pool.query(teamQuery, [user_id]); // ? FIXED: pool instead of client
       tests.push({
         test: 'Get Team Members',
         status: 'PASS',
@@ -11150,7 +11150,7 @@ app.get('/api/user/chatgpt-setup-guide', (req, res) => {
         step: 2,
         title: 'Create Custom GPT',
         description: 'Go to ChatGPT and create a new custom GPT',
-        action: 'Visit chat.openai.com and click "Explore GPTs" → "Create a GPT"'
+        action: 'Visit chat.openai.com and click "Explore GPTs" ? "Create a GPT"'
       },
       {
         step: 3,
@@ -11169,10 +11169,10 @@ app.get('/api/user/chatgpt-setup-guide', (req, res) => {
 Always be friendly and efficient. When users ask for booking links or meeting times, use the available actions to help them immediately.
 
 Example interactions:
-- "What's my booking link?" → Use getGenericBookingLink
-- "Create a temp link for John" → Use createTemporaryBookingLink  
-- "Find time for a meeting next week" → Use suggestOptimalTimes
-- "Who's on my team?" → Use getTeamMembers
+- "What's my booking link?" ? Use getGenericBookingLink
+- "Create a temp link for John" ? Use createTemporaryBookingLink  
+- "Find time for a meeting next week" ? Use suggestOptimalTimes
+- "Who's on my team?" ? Use getTeamMembers
 
 Be conversational and helpful!`
         }
