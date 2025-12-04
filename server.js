@@ -73,9 +73,10 @@ const bcrypt = require('bcryptjs');
 const axios = require('axios');
 console.log('? AXIOS LOADED:', !!axios, 'Version:', axios.VERSION); // ADD THIS
 const { trackChatGptUsage, getCurrentUsage } = require('./middleware/usage-limits');
-
+const subscriptionRoutes = require('./routes/subscription');
 
 const app = express();
+app.use('/api/user', subscriptionRoutes);
 
 const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
   try {
