@@ -318,15 +318,16 @@ export const chatgptIntegration = {
 // ============================================
 // USER
 // ============================================
+
+// ✅ FIND your user object and ADD the limits method:
 export const user = {
   getProfile: () => api.get('/profile'),
   updateProfile: (data) => api.put('/profile', data),
   updatePassword: (data) => api.put('/profile/password', data),
   deleteAccount: () => api.delete('/profile'),
-  // ✅ ADD: Usage tracking for AI features
   usage: () => api.get('/user/usage'),
+  limits: () => api.get('/user/limits'), // ✅ ADD THIS LINE
 };
-
 // ============================================
 // BACKWARDS COMPATIBILITY - DIRECT EXPORTS
 // ============================================

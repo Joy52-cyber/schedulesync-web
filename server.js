@@ -327,10 +327,9 @@ const checkUsageLimits = async (req, res, next) => {
   try {
     const userId = req.user.id;
     
-    // Get user's subscription and current usage
+    // ✅ UPDATE: Use the columns we actually set up
     const userResult = await pool.query(
-      `SELECT subscription_tier, subscription_status, grace_period_end,
-              chatgpt_queries_used, chatgpt_queries_reset_date
+      `SELECT tier, ai_queries_used, ai_queries_limit, monthly_bookings
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -340,52 +339,40 @@ const checkUsageLimits = async (req, res, next) => {
     }
     
     const user = userResult.rows[0];
-    const tier = user.subscription_tier || 'free';
-    const graceActive = user.grace_period_end && new Date(user.grace_period_end) > new Date();
+    const tier = user.tier || 'free';
     
-    // Define limits by tier
-    const limits = {
-      free: { chatgpt: 3, bookings: 25 },
-      pro: { chatgpt: -1, bookings: 500 },  // -1 = unlimited
+    // ✅ UPDATE: Use the new better limits  
+    const usageLimits = {
+      free: { chatgpt: 10, bookings: 50 },     // ✅ Changed from 3 to 10, 25 to 50
+      pro: { chatgpt: -1, bookings: -1 },     // -1 = unlimited
       team: { chatgpt: -1, bookings: -1 }
     };
     
-    // If grace period, give pro limits
-    const currentLimits = graceActive && tier === 'free' ? limits.pro : limits[tier];
+    const currentLimits = usageLimits[tier];
     
     // Check what feature is being accessed
     const endpoint = req.route.path;
     
-    // ChatGPT usage check
+    // ✅ UPDATE: ChatGPT usage check with new column names
     if (endpoint.includes('/ai/') && currentLimits.chatgpt !== -1) {
-      const used = user.chatgpt_queries_used || 0;
+      const used = user.ai_queries_used || 0;  // ✅ Updated column name
       
       if (used >= currentLimits.chatgpt) {
         return res.status(402).json({ 
-          error: 'ChatGPT limit reached',
+          error: 'AI limit reached',
           type: 'usage_limit_exceeded',
-          feature: 'chatgpt',
+          feature: 'ai',
           usage: { used, limit: currentLimits.chatgpt },
-          subscription_tier: tier,
+          tier: tier,
           upgrade_required: true,
-          message: `You've used all ${currentLimits.chatgpt} ChatGPT queries this month. Upgrade to Pro for unlimited AI assistance!`
+          message: `You've used all ${currentLimits.chatgpt} AI queries this month. Upgrade to Pro for unlimited AI assistance!`
         });
       }
     }
     
-    // Booking creation check
+    // ✅ UPDATE: Booking creation check with new limits
     if ((endpoint.includes('/bookings') && req.method === 'POST') && currentLimits.bookings !== -1) {
-      // Count bookings this month
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-      
-      const bookingResult = await pool.query(
-        'SELECT COUNT(*) as booking_count FROM bookings WHERE created_by = $1 AND created_at >= $2',
-        [userId, startOfMonth]
-      );
-      
-      const bookingsUsed = parseInt(bookingResult.rows[0].booking_count);
+      const bookingsUsed = user.monthly_bookings || 0;  // ✅ Use the column we set up
       
       if (bookingsUsed >= currentLimits.bookings) {
         return res.status(402).json({
@@ -393,19 +380,20 @@ const checkUsageLimits = async (req, res, next) => {
           type: 'usage_limit_exceeded', 
           feature: 'bookings',
           usage: { used: bookingsUsed, limit: currentLimits.bookings },
-          subscription_tier: tier,
+          tier: tier,
           upgrade_required: true,
-          message: `You've created ${currentLimits.bookings} bookings this month. Upgrade for higher limits!`
+          message: `You've created ${currentLimits.bookings} bookings this month. Upgrade for unlimited bookings!`
         });
       }
     }
     
-    // Add usage info to request for incrementing
+    // ✅ UPDATE: Add usage info to request
     req.userUsage = {
       tier,
       limits: currentLimits,
-      graceActive,
-      chatgpt_used: user.chatgpt_queries_used || 0
+      ai_used: user.ai_queries_used || 0,      // ✅ Updated
+      ai_limit: user.ai_queries_limit || currentLimits.chatgpt,  // ✅ Updated
+      bookings_used: user.monthly_bookings || 0
     };
     
     next();
@@ -414,7 +402,6 @@ const checkUsageLimits = async (req, res, next) => {
     res.status(500).json({ error: 'Usage check failed' });
   }
 };
-
 // Helper function to increment usage
 const incrementChatGPTUsage = async (userId) => {
   try {
