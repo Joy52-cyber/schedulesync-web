@@ -8312,7 +8312,6 @@ Return JSON structure:
       });
     }
 
-    
     // ============ DEFAULT RESPONSE ============
     console.log(`🚀 About to increment AI usage for user ${userId}`);
     await incrementAIUsage(userId);
@@ -8326,7 +8325,6 @@ Return JSON structure:
         ai_queries_limit: 3
       }
     });
-
   } catch (error) {
     console.error('🚨 AI scheduling error:', error);
     res.status(500).json({
@@ -8335,6 +8333,7 @@ Return JSON structure:
     });
   }
 });
+    
 
 // ============ AI BOOKING ENDPOINT (MULTIPLE ATTENDEES) ============
 app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
@@ -8433,7 +8432,9 @@ app.post('/api/ai/generate-template', authenticateToken, checkUsageLimits, async
     console.log('🤖 AI Template generation request:', { description, type, tone, userId });
 
     if (!description || description.trim().length < 10) {
-      return res.status(400).json({ error: 'Please provide a more detailed description (at least 10 characters)' });
+      return res.status(400).json({ 
+        error: 'Please provide a more detailed description (at least 10 characters)' 
+      });
     }
 
     const prompt = `Create a professional email template based on this request: "${description}"
@@ -8455,7 +8456,7 @@ Format:
   "body": "Email body with proper formatting and variables"
 }`;
 
-    // Call Google Gemini API (same pattern as your AI scheduling)
+    // Call Google Gemini API
     const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
@@ -8475,19 +8476,20 @@ Format:
       })
     });
 
-    // Error handling (same pattern as your AI scheduling)
+    // Error handling for Gemini API
     if (!geminiResponse.ok) {
       console.error('Gemini API error:', geminiResponse.status, geminiResponse.statusText);
-      return res.status(500).json({
+      return res.status(500).json({ 
         error: 'AI service temporarily unavailable',
         details: 'Please try again in a moment'
       });
     }
 
     const geminiData = await geminiResponse.json();
-
-    if (!geminiData?.candidates?.[0]?.content) {
-      console.error('Invalid Gemini response:', geminiData);
+    
+    // Validate Gemini response structure
+    if (!geminiData?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      console.error('Invalid Gemini response structure:', geminiData);
       return res.status(500).json({
         error: 'AI generated invalid response',
         details: 'Please try again with a clearer description'
@@ -8495,64 +8497,83 @@ Format:
     }
 
     const aiText = geminiData.candidates[0].content.parts[0].text;
+    console.log('🤖 Raw AI response:', aiText);
     
-    // Parse JSON response (same logic as your AI scheduling)
+    // Parse JSON response
     let generatedTemplate;
     try {
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        console.error('No JSON found in response:', aiText);
+        console.error('No JSON found in AI response:', aiText);
         return res.status(500).json({
           error: 'AI generated invalid response format',
           details: 'Please try again with a clearer description'
         });
       }
+      
       generatedTemplate = JSON.parse(jsonMatch[0]);
+      
+      // Validate required fields in generated template
+      if (!generatedTemplate.name || !generatedTemplate.subject || !generatedTemplate.body) {
+        throw new Error('Generated template missing required fields');
+      }
+      
     } catch (parseError) {
-      console.error('🚨 JSON parsing failed:', parseError);
-      console.error('🚨 Raw response:', aiText);
+      console.error('🚨 JSON parsing failed:', parseError.message);
+      console.error('🚨 Raw AI response:', aiText);
       return res.status(500).json({
         error: 'AI generated invalid response format',
         details: 'Please try again with a clearer description'
       });
     }
     
-    // Add metadata
+    // Add metadata to template
     const templateData = {
       ...generatedTemplate,
       type: type || 'other',
-      is_favorite: false,
+      is_default: false,
+      is_active: true,
       generated_by_ai: true,
-      generated_at: new Date().toISOString()
+      generated_at: new Date().toISOString(),
+      variables: ['guestName', 'guestEmail', 'organizerName', 'meetingDate', 'meetingTime', 'meetingLink', 'bookingLink']
     };
 
-    // Increment usage for successful generation
-    await incrementChatGPTUsage(userId);
-    console.log(`💰 Template generation completed for user ${userId}`);
+    // Increment AI usage for successful generation
+    await incrementAIUsage(userId);
+    console.log(`💰 AI template generation completed for user ${userId}`);
 
     res.json({
       success: true,
       template: templateData,
       usage: {
-        chatgpt_used: req.userUsage.chatgpt_used + 1,
-        chatgpt_limit: req.userUsage.limits.chatgpt
+        ai_queries_used: req.userUsage.chatgpt_queries_used + 1,
+        ai_queries_limit: 3
       }
     });
 
   } catch (error) {
     console.error('🚨 AI template generation error:', error);
     
-    if (error.code === 'ENOTFOUND') {
-      res.status(500).json({
+    // Handle specific error types
+    if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+      return res.status(500).json({
         error: 'AI service connection failed',
-        details: 'Please check your internet connection'
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to generate template',
-        details: error.message
+        details: 'Please check your internet connection and try again'
       });
     }
+    
+    if (error.name === 'AbortError') {
+      return res.status(500).json({
+        error: 'Request timeout',
+        details: 'The AI service took too long to respond. Please try again.'
+      });
+    }
+    
+    // Generic error response
+    res.status(500).json({
+      error: 'Failed to generate template',
+      details: 'An unexpected error occurred. Please try again.'
+    });
   }
 });
 
@@ -8794,6 +8815,19 @@ const trackTemplateUsage = async (templateId, userId, action) => {
 
   } catch (error) {
     console.error('Failed to track template usage:', error);
+  }
+};
+
+// ============ AI USAGE TRACKING ============
+const incrementAIUsage = async (userId) => {
+  try {
+    await pool.query(
+      'UPDATE users SET chatgpt_queries_used = chatgpt_queries_used + 1 WHERE id = $1',
+      [userId]
+    );
+    console.log(`✅ AI usage incremented for user ${userId}`);
+  } catch (error) {
+    console.error('❌ Failed to increment AI usage:', error);
   }
 };
 
@@ -9256,6 +9290,14 @@ return res.json({
   usage: {
     ai_queries_used: req.userUsage.chatgpt_queries_used + 1,
     ai_queries_limit: 3
+  }
+});
+
+  } catch (error) {
+    console.error('❌ ChatGPT book meeting error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to create booking' });
+    }
   }
 });
 
