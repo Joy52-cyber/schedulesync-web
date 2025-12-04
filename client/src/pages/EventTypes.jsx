@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Plus, Edit, Clock, MapPin, Copy, Check, 
   ExternalLink, Loader2, Video, Phone, Building2, 
-  Globe, Sparkles, TrendingUp, Calendar  // ✅ ADD THIS
+  Globe, Sparkles, TrendingUp, Calendar, Trash2 // ✅ ADDED Trash2
 } from 'lucide-react';
 import { events, auth } from '../utils/api';
 
@@ -34,7 +34,11 @@ export default function EventTypes() {
         events.getAll()
       ]);
       setUser(userRes.data.user || userRes.data);
-      const list = eventsRes.data.eventTypes || eventsRes.data.event_types || eventsRes.data || [];
+      const list =
+        eventsRes.data.eventTypes ||
+        eventsRes.data.event_types ||
+        eventsRes.data ||
+        [];
       setEventTypesList(Array.isArray(list) ? list : []);
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -44,14 +48,14 @@ export default function EventTypes() {
   };
 
   const copyToClipboard = (e, event) => {
-  e.stopPropagation();
-  const username = user?.username || user?.email?.split('@')[0] || 'user';
-  const link = `${window.location.origin}/book/${username}/${event.slug}`;  // ✅ ADD /book
-  
-  navigator.clipboard.writeText(link);
-  setCopiedId(event.id);
-  setTimeout(() => setCopiedId(null), 2000);
-};
+    e.stopPropagation();
+    const username = user?.username || user?.email?.split('@')[0] || 'user';
+    const link = `${window.location.origin}/book/${username}/${event.slug}`; // ✅ ADD /book
+    
+    navigator.clipboard.writeText(link);
+    setCopiedId(event.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const getColorClass = (color) => {
     const map = {
@@ -72,12 +76,32 @@ export default function EventTypes() {
     e.stopPropagation();
     try {
       await events.toggle(event.id, !event.is_active);
-      setEventTypesList(prev => prev.map(ev => 
-        ev.id === event.id ? { ...ev, is_active: !ev.is_active } : ev
-      ));
+      setEventTypesList(prev =>
+        prev.map(ev =>
+          ev.id === event.id ? { ...ev, is_active: !ev.is_active } : ev
+        )
+      );
     } catch (error) {
       console.error('Failed to toggle', error);
       alert('Failed to update status');
+    }
+  };
+
+  // ✅ NEW: Delete handler
+  const handleDeleteEvent = async (e, event) => {
+    e.stopPropagation();
+    const confirmDelete = window.confirm(
+      `Delete event type "${event.title}"? This cannot be undone.`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      // Assuming your API has events.delete(id)
+      await events.delete(event.id);
+      setEventTypesList(prev => prev.filter(ev => ev.id !== event.id));
+    } catch (error) {
+      console.error('Failed to delete event type:', error);
+      alert('Failed to delete event type. Please try again.');
     }
   };
 
@@ -145,7 +169,10 @@ export default function EventTypes() {
               <div>
                 <p className="text-sm text-purple-600 font-medium">Avg Duration</p>
                 <p className="text-2xl font-bold text-purple-900 mt-1">
-                  {Math.round(eventTypesList.reduce((sum, e) => sum + e.duration, 0) / eventTypesList.length)} min
+                  {Math.round(
+                    eventTypesList.reduce((sum, e) => sum + e.duration, 0) /
+                    eventTypesList.length
+                  )} min
                 </p>
               </div>
               <Clock className="h-8 w-8 text-purple-600 opacity-50" />
@@ -177,7 +204,9 @@ export default function EventTypes() {
               <div 
                 key={event.id}
                 onClick={() => navigate(`/events/${event.id}`, { state: { event } })}
-                className={`group bg-white rounded-2xl shadow-sm border-2 border-gray-200 overflow-hidden hover:shadow-xl hover:border-blue-300 transition-all cursor-pointer ${!event.is_active ? 'opacity-60' : ''}`}
+                className={`group bg-white rounded-2xl shadow-sm border-2 border-gray-200 overflow-hidden hover:shadow-xl hover:border-blue-300 transition-all cursor-pointer ${
+                  !event.is_active ? 'opacity-60' : ''
+                }`}
               >
                 {/* Colored Top Bar */}
                 <div className={`h-2 w-full ${colorClass}`} />
@@ -214,7 +243,10 @@ export default function EventTypes() {
                   </div>
 
                   {/* Advanced Settings Indicators */}
-                  {(event.buffer_before > 0 || event.buffer_after > 0 || event.max_bookings_per_day || event.require_approval) && (
+                  {(event.buffer_before > 0 ||
+                    event.buffer_after > 0 ||
+                    event.max_bookings_per_day ||
+                    event.require_approval) && (
                     <div className="mt-4 pt-4 border-t border-gray-100">
                       <div className="flex flex-wrap gap-1.5">
                         {event.buffer_before > 0 && (
@@ -238,15 +270,18 @@ export default function EventTypes() {
 
                   {/* Footer Actions */}
                   <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       <button
-                        onClick={(e) => { e.stopPropagation(); navigate(`/events/${event.id}/edit`, { state: { event } }); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/events/${event.id}/edit`, { state: { event } });
+                        }}
                         className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
                       >
                         <Edit className="h-3.5 w-3.5" />
                         Edit
                       </button>
-                      
+
                       <button
                         onClick={(e) => copyToClipboard(e, event)}
                         className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
@@ -263,6 +298,15 @@ export default function EventTypes() {
                             Copy
                           </>
                         )}
+                      </button>
+
+                      {/* ✅ Delete button */}
+                      <button
+                        onClick={(e) => handleDeleteEvent(e, event)}
+                        className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete
                       </button>
                     </div>
                     

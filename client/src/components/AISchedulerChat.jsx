@@ -65,7 +65,7 @@ What would you like to do?`;
   });
   const [isMinimized, setIsMinimized] = useState(false);
   const [message, setMessage] = useState('');
-  const [copiedUrl, setCopiedUrl] = useState(null); // ✅ NEW: Track copied URL
+  const [copiedUrl, setCopiedUrl] = useState(null);
 
   const [usage, setUsage] = useState({
     ai_queries_used: 0,
@@ -132,12 +132,14 @@ What would you like to do?`;
     }
   };
 
-  // ✅ NEW: Copy link handler
   const handleCopyLink = (url) => {
     navigator.clipboard.writeText(url);
     setCopiedUrl(url);
     setTimeout(() => setCopiedUrl(null), 2000);
   };
+
+  // ✅ Helper to check if user has unlimited (Pro/Team)
+  const isUnlimited = usage.ai_queries_limit >= 1000;
 
   useEffect(() => {
     setTimeout(() => {
@@ -192,7 +194,8 @@ What would you like to do?`;
   const handleSend = async () => {
     if (!message.trim() || loading) return;
 
-    if (usage.ai_queries_used >= usage.ai_queries_limit) {
+    // ✅ Only block if NOT unlimited and at limit
+    if (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit) {
       setChatHistory(prev => [...prev, { 
         role: 'assistant', 
         content: `❌ You've reached your AI query limit (${usage.ai_queries_limit}). Please upgrade your plan to continue using AI features.`,
@@ -239,7 +242,7 @@ What would you like to do?`;
           role: 'assistant', 
           content: responseData.message,
           timestamp: new Date(),
-          data: responseData.data // ✅ Store data for link rendering
+          data: responseData.data
         }]);
       } else if (responseData.type === 'confirmation' && responseData.data?.bookingData) {
         const bookingData = responseData.data.bookingData;
@@ -258,7 +261,7 @@ What would you like to do?`;
           role: 'assistant', 
           content: responseData.message,
           timestamp: new Date(),
-          data: responseData.data // ✅ Store data for link rendering
+          data: responseData.data
         }]);
       } else {
         const aiMessage = responseData.message || responseData.response || 'I understood your request.';
@@ -266,8 +269,8 @@ What would you like to do?`;
           role: 'assistant', 
           content: aiMessage,
           timestamp: new Date(),
-          data: responseData.data, // ✅ Store data for link rendering
-          responseType: responseData.type // ✅ Store type for conditional rendering
+          data: responseData.data,
+          responseType: responseData.type
         }]);
       }
 
@@ -403,7 +406,6 @@ What would you like to do?`;
     return content.replace(/\*\*/g, '');
   };
 
-  // ✅ NEW: Link with copy button component
   const LinkWithCopy = ({ url, label }) => (
     <div className="flex items-center gap-2 bg-purple-50 rounded-lg px-3 py-2 mt-2">
       <Link className="h-4 w-4 text-purple-600 flex-shrink-0" />
@@ -434,7 +436,6 @@ What would you like to do?`;
     </div>
   );
 
-  // ✅ NEW: Multiple links grid component
   const LinksGrid = ({ links, labelKey = 'name' }) => (
     <div className="space-y-2 mt-3">
       {links.map((link, i) => (
@@ -471,12 +472,10 @@ What would you like to do?`;
     </div>
   );
 
-  // ✅ NEW: Render message content with links
   const renderMessageContent = (msg) => {
     const content = renderMessage(msg.content);
     const data = msg.data;
     
-    // Single link responses (personal, magic, member)
     if (data?.url && data?.type) {
       const shortLabel = data.short_url || 
         (data.type === 'magic' ? `/m/${data.token?.substring(0, 8)}...` : 
@@ -490,7 +489,6 @@ What would you like to do?`;
       );
     }
     
-    // Team links (multiple)
     if (data?.teams && Array.isArray(data.teams) && data.teams.length > 0 && data.teams[0]?.url) {
       return (
         <>
@@ -500,7 +498,6 @@ What would you like to do?`;
       );
     }
     
-    // Member links (multiple)
     if (data?.members && Array.isArray(data.members) && data.members.length > 0 && data.members[0]?.url) {
       return (
         <>
@@ -510,7 +507,6 @@ What would you like to do?`;
       );
     }
     
-    // Event types with links
     if (data?.event_types && Array.isArray(data.event_types) && data.event_types.length > 0 && data.event_types[0]?.booking_url) {
       const linksWithUrl = data.event_types.map(et => ({
         ...et,
@@ -525,7 +521,6 @@ What would you like to do?`;
       );
     }
     
-    // Default text
     return <p className="text-xs sm:text-sm whitespace-pre-wrap">{content}</p>;
   };
 
@@ -581,13 +576,14 @@ What would you like to do?`;
           </div>
 
           <div className="flex items-center gap-2">
+            {/* ✅ FIXED: Show "∞ Unlimited" for Pro/Team users */}
             <div className="flex items-center gap-1 bg-white/10 rounded-lg px-2 py-1">
               <Zap className="h-3 w-3 text-yellow-300" />
               {usage.loading ? (
                 <span className="text-xs text-white">...</span>
               ) : (
                 <span className="text-xs text-white font-medium">
-                  {usage.ai_queries_used}/{usage.ai_queries_limit}
+                  {isUnlimited ? '∞ Unlimited' : `${usage.ai_queries_used}/${usage.ai_queries_limit}`}
                 </span>
               )}
             </div>
@@ -616,8 +612,8 @@ What would you like to do?`;
           <>
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50">
-              {/* Usage warning when near limit */}
-              {!usage.loading && usage.ai_queries_used >= usage.ai_queries_limit - 1 && (
+              {/* ✅ FIXED: Only show usage warning for free users */}
+              {!usage.loading && !isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit - 1 && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
                   <div className="flex items-center gap-2">
                     <Zap className="h-4 w-4 text-yellow-600" />
@@ -680,7 +676,6 @@ What would you like to do?`;
                       ? 'bg-purple-600 text-white rounded-br-md' 
                       : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md shadow-sm'
                   }`}>
-                    {/* ✅ UPDATED: Use renderMessageContent for assistant messages */}
                     {msg.role === 'user' ? (
                       <p className="text-xs sm:text-sm whitespace-pre-wrap">{renderMessage(msg.content)}</p>
                     ) : (
@@ -866,13 +861,13 @@ What would you like to do?`;
                   onKeyPress={(e) => e.key === 'Enter' && handleSend()}
                   placeholder="Try: 'Get my booking link' "
                   className="flex-1 px-3 sm:px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                  disabled={loading || (usage.ai_queries_used >= usage.ai_queries_limit)}
+                  disabled={loading || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
                 />
                 <button
                   onClick={handleSend}
-                  disabled={loading || !message.trim() || (usage.ai_queries_used >= usage.ai_queries_limit)}
+                  disabled={loading || !message.trim() || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
                   className="p-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-xl transition-colors"
-                  title={usage.ai_queries_used >= usage.ai_queries_limit ? 'AI query limit reached' : 'Send message'}
+                  title={!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit ? 'AI query limit reached' : 'Send message'}
                 >
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                 </button>
