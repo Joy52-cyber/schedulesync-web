@@ -642,13 +642,13 @@ What would you like to do?`;
             ? 'text-red-800 text-base'
             : 'text-yellow-800 text-sm'
         }`}>
-          {usage.ai_queries_used >= usage.ai_queries_limit 
+          {Math.min(usage.ai_queries_used || 0, usage.ai_queries_limit || 10)}/{usage.ai_queries_limit || 10}{(usage.ai_queries_used || 0) > (usage.ai_queries_limit || 10) ? '+' : ''} AI queries
             ? `🚫 AI Query Limit Reached (${usage.ai_queries_used}/${usage.ai_queries_limit})`
             : `⚠️ Only ${usage.ai_queries_limit - usage.ai_queries_used} AI query remaining!`
           }
         </p>
         
-        {usage.ai_queries_used >= usage.ai_queries_limit ? (
+        {Math.min(usage.ai_queries_used || 0, usage.ai_queries_limit || 10)}/{usage.ai_queries_limit || 10}{(usage.ai_queries_used || 0) > (usage.ai_queries_limit || 10) ? '+' : ''} AI queries ? (
           <div className="space-y-2">
             <p className="text-sm text-red-700">
               You've used all your free AI queries this month. To continue:
@@ -662,7 +662,7 @@ What would you like to do?`;
                 </div>
               </div>
               <button
-                onClick={() => window.location.href = '/settings?tab=billing'}
+               onClick={() => window.location.href = '/dashboard'}
                 className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-2 px-4 rounded-lg font-semibold text-sm transition-all"
               >
                 Upgrade Now - Unlock Unlimited
