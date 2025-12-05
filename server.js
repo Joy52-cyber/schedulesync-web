@@ -7790,21 +7790,15 @@ const enforceUsageLimits = async (req, res, next) => {
 
 async function checkAIQueryLimit(req, res, next) {
   try {
-    // You already have authenticateToken before this, so req.user should exist
     const userId = req.user?.id;
-
     if (!userId) {
       return res.status(401).json({
         type: 'error',
         message: 'Not authenticated.',
-        usage: { used: 0, limit: 0 }
+        usage: { ai_queries_used: 0, ai_queries_limit: 0 }
       });
     }
 
-    // 🔧 Adjust this query to match your actual schema.
-    // This assumes you added columns to users:
-    //   - ai_queries_used (int)
-    //   - ai_queries_limit (int, default 10 or similar)
     const result = await pool.query(
       `SELECT 
          COALESCE(ai_queries_used, 0) AS ai_queries_used,
@@ -7814,41 +7808,44 @@ async function checkAIQueryLimit(req, res, next) {
       [userId]
     );
 
-    let ai_queries_used = 0;
-    let ai_queries_limit = 10;
-
-    if (result.rows.length > 0) {
-      ai_queries_used = result.rows[0].ai_queries_used;
-      ai_queries_limit = result.rows[0].ai_queries_limit;
-    }
-
-    // Attach usage so the route can reuse it
-    req.aiUsage = {
-      used: ai_queries_used,
-      limit: ai_queries_limit
-    };
-
-    // Enforce limit
-    if (ai_queries_limit && ai_queries_used >= ai_queries_limit) {
-      return res.status(429).json({
+    if (result.rows.length === 0) {
+      return res.status(404).json({
         type: 'error',
-        message: 'You’ve reached your AI scheduling limit for now.',
-        upgrade_required: true,
-        feature: 'ai_scheduling',
-        usage: {
-          used: ai_queries_used,
-          limit: ai_queries_limit
-        }
+        message: 'User not found.',
+        usage: { ai_queries_used: 0, ai_queries_limit: 0 }
       });
     }
 
-    return next();
-  } catch (err) {
-    console.error('checkAIQueryLimit error:', err);
+    const { ai_queries_used, ai_queries_limit } = result.rows[0];
 
-    // Fail open: let the request pass, but set a default usage object
-    req.aiUsage = req.aiUsage || { used: 0, limit: 10 };
+    // Attach usage for the route to use
+    req.aiUsage = { ai_queries_used, ai_queries_limit };
+
+    // ✅ Skip limit check for unlimited users (Pro/Team have limit >= 1000)
+    const isUnlimited = ai_queries_limit >= 1000;
+    
+    if (!isUnlimited && ai_queries_used >= ai_queries_limit) {
+      console.log(`🚫 AI limit reached for user ${userId}: ${ai_queries_used}/${ai_queries_limit}`);
+      return res.status(429).json({
+        type: 'error',
+        message: `You've reached your AI query limit (${ai_queries_limit}). Please upgrade to continue.`,
+        upgrade_required: true,
+        feature: 'ai_scheduling',
+        usage: { ai_queries_used, ai_queries_limit }
+      });
+    }
+
+    console.log(`✅ AI limit check passed for user ${userId}: ${ai_queries_used}/${ai_queries_limit}`);
     return next();
+
+  } catch (err) {
+    console.error('❌ checkAIQueryLimit error:', err);
+    // ✅ FAIL CLOSED - block the request if we can't verify limits
+    return res.status(500).json({
+      type: 'error',
+      message: 'Unable to verify usage limits. Please try again.',
+      usage: { ai_queries_used: 0, ai_queries_limit: 0 }
+    });
   }
 }
 
