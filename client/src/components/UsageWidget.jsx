@@ -83,53 +83,53 @@ const UsageWidget = () => {
           </div>
         </div>
 
-        {/* ChatGPT Usage */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">🤖 ChatGPT Queries</span>
-            <span className={`text-sm font-medium ${getTextColor(chatgptPercentage)}`}>
-              {chatgpt.limit === -1 ? 'Unlimited' : `${chatgpt.used}/${chatgpt.limit}`}
-            </span>
-          </div>
-          
-          {chatgpt.limit !== -1 ? (
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className={`h-2 rounded-full transition-all duration-500 ${getUsageColor(chatgptPercentage)}`}
-                style={{ width: `${chatgptPercentage}%` }}
-              ></div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center py-2">
-              <span className="text-green-600 font-medium text-sm">∞ Unlimited</span>
-            </div>
-          )}
-          
-          {/* ChatGPT Limit Warning */}
-          {chatgptPercentage >= 100 && (
-            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm">
-              <span className="text-red-700 font-medium">⚠️ ChatGPT limit reached!</span>
-              <button 
-                onClick={() => setShowUpgradeModal(true)}
-                className="ml-2 text-red-600 hover:text-red-700 underline"
-              >
-                Upgrade now
-              </button>
-            </div>
-          )}
-          
-          {chatgptPercentage >= 80 && chatgptPercentage < 100 && (
-            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
-              <span className="text-yellow-700">⚡ Running low on ChatGPT queries</span>
-              <button 
-                onClick={() => setShowUpgradeModal(true)}
-                className="ml-2 text-blue-600 hover:text-blue-700 underline"
-              >
-                Upgrade for unlimited
-              </button>
-            </div>
-          )}
-        </div>
+       {/* ChatGPT Usage */}
+<div>
+  <div className="flex items-center justify-between mb-2">
+    <span className="text-sm font-medium text-gray-700">🤖 ChatGPT Queries</span>
+    <span className={`text-sm font-medium ${getTextColor(chatgptPercentage)}`}>
+      {chatgpt.limit === -1 ? 'Unlimited' : `${chatgpt.used}/${chatgpt.limit}`}
+    </span>
+  </div>
+  
+  {chatgpt.limit !== -1 ? (
+    <div className="w-full bg-gray-200 rounded-full h-2">
+      <div
+        className={`h-2 rounded-full transition-all duration-500 ${getUsageColor(chatgptPercentage)}`}
+        style={{ width: `${chatgptPercentage}%` }}
+      ></div>
+    </div>
+  ) : (
+    <div className="flex items-center justify-center py-2">
+      <span className="text-green-600 font-medium text-sm">∞ Unlimited</span>
+    </div>
+  )}
+  
+  {/* ChatGPT Limit Warning */}
+  {chatgptPercentage >= 100 && (
+    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm">
+      <span className="text-red-700 font-medium">⚠️ ChatGPT limit reached!</span>
+      <button 
+        onClick={() => setShowUpgradeModal(true)}
+        className="ml-2 text-red-600 hover:text-red-700 underline"
+      >
+        Upgrade now
+      </button>
+    </div>
+  )}
+  
+  {chatgptPercentage >= 80 && chatgptPercentage < 100 && (
+    <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
+      <span className="text-yellow-700">⚡ Running low on ChatGPT queries</span>
+      <button 
+        onClick={() => setShowUpgradeModal(true)}
+        className="ml-2 text-blue-600 hover:text-blue-700 underline"
+      >
+        Upgrade for unlimited
+      </button>
+    </div>
+  )}
+</div>
 
         {/* Bookings Usage */}
         <div>
