@@ -11,21 +11,33 @@ const UsageWidget = () => {
   }, []);
 
   const fetchUsage = async () => {
-    try {
-      const response = await fetch('/api/usage', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+  try {
+    const response = await fetch('/api/user/usage', {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      // Map to expected format
+      setUsage({
+        subscription_tier: data.subscription_tier || 'free',
+        grace_period: data.grace_period || false,
+        chatgpt: { 
+          used: data.ai_queries_used || 0, 
+          limit: data.ai_queries_limit || 10 
+        },
+        bookings: { 
+          used: data.bookings_used || 0, 
+          limit: data.bookings_limit || 50 
+        }
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setUsage(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch usage:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (error) {
+    console.error('Failed to fetch usage:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const getUsagePercentage = (used, limit) => {
     if (limit === -1) return 0; // Unlimited
