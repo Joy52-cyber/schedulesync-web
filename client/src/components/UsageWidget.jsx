@@ -87,9 +87,12 @@ const UsageWidget = () => {
 <div>
   <div className="flex items-center justify-between mb-2">
     <span className="text-sm font-medium text-gray-700">🤖 ChatGPT Queries</span>
-    <span className={`text-sm font-medium ${getTextColor(chatgptPercentage)}`}>
-      {chatgpt.limit === -1 ? 'Unlimited' : `${chatgpt.used}/${chatgpt.limit}`}
-    </span>
+   <span className={`text-sm font-semibold ${getTextColor(chatgptPercentage)}`}>
+  {chatgpt.limit === -1 
+    ? 'Unlimited' 
+    : `${Math.min(chatgpt.used, chatgpt.limit)}/${chatgpt.limit}${chatgpt.used > chatgpt.limit ? '+' : ''}`
+  }
+</span>
   </div>
   
   {chatgpt.limit !== -1 ? (
