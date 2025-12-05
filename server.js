@@ -7777,11 +7777,13 @@ const enforceUsageLimits = async (req, res, next) => {
 };
 
 // ============ CORRECTLY STRUCTURED AI SCHEDULING ENDPOINT ============
+// ============ COMPLETE AI SCHEDULING ENDPOINT WITH ALL FUNCTIONALITY ============
 
 app.post('/api/ai/schedule', authenticateToken, checkAIQueryLimit, async (req, res) => {
   try {
     const { message, conversationHistory = [] } = req.body;
     const userId = req.user.id;
+    const userEmail = req.user.email;
     
     console.log('🤖 AI request from user:', userId, 'Message:', message);
 
@@ -7791,141 +7793,35 @@ app.post('/api/ai/schedule', authenticateToken, checkAIQueryLimit, async (req, r
       return emailRegex.test(email);
     };
 
-    // Check if message contains pending booking context
+    // ✅ STEP 1: EXTRACT PENDING BOOKING CONTEXT
     let pendingBookingContext = null;
     let cleanMessage = message;
     
     const pendingMatch = message.match(/\[Current pending booking: "([^"]+)" on (\S+) at (\S+) for (\d+) minutes with (\S+)\]/);
     if (pendingMatch) {
+      const extractedEmail = pendingMatch[5];
+      
+      // Validate extracted email
+      if (!validateEmail(extractedEmail)) {
+        return res.json({
+          type: 'error',
+          message: 'The pending booking contains an invalid email address.',
+          usage: req.aiUsage || { used: 0, limit: 10 }
+        });
+      }
+      
       pendingBookingContext = {
         title: pendingMatch[1],
         date: pendingMatch[2],
         time: pendingMatch[3],
         duration: parseInt(pendingMatch[4]),
-        attendee_email: pendingMatch[5]
+        attendee_email: extractedEmail
       };
       cleanMessage = message.replace(/\[Current pending booking:.*?\]\s*User says:\s*/i, '').trim();
       console.log('📋 Pending booking detected:', pendingBookingContext);
     }
 
-    // Prepare Gemini request
-    const requestBody = {
-      contents: [
-        {
-          parts: [
-            {
-              text: `You are a scheduling assistant. Parse this request and return JSON only:
-              
-              User message: "${cleanMessage}"
-              ${pendingBookingContext ? `Pending booking context: ${JSON.stringify(pendingBookingContext)}` : ''}
-              
-              Return JSON format:
-              {
-                "type": "schedule|question|error|confirm",
-                "intent": "book_meeting|find_slots|general_info|confirm_booking", 
-                "details": {
-                  "duration": 30,
-                  "date": "2024-01-15",
-                  "time": "14:00",
-                  "title": "Meeting title",
-                  "attendee_email": "email@example.com"
-                },
-                "message": "Response to user"
-              }`
-            }
-          ]
-        }
-      ]
-    };
-
-    // ✅ FIXED: Call AI without manual usage tracking (middleware handles it)
-    const response = await callGeminiWithRetry(requestBody);
-    
-    // ✅ FIXED: Proper syntax for error
-    if (!response.ok) {
-      throw new Error(`Gemini API failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
-    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!aiText) {
-      throw new Error('No response from Gemini API');
-    }
-
-    console.log('🧠 AI response:', aiText);
-
-    // ✅ INCREMENT usage ONCE (since middleware already checked limits)
-    await incrementAIUsage(userId);
-
-    // ✅ Use middleware usage data
-    const usageData = req.aiUsage || { used: 1, limit: 10 };
-
-    // ✅ CLEAN JSON PARSING
-    let parsedIntent;
-    try {
-      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return res.json({
-          type: 'error',
-          message: 'I had trouble understanding that. Could you rephrase?',
-          usage: usageData
-        });
-      }
-      parsedIntent = JSON.parse(jsonMatch[0]);
-    } catch (e) {
-      console.error('Failed to parse AI JSON:', e.message);
-      return res.json({
-        type: 'error',
-        message: 'I had trouble understanding that. Could you rephrase?',
-        usage: usageData
-      });
-    }
-
-    console.log('🎯 Parsed intent:', parsedIntent);
-
-    // Validate parsed intent
-    if (!parsedIntent.type || !parsedIntent.message) {
-      return res.json({
-        type: 'error',
-        message: 'I had trouble processing that. Could you try again?',
-        usage: usageData
-      });
-    }
-
-    // ✅ EMAIL VALIDATION for scheduling requests
-    if (parsedIntent.type === 'schedule' && parsedIntent.details?.attendee_email) {
-      if (!validateEmail(parsedIntent.details.attendee_email)) {
-        return res.json({
-          type: 'error',
-          message: 'Please provide a valid email address for the meeting attendee.',
-          usage: usageData
-        });
-      }
-    }
-
-  
-
-    // Check if message contains pending booking context
-    pendingBookingContext = null;
-    cleanMessage = message;
-    
-    const pendingMatch = message.match(/\[Current pending booking: "([^"]+)" on (\S+) at (\S+) for (\d+) minutes with (\S+)\]/);
-    if (pendingMatch) {
-      pendingBookingContext = {
-        title: pendingMatch[1],
-        date: pendingMatch[2],
-        time: pendingMatch[3],
-        duration: parseInt(pendingMatch[4]),
-        attendee_email: pendingMatch[5]
-      };
-      cleanMessage = message.replace(/\[Current pending booking:.*?\]\s*User says:\s*/i, '').trim();
-      console.log('?? Pending booking detected:', pendingBookingContext);
-    }
-
-
-
-    // Get user's teams and bookings for context
+    // ✅ STEP 2: GET USER CONTEXT BEFORE AI CALL
     const teamsResult = await pool.query(
       `SELECT t.*, COUNT(tm.id) as member_count
        FROM teams t
@@ -7948,7 +7844,7 @@ app.post('/api/ai/schedule', authenticateToken, checkAIQueryLimit, async (req, r
       [userId]
     );
 
-    // Provide complete booking details to AI
+    // ✅ STEP 3: BUILD COMPLETE USER CONTEXT
     const userContext = {
       email: userEmail,
       teams: teamsResult.rows.map(t => ({ 
@@ -7973,13 +7869,13 @@ app.post('/api/ai/schedule', authenticateToken, checkAIQueryLimit, async (req, r
       pendingBooking: pendingBookingContext
     };
 
-    // Format conversation history
+    // ✅ STEP 4: FORMAT CONVERSATION HISTORY
     const formattedHistory = conversationHistory.slice(-5).map(msg => ({
       role: msg.role === 'user' ? 'user' : 'model',
       parts: [{ text: msg.content || '' }]
     })).filter(msg => msg.parts[0].text.trim() !== '');
 
-    // Build pending booking instruction if exists
+    // ✅ STEP 5: BUILD PENDING BOOKING INSTRUCTION
     const pendingBookingInstruction = pendingBookingContext ? `
 IMPORTANT - PENDING BOOKING CONTEXT:
 There is currently a pending booking waiting for confirmation:
@@ -7996,12 +7892,8 @@ If the user wants to UPDATE this pending booking (change time, duration, date, e
 4. DO NOT ask for confirmation again - the UI will handle that
 ` : '';
 
-    // Enhanced system instruction with email functionality
-   // ============================================================
-// UPDATED SYSTEM INSTRUCTION FOR AI SCHEDULER
-// ============================================================
-
-const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
+    // ✅ STEP 6: COMPLETE SYSTEM INSTRUCTION WITH ALL INTENTS AND EXAMPLES
+    const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
 
 User context: ${JSON.stringify(userContext)}
 ${pendingBookingInstruction}
@@ -8029,28 +7921,42 @@ AVAILABLE INTENTS:
 INTENT EXAMPLES:
 
 LINK REQUESTS:
-- "get my link" or "my booking page" ? intent: "get_personal_link"
-- "create magic link for John" ? intent: "get_magic_link", extracted: { link_name: "John" }
-- "get team links" or "show team pages" ? intent: "get_team_links"
-- "get Sarah's link" ? intent: "get_member_link", extracted: { member_name: "Sarah" }
+- "get my link" or "my booking page" → intent: "get_personal_link"
+- "create magic link for John" → intent: "get_magic_link", extracted: { link_name: "John" }
+- "get team links" or "show team pages" → intent: "get_team_links"
+- "get Sarah's link" → intent: "get_member_link", extracted: { member_name: "Sarah" }
 
 EVENT TYPE QUERIES:
-- "what are my event types" or "show event types" ? intent: "get_event_types"
-- "show my 30 minute meeting" or "get consultation event" ? intent: "get_event_type", extracted: { event_type_name: "..." }
+- "what are my event types" or "show event types" → intent: "get_event_types"
+- "show my 30 minute meeting" or "get consultation event" → intent: "get_event_type", extracted: { event_type_name: "..." }
 
 BOOKING STATUS QUERIES:
-- "show my bookings" or "upcoming meetings" ? intent: "show_bookings"
-- "show confirmed bookings" ? intent: "show_confirmed_bookings"
-- "show cancelled bookings" or "what got cancelled" ? intent: "show_cancelled_bookings"
-- "show rescheduled bookings" ? intent: "show_rescheduled_bookings"
-- "how many bookings" or "booking stats" or "stats this month" ? intent: "booking_stats"
+- "show my bookings" or "upcoming meetings" → intent: "show_bookings"
+- "show confirmed bookings" → intent: "show_confirmed_bookings"
+- "show cancelled bookings" or "what got cancelled" → intent: "show_cancelled_bookings"
+- "show rescheduled bookings" → intent: "show_rescheduled_bookings"
+- "how many bookings" or "booking stats" or "stats this month" → intent: "booking_stats"
 
 TEAM SCHEDULING:
-- "schedule with Marketing team" ? intent: "schedule_team_meeting", extracted: { team_name: "Marketing" }
+- "schedule with Marketing team" → intent: "schedule_team_meeting", extracted: { team_name: "Marketing" }
+
+MEETING CREATION:
+- "schedule a meeting with john@example.com tomorrow at 2pm" → intent: "create_meeting", extracted: { attendee_email: "john@example.com", date: "YYYY-MM-DD", time: "14:00", duration_minutes: 30 }
+- "book 1 hour call with Sarah on Friday" → intent: "create_meeting", extracted: { title: "Call with Sarah", duration_minutes: 60, date: "YYYY-MM-DD" }
+
+FIND TIME:
+- "when am I free tomorrow" or "show available slots" → intent: "find_time", extracted: { date: "YYYY-MM-DD" }
+
+EMAIL SENDING:
+- "send confirmation email to john@example.com" → intent: "send_email", extracted: { attendee_email: "john@example.com" }
+
+CANCEL/UPDATE:
+- "cancel my meeting with John" → intent: "cancel_booking", extracted: { attendee_email: "john@example.com" }
+- "move my 2pm meeting to 3pm" → intent: "update_pending", extracted: { time: "15:00" }
 
 Return JSON structure:
 {
-  "intent": "get_personal_link" | "get_magic_link" | "get_team_links" | "get_member_link" | "get_event_types" | "get_event_type" | "show_bookings" | "show_confirmed_bookings" | "show_cancelled_bookings" | "show_rescheduled_bookings" | "booking_stats" | "schedule_team_meeting" | "create_meeting" | "find_time" | "send_email" | "update_pending" | "cancel_booking" | "clarify",
+  "intent": "create_meeting" | "show_bookings" | "show_confirmed_bookings" | "show_cancelled_bookings" | "show_rescheduled_bookings" | "booking_stats" | "find_time" | "get_event_types" | "get_event_type" | "get_personal_link" | "get_magic_link" | "get_team_links" | "get_member_link" | "schedule_team_meeting" | "send_email" | "update_pending" | "cancel_booking" | "clarify",
   "confidence": 0-100,
   "extracted": {
     "link_name": "custom name for magic link",
@@ -8075,8 +7981,8 @@ Return JSON structure:
 
 Current date/time: ${new Date().toISOString()}
 User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
-    
-// Call Google Gemini API
+
+    // ✅ STEP 7: SINGLE GEMINI API CALL WITH COMPLETE CONTEXT
     const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
@@ -8099,12 +8005,13 @@ User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
       })
     });
 
-    // Error handling
+    // ✅ STEP 8: ERROR HANDLING
     if (!geminiResponse.ok) {
       console.error('Gemini API error:', geminiResponse.status, geminiResponse.statusText);
       return res.status(500).json({
         type: 'error',
-        message: 'AI service temporarily unavailable. Please try again.'
+        message: 'AI service temporarily unavailable. Please try again.',
+        usage: req.aiUsage || { used: 0, limit: 10 }
       });
     }
 
@@ -8114,34 +8021,139 @@ User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
       console.error('Invalid Gemini response:', geminiData);
       return res.status(500).json({
         type: 'error',
-        message: 'AI service temporarily unavailable.'
+        message: 'AI service temporarily unavailable.',
+        usage: req.aiUsage || { used: 0, limit: 10 }
       });
     }
 
     const aiText = geminiData.candidates[0].content.parts[0].text;
-    
-   // Parse JSON response
-let parsedIntent;
-try {
-  const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
+    console.log('🧠 AI response:', aiText);
+
+    // ✅ STEP 9: INCREMENT USAGE ONCE
+    await incrementAIUsage(userId);
+    const usageData = req.aiUsage || { used: 1, limit: 10 };
+
+    // ✅ STEP 10: PARSE JSON RESPONSE
+    let parsedIntent;
+    try {
+      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return res.json({
+          type: 'error',
+          message: 'I had trouble understanding that. Could you rephrase?',
+          usage: usageData
+        });
+      }
+      parsedIntent = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      console.error('Failed to parse AI JSON:', e.message);
+      return res.json({
+        type: 'error',
+        message: 'I had trouble understanding that. Could you rephrase?',
+        usage: usageData
+      });
+    }
+
+    console.log('🎯 Parsed intent:', parsedIntent);
+
+    // ✅ STEP 11: VALIDATE PARSED INTENT
+    if (!parsedIntent.intent || !parsedIntent.response_message) {
+      return res.json({
+        type: 'error',
+        message: 'I had trouble processing that. Could you try again?',
+        usage: usageData
+      });
+    }
+
+    // ✅ STEP 12: EMAIL VALIDATION for scheduling requests
+    if ((parsedIntent.intent === 'create_meeting' || parsedIntent.intent === 'update_pending' || parsedIntent.intent === 'send_email') 
+        && parsedIntent.extracted?.attendee_email) {
+      if (!validateEmail(parsedIntent.extracted.attendee_email)) {
+        return res.json({
+          type: 'error',
+          message: 'Please provide a valid email address for the meeting attendee.',
+          usage: usageData
+        });
+      }
+    }
+
+    // ✅ STEP 13: HANDLE CLARIFY INTENT
+    if (parsedIntent.intent === 'clarify' && parsedIntent.clarifying_question) {
+      return res.json({
+        type: 'clarify',
+        intent: 'clarify',
+        message: parsedIntent.clarifying_question,
+        missing_fields: parsedIntent.missing_fields || [],
+        context: {
+          pending: pendingBookingContext,
+          teams: userContext.teams.length,
+          upcomingBookings: userContext.upcomingBookings.length
+        },
+        usage: usageData
+      });
+    }
+
+    // ✅ STEP 14: RETURN COMPLETE STRUCTURED RESPONSE
     return res.json({
+      type: 'success',
+      intent: parsedIntent.intent,
+      confidence: parsedIntent.confidence || 80,
+      extracted: {
+        link_name: parsedIntent.extracted?.link_name || null,
+        team_name: parsedIntent.extracted?.team_name || null,
+        member_name: parsedIntent.extracted?.member_name || null,
+        event_type_name: parsedIntent.extracted?.event_type_name || null,
+        status_filter: parsedIntent.extracted?.status_filter || 'confirmed',
+        date_range: parsedIntent.extracted?.date_range || 'all',
+        title: parsedIntent.extracted?.title || null,
+        attendees: parsedIntent.extracted?.attendees || [],
+        attendee_email: parsedIntent.extracted?.attendee_email || null,
+        date: parsedIntent.extracted?.date || null,
+        time: parsedIntent.extracted?.time || null,
+        duration_minutes: parsedIntent.extracted?.duration_minutes || 30,
+        notes: parsedIntent.extracted?.notes || null
+      },
+      missing_fields: parsedIntent.missing_fields || [],
+      clarifying_question: parsedIntent.clarifying_question || null,
+      action: parsedIntent.action || null,
+      message: parsedIntent.response_message,
+      context: {
+        pending: pendingBookingContext,
+        teams: userContext.teams.length,
+        upcomingBookings: userContext.upcomingBookings.length,
+        userTeams: userContext.teams,
+        recentBookings: userContext.upcomingBookings.slice(0, 3)
+      },
+      usage: usageData
+    });
+
+  } catch (error) {
+    console.error('❌ AI scheduling error:', error);
+    
+    // Handle feature gate limit errors
+    if (error.response?.data?.upgrade_required) {
+      return res.status(403).json({
+        type: 'error',
+        message: error.response.data.message,
+        upgrade_required: true,
+        feature: error.response.data.feature,
+        usage: req.aiUsage || { used: 0, limit: 10 }
+      });
+    }
+    
+    res.status(500).json({
       type: 'error',
-      message: 'I had trouble understanding that. Could you rephrase?',
+      message: 'Sorry, I encountered an error. Please try again.',
       usage: req.aiUsage || { used: 0, limit: 10 }
     });
   }
-  parsedIntent = JSON.parse(jsonMatch[0]);
-} catch (e) {
-  console.error('Failed to parse AI JSON:', e.message);
-  return res.json({
-    type: 'error',
-    message: 'I had trouble understanding that. Could you rephrase?',
-    usage: req.aiUsage || { used: 0, limit: 10 }
-  });
-}
+});
 
-console.log('🎯 Parsed intent:', parsedIntent);
+// ✅ FINAL CONSOLE LOG
+console.log('✅ Final AI response:', JSON.stringify(finalResponse, null, 2));
+
+return res.json(finalResponse);
+
     // ============ HANDLE HELP/CLARIFY INTENT ============
     if (parsedIntent.intent === 'clarify' || cleanMessage.toLowerCase().includes('help') || cleanMessage.toLowerCase().includes('what can you do')) {
       return res.json({
