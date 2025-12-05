@@ -617,8 +617,8 @@ What would you like to do?`;
              
             
             {/* ✅ FIXED: Only show usage warning for free users */}
-              {!usage.loading && !isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit - 1 && (
-  <div className={`rounded-lg p-4 mb-4 ${
+              {isUnlimited ? '∞ Unlimited' : `${Math.min(usage.ai_queries_used, usage.ai_queries_limit)}/${usage.ai_queries_limit}${usage.ai_queries_used > usage.ai_queries_limit ? '+' : ''}`}
+            <div className={`rounded-lg p-4 mb-4 ${
     usage.ai_queries_used >= usage.ai_queries_limit
       ? 'bg-red-50 border-2 border-red-300'
       : 'bg-yellow-50 border border-yellow-200'
@@ -642,13 +642,12 @@ What would you like to do?`;
             ? 'text-red-800 text-base'
             : 'text-yellow-800 text-sm'
         }`}>
-          {Math.min(usage.ai_queries_used || 0, usage.ai_queries_limit || 10)}/{usage.ai_queries_limit || 10}{(usage.ai_queries_used || 0) > (usage.ai_queries_limit || 10) ? '+' : ''} AI queries
-            ? `🚫 AI Query Limit Reached (${usage.ai_queries_used}/${usage.ai_queries_limit})`
-            : `⚠️ Only ${usage.ai_queries_limit - usage.ai_queries_used} AI query remaining!`
-          }
+          {usage.ai_queries_used >= usage.ai_queries_limit
+  ? `🚫 AI Query Limit Reached (${Math.min(usage.ai_queries_used, usage.ai_queries_limit)}/${usage.ai_queries_limit}${usage.ai_queries_used > usage.ai_queries_limit ? '+' : ''})`
+  : `⚠️ Only ${usage.ai_queries_limit - usage.ai_queries_used} AI query remaining!`
+}
         </p>
-        
-        {Math.min(usage.ai_queries_used || 0, usage.ai_queries_limit || 10)}/{usage.ai_queries_limit || 10}{(usage.ai_queries_used || 0) > (usage.ai_queries_limit || 10) ? '+' : ''} AI queries ? (
+        {usage.ai_queries_used >= usage.ai_queries_limit ? (
           <div className="space-y-2">
             <p className="text-sm text-red-700">
               You've used all your free AI queries this month. To continue:
