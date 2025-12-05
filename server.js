@@ -8167,24 +8167,44 @@ User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
         });
       }
 
-      // ✅ STEP 12: EMAIL VALIDATION FOR SCHEDULING/EMAIL INTENTS
-      if (
-        (parsedIntent.intent === 'create_meeting' ||
-          parsedIntent.intent === 'update_pending' ||
-          parsedIntent.intent === 'send_email') &&
-        parsedIntent.extracted?.attendee_email
-      ) {
-        if (!validateEmail(parsedIntent.extracted.attendee_email)) {
-          return res.json({
-            type: 'error',
-            message:
-              'Please provide a valid email address for the meeting attendee.',
-            usage: usageData
-          });
-        }
-      }
+      // ✅ STEP 12: EMAIL VALIDATION FOR SCHEDULING/EMAIL INTENTS - SUPPORT BOTH FORMATS
+if (
+  parsedIntent.intent === 'create_meeting' ||
+  parsedIntent.intent === 'update_pending' ||
+  parsedIntent.intent === 'send_email'
+) {
+  // Collect emails from both attendee_email and attendees
+  let emailsToValidate = [];
+  
+  if (parsedIntent.extracted?.attendee_email) {
+    emailsToValidate.push(parsedIntent.extracted.attendee_email);
+  }
+  
+  if (parsedIntent.extracted?.attendees && Array.isArray(parsedIntent.extracted.attendees)) {
+    emailsToValidate = [...emailsToValidate, ...parsedIntent.extracted.attendees];
+  }
+  
+  // Remove duplicates
+  emailsToValidate = [...new Set(emailsToValidate)];
+  
+  // Validate all emails
+  if (emailsToValidate.length > 0) {
+    const invalidEmails = emailsToValidate.filter(email => !validateEmail(email));
+    if (invalidEmails.length > 0) {
+      return res.json({
+        type: 'error',
+        message: `❌ Invalid email address(es): ${invalidEmails.join(', ')}\n\nPlease provide valid email addresses.`,
+        usage: usageData
+      });
+    }
+    
+    // Normalize: store all emails in attendees array
+    parsedIntent.extracted.attendees = emailsToValidate;
+    console.log('✅ Validated emails:', emailsToValidate);
+  }
+}
 
-      const lowerClean = cleanMessage.toLowerCase();
+const lowerClean = cleanMessage.toLowerCase();
 
       // ✅ STEP 13: HANDLE HELP / CLARIFY INTENT (HIGH-LEVEL HELP)
       if (
@@ -12256,7 +12276,7 @@ const cron = require('node-cron');
 const REMINDER_CRON = '*/5 * * * *';
 let lastReminderRun = null;
 
-// ============ REMINDER EMAIL TEMPLATE ============
+// ============ REMINDER EMAIL TEMPLATE (EMOJIS FIXED) ============
 
 function reminderEmailTemplate(booking, hoursBefore) {
   const startTime = new Date(booking.start_time);
@@ -12282,12 +12302,12 @@ function reminderEmailTemplate(booking, hoursBefore) {
     hour12: true 
   });
 
-  // ? CRITICAL FIX: Create manage URL with manage_token, not booking.id
+  // ✅ CRITICAL FIX: Create manage URL with manage_token, not booking.id
   const manageUrl = booking.manage_token 
     ? `${process.env.FRONTEND_URL}/manage/${booking.manage_token}`
     : null;
 
-  console.log('?? REMINDER - Booking data:', {
+  console.log('📋 REMINDER - Booking data:', {
     id: booking.id,
     manage_token: booking.manage_token,
     generated_url: manageUrl
@@ -12310,7 +12330,7 @@ function reminderEmailTemplate(booking, hoursBefore) {
               <!-- Header -->
               <tr>
                 <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
-                  <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 600;">? Meeting Reminder</h1>
+                  <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 600;">🕐 Meeting Reminder</h1>
                   <p style="margin: 10px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 16px;">
                     Your meeting starts in ${hoursBefore} hour${hoursBefore !== 1 ? 's' : ''}
                   </p>
@@ -12323,7 +12343,7 @@ function reminderEmailTemplate(booking, hoursBefore) {
                   
                   <!-- Greeting -->
                   <p style="margin: 0 0 20px 0; font-size: 16px; color: #333; line-height: 1.6;">
-                    Hi ${booking.guest_name || booking.host_name || 'there'} ??
+                    Hi ${booking.guest_name || booking.host_name || 'there'} 👋
                   </p>
                   
                   <p style="margin: 0 0 30px 0; font-size: 16px; color: #555; line-height: 1.6;">
@@ -12342,18 +12362,18 @@ function reminderEmailTemplate(booking, hoursBefore) {
                         
                         <!-- Date -->
                         <p style="margin: 0 0 10px 0; font-size: 15px; color: #555;">
-                          <strong style="color: #667eea;">?? Date:</strong> ${dateStr}
+                          <strong style="color: #667eea;">📅 Date:</strong> ${dateStr}
                         </p>
                         
                         <!-- Time -->
                         <p style="margin: 0 0 10px 0; font-size: 15px; color: #555;">
-                          <strong style="color: #667eea;">?? Time:</strong> ${timeStr} - ${endTimeStr}${booking.timezone ? ` (${booking.timezone})` : ''}
+                          <strong style="color: #667eea;">🕐 Time:</strong> ${timeStr} - ${endTimeStr}${booking.timezone ? ` (${booking.timezone})` : ''}
                         </p>
                         
                         <!-- Attendees -->
                         ${booking.host_name && booking.guest_name ? `
                           <p style="margin: 0; font-size: 15px; color: #555;">
-                            <strong style="color: #667eea;">?? With:</strong> ${booking.guest_name === (booking.guest_name || booking.host_name) ? booking.host_name : booking.guest_name}
+                            <strong style="color: #667eea;">👥 With:</strong> ${booking.guest_name === (booking.guest_name || booking.host_name) ? booking.host_name : booking.guest_name}
                           </p>
                         ` : ''}
                         
@@ -12367,7 +12387,7 @@ function reminderEmailTemplate(booking, hoursBefore) {
                       <tr>
                         <td align="center">
                           <a href="${booking.meeting_url}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);">
-                            ?? Join Meeting
+                            📹 Join Meeting
                           </a>
                         </td>
                       </tr>
@@ -12379,7 +12399,7 @@ function reminderEmailTemplate(booking, hoursBefore) {
                     <tr>
                       <td style="padding: 15px;">
                         <p style="margin: 0; font-size: 14px; color: #2e7d32; line-height: 1.5;">
-                          ?? <strong>Tip:</strong> Join a few minutes early to test your audio and video!
+                          💡 <strong>Tip:</strong> Join a few minutes early to test your audio and video!
                         </p>
                       </td>
                     </tr>
@@ -12410,6 +12430,8 @@ function reminderEmailTemplate(booking, hoursBefore) {
     </html>
   `;
 }
+
+
 
 // ============ REMINDER CHECKER ============
 

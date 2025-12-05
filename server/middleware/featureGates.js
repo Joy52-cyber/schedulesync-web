@@ -1,6 +1,6 @@
 // server/middleware/featureGates.js
-const pool = require('../db/pool'); // Adjust path to your DB
-
+ 
+const pool = require('../../db/pool');
 // ============================================
 // FEATURE GATEKEEPING MIDDLEWARE
 // ============================================
