@@ -1,4 +1,4 @@
-
+﻿
 
 // ============ STARTUP DEBUGGING ============
 console.log('========================================');
@@ -168,6 +168,70 @@ async function callAnthropicWithRetry(requestBody, retries = 2) {
   }
 }
   
+
+// ============================================
+// HELPER FUNCTIONS - Add after imports
+// ============================================
+
+// Fixed Gemini API call with retry
+async function callGeminiWithRetry(requestBody, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      // ✅ FIXED: Proper template literal syntax
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeout);
+      return response;
+      
+    } catch (error) {
+      // ✅ FIXED: Proper console.error syntax
+      console.error(`Gemini API attempt ${i + 1} failed:`, error.message);
+      if (i === retries) throw error;
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+    }
+  }
+}
+
+// If you actually want Anthropic API, use this instead:
+async function callAnthropicWithRetry(requestBody, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeout);
+      return response;
+      
+    } catch (error) {
+      console.error(`Anthropic API attempt ${i + 1} failed:`, error.message);
+      if (i === retries) throw error;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+}
+
+// Time parsing utility
 function safeParseTime(timeString) {
   if (!timeString || typeof timeString !== 'string') return null;
   const parts = timeString.split(':');
@@ -178,6 +242,7 @@ function safeParseTime(timeString) {
   return { hours, minutes };
 }
 
+// Timezone validation utility
 function validateTimezone(timezone) {
   if (!timezone || typeof timezone !== 'string') return false;
   try {
@@ -185,6 +250,54 @@ function validateTimezone(timezone) {
     return true;
   } catch (e) {
     return false;
+  }
+}
+
+// ============================================
+// FEATURE GATES LOADING
+// ============================================
+console.log('Loading feature gates...');
+try {
+  const { 
+    checkAIQueryLimit, 
+    checkBookingLimit, 
+    checkTeamAccess, 
+    checkEventTypeLimit,
+    incrementAIUsage,
+    incrementBookingUsage,
+    checkFeatureAccess 
+  } = require('./middleware/featureGates');
+  console.log('✅ Feature gates loaded');
+} catch (e) {
+  console.error('❌ Failed to load feature gates:', e.message);
+  // Don't exit - feature gates are optional for now
+}
+
+// ============================================
+// AI API WRAPPER WITH FEATURE GATES
+// ============================================
+async function callAIWithTracking(userId, requestBody, apiProvider = 'gemini') {
+  try {
+    // Check if user can make AI queries (this will throw if limit reached)
+    // Note: You'll need to implement middleware check here or call before this function
+    
+    let response;
+    if (apiProvider === 'gemini') {
+      response = await callGeminiWithRetry(requestBody);
+    } else if (apiProvider === 'anthropic') {
+      response = await callAnthropicWithRetry(requestBody);
+    } else {
+      throw new Error('Unsupported AI provider');
+    }
+    
+    // ✅ INCREMENT usage after successful call
+    await incrementAIUsage(userId);
+    
+    return response;
+    
+  } catch (error) {
+    console.error('AI API call failed:', error);
+    throw error;
   }
 }
 
@@ -7665,39 +7778,14 @@ const enforceUsageLimits = async (req, res, next) => {
 
 // ============ CORRECTLY STRUCTURED AI SCHEDULING ENDPOINT ============
 
-app.post('/api/ai/schedule', authenticateToken, enforceUsageLimits, async (req, res) => {
+app.post('/api/ai/schedule', authenticateToken, checkAIQueryLimit, async (req, res) => {
   try {
     const { message, conversationHistory = [] } = req.body;
     const userId = req.user.id;
-    const userEmail = req.user.email;
+    
+    console.log('🤖 AI request from user:', userId, 'Message:', message);
 
-    console.log('?? AI Scheduling request from user:', userId, 'Message:', message);
-
-    // Validate message
-    if (!message || typeof message !== 'string' || message.trim() === '') {
-      return res.status(400).json({
-        type: 'error',
-        message: 'Please enter a message'
-      });
-    }
-
-    // ? INCREMENT AI USAGE FIRST
-    const usageResult = await incrementAIUsage(userId);
-    if (!usageResult.success) {
-      console.error('? Failed to increment usage:', usageResult.error);
-      return res.status(500).json({
-        type: 'error',
-        message: 'Failed to track usage'
-      });
-    }
-
-    // ? ADD THIS LINE - Define usageData for all handlers
-const usageData = {
-  ai_queries_used: usageResult.ai_queries_used,
-  ai_queries_limit: usageResult.ai_queries_limit
-};
-
-    // ? EMAIL VALIDATION FUNCTION (INSIDE FUNCTION)
+    // ✅ EMAIL VALIDATION FUNCTION
     const validateEmail = (email) => {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       return emailRegex.test(email);
@@ -7717,8 +7805,125 @@ const usageData = {
         attendee_email: pendingMatch[5]
       };
       cleanMessage = message.replace(/\[Current pending booking:.*?\]\s*User says:\s*/i, '').trim();
+      console.log('📋 Pending booking detected:', pendingBookingContext);
+    }
+
+    // Prepare Gemini request
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            {
+              text: `You are a scheduling assistant. Parse this request and return JSON only:
+              
+              User message: "${cleanMessage}"
+              ${pendingBookingContext ? `Pending booking context: ${JSON.stringify(pendingBookingContext)}` : ''}
+              
+              Return JSON format:
+              {
+                "type": "schedule|question|error|confirm",
+                "intent": "book_meeting|find_slots|general_info|confirm_booking", 
+                "details": {
+                  "duration": 30,
+                  "date": "2024-01-15",
+                  "time": "14:00",
+                  "title": "Meeting title",
+                  "attendee_email": "email@example.com"
+                },
+                "message": "Response to user"
+              }`
+            }
+          ]
+        }
+      ]
+    };
+
+    // ✅ FIXED: Call AI without manual usage tracking (middleware handles it)
+    const response = await callGeminiWithRetry(requestBody);
+    
+    // ✅ FIXED: Proper syntax for error
+    if (!response.ok) {
+      throw new Error(`Gemini API failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!aiText) {
+      throw new Error('No response from Gemini API');
+    }
+
+    console.log('🧠 AI response:', aiText);
+
+    // ✅ INCREMENT usage ONCE (since middleware already checked limits)
+    await incrementAIUsage(userId);
+
+    // ✅ Use middleware usage data
+    const usageData = req.aiUsage || { used: 1, limit: 10 };
+
+    // ✅ CLEAN JSON PARSING
+    let parsedIntent;
+    try {
+      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return res.json({
+          type: 'error',
+          message: 'I had trouble understanding that. Could you rephrase?',
+          usage: usageData
+        });
+      }
+      parsedIntent = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      console.error('Failed to parse AI JSON:', e.message);
+      return res.json({
+        type: 'error',
+        message: 'I had trouble understanding that. Could you rephrase?',
+        usage: usageData
+      });
+    }
+
+    console.log('🎯 Parsed intent:', parsedIntent);
+
+    // Validate parsed intent
+    if (!parsedIntent.type || !parsedIntent.message) {
+      return res.json({
+        type: 'error',
+        message: 'I had trouble processing that. Could you try again?',
+        usage: usageData
+      });
+    }
+
+    // ✅ EMAIL VALIDATION for scheduling requests
+    if (parsedIntent.type === 'schedule' && parsedIntent.details?.attendee_email) {
+      if (!validateEmail(parsedIntent.details.attendee_email)) {
+        return res.json({
+          type: 'error',
+          message: 'Please provide a valid email address for the meeting attendee.',
+          usage: usageData
+        });
+      }
+    }
+
+  
+
+    // Check if message contains pending booking context
+    let pendingBookingContext = null;
+    let cleanMessage = message;
+    
+    const pendingMatch = message.match(/\[Current pending booking: "([^"]+)" on (\S+) at (\S+) for (\d+) minutes with (\S+)\]/);
+    if (pendingMatch) {
+      pendingBookingContext = {
+        title: pendingMatch[1],
+        date: pendingMatch[2],
+        time: pendingMatch[3],
+        duration: parseInt(pendingMatch[4]),
+        attendee_email: pendingMatch[5]
+      };
+      cleanMessage = message.replace(/\[Current pending booking:.*?\]\s*User says:\s*/i, '').trim();
       console.log('?? Pending booking detected:', pendingBookingContext);
     }
+
+
 
     // Get user's teams and bookings for context
     const teamsResult = await pool.query(
@@ -7915,40 +8120,33 @@ User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
 
     const aiText = geminiData.candidates[0].content.parts[0].text;
     
-    // Parse JSON response
-    let parsedIntent;
-    try {
-      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return res.json({
-          type: 'error',
-          message: 'I had trouble understanding that. Could you rephrase?',
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      }
-      parsedIntent = JSON.parse(jsonMatch[0]);
-    } catch (e) {
-      console.error('Failed to parse AI JSON:', e.message);
-      return res.json({
-        type: 'error',
-        message: 'I had trouble understanding that. Could you rephrase?',
-        usage: {
-          ai_queries_used: usageResult.ai_queries_used,
-          ai_queries_limit: usageResult.ai_queries_limit
-        }
-      });
-    }
+   // Parse JSON response
+let parsedIntent;
+try {
+  const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    return res.json({
+      type: 'error',
+      message: 'I had trouble understanding that. Could you rephrase?',
+      usage: req.aiUsage || { used: 0, limit: 10 }
+    });
+  }
+  parsedIntent = JSON.parse(jsonMatch[0]);
+} catch (e) {
+  console.error('Failed to parse AI JSON:', e.message);
+  return res.json({
+    type: 'error',
+    message: 'I had trouble understanding that. Could you rephrase?',
+    usage: req.aiUsage || { used: 0, limit: 10 }
+  });
+}
 
-    console.log('?? Parsed intent:', parsedIntent);
-
+console.log('🎯 Parsed intent:', parsedIntent);
     // ============ HANDLE HELP/CLARIFY INTENT ============
     if (parsedIntent.intent === 'clarify' || cleanMessage.toLowerCase().includes('help') || cleanMessage.toLowerCase().includes('what can you do')) {
       return res.json({
         type: 'help',
-        message: `I can help with:\n\n?? **Meeting scheduling**\n� "Schedule with client@company.com tomorrow at 2pm"\n� "Find available times this week"\n� "Show my bookings"\n\n?? **Professional emails**\n� "Send reminder to someone@email.com"\n� "Send thank you to client@company.com"\n� "Send confirmation to team@startup.com"\n\n?? Try any of these commands!`,
+        message: `I can help with:\n\n?? **Meeting scheduling**\n• "Schedule with client@company.com tomorrow at 2pm"\n• "Find available times this week"\n• "Show my bookings"\n\n?? **Professional emails**\n• "Send reminder to someone@email.com"\n• "Send thank you to client@company.com"\n• "Send confirmation to team@startup.com"\n\n?? Try any of these commands!`,
         usage: {
           ai_queries_used: usageResult.ai_queries_used,
           ai_queries_limit: usageResult.ai_queries_limit
@@ -7975,7 +8173,7 @@ if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
   if (!type || !validTypes.includes(type)) {
     return res.json({
       type: 'clarify',
-      message: `?? What type of email would you like to send to ${recipient}?\n\nAvailable types:\n� Reminder\n� Confirmation\n� Follow-up\n� Cancellation\n\nExample: "Send reminder to ${recipient}"`,
+      message: `?? What type of email would you like to send to ${recipient}?\n\nAvailable types:\n• Reminder\n• Confirmation\n• Follow-up\n• Cancellation\n\nExample: "Send reminder to ${recipient}"`,
       usage: usageData
     });
   }
@@ -7999,7 +8197,7 @@ if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
     }
 
     const templateList = templatesResult.rows.map(t => 
-      `� ${t.name} (${t.type})`
+      `• ${t.name} (${t.type})`
     ).join('\n');
 
     return res.json({
@@ -8261,7 +8459,7 @@ if (parsedIntent.intent === 'get_member_link') {
       }
 
       const memberList = allMembersResult.rows.map(m => 
-        `� ${m.user_name || m.name} (${m.team_name})`
+        `• ${m.user_name || m.name} (${m.team_name})`
       ).join('\n');
 
       return res.json({
@@ -8305,7 +8503,7 @@ if (parsedIntent.intent === 'get_member_link') {
       }
 
       const memberList = allMembersResult.rows.map(m => 
-        `� ${m.user_name || m.name} (${m.team_name})`
+        `• ${m.user_name || m.name} (${m.team_name})`
       ).join('\n');
 
       return res.json({
@@ -8448,7 +8646,7 @@ if (parsedIntent.intent === 'get_event_type') {
       }
 
       const eventList = allEventsResult.rows.map(e => 
-        `� ${e.title} (${e.duration} min) ${e.is_active ? '?' : '??'}`
+        `• ${e.title} (${e.duration} min) ${e.is_active ? '?' : '??'}`
       ).join('\n');
 
       return res.json({
@@ -8494,7 +8692,7 @@ if (parsedIntent.intent === 'get_event_type') {
       }
 
       const eventList = allEventsResult.rows.map(e => 
-        `� ${e.title} (${e.duration} min)`
+        `• ${e.title} (${e.duration} min)`
       ).join('\n');
 
       return res.json({
@@ -9042,7 +9240,7 @@ if (parsedIntent.intent === 'schedule_team_meeting') {
             hour12: true 
           });
           
-          return `${index + 1}?? ${dateStr} � ${timeStr}    (${slot.matchLabel})`;
+          return `${index + 1}?? ${dateStr} • ${timeStr}    (${slot.matchLabel})`;
         }).join('\n');
 
         return res.json({
