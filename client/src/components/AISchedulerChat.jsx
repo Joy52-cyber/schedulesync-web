@@ -612,78 +612,78 @@ What would you like to do?`;
 
         {!isMinimized && (
           <>
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50">
-             
-            
-            {/* ✅ FIXED: Only show usage warning for free users */}
-              {isUnlimited ? '∞ Unlimited' : `${Math.min(usage.ai_queries_used, usage.ai_queries_limit)}/${usage.ai_queries_limit}${usage.ai_queries_used > usage.ai_queries_limit ? '+' : ''}`}
-            <div className={`rounded-lg p-4 mb-4 ${
-    usage.ai_queries_used >= usage.ai_queries_limit
-      ? 'bg-red-50 border-2 border-red-300'
-      : 'bg-yellow-50 border border-yellow-200'
-  }`}>
-    <div className="flex items-start gap-3">
-      <div className={`p-2 rounded-full ${
-        usage.ai_queries_used >= usage.ai_queries_limit
-          ? 'bg-red-100'
-          : 'bg-yellow-100'
-      }`}>
-        <Zap className={`h-5 w-5 ${
+           {/* Messages */}
+<div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50">
+  
+  {/* Usage warning - ONLY show for free users */}
+  {!isUnlimited && (
+    <div className={`rounded-lg p-4 mb-4 ${
+      usage.ai_queries_used >= usage.ai_queries_limit
+        ? 'bg-red-50 border-2 border-red-300'
+        : 'bg-yellow-50 border border-yellow-200'
+    }`}>
+      <div className="flex items-start gap-3">
+        <div className={`p-2 rounded-full ${
           usage.ai_queries_used >= usage.ai_queries_limit
-            ? 'text-red-600'
-            : 'text-yellow-600'
-        }`} />
-      </div>
-      
-      <div className="flex-1">
-        <p className={`font-bold mb-2 ${
-          usage.ai_queries_used >= usage.ai_queries_limit
-            ? 'text-red-800 text-base'
-            : 'text-yellow-800 text-sm'
+            ? 'bg-red-100'
+            : 'bg-yellow-100'
         }`}>
-          {usage.ai_queries_used >= usage.ai_queries_limit
-  ? `🚫 AI Query Limit Reached (${Math.min(usage.ai_queries_used, usage.ai_queries_limit)}/${usage.ai_queries_limit}${usage.ai_queries_used > usage.ai_queries_limit ? '+' : ''})`
-  : `⚠️ Only ${usage.ai_queries_limit - usage.ai_queries_used} AI query remaining!`
-}
-        </p>
-        {usage.ai_queries_used >= usage.ai_queries_limit ? (
-          <div className="space-y-2">
-            <p className="text-sm text-red-700">
-              You've used all your free AI queries this month. To continue:
-            </p>
-            <div className="bg-white rounded-lg p-3 border border-red-200 space-y-2">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-2xl">⚡</span>
-                <div>
-                  <p className="font-semibold text-red-900">Upgrade to Pro - $12/month</p>
-                  <p className="text-xs text-red-700">Get unlimited AI queries instantly</p>
-                </div>
-              </div>
-              <button
-               onClick={() => window.location.href ='/billing'}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-2 px-4 rounded-lg font-semibold text-sm transition-all"
-              >
-                Upgrade Now - Unlock Unlimited
-              </button>
-            </div>
-            <p className="text-xs text-red-600 mt-2">
-              💡 Or wait until next month when your limit resets
-            </p>
-          </div>
-        ) : (
-          <p className="text-xs text-yellow-700">
-            Upgrade to Pro for unlimited AI queries!
+          <Zap className={`h-5 w-5 ${
+            usage.ai_queries_used >= usage.ai_queries_limit
+              ? 'text-red-600'
+              : 'text-yellow-600'
+          }`} />
+        </div>
+        
+        <div className="flex-1">
+          <p className={`font-bold mb-2 ${
+            usage.ai_queries_used >= usage.ai_queries_limit
+              ? 'text-red-800 text-base'
+              : 'text-yellow-800 text-sm'
+          }`}>
+            {usage.ai_queries_used >= usage.ai_queries_limit
+              ? `🚫 AI Query Limit Reached (${usage.ai_queries_used}/${usage.ai_queries_limit})`
+              : `⚠️ Only ${usage.ai_queries_limit - usage.ai_queries_used} AI queries remaining!`
+            }
           </p>
-        )}
+          {usage.ai_queries_used >= usage.ai_queries_limit ? (
+            <div className="space-y-2">
+              <p className="text-sm text-red-700">
+                You've used all your free AI queries this month. To continue:
+              </p>
+              <div className="bg-white rounded-lg p-3 border border-red-200 space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-2xl">⚡</span>
+                  <div>
+                    <p className="font-semibold text-red-900">Upgrade to Pro - $12/month</p>
+                    <p className="text-xs text-red-700">Get unlimited AI queries instantly</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => window.location.href = '/billing'}
+                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-2 px-4 rounded-lg font-semibold text-sm transition-all"
+                >
+                  Upgrade Now - Unlock Unlimited
+                </button>
+              </div>
+              <p className="text-xs text-red-600 mt-2">
+                💡 Or wait until next month when your limit resets
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-yellow-700">
+              Upgrade to Pro for unlimited AI queries!
+            </p>
+          )}
+        </div>
       </div>
     </div>
-  </div>
-)}
+  )}
 
-             {/* Suggestions grid - ONLY show if NOT at limit */}
-{chatHistory.length <= 1 && (!(!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)) && (
-  <div className="text-center py-4">
+  {/* Suggestions grid - ONLY show if NOT at limit */}
+  {chatHistory.length <= 1 && (isUnlimited || usage.ai_queries_used < usage.ai_queries_limit) && (
+    <div className="text-center py-4">
+      {/* ... rest of suggestions ... */}
     <p className="text-sm text-gray-500 mb-3">Try saying:</p>
     <div className="grid grid-cols-2 gap-2">
       {suggestions.map((suggestion, i) => (
