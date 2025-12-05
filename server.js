@@ -72,7 +72,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
 console.log('? AXIOS LOADED:', !!axios, 'Version:', axios.VERSION); // ADD THIS
-const { trackChatGptUsage, getCurrentUsage } = require('./middleware/usage-limits');
+const { trackChatGptUsage, getCurrentUsage } = require('./server/middleware/usage-limits');
 const subscriptionRoutes = require('./server/routes/subscription');
 const { 
   checkTeamAccess, 
