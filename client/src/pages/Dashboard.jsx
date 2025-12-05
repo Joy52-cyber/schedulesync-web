@@ -437,6 +437,8 @@ const currentTier = limitStatus?.tier || user?.subscription_tier || user?.tier |
       <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded font-medium">
         Almost full!
       </span>
+       )}
+  </>
                     )}
                   </div>
                   <div className="text-xl font-bold text-gray-900">
