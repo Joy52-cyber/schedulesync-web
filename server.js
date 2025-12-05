@@ -266,7 +266,7 @@ try {
     incrementAIUsage,
     incrementBookingUsage,
     checkFeatureAccess 
-  } = require('./middleware/featureGates');
+  } = require('./server/middleware/featureGates');
   console.log('✅ Feature gates loaded');
 } catch (e) {
   console.error('❌ Failed to load feature gates:', e.message);
