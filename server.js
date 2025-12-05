@@ -75,7 +75,7 @@ console.log('? AXIOS LOADED:', !!axios, 'Version:', axios.VERSION); // ADD THIS
 const { trackChatGptUsage, getCurrentUsage } = require('./middleware/usage-limits');
 const subscriptionRoutes = require('./server/routes/subscription');
 const { checkTeamAccess } = require('./middleware/featureGates');
-const { applyTierLimits, PLAN_LIMITS } = require('./middleware/featureGates');
+const { applyTierLimits, PLAN_LIMITS } = require('./server/middleware/featureGates');
 
 
 const app = express();
