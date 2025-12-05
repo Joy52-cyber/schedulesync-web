@@ -228,13 +228,13 @@ What would you like to do?`;
       console.log('📥 AI response received:', responseData);
 
       if (responseData.usage) {
-        console.log('✅ Updating usage state:', responseData.usage);
-        setUsage(prev => ({
-          ...prev,
-          ai_queries_used: responseData.usage.ai_queries_used,
-          ai_queries_limit: responseData.usage.ai_queries_limit
-        }));
-      }
+  console.log('✅ Updating usage state:', responseData.usage);
+  setUsage(prev => ({
+    ...prev,
+    ai_queries_used: responseData.usage.ai_queries_used,
+    ai_queries_limit: responseData.usage.ai_queries_limit
+  }));
+}
 
       if (responseData.type === 'update_pending' && responseData.data?.updatedBooking) {
         setPendingBooking(responseData.data.updatedBooking);
