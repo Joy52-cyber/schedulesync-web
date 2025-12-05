@@ -630,6 +630,7 @@ module.exports = {
   incrementMagicLinkUsage,
   applyTierLimits,
   resetMonthlyUsage,
+  checkAndResetIfNeeded,
   
   // API endpoint
   checkFeatureAccess,

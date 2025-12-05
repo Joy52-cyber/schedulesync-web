@@ -77,7 +77,8 @@ const subscriptionRoutes = require('./server/routes/subscription');
 const { 
   checkTeamAccess, 
   applyTierLimits, 
-  PLAN_LIMITS 
+  PLAN_LIMITS,
+  checkAndResetIfNeeded  // ← ADD THIS
 } = require('./server/middleware/featureGates');
 
 
