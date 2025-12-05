@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { SubscriptionProvider } from './hooks/useSubscription'; // ✅ ADD THIS
+import { UpgradeProvider } from './context/UpgradeContext';
 
 // Layouts
 import Layout from './components/Layout';
@@ -75,8 +76,9 @@ function InnerApp() {
   return (
     <AuthProvider>
       <NotificationProvider>
-        <SubscriptionProvider> {/* ✅ WRAP WITH THIS */}
-          <Routes>
+        <SubscriptionProvider>
+          <UpgradeProvider>  {/* ✅ ADD THIS */}
+            <Routes>
             {/* Marketing / Auth */}
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Landing defaultLoginOpen />} />
@@ -149,7 +151,8 @@ function InnerApp() {
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </SubscriptionProvider> {/* ✅ CLOSE IT */}
+          </UpgradeProvider>  {/* ✅ CLOSE IT */}
+        </SubscriptionProvider>
       </NotificationProvider>
     </AuthProvider>
   );

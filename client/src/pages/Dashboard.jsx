@@ -26,9 +26,9 @@ import api, {
 } from '../utils/api';
 import AISchedulerChat from '../components/AISchedulerChat';
 import { useNotification } from '../contexts/NotificationContext';
-import UsageWidget from '../components/UsageWidget';
-import TestWidget from '../components/TestWidget';
 import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal';
+import DashboardUsageWidget from '../components/DashboardUsageWidget';
+
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -45,7 +45,7 @@ export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   
-  // ✅ ADD: Limit status state
+  // Limit status state
   const [limitStatus, setLimitStatus] = useState({
     tier: 'free',
     current_bookings: 0,
@@ -67,7 +67,7 @@ export default function Dashboard() {
       loadDashboardData(),
       loadUserTimezone(),
       loadUserProfile(),
-      loadLimitStatus(), // ✅ ADD: Load limit status
+      loadLimitStatus(),
       checkChatGptStatus(),
     ]);
     setLoading(false);
@@ -85,55 +85,44 @@ export default function Dashboard() {
   };
 
   const loadUserTimezone = async () => {
-  try {
-    const response = await timezoneApi.get();
-    console.log('🌍 RAW response:', response);
-    console.log('🌍 response.data type:', typeof response.data);
-    console.log('🌍 response.data:', response.data);
-    
-    // Try to extract timezone
-    let tz = '';
-    
-    // If response.data is a string like '{"timezone":"America/Los_Angeles"}'
-    if (typeof response.data === 'string') {
-      try {
-        const parsed = JSON.parse(response.data);
-        tz = parsed.timezone || response.data;
-      } catch {
-        tz = response.data;
+    try {
+      const response = await timezoneApi.get();
+      let tz = '';
+      
+      if (typeof response.data === 'string') {
+        try {
+          const parsed = JSON.parse(response.data);
+          tz = parsed.timezone || response.data;
+        } catch {
+          tz = response.data;
+        }
+      } else if (response.data && typeof response.data === 'object') {
+        tz = response.data.timezone || '';
       }
-    } 
-    // If response.data is already an object
-    else if (response.data && typeof response.data === 'object') {
-      tz = response.data.timezone || '';
+      
+      setTimezone(tz);
+    } catch (error) {
+      console.error('Timezone load error:', error);
+      setTimezone('America/Los_Angeles');
     }
-    
-    console.log('🌍 Final timezone:', tz);
-    setTimezone(tz);
-  } catch (error) {
-    console.error('Timezone load error:', error);
-    setTimezone('America/Los_Angeles');
-  }
-};
+  };
 
   const loadUserProfile = async () => {
     try {
-      // Load user profile
       const response = await auth.me();
       const u = response.data.user || null;
       setUser(u);
       
-      // ✅ ADD: Load fresh usage data separately  
       const usageResponse = await api.user.usage();
       setUser(prevUser => ({
         ...prevUser,
         usage: {
           ai_queries_used: usageResponse.data.ai_queries_used,
           ai_queries_limit: usageResponse.data.ai_queries_limit,
-          chatgpt_used: usageResponse.data.ai_queries_used, // For compatibility
-          chatgpt_limit: usageResponse.data.ai_queries_limit, // For compatibility
-          chatgpt_queries_used: usageResponse.data.ai_queries_used, // For compatibility
-          chatgpt_queries_limit: usageResponse.data.ai_queries_limit // For compatibility
+          chatgpt_used: usageResponse.data.ai_queries_used,
+          chatgpt_limit: usageResponse.data.ai_queries_limit,
+          chatgpt_queries_used: usageResponse.data.ai_queries_used,
+          chatgpt_queries_limit: usageResponse.data.ai_queries_limit
         }
       }));
       
@@ -143,14 +132,12 @@ export default function Dashboard() {
     }
   };
 
-  // ✅ ADD: Load limit status
   const loadLimitStatus = async () => {
     try {
       const response = await api.user.limits();
       setLimitStatus(response.data);
     } catch (error) {
       console.error('Limit status load error:', error);
-      // Set fallback data if API fails
       setLimitStatus(prev => ({
         ...prev,
         current_bookings: stats.totalBookings,
@@ -158,7 +145,6 @@ export default function Dashboard() {
     }
   };
 
-  // Simple check if ChatGPT is configured
   const checkChatGptStatus = async () => {
     try {
       const response = await chatgptIntegration.getToken();
@@ -203,7 +189,7 @@ export default function Dashboard() {
     return colors[status] || colors.confirmed;
   };
 
-  // ✅ ADD: Critical warning banner component
+  // Critical warning banner component
   const LimitWarningBanner = () => {
     const { current_bookings, limits, status, tier } = limitStatus;
     
@@ -277,14 +263,9 @@ export default function Dashboard() {
     { label: 'Active Teams', value: stats.activeTeams, icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
-  // Helper to determine current tier and usage
-  // ✅ Better tier detection
-const currentTier = limitStatus?.tier || user?.subscription_tier || user?.tier || 'free';
-  const usage = user?.usage || { ai_queries_used: 0, ai_queries_limit: 10 }; // ✅ Updated default limit
+  const currentTier = limitStatus?.tier || user?.subscription_tier || user?.tier || 'free';
+  const usage = user?.usage || { ai_queries_used: 0, ai_queries_limit: 10 };
   const bookingCount = limitStatus?.current_bookings || stats.totalBookings;
-  
-  // ✅ UPDATED LIMITS (Better Strategy)
-  const bookingLimit = currentTier === 'free' ? 50 : currentTier === 'pro' ? 999999 : 999999; // 50 for free, unlimited for paid
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30">
@@ -329,39 +310,6 @@ const currentTier = limitStatus?.tier || user?.subscription_tier || user?.tier |
                   Setup ChatGPT
                 </button>
               )}
-              
-              {/* Enhanced Usage Indicator */}
-              {currentTier !== 'team' && currentTier !== 'pro' && (
-                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
-                  limitStatus.status?.inGracePeriod || limitStatus.status?.overGraceLimit
-                    ? 'bg-red-50 border-red-200'
-                    : limitStatus.status?.upgrade_recommended || (usage.ai_queries_used >= usage.ai_queries_limit - 2)
-                      ? 'bg-orange-50 border-orange-200' 
-                      : 'bg-purple-50 border-purple-200'
-                }`}>
-                  <span className={`text-sm font-medium ${
-                    limitStatus.status?.inGracePeriod || limitStatus.status?.overGraceLimit
-                      ? 'text-red-700'
-                      : limitStatus.status?.upgrade_recommended || (usage.ai_queries_used >= usage.ai_queries_limit - 2)
-                        ? 'text-orange-700'
-                        : 'text-purple-700'
-                  }`}>
-                    {Math.min(usage.ai_queries_used || 0, usage.ai_queries_limit || 10)}/{usage.ai_queries_limit || 10}{(usage.ai_queries_used || 0) > (usage.ai_queries_limit || 10) ? '+' : ''} AI queries
-                  </span>
-                  {((usage.ai_queries_used || 0) >= (usage.ai_queries_limit || 10) - 2 || limitStatus.status?.upgrade_recommended) && (
-                    <button 
-                      onClick={() => navigate('/billing')}
-                      className={`text-xs px-2 py-1 rounded-lg font-semibold transition-colors ${
-                        limitStatus.status?.inGracePeriod || limitStatus.status?.overGraceLimit
-                          ? 'bg-red-600 text-white hover:bg-red-700'
-                          : 'bg-purple-600 text-white hover:bg-purple-700'
-                      }`}
-                    >
-                      {limitStatus.status?.inGracePeriod || limitStatus.status?.overGraceLimit ? 'Restore' : 'Upgrade'}
-                    </button>
-                  )}
-                </div>
-              )}
 
               {/* Billing Link for Paid Users */}
               {(currentTier === 'pro' || currentTier === 'team') && (
@@ -382,212 +330,11 @@ const currentTier = limitStatus?.tier || user?.subscription_tier || user?.tier |
         <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8">
           <div className="space-y-6">
             
-            {/* ✅ ADD: Critical warning banner */}
+            {/* Critical warning banner */}
             <LimitWarningBanner />
             
-            {/* Enhanced Usage Section with Updated Limits */}
-            <div className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-purple-200 rounded-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900 text-lg flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-purple-600" />
-                  📊 Usage This Month
-                </h3>
-                {currentTier !== 'team' && (
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    limitStatus.status?.overGraceLimit || limitStatus.status?.hardBlocked
-                      ? 'bg-red-100 text-red-700'
-                      : limitStatus.status?.inGracePeriod 
-                        ? 'bg-orange-100 text-orange-700'
-                        : currentTier === 'free' 
-                          ? 'bg-purple-100 text-purple-700' 
-                          : 'bg-green-100 text-green-700'
-                  }`}>
-                    {currentTier === 'free' ? 'Free Plan' : currentTier === 'pro' ? 'Pro Plan' : 'Team Plan'}
-                    {limitStatus.status?.inGracePeriod && ' - Grace Period'}
-                    {(limitStatus.status?.overGraceLimit || limitStatus.status?.hardBlocked) && ' - Limited'}
-                  </span>
-                )}
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* AI Queries with Enhanced Status */}
-                <div className={`bg-white rounded-lg p-4 border-2 ${
-                  limitStatus.status?.inGracePeriod || limitStatus.status?.overGraceLimit
-                    ? 'border-red-300 bg-red-50'
-                    : 'border-gray-200'
-                }`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600 flex items-center gap-2">
-                      <Bot className="h-4 w-4" />
-                      🤖 AI Queries
-                    </span>
-                    {limitStatus.status?.inGracePeriod && (
-                      <span className="text-xs text-red-600 bg-red-100 px-2 py-1 rounded font-medium">
-                        DISABLED
-                      </span>
-                    )}
-                    {currentTier === 'free' && !limitStatus.status?.inGracePeriod && (
-  <>
-    {usage.ai_queries_used >= usage.ai_queries_limit && (
-      <span className="text-xs text-red-600 bg-red-100 px-2 py-1 rounded font-medium">
-        Limit reached!
-      </span>
-    )}
-    {usage.ai_queries_used >= (usage.ai_queries_limit - 2) && usage.ai_queries_used < usage.ai_queries_limit && (
-      <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded font-medium">
-        Almost full!
-      </span>
-       )}
-  </>
-                    )}
-                  </div>
-                  <div className="text-xl font-bold text-gray-900">
-                    {currentTier === 'team' || currentTier === 'pro' 
-                      ? '∞ Unlimited' 
-                      : `${usage.ai_queries_used || 0}/${usage.ai_queries_limit || 10}`} {/* ✅ Updated default */}
-                  </div>
-                  {currentTier !== 'team' && currentTier !== 'pro' && (
-                    <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all ${
-                          limitStatus.status?.inGracePeriod ? 'bg-red-500' : 'bg-purple-600'
-                        }`}
-                        style={{width: `${Math.min(100, ((usage.ai_queries_used || 0) / (usage.ai_queries_limit || 10)) * 100)}%`}}
-                      />
-                    </div>
-                  )}
-                  {limitStatus.status?.inGracePeriod && (
-                    <p className="text-xs text-red-600 mt-1 font-medium">
-                      AI disabled due to booking limit exceeded
-                    </p>
-                  )}
-                </div>
-
-                {/* Bookings with Enhanced Status */}
-                <div className={`bg-white rounded-lg p-4 border-2 ${
-                  limitStatus.status?.overGraceLimit || limitStatus.status?.hardBlocked
-                    ? 'border-red-300 bg-red-50'
-                    : limitStatus.status?.inGracePeriod 
-                      ? 'border-orange-300 bg-orange-50'
-                      : 'border-gray-200'
-                }`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600 flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      📅 Bookings
-                    </span>
-                    {limitStatus.status?.overGraceLimit && (
-                      <span className="text-xs text-red-700 bg-red-200 px-2 py-1 rounded font-bold">
-                        BLOCKED
-                      </span>
-                    )}
-                    {limitStatus.status?.inGracePeriod && (
-                      <span className="text-xs text-orange-700 bg-orange-200 px-2 py-1 rounded font-medium">
-                        OVER LIMIT
-                      </span>
-                    )}
-                  </div>
-                  
-                  <div className="text-xl font-bold text-gray-900 mb-1">
-                    {currentTier === 'team' || currentTier === 'pro' 
-                      ? '∞ Unlimited' 
-                      : `${bookingCount}/${
-                        limitStatus.status?.inGracePeriod || limitStatus.status?.overGraceLimit 
-                          ? limitStatus.limits?.grace || 60
-                          : limitStatus.limits?.soft || 50
-                      }`} {/* ✅ Updated limits */}
-                  </div>
-                  
-                  {/* Enhanced Progress Bar */}
-                  {currentTier !== 'team' && currentTier !== 'pro' && (
-                    <div className="space-y-1">
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className={`h-2 rounded-full transition-all ${
-                            limitStatus.status?.overGraceLimit || limitStatus.status?.hardBlocked
-                              ? 'bg-red-600'
-                              : limitStatus.status?.inGracePeriod 
-                                ? 'bg-orange-500'
-                                : bookingCount >= (limitStatus.limits?.soft || 50) * 0.8
-                                  ? 'bg-yellow-500'
-                                  : 'bg-blue-600'
-                          }`}
-                          style={{width: `${Math.min(100, (bookingCount / (
-                            limitStatus.status?.inGracePeriod || limitStatus.status?.overGraceLimit 
-                              ? limitStatus.limits?.grace || 60
-                              : limitStatus.limits?.soft || 50
-                          )) * 100)}%`}}
-                        />
-                      </div>
-                      
-                      {/* Status Text */}
-                      {limitStatus.status?.overGraceLimit && (
-                        <p className="text-xs text-red-700 font-bold">
-                          Account limited - New bookings blocked
-                        </p>
-                      )}
-                      {limitStatus.status?.inGracePeriod && (
-                        <p className="text-xs text-orange-700 font-medium">
-                          Grace period - {(limitStatus.limits?.grace || 60) - bookingCount} remaining before suspension
-                        </p>
-                      )}
-                      {bookingCount >= (limitStatus.limits?.soft || 50) * 0.8 && limitStatus.status?.withinLimit && (
-                        <p className="text-xs text-yellow-700 font-medium">
-                          Approaching limit - Consider upgrading
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Enhanced Upgrade CTA */}
-              {currentTier !== 'team' && currentTier !== 'pro' && (limitStatus.status?.upgrade_recommended || usage.ai_queries_used >= (usage.ai_queries_limit - 3) || bookingCount >= (limitStatus.limits?.soft || 50) * 0.8) && (
-                <div className={`mt-4 rounded-lg p-4 text-white ${
-                  limitStatus.status?.overGraceLimit || limitStatus.status?.hardBlocked
-                    ? 'bg-gradient-to-r from-red-600 to-red-700'
-                    : limitStatus.status?.inGracePeriod
-                      ? 'bg-gradient-to-r from-orange-600 to-red-600'
-                      : 'bg-gradient-to-r from-purple-600 to-pink-600'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold flex items-center gap-2">
-                        {limitStatus.status?.overGraceLimit || limitStatus.status?.hardBlocked ? (
-                          <>🚨 Immediate Upgrade Required</>
-                        ) : limitStatus.status?.inGracePeriod ? (
-                          <>⚠️ Upgrade to Restore Features</>
-                        ) : (
-                          <>⚡ Upgrade Recommended</>
-                        )}
-                      </p>
-                      <p className="text-sm opacity-90">
-                        {limitStatus.status?.overGraceLimit || limitStatus.status?.hardBlocked
-                          ? 'Your account is suspended. Upgrade to restore access.'
-                          : limitStatus.status?.inGracePeriod 
-                            ? 'You\'re in grace period. Upgrade to restore AI + get unlimited bookings.'
-                            : 'Get unlimited AI queries + unlimited bookings with Pro plan for just $12/month.'
-                        }
-                      </p>
-                    </div>
-                    <button 
-                      onClick={() => navigate('/billing')}
-                      className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-                        limitStatus.status?.overGraceLimit || limitStatus.status?.hardBlocked
-                          ? 'bg-white text-red-600 hover:bg-red-50'
-                          : 'bg-white text-purple-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      {limitStatus.status?.overGraceLimit || limitStatus.status?.hardBlocked 
-                        ? '🚨 Restore Access' 
-                        : limitStatus.status?.inGracePeriod 
-                          ? '⚡ Restore Features'
-                          : '⚡ Upgrade - $12/mo'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* ✅ NEW: Clean Usage Widget */}
+            <DashboardUsageWidget />
 
             {/* Upgrade Card for Free Users (Only show if not in critical state) */}
             {currentTier === 'free' && !limitStatus.status?.inGracePeriod && !limitStatus.status?.overGraceLimit && (
@@ -642,20 +389,20 @@ const currentTier = limitStatus?.tier || user?.subscription_tier || user?.tier |
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">Your Timezone</h3>
-                 <p className="text-sm text-gray-600">
-  {(() => {
-    let tz = timezone;
-    if (typeof tz === 'string' && tz.includes('{')) {
-      try {
-        const parsed = JSON.parse(tz);
-        tz = parsed.timezone;
-      } catch {}
-    } else if (tz && typeof tz === 'object' && tz.timezone) {
-      tz = tz.timezone;
-    }
-    return getTimezoneName(tz);
-  })()}
-</p>
+                  <p className="text-sm text-gray-600">
+                    {(() => {
+                      let tz = timezone;
+                      if (typeof tz === 'string' && tz.includes('{')) {
+                        try {
+                          const parsed = JSON.parse(tz);
+                          tz = parsed.timezone;
+                        } catch {}
+                      } else if (tz && typeof tz === 'object' && tz.timezone) {
+                        tz = tz.timezone;
+                      }
+                      return getTimezoneName(tz);
+                    })()}
+                  </p>
                 </div>
               </div>
               <button
@@ -764,7 +511,7 @@ const currentTier = limitStatus?.tier || user?.subscription_tier || user?.tier |
         </div>
       </main>
 
-      {/* ✅ Subscription Upgrade Modal */}
+      {/* Subscription Upgrade Modal */}
       <SubscriptionUpgradeModal
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}

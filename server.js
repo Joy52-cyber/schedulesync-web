@@ -74,6 +74,9 @@ const axios = require('axios');
 console.log('? AXIOS LOADED:', !!axios, 'Version:', axios.VERSION); // ADD THIS
 const { trackChatGptUsage, getCurrentUsage } = require('./middleware/usage-limits');
 const subscriptionRoutes = require('./server/routes/subscription');
+const { checkTeamAccess } = require('./middleware/featureGates');
+const { applyTierLimits, PLAN_LIMITS } = require('./middleware/featureGates');
+
 
 const app = express();
 app.use('/api/user', subscriptionRoutes);
@@ -441,6 +444,10 @@ async function createMicrosoftCalendarEvent(accessToken, refreshToken, eventData
 // ============ MIDDLEWARE ============
 
 app.use(cors());
+
+// ✅ Stripe webhook MUST be before express.json()
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 
 
@@ -1323,7 +1330,6 @@ app.get('/api/public/available-slots', async (req, res) => {
 
 // ============ PUBLIC BOOKING CREATION ENDPOINT ============
 // Add this to server.js after the /api/public/booking/:username/:eventSlug endpoint
-
 app.post('/api/public/booking/create', async (req, res) => {
   try {
     const {
@@ -1338,11 +1344,12 @@ app.post('/api/public/booking/create', async (req, res) => {
       guest_timezone
     } = req.body;
 
-    console.log('?? Creating public event type booking:', { username, event_slug, attendee_email });
+    console.log('📅 Creating public event type booking:', { username, event_slug, attendee_email });
 
     // Find user by username
     const userResult = await pool.query(
-      `SELECT id, name, email, username, google_access_token, microsoft_access_token 
+      `SELECT id, name, email, username, google_access_token, microsoft_access_token,
+              subscription_tier, monthly_bookings, bookings_limit
        FROM users 
        WHERE LOWER(username) = LOWER($1) 
           OR LOWER(email) LIKE LOWER($2)
@@ -1355,6 +1362,21 @@ app.post('/api/public/booking/create', async (req, res) => {
     }
 
     const host = userResult.rows[0];
+
+    // ✅ CHECK HOST'S BOOKING LIMIT
+    const tier = host.subscription_tier || 'free';
+    const bookingsUsed = host.monthly_bookings || 0;
+    const bookingsLimit = host.bookings_limit || 50;
+    const isUnlimited = bookingsLimit >= 1000;
+
+    if (!isUnlimited && bookingsUsed >= bookingsLimit) {
+      console.log(`🚫 Booking limit reached for host ${host.id}: ${bookingsUsed}/${bookingsLimit}`);
+      return res.status(429).json({
+        error: 'Host booking limit reached',
+        message: 'This user has reached their monthly booking limit. Please try again later or contact them directly.',
+        upgrade_required: true
+      });
+    }
 
     // Find event type
     const eventResult = await pool.query(
@@ -1407,6 +1429,13 @@ app.post('/api/public/booking/create', async (req, res) => {
 
     const booking = bookingResult.rows[0];
 
+    // ✅ INCREMENT HOST'S BOOKING COUNT
+    await pool.query(
+      'UPDATE users SET monthly_bookings = COALESCE(monthly_bookings, 0) + 1 WHERE id = $1',
+      [host.id]
+    );
+    console.log(`📊 Booking count incremented for host ${host.id}: ${bookingsUsed + 1}/${bookingsLimit}`);
+
     // Store additional attendees if provided
     if (additional_attendees && additional_attendees.length > 0) {
       for (const email of additional_attendees) {
@@ -1418,7 +1447,8 @@ app.post('/api/public/booking/create', async (req, res) => {
       }
     }
 
-    console.log('? Public booking created:', booking.id);
+    console.log('✅ Public booking created:', booking.id);
+
 
     // ========== RESPOND IMMEDIATELY ==========
     res.json({
@@ -3601,7 +3631,7 @@ app.post('/api/import/calendly', authenticateToken, async (req, res) => {
 
 
 // Get all teams for current user
-app.get('/api/teams', authenticateToken, async (req, res) => {
+app.get('/api/teams', authenticateToken, checkTeamAccess, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT 
@@ -3648,7 +3678,7 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
    
 
 // Get single team
-app.get('/api/teams/:id', authenticateToken, async (req, res) => {
+app.get('/api/teams/:id', authenticateToken, checkTeamAccess, async (req, res) => {
   try {
     const teamId = parseInt(req.params.id);
     const userId = req.user.id;
@@ -3670,7 +3700,7 @@ app.get('/api/teams/:id', authenticateToken, async (req, res) => {
 });
 
 // Update team settings
-app.put('/api/teams/:id', authenticateToken, async (req, res) => {
+app.put('/api/teams/:id', authenticateToken, checkTeamAccess,  async (req, res) => {
   try {
     const teamId = parseInt(req.params.id);
     const userId = req.user.id;
@@ -3716,7 +3746,7 @@ app.put('/api/teams/:id', authenticateToken, async (req, res) => {
 
 
 // Create new team
-app.post('/api/teams', authenticateToken, async (req, res) => {
+app.post('/api/teams', authenticateToken, checkTeamAccess, async (req, res) => {
   try {
     const { name, description, booking_mode } = req.body;
     const userId = req.user.id;
@@ -5616,8 +5646,10 @@ app.get('/api/event-types', authenticateToken, async (req, res) => {
   }
 });
 
+const { checkEventTypeLimit } = require('./middleware/featureGates');
+
 // 2. Create a new event type
-app.post('/api/event-types', authenticateToken, async (req, res) => {
+app.post('/api/event-types', authenticateToken, checkEventTypeLimit, async (req, res) => {
   try {
     const { title, duration, description, color, slug } = req.body;
     
@@ -5631,11 +5663,24 @@ app.post('/api/event-types', authenticateToken, async (req, res) => {
       [req.user.id, title, finalSlug, duration || 30, description, color || 'blue']
     );
 
-    res.json({ eventType: result.rows[0], message: 'Event type created successfully' });
+    // ✅ Return usage info so frontend can update
+    const countResult = await pool.query(
+      'SELECT COUNT(*) as count FROM event_types WHERE user_id = $1',
+      [req.user.id]
+    );
+    
+    res.json({ 
+      eventType: result.rows[0], 
+      message: 'Event type created successfully',
+      usage: {
+        event_types_used: parseInt(countResult.rows[0].count),
+        event_types_limit: req.eventTypeUsage?.limit || 2
+      }
+    });
   } catch (error) {
     console.error('Create event type error:', error);
-    if (error.code === '23505') { // Unique violation
-        return res.status(400).json({ error: 'An event with this URL slug already exists.' });
+    if (error.code === '23505') {
+      return res.status(400).json({ error: 'An event with this URL slug already exists.' });
     }
     res.status(500).json({ error: 'Failed to create event type' });
   }
@@ -8490,9 +8535,34 @@ ${member.team_name}`,
         }
       }
 
-      // ============ HANDLE GET/CREATE MAGIC LINK ============
-      if (parsedIntent.intent === 'get_magic_link') {
+       // ============ HANDLE GET/CREATE MAGIC LINK ============
+if (parsedIntent.intent === 'get_magic_link') {
   try {
+    // ✅ CHECK MAGIC LINK LIMIT FIRST
+    const limitResult = await pool.query(
+      'SELECT subscription_tier, magic_links_used, magic_links_limit FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    const userLimits = limitResult.rows[0];
+    const tier = userLimits?.subscription_tier || 'free';
+    const magicLinksUsed = userLimits?.magic_links_used || 0;
+    const magicLinksLimit = userLimits?.magic_links_limit || 3;
+    const isUnlimited = magicLinksLimit >= 1000;
+    
+    if (!isUnlimited && magicLinksUsed >= magicLinksLimit) {
+      return res.json({
+        type: 'error',
+        message: `🚫 You've used all ${magicLinksLimit} magic links this month. Upgrade to Pro for unlimited magic links!`,
+        data: {
+          upgrade_required: true,
+          feature: 'magic_links',
+          usage: { used: magicLinksUsed, limit: magicLinksLimit }
+        },
+        usage: usageData
+      });
+    }
+
     const linkName = parsedIntent.extracted?.link_name || 'Quick Meeting';
     
     // Create magic link token
@@ -8506,9 +8576,8 @@ ${member.team_name}`,
       `SELECT id FROM event_types WHERE user_id = $1 LIMIT 1`,
       [userId]
     );
-
+    
     if (eventTypeResult.rows.length === 0) {
-      // Create default event type if none exists
       console.log('📝 No event types found, creating default event type for user:', userId);
       const newEventType = await pool.query(
         `INSERT INTO event_types (user_id, name, duration, description, color)
@@ -8523,19 +8592,26 @@ ${member.team_name}`,
       console.log('✅ Using existing event type:', eventTypeId);
     }
     
-    // Insert into magic_links using correct columns
+    // Insert into magic_links
     await pool.query(
       `INSERT INTO magic_links (token, created_by_user_id, event_type_id, expires_at, is_active, is_used, created_at)
        VALUES ($1, $2, $3, $4, true, false, NOW())`,
       [magicToken, userId, eventTypeId, expiresAt]
     );
     
+    // ✅ INCREMENT MAGIC LINK USAGE
+    await pool.query(
+      'UPDATE users SET magic_links_used = COALESCE(magic_links_used, 0) + 1 WHERE id = $1',
+      [userId]
+    );
+    console.log(`📊 Magic link usage incremented for user ${userId}: ${magicLinksUsed + 1}/${magicLinksLimit}`);
+    
     const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
     const magicUrl = `${baseUrl}/m/${magicToken}`;
     
     return res.json({
       type: 'link',
-      message: `✨ Magic link created for "${linkName}"!\n\n🔗 ${magicUrl}\n📅 Expires: ${expiresAt.toLocaleDateString()}\n🎯 Single-use: Yes`,
+      message: `✨ Magic link created for "${linkName}"!\n\n🔗 ${magicUrl}\n📅 Expires: ${expiresAt.toLocaleDateString()}\n🎯 Single-use: Yes\n\n📊 Magic links used: ${magicLinksUsed + 1}/${isUnlimited ? '∞' : magicLinksLimit}`,
       data: {
         url: magicUrl,
         token: magicToken,
@@ -10521,8 +10597,20 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
+    // Check and reset if needed
+    await checkAndResetIfNeeded(userId);
+    
     const result = await pool.query(
-      'SELECT ai_queries_used, ai_queries_limit FROM users WHERE id = $1',
+      `SELECT 
+        subscription_tier,
+        ai_queries_used,
+        ai_queries_limit,
+        monthly_bookings,
+        bookings_limit,
+        magic_links_used,
+        magic_links_limit,
+        event_types_limit
+       FROM users WHERE id = $1`,
       [userId]
     );
     
@@ -10532,16 +10620,26 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
     
     const user = result.rows[0];
     
-    console.log(`?? Usage fetched for user ${userId}:`, user);  // ? Fixed
+    // Count event types
+    const eventCountResult = await pool.query(
+      'SELECT COUNT(*) as count FROM event_types WHERE user_id = $1',
+      [userId]
+    );
     
     res.json({
+      subscription_tier: user.subscription_tier || 'free',
       ai_queries_used: user.ai_queries_used || 0,
       ai_queries_limit: user.ai_queries_limit || 10,
-      timestamp: new Date().toISOString()
+      bookings_used: user.monthly_bookings || 0,
+      bookings_limit: user.bookings_limit || 50,
+      event_types_used: parseInt(eventCountResult.rows[0].count) || 0,
+      event_types_limit: user.event_types_limit || 2,
+      magic_links_used: user.magic_links_used || 0,
+      magic_links_limit: user.magic_links_limit || 3
     });
     
   } catch (error) {
-    console.error('? Failed to fetch usage:', error);
+    console.error('❌ Failed to fetch usage:', error);
     res.status(500).json({ error: 'Failed to fetch usage data' });
   }
 });
@@ -10578,8 +10676,6 @@ async function incrementAIUsage(userId) {
 
 // ============ SUBSCRIPTION MANAGEMENT ============
 // (Add this section after your existing payment endpoints)
-
-// Get current subscription
 // Get current subscription
 app.get('/api/subscriptions/current', authenticateToken, async (req, res) => {
   try {
@@ -10622,18 +10718,22 @@ app.get('/api/subscriptions/current', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to get subscription' });
   }
 });
-
 // Create new subscription
 app.post('/api/subscriptions/create', authenticateToken, async (req, res) => {
   try {
     const { plan_id } = req.body; // 'pro' or 'team'
     const userId = req.user.id;
     
-    console.log(`?? Creating subscription for user ${userId}, plan: ${plan_id}`);
+    console.log(`🔄 Creating subscription for user ${userId}, plan: ${plan_id}`);
+
+    // Validate plan
+    if (!['pro', 'team'].includes(plan_id)) {
+      return res.status(400).json({ error: 'Invalid plan. Must be "pro" or "team"' });
+    }
 
     // Get user details
     const userResult = await pool.query(
-      'SELECT email, name, stripe_customer_id FROM users WHERE id = $1',
+      'SELECT email, name, stripe_customer_id, subscription_tier FROM users WHERE id = $1',
       [userId]
     );
 
@@ -10642,38 +10742,56 @@ app.post('/api/subscriptions/create', authenticateToken, async (req, res) => {
     }
 
     const user = userResult.rows[0];
+    const limits = PLAN_LIMITS[plan_id];
 
-    // For testing, let's simulate the subscription creation
-    // Later you can add real Stripe subscription creation here
-    
-    // Update user's subscription in database
+    // ✅ Update user's subscription AND apply new limits
     await pool.query(
       `UPDATE users 
        SET subscription_tier = $1, 
-           subscription_status = $2,
+           subscription_status = 'active',
+           ai_queries_limit = $2,
+           bookings_limit = $3,
+           event_types_limit = $4,
+           magic_links_limit = $5,
+           calendar_connections_limit = $6,
            updated_at = NOW()
-       WHERE id = $3`,
-      [plan_id, 'active', userId]
+       WHERE id = $7`,
+      [
+        plan_id,
+        limits.ai_queries_limit,
+        limits.bookings_limit,
+        limits.event_types_limit,
+        limits.magic_links_limit,
+        limits.calendar_connections_limit,
+        userId
+      ]
     );
     
-    console.log(`? Successfully upgraded user ${userId} to ${plan_id} plan`);
+    console.log(`✅ Successfully upgraded user ${userId} to ${plan_id} plan with limits:`, limits);
 
-    // Return success response
     res.json({ 
       success: true,
       message: `Successfully upgraded to ${plan_id} plan`,
-      client_secret: 'simulated_success', // Frontend expects this
+      client_secret: 'simulated_success',
       subscription: {
         plan: plan_id,
-        status: 'active'
+        status: 'active',
+        limits: {
+          ai_queries: limits.ai_queries_limit >= 1000 ? 'unlimited' : limits.ai_queries_limit,
+          bookings: limits.bookings_limit >= 1000 ? 'unlimited' : limits.bookings_limit,
+          event_types: limits.event_types_limit >= 1000 ? 'unlimited' : limits.event_types_limit,
+          magic_links: limits.magic_links_limit >= 1000 ? 'unlimited' : limits.magic_links_limit,
+          teams_enabled: limits.teams_enabled
+        }
       }
     });
     
   } catch (error) {
-    console.error('? Create subscription error:', error);
+    console.error('❌ Create subscription error:', error);
     res.status(500).json({ error: 'Failed to create subscription' });
   }
 });
+
 // Cancel subscription
 app.post('/api/subscriptions/cancel', authenticateToken, async (req, res) => {
   try {

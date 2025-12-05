@@ -1,9 +1,10 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useUpgrade } from '../context/UpgradeContext';
 import {
   Plus, Edit, Clock, MapPin, Copy, Check, 
   ExternalLink, Loader2, Video, Phone, Building2, 
-  Globe, Sparkles, TrendingUp, Calendar, Trash2 // ✅ ADDED Trash2
+  Globe, Sparkles, TrendingUp, Calendar, Trash2
 } from 'lucide-react';
 import { events, auth } from '../utils/api';
 
@@ -17,6 +18,7 @@ const locationIcons = {
 
 export default function EventTypes() {
   const navigate = useNavigate();
+  const { showUpgradeModal, isAtLimit, usage } = useUpgrade();
   const [eventTypesList, setEventTypesList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
@@ -47,10 +49,19 @@ export default function EventTypes() {
     }
   };
 
+  // ✅ NEW: Handle create with limit check
+  const handleCreateEventType = () => {
+    if (isAtLimit('event_types')) {
+      showUpgradeModal('event_types');
+      return;
+    }
+    navigate('/events/new');
+  };
+
   const copyToClipboard = (e, event) => {
     e.stopPropagation();
     const username = user?.username || user?.email?.split('@')[0] || 'user';
-    const link = `${window.location.origin}/book/${username}/${event.slug}`; // ✅ ADD /book
+    const link = `${window.location.origin}/book/${username}/${event.slug}`;
     
     navigator.clipboard.writeText(link);
     setCopiedId(event.id);
@@ -87,7 +98,6 @@ export default function EventTypes() {
     }
   };
 
-  // ✅ NEW: Delete handler
   const handleDeleteEvent = async (e, event) => {
     e.stopPropagation();
     const confirmDelete = window.confirm(
@@ -96,7 +106,6 @@ export default function EventTypes() {
     if (!confirmDelete) return;
 
     try {
-      // Assuming your API has events.delete(id)
       await events.delete(event.id);
       setEventTypesList(prev => prev.filter(ev => ev.id !== event.id));
     } catch (error) {
@@ -130,14 +139,65 @@ export default function EventTypes() {
           <p className="text-gray-600 mt-2">
             Create templates to share your availability with different durations and settings.
           </p>
+          
+          {/* ✅ NEW: Show usage for free users */}
+          {usage.event_types_limit && usage.event_types_limit < 1000 && (
+            <p className={`text-sm mt-1 ${
+              isAtLimit('event_types') ? 'text-red-600 font-medium' : 'text-gray-500'
+            }`}>
+              {usage.event_types_used || eventTypesList.length}/{usage.event_types_limit} event types used
+              {isAtLimit('event_types') && (
+                <button 
+                  onClick={() => showUpgradeModal('event_types')}
+                  className="ml-2 text-purple-600 hover:text-purple-700 underline"
+                >
+                  Upgrade for unlimited
+                </button>
+              )}
+            </p>
+          )}
         </div>
+        
+        {/* ✅ UPDATED: Use handleCreateEventType with visual feedback */}
         <button 
-          onClick={() => navigate('/events/new')} 
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all"
+          onClick={handleCreateEventType}
+          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold shadow-lg transition-all ${
+            isAtLimit('event_types')
+              ? 'bg-gray-400 text-white cursor-not-allowed'
+              : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-xl'
+          }`}
         >
           <Plus className="h-5 w-5" /> New Event Type
+          {isAtLimit('event_types') && (
+            <span className="ml-1 text-xs bg-white/20 px-2 py-0.5 rounded">Limit</span>
+          )}
         </button>
       </div>
+
+      {/* ✅ NEW: Upgrade banner when at limit */}
+      {isAtLimit('event_types') && (
+        <div className="mb-8 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-6">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                <Sparkles className="h-6 w-6 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Event Type Limit Reached</h3>
+                <p className="text-sm text-gray-600">
+                  Upgrade to Pro for unlimited event types
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => showUpgradeModal('event_types')}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+            >
+              Upgrade to Pro - $12/mo
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stats Overview */}
       {eventTypesList.length > 0 && (
@@ -187,8 +247,9 @@ export default function EventTypes() {
           <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-900 mb-2">No Event Types Yet</h3>
           <p className="text-gray-600 mb-6">Create your first event type to start accepting bookings.</p>
+          {/* ✅ UPDATED: Use handleCreateEventType */}
           <button 
-            onClick={() => navigate('/events/new')}
+            onClick={handleCreateEventType}
             className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700"
           >
             <Plus className="h-5 w-5" /> Create Event Type
@@ -300,7 +361,6 @@ export default function EventTypes() {
                         )}
                       </button>
 
-                      {/* ✅ Delete button */}
                       <button
                         onClick={(e) => handleDeleteEvent(e, event)}
                         className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700 transition-colors"

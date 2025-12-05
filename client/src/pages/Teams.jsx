@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useUpgrade } from '../context/UpgradeContext';
 import {
   Users,
   Plus,
@@ -14,11 +15,13 @@ import {
   Edit,
   ExternalLink,
   X,
+  Check, 
 } from 'lucide-react';
 import { teams } from '../utils/api';
 
 export default function Teams() {
   const navigate = useNavigate();
+  const { showUpgradeModal, hasTeamFeature, currentTier } = useUpgrade(); 
   const [teamsList, setTeamsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -46,6 +49,66 @@ export default function Teams() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+   if (!hasTeamFeature()) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 text-center border-2 border-purple-200">
+            <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Users className="h-10 w-10 text-white" />
+            </div>
+            
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+              Team Features
+            </h1>
+            
+            <p className="text-lg text-gray-600 mb-8 max-w-md mx-auto">
+              Create teams, add members, and manage group scheduling with round-robin 
+              and collective booking modes.
+            </p>
+
+            <div className="bg-purple-50 rounded-2xl p-6 mb-8 text-left">
+              <h3 className="font-semibold text-purple-900 mb-4">What you get with Team plan:</h3>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  Create unlimited teams
+                </li>
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  Up to 10 team members per team
+                </li>
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  Round-robin booking mode
+                </li>
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  Collective team scheduling
+                </li>
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  Team booking links
+                </li>
+              </ul>
+            </div>
+
+            <button
+              onClick={() => showUpgradeModal('teams')}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-xl hover:shadow-lg transition-all font-semibold text-lg"
+            >
+              Upgrade to Team Plan - $25/month
+            </button>
+            
+            <p className="text-sm text-gray-500 mt-4">
+              Currently on: <span className="font-medium capitalize">{currentTier}</span> plan
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const isPersonalTeam = (team) => {
     if (!team) return false;
