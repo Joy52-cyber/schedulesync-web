@@ -80,15 +80,21 @@ app.use('/api/user', subscriptionRoutes);
 
 const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
   try {
-    console.log('?? Attempting to send email to:', to);
-    console.log('?? Resend API key exists?', !!process.env.RESEND_API_KEY);
-    console.log('?? Resend API key starts with:', process.env.RESEND_API_KEY?.substring(0, 10));
+    console.log('📧 Attempting to send email to:', to);
+    console.log('📧 Resend API key exists?', !!process.env.RESEND_API_KEY);
+    console.log('📧 Resend API key starts with:', process.env.RESEND_API_KEY?.substring(0, 10));
     
     const emailOptions = {
       from: 'ScheduleSync <hello@trucal.xyz>',
       to: to,
       subject: subject,
       html: html,
+      // ✅ ADD UTF-8 HEADERS FOR EMOJI SUPPORT:
+      headers: {
+        'Content-Type': 'text/html; charset=UTF-8',
+        'Content-Transfer-Encoding': '8bit',
+        'MIME-Version': '1.0',
+      },
     };
 
     if (icsAttachment) {
@@ -96,18 +102,21 @@ const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
         {
           filename: 'meeting.ics',
           content: Buffer.from(icsAttachment).toString('base64'),
+          // ✅ ADD UTF-8 TO CALENDAR ATTACHMENT:
+          type: 'text/calendar; charset=UTF-8',
         },
       ];
     }
 
-    console.log('?? Calling resend.emails.send...');
+    console.log('📧 Calling resend.emails.send...');
     const result = await resend.emails.send(emailOptions);
-    console.log('? Email sent - FULL RESULT:', JSON.stringify(result, null, 2));
+    console.log('✅ Email sent - FULL RESULT:', JSON.stringify(result, null, 2));
     return result;
+
   } catch (error) {
-    console.error('? Email error - FULL ERROR:', error);
-    console.error('? Error message:', error.message);
-    console.error('? Error stack:', error.stack);
+    console.error('❌ Email error - FULL ERROR:', error);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
     throw error;
   }
 };
