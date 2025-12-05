@@ -8463,57 +8463,68 @@ ${member.team_name}`,
 
       // ============ HANDLE GET/CREATE MAGIC LINK ============
       if (parsedIntent.intent === 'get_magic_link') {
-        try {
-          const linkName = parsedIntent.extracted?.link_name || 'Quick Meeting';
+  try {
+    const linkName = parsedIntent.extracted?.link_name || 'Quick Meeting';
+    
+    // Create magic link token
+    const magicToken = crypto.randomBytes(16).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
+    
+    // Get or create default event type
+    let eventTypeId;
+    const eventTypeResult = await pool.query(
+      `SELECT id FROM event_types WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
 
-          // Create magic link token
-          const magicToken = crypto.randomBytes(16).toString('hex');
-          const expiresAt = new Date();
-          expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
-
-          // Get user's default event type (optional)
-          const eventTypeResult = await pool.query(
-            `SELECT id FROM event_types WHERE user_id = $1 LIMIT 1`,
-            [userId]
-          );
-          const eventTypeId = eventTypeResult.rows[0]?.id || null;
-
-          // Insert into magic_links using correct columns
-          await pool.query(
-            `INSERT INTO magic_links (token, created_by_user_id, event_type_id, expires_at, is_active, is_used, created_at)
-             VALUES ($1, $2, $3, $4, true, false, NOW())`,
-            [magicToken, userId, eventTypeId, expiresAt]
-          );
-
-          const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
-          const magicUrl = `${baseUrl}/m/${magicToken}`;
-
-          return res.json({
-            type: 'link',
-            message: `Magic link created for "${linkName}"!
-
-/m/${magicToken.substring(0, 8)}...
-Expires: ${expiresAt.toLocaleDateString()}
-Single-use: Yes`,
-            data: {
-              url: magicUrl,
-              token: magicToken,
-              name: linkName,
-              expires_at: expiresAt,
-              type: 'magic'
-            },
-            usage: usageData
-          });
-        } catch (error) {
-          console.error('Create magic link error:', error);
-          return res.json({
-            type: 'error',
-            message: 'Failed to create magic link. Please try again.',
-            usage: usageData
-          });
-        }
-      }
-
+    if (eventTypeResult.rows.length === 0) {
+      // Create default event type if none exists
+      console.log('📝 No event types found, creating default event type for user:', userId);
+      const newEventType = await pool.query(
+        `INSERT INTO event_types (user_id, name, duration, description, color)
+         VALUES ($1, 'Quick Meeting', 30, 'Default meeting created for magic links', '#3B82F6')
+         RETURNING id`,
+        [userId]
+      );
+      eventTypeId = newEventType.rows[0].id;
+      console.log('✅ Created default event type:', eventTypeId);
+    } else {
+      eventTypeId = eventTypeResult.rows[0].id;
+      console.log('✅ Using existing event type:', eventTypeId);
+    }
+    
+    // Insert into magic_links using correct columns
+    await pool.query(
+      `INSERT INTO magic_links (token, created_by_user_id, event_type_id, expires_at, is_active, is_used, created_at)
+       VALUES ($1, $2, $3, $4, true, false, NOW())`,
+      [magicToken, userId, eventTypeId, expiresAt]
+    );
+    
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    const magicUrl = `${baseUrl}/m/${magicToken}`;
+    
+    return res.json({
+      type: 'link',
+      message: `✨ Magic link created for "${linkName}"!\n\n🔗 ${magicUrl}\n📅 Expires: ${expiresAt.toLocaleDateString()}\n🎯 Single-use: Yes`,
+      data: {
+        url: magicUrl,
+        token: magicToken,
+        name: linkName,
+        expires_at: expiresAt,
+        type: 'magic'
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('❌ Create magic link error:', error);
+    return res.json({
+      type: 'error',
+      message: '❌ Failed to create magic link. Please try again.',
+      usage: usageData
+    });
+  }
+}
       // ============ HANDLE GET TEAM LINKS ============
       if (parsedIntent.intent === 'get_team_links') {
         try {
