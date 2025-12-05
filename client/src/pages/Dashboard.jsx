@@ -426,10 +426,17 @@ const currentTier = limitStatus?.tier || user?.subscription_tier || user?.tier |
                         DISABLED
                       </span>
                     )}
-                    {currentTier === 'free' && (usage.ai_queries_used >= (usage.ai_queries_limit - 2)) && !limitStatus.status?.inGracePeriod && (
-                      <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded font-medium">
-                        Almost full!
-                      </span>
+                    {currentTier === 'free' && !limitStatus.status?.inGracePeriod && (
+  <>
+    {usage.ai_queries_used >= usage.ai_queries_limit && (
+      <span className="text-xs text-red-600 bg-red-100 px-2 py-1 rounded font-medium">
+        Limit reached!
+      </span>
+    )}
+    {usage.ai_queries_used >= (usage.ai_queries_limit - 2) && usage.ai_queries_used < usage.ai_queries_limit && (
+      <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded font-medium">
+        Almost full!
+      </span>
                     )}
                   </div>
                   <div className="text-xl font-bold text-gray-900">
