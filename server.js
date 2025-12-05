@@ -7779,104 +7779,127 @@ const enforceUsageLimits = async (req, res, next) => {
 // ============ CORRECTLY STRUCTURED AI SCHEDULING ENDPOINT ============
 // ============ COMPLETE AI SCHEDULING ENDPOINT WITH ALL FUNCTIONALITY ============
 
-app.post('/api/ai/schedule', authenticateToken, checkAIQueryLimit, async (req, res) => {
-  try {
-    const { message, conversationHistory = [] } = req.body;
-    const userId = req.user.id;
-    const userEmail = req.user.email;
-    
-    console.log('🤖 AI request from user:', userId, 'Message:', message);
+app.post(
+  '/api/ai/schedule',
+  authenticateToken,
+  checkAIQueryLimit,
+  async (req, res) => {
+    try {
+      const { message, conversationHistory = [] } = req.body;
+      const userId = req.user.id;
+      const userEmail = req.user.email;
 
-    // ✅ EMAIL VALIDATION FUNCTION
-    const validateEmail = (email) => {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return emailRegex.test(email);
-    };
+      console.log('🤖 AI request from user:', userId, 'Message:', message);
 
-    // ✅ STEP 1: EXTRACT PENDING BOOKING CONTEXT
-    let pendingBookingContext = null;
-    let cleanMessage = message;
-    
-    const pendingMatch = message.match(/\[Current pending booking: "([^"]+)" on (\S+) at (\S+) for (\d+) minutes with (\S+)\]/);
-    if (pendingMatch) {
-      const extractedEmail = pendingMatch[5];
-      
-      // Validate extracted email
-      if (!validateEmail(extractedEmail)) {
+      if (!message || typeof message !== 'string') {
         return res.json({
           type: 'error',
-          message: 'The pending booking contains an invalid email address.',
+          message: 'Please send a valid message.',
           usage: req.aiUsage || { used: 0, limit: 10 }
         });
       }
-      
-      pendingBookingContext = {
-        title: pendingMatch[1],
-        date: pendingMatch[2],
-        time: pendingMatch[3],
-        duration: parseInt(pendingMatch[4]),
-        attendee_email: extractedEmail
+
+      // ✅ EMAIL VALIDATION FUNCTION
+      const validateEmail = (email) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
       };
-      cleanMessage = message.replace(/\[Current pending booking:.*?\]\s*User says:\s*/i, '').trim();
-      console.log('📋 Pending booking detected:', pendingBookingContext);
-    }
 
-    // ✅ STEP 2: GET USER CONTEXT BEFORE AI CALL
-    const teamsResult = await pool.query(
-      `SELECT t.*, COUNT(tm.id) as member_count
-       FROM teams t
-       LEFT JOIN team_members tm ON t.id = tm.team_id
-       WHERE t.owner_id = $1
-       GROUP BY t.id`,
-      [userId]
-    );
+      // ✅ STEP 1: EXTRACT PENDING BOOKING CONTEXT
+      let pendingBookingContext = null;
+      let cleanMessage = message;
 
-    const bookingsResult = await pool.query(
-      `SELECT b.*, tm.name as organizer_name, t.name as team_name
-       FROM bookings b
-       LEFT JOIN teams t ON b.team_id = t.id
-       LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE (t.owner_id = $1 OR tm.user_id = $1)
-         AND b.start_time > NOW()
-         AND b.status = 'confirmed'
-       ORDER BY b.start_time ASC
-       LIMIT 10`,
-      [userId]
-    );
+      const pendingMatch = message.match(
+        /\[Current pending booking: "([^"]+)" on (\S+) at (\S+) for (\d+) minutes with (\S+)\]/
+      );
 
-    // ✅ STEP 3: BUILD COMPLETE USER CONTEXT
-    const userContext = {
-      email: userEmail,
-      teams: teamsResult.rows.map(t => ({ 
-        id: t.id, 
-        name: t.name, 
-        members: t.member_count 
-      })),
-      upcomingBookings: bookingsResult.rows.map(b => ({
-        id: b.id,
-        attendee_name: b.attendee_name,
-        attendee_email: b.attendee_email,
-        attendee_phone: b.attendee_phone,
-        start: b.start_time,
-        end: b.end_time,
-        duration: b.duration,
-        meet_link: b.meet_link,
-        notes: b.notes,
-        status: b.status,
-        team_name: b.team_name,
-        organizer: b.organizer_name
-      })),
-      pendingBooking: pendingBookingContext
-    };
+      if (pendingMatch) {
+        const extractedEmail = pendingMatch[5];
 
-    // ✅ STEP 4: FORMAT CONVERSATION HISTORY
-    const formattedHistory = conversationHistory.slice(-5).map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content || '' }]
-    })).filter(msg => msg.parts[0].text.trim() !== '');
+        // Validate extracted email
+        if (!validateEmail(extractedEmail)) {
+          return res.json({
+            type: 'error',
+            message: 'The pending booking contains an invalid email address.',
+            usage: req.aiUsage || { used: 0, limit: 10 }
+          });
+        }
 
-    // ✅ STEP 5: BUILD PENDING BOOKING INSTRUCTION
-    const pendingBookingInstruction = pendingBookingContext ? `
+        pendingBookingContext = {
+          title: pendingMatch[1],
+          date: pendingMatch[2],
+          time: pendingMatch[3],
+          duration: parseInt(pendingMatch[4], 10),
+          attendee_email: extractedEmail
+        };
+
+        cleanMessage = message
+          .replace(/\[Current pending booking:.*?\]\s*User says:\s*/i, '')
+          .trim();
+
+        console.log('📋 Pending booking detected:', pendingBookingContext);
+      }
+
+      // ✅ STEP 2: GET USER CONTEXT BEFORE AI CALL
+      const teamsResult = await pool.query(
+        `SELECT t.*, COUNT(tm.id) as member_count
+         FROM teams t
+         LEFT JOIN team_members tm ON t.id = tm.team_id
+         WHERE t.owner_id = $1
+         GROUP BY t.id`,
+        [userId]
+      );
+
+      const bookingsResult = await pool.query(
+        `SELECT b.*, tm.name as organizer_name, t.name as team_name
+         FROM bookings b
+         LEFT JOIN teams t ON b.team_id = t.id
+         LEFT JOIN team_members tm ON b.member_id = tm.id
+         WHERE (t.owner_id = $1 OR tm.user_id = $1)
+           AND b.start_time > NOW()
+           AND b.status = 'confirmed'
+         ORDER BY b.start_time ASC
+         LIMIT 10`,
+        [userId]
+      );
+
+      // ✅ STEP 3: BUILD COMPLETE USER CONTEXT
+      const userContext = {
+        email: userEmail,
+        teams: teamsResult.rows.map((t) => ({
+          id: t.id,
+          name: t.name,
+          members: t.member_count
+        })),
+        upcomingBookings: bookingsResult.rows.map((b) => ({
+          id: b.id,
+          attendee_name: b.attendee_name,
+          attendee_email: b.attendee_email,
+          attendee_phone: b.attendee_phone,
+          start: b.start_time,
+          end: b.end_time,
+          duration: b.duration,
+          meet_link: b.meet_link,
+          notes: b.notes,
+          status: b.status,
+          team_name: b.team_name,
+          organizer: b.organizer_name
+        })),
+        pendingBooking: pendingBookingContext
+      };
+
+      // ✅ STEP 4: FORMAT CONVERSATION HISTORY
+      const formattedHistory = conversationHistory
+        .slice(-5)
+        .map((msg) => ({
+          role: msg.role === 'user' ? 'user' : 'model',
+          parts: [{ text: msg.content || '' }]
+        }))
+        .filter((msg) => msg.parts[0].text.trim() !== '');
+
+      // ✅ STEP 5: BUILD PENDING BOOKING INSTRUCTION
+      const pendingBookingInstruction = pendingBookingContext
+        ? `
 IMPORTANT - PENDING BOOKING CONTEXT:
 There is currently a pending booking waiting for confirmation:
 - Title: "${pendingBookingContext.title}"
@@ -7890,10 +7913,11 @@ If the user wants to UPDATE this pending booking (change time, duration, date, e
 2. Include the updated fields in "extracted"
 3. Keep unchanged fields from the original booking
 4. DO NOT ask for confirmation again - the UI will handle that
-` : '';
+`
+        : '';
 
-    // ✅ STEP 6: COMPLETE SYSTEM INSTRUCTION WITH ALL INTENTS AND EXAMPLES
-    const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
+      // ✅ STEP 6: COMPLETE SYSTEM INSTRUCTION WITH ALL INTENTS AND EXAMPLES
+      const systemInstruction = `You are a scheduling assistant for ScheduleSync. Extract scheduling intent from user messages and return ONLY valid JSON.
 
 User context: ${JSON.stringify(userContext)}
 ${pendingBookingInstruction}
@@ -7934,7 +7958,7 @@ BOOKING STATUS QUERIES:
 - "show my bookings" or "upcoming meetings" → intent: "show_bookings"
 - "show confirmed bookings" → intent: "show_confirmed_bookings"
 - "show cancelled bookings" or "what got cancelled" → intent: "show_cancelled_bookings"
-- "show rescheduled bookings" → intent: "show_rescheduled_bookings"
+- "show rescheduled bookings" or "what was rescheduled" → intent: "show_rescheduled_bookings"
 - "how many bookings" or "booking stats" or "stats this month" → intent: "booking_stats"
 
 TEAM SCHEDULING:
@@ -7982,1404 +8006,1674 @@ Return JSON structure:
 Current date/time: ${new Date().toISOString()}
 User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
 
-    // ✅ STEP 7: SINGLE GEMINI API CALL WITH COMPLETE CONTEXT
-    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          ...formattedHistory,
-          {
-            role: 'user',
-            parts: [{ text: `${systemInstruction}\n\nUser message: ${cleanMessage}` }]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          topK: 1,
-          topP: 0.8,
-          maxOutputTokens: 1500,
+      // ✅ STEP 7: SINGLE GEMINI API CALL WITH COMPLETE CONTEXT
+      const geminiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contents: [
+              ...formattedHistory,
+              {
+                role: 'user',
+                parts: [{ text: `${systemInstruction}\n\nUser message: ${cleanMessage}` }]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.1,
+              topK: 1,
+              topP: 0.8,
+              maxOutputTokens: 1500
+            }
+          })
         }
-      })
-    });
+      );
 
-    // ✅ STEP 8: ERROR HANDLING
-    if (!geminiResponse.ok) {
-      console.error('Gemini API error:', geminiResponse.status, geminiResponse.statusText);
-      return res.status(500).json({
-        type: 'error',
-        message: 'AI service temporarily unavailable. Please try again.',
-        usage: req.aiUsage || { used: 0, limit: 10 }
-      });
-    }
+      // ✅ STEP 8: ERROR HANDLING FOR GEMINI
+      if (!geminiResponse.ok) {
+        console.error(
+          'Gemini API error:',
+          geminiResponse.status,
+          geminiResponse.statusText
+        );
+        return res.status(500).json({
+          type: 'error',
+          message: 'AI service temporarily unavailable. Please try again.',
+          usage: req.aiUsage || { used: 0, limit: 10 }
+        });
+      }
 
-    const geminiData = await geminiResponse.json();
+      const geminiData = await geminiResponse.json();
 
-    if (!geminiData?.candidates?.[0]?.content) {
-      console.error('Invalid Gemini response:', geminiData);
-      return res.status(500).json({
-        type: 'error',
-        message: 'AI service temporarily unavailable.',
-        usage: req.aiUsage || { used: 0, limit: 10 }
-      });
-    }
+      if (!geminiData?.candidates?.[0]?.content) {
+        console.error('Invalid Gemini response:', geminiData);
+        return res.status(500).json({
+          type: 'error',
+          message: 'AI service temporarily unavailable.',
+          usage: req.aiUsage || { used: 0, limit: 10 }
+        });
+      }
 
-    const aiText = geminiData.candidates[0].content.parts[0].text;
-    console.log('🧠 AI response:', aiText);
+      const aiText = geminiData.candidates[0].content.parts[0].text;
+      console.log('🧠 AI raw response:', aiText);
 
-    // ✅ STEP 9: INCREMENT USAGE ONCE
-    await incrementAIUsage(userId);
-    const usageData = req.aiUsage || { used: 1, limit: 10 };
+      // ✅ STEP 9: INCREMENT USAGE ONCE
+      await incrementAIUsage(userId);
+      const usageData = req.aiUsage || { used: 1, limit: 10 };
 
-    // ✅ STEP 10: PARSE JSON RESPONSE
-    let parsedIntent;
-    try {
-      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
+      // ✅ STEP 10: PARSE JSON RESPONSE
+      let parsedIntent;
+      try {
+        const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          return res.json({
+            type: 'error',
+            message: 'I had trouble understanding that. Could you rephrase?',
+            usage: usageData
+          });
+        }
+        parsedIntent = JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        console.error('Failed to parse AI JSON:', e.message);
         return res.json({
           type: 'error',
           message: 'I had trouble understanding that. Could you rephrase?',
           usage: usageData
         });
       }
-      parsedIntent = JSON.parse(jsonMatch[0]);
-    } catch (e) {
-      console.error('Failed to parse AI JSON:', e.message);
-      return res.json({
-        type: 'error',
-        message: 'I had trouble understanding that. Could you rephrase?',
-        usage: usageData
-      });
-    }
 
-    console.log('🎯 Parsed intent:', parsedIntent);
+      console.log('🎯 Parsed intent:', parsedIntent);
 
-    // ✅ STEP 11: VALIDATE PARSED INTENT
-    if (!parsedIntent.intent || !parsedIntent.response_message) {
-      return res.json({
-        type: 'error',
-        message: 'I had trouble processing that. Could you try again?',
-        usage: usageData
-      });
-    }
-
-    // ✅ STEP 12: EMAIL VALIDATION for scheduling requests
-    if ((parsedIntent.intent === 'create_meeting' || parsedIntent.intent === 'update_pending' || parsedIntent.intent === 'send_email') 
-        && parsedIntent.extracted?.attendee_email) {
-      if (!validateEmail(parsedIntent.extracted.attendee_email)) {
+      // ✅ STEP 11: BASIC VALIDATION
+      if (!parsedIntent.intent || !parsedIntent.response_message) {
         return res.json({
           type: 'error',
-          message: 'Please provide a valid email address for the meeting attendee.',
+          message: 'I had trouble processing that. Could you try again?',
           usage: usageData
         });
       }
-    }
 
-    // ✅ STEP 13: HANDLE CLARIFY INTENT
-    if (parsedIntent.intent === 'clarify' && parsedIntent.clarifying_question) {
-      return res.json({
-        type: 'clarify',
-        intent: 'clarify',
-        message: parsedIntent.clarifying_question,
+      // ✅ STEP 12: EMAIL VALIDATION FOR SCHEDULING/EMAIL INTENTS
+      if (
+        (parsedIntent.intent === 'create_meeting' ||
+          parsedIntent.intent === 'update_pending' ||
+          parsedIntent.intent === 'send_email') &&
+        parsedIntent.extracted?.attendee_email
+      ) {
+        if (!validateEmail(parsedIntent.extracted.attendee_email)) {
+          return res.json({
+            type: 'error',
+            message:
+              'Please provide a valid email address for the meeting attendee.',
+            usage: usageData
+          });
+        }
+      }
+
+      const lowerClean = cleanMessage.toLowerCase();
+
+      // ✅ STEP 13: HANDLE HELP / CLARIFY INTENT (HIGH-LEVEL HELP)
+      if (
+        parsedIntent.intent === 'clarify' &&
+        !parsedIntent.clarifying_question &&
+        (lowerClean.includes('help') ||
+          lowerClean.includes('what can you do'))
+      ) {
+        return res.json({
+          type: 'help',
+          intent: 'clarify',
+          message: `I can help with:
+
+📅 Meeting scheduling
+• "Schedule with client@company.com tomorrow at 2pm"
+• "Find available times this week"
+• "Show my bookings"
+
+✉️ Professional emails
+• "Send reminder to someone@email.com"
+• "Send thank you to client@company.com"
+• "Send confirmation to team@startup.com"
+
+🔗 Booking links
+• "What is my booking link?"
+• "Create a magic link for John"
+• "Show my team booking pages"
+
+Try asking me to schedule, list bookings, or send a template-based email.`,
+          usage: usageData
+        });
+      }
+
+      // ✅ STEP 14: HANDLE CLARIFY INTENT WITH SPECIFIC QUESTION
+      if (parsedIntent.intent === 'clarify' && parsedIntent.clarifying_question) {
+        return res.json({
+          type: 'clarify',
+          intent: 'clarify',
+          message: parsedIntent.clarifying_question,
+          missing_fields: parsedIntent.missing_fields || [],
+          context: {
+            pending: pendingBookingContext,
+            teams: userContext.teams.length,
+            upcomingBookings: userContext.upcomingBookings.length
+          },
+          usage: usageData
+        });
+      }
+
+      // ✅ STEP 15: HANDLE EMAIL SENDING INTENT
+      if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
+        const { type, recipient, meeting_details } = parsedIntent.email_action;
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!recipient || !emailRegex.test(recipient)) {
+          return res.json({
+            type: 'clarify',
+            message: `Invalid or missing email address${
+              recipient ? `: ${recipient}` : ''
+            }.\n\nPlease provide a valid email address.\n\nExample: "Send reminder to john@company.com"`,
+            usage: usageData
+          });
+        }
+
+        // Validate email type
+        const validTypes = ['reminder', 'confirmation', 'follow_up', 'cancellation'];
+        if (!type || !validTypes.includes(type)) {
+          return res.json({
+            type: 'clarify',
+            message: `What type of email would you like to send to ${recipient}?
+
+Available types:
+• Reminder
+• Confirmation
+• Follow-up
+• Cancellation
+
+Example: "Send reminder to ${recipient}"`,
+            usage: usageData
+          });
+        }
+
+        // ✅ Check if template exists (async)
+        const template = await selectBestTemplate(
+          userId,
+          type,
+          meeting_details
+        );
+
+        if (!template) {
+          // List available templates
+          const templatesResult = await pool.query(
+            `SELECT name, type 
+             FROM email_templates 
+             WHERE user_id = $1 
+             ORDER BY type, name`,
+            [userId]
+          );
+
+          if (templatesResult.rows.length === 0) {
+            return res.json({
+              type: 'info',
+              message: `No ${type} email template found.
+
+You don't have any email templates yet.
+
+Go to Email Templates to create one, or I can send a default ${type} email.`,
+              usage: usageData
+            });
+          }
+
+          const templateList = templatesResult.rows
+            .map((t) => `• ${t.name} (${t.type})`)
+            .join('\n');
+
+          return res.json({
+            type: 'info',
+            message: `No ${type} template found.
+
+Your templates:
+${templateList}
+
+Create a ${type} template or try a different email type.`,
+            usage: usageData
+          });
+        }
+
+        // Prepare meeting details
+        const emailDetails = {
+          date:
+            meeting_details?.date ||
+            new Date().toLocaleDateString(),
+          time: meeting_details?.time || 'TBD',
+          link:
+            meeting_details?.link ||
+            userContext.upcomingBookings?.[0]?.meet_link ||
+            'Will be provided',
+          title:
+            meeting_details?.title ||
+            userContext.upcomingBookings?.[0]?.title ||
+            'Meeting'
+        };
+
+        // Send email via template
+        const emailSent = await sendEmailWithTemplate(
+          template,
+          recipient,
+          emailDetails,
+          userId
+        );
+
+        if (emailSent) {
+          if (template.id) {
+            await trackTemplateUsage(template.id, userId, 'sent');
+          }
+
+          return res.json({
+            type: 'email_sent',
+            message: `${type.charAt(0).toUpperCase() + type.slice(1)} email sent!
+
+To: ${recipient}
+Template: "${template.name}"`,
+            data: {
+              template_used: template.name,
+              recipient,
+              email_type: type
+            },
+            usage: usageData
+          });
+        } else {
+          return res.json({
+            type: 'error',
+            message: `Failed to send ${type} email to ${recipient}.
+
+Please try again or check your email settings.`,
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE UPDATE PENDING INTENT ============
+      if (parsedIntent.intent === 'update_pending' && pendingBookingContext) {
+        const updated = {
+          ...pendingBookingContext,
+          ...parsedIntent.extracted
+        };
+
+        // Handle attendees array to single email
+        if (parsedIntent.extracted?.attendees && parsedIntent.extracted.attendees.length > 0) {
+          updated.attendee_email = parsedIntent.extracted.attendees[0];
+        }
+
+        // Rename duration_minutes to duration for consistency
+        if (parsedIntent.extracted?.duration_minutes) {
+          updated.duration = parsedIntent.extracted.duration_minutes;
+        }
+
+        const changeDescription = [];
+        if (
+          parsedIntent.extracted?.duration_minutes &&
+          parsedIntent.extracted.duration_minutes !== pendingBookingContext.duration
+        ) {
+          changeDescription.push(`duration to ${parsedIntent.extracted.duration_minutes} minutes`);
+        }
+        if (
+          parsedIntent.extracted?.time &&
+          parsedIntent.extracted.time !== pendingBookingContext.time
+        ) {
+          changeDescription.push(`time to ${parsedIntent.extracted.time}`);
+        }
+        if (
+          parsedIntent.extracted?.date &&
+          parsedIntent.extracted.date !== pendingBookingContext.date
+        ) {
+          changeDescription.push(`date to ${parsedIntent.extracted.date}`);
+        }
+
+        return res.json({
+          type: 'update_pending',
+          message: changeDescription.length > 0
+            ? `Updated ${changeDescription.join(' and ')}. Please review and confirm.`
+            : 'Booking details updated. Please review and confirm.',
+          data: {
+            updatedBooking: updated
+          },
+          usage: usageData
+        });
+      }
+
+      // ============ HANDLE GET PERSONAL LINK ============
+      if (parsedIntent.intent === 'get_personal_link') {
+        try {
+          const memberResult = await pool.query(
+            `SELECT tm.booking_token, tm.name, t.name as team_name
+             FROM team_members tm
+             JOIN teams t ON tm.team_id = t.id
+             WHERE tm.user_id = $1 OR t.owner_id = $1
+             LIMIT 1`,
+            [userId]
+          );
+
+          if (memberResult.rows.length === 0) {
+            return res.json({
+              type: 'info',
+              message: 'No booking profile found. Please set up your team first.',
+              usage: usageData
+            });
+          }
+
+          const member = memberResult.rows[0];
+          const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+          const bookingUrl = `${baseUrl}/book/${member.booking_token}`;
+
+          return res.json({
+            type: 'personal_link',
+            message: `Your Personal Booking Link
+
+${member.name}
+${member.team_name}`,
+            data: {
+              url: bookingUrl,
+              short_url: `/book/${member.booking_token.substring(0, 8)}...`,
+              name: member.name,
+              team_name: member.team_name,
+              type: 'personal'
+            },
+            usage: usageData
+          });
+        } catch (error) {
+          console.error('Get personal link error:', error);
+          return res.json({
+            type: 'error',
+            message: 'Failed to get your booking link. Please try again.',
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE GET/CREATE MAGIC LINK ============
+      if (parsedIntent.intent === 'get_magic_link') {
+        try {
+          const linkName = parsedIntent.extracted?.link_name || 'Quick Meeting';
+
+          // Create magic link token
+          const magicToken = crypto.randomBytes(16).toString('hex');
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
+
+          // Get user's default event type (optional)
+          const eventTypeResult = await pool.query(
+            `SELECT id FROM event_types WHERE user_id = $1 LIMIT 1`,
+            [userId]
+          );
+          const eventTypeId = eventTypeResult.rows[0]?.id || null;
+
+          // Insert into magic_links using correct columns
+          await pool.query(
+            `INSERT INTO magic_links (token, created_by_user_id, event_type_id, expires_at, is_active, is_used, created_at)
+             VALUES ($1, $2, $3, $4, true, false, NOW())`,
+            [magicToken, userId, eventTypeId, expiresAt]
+          );
+
+          const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+          const magicUrl = `${baseUrl}/m/${magicToken}`;
+
+          return res.json({
+            type: 'link',
+            message: `Magic link created for "${linkName}"!
+
+/m/${magicToken.substring(0, 8)}...
+Expires: ${expiresAt.toLocaleDateString()}
+Single-use: Yes`,
+            data: {
+              url: magicUrl,
+              token: magicToken,
+              name: linkName,
+              expires_at: expiresAt,
+              type: 'magic'
+            },
+            usage: usageData
+          });
+        } catch (error) {
+          console.error('Create magic link error:', error);
+          return res.json({
+            type: 'error',
+            message: 'Failed to create magic link. Please try again.',
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE GET TEAM LINKS ============
+      if (parsedIntent.intent === 'get_team_links') {
+        try {
+          const teamsResult2 = await pool.query(
+            `SELECT t.id, t.name, t.team_booking_token,
+                    COUNT(tm.id) as member_count
+             FROM teams t
+             LEFT JOIN team_members tm ON t.id = tm.team_id
+             WHERE t.owner_id = $1
+             GROUP BY t.id
+             ORDER BY t.name`,
+            [userId]
+          );
+
+          if (teamsResult2.rows.length === 0) {
+            return res.json({
+              type: 'info',
+              message: 'No teams found. Create a team first to get booking links.',
+              usage: usageData
+            });
+          }
+
+          const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+
+          const teamLinks = teamsResult2.rows
+            .map((team, index) => {
+              const isPersonal = team.name.toLowerCase().includes('personal');
+              const label = isPersonal ? '👤' : '👥';
+              return `${index + 1}. ${team.name} ${label}
+   👥 ${team.member_count} members`;
+            })
+            .join('\n\n');
+
+          return res.json({
+            type: 'team_links',
+            message: `Your Team Booking Links:
+
+${teamLinks}`,
+            data: {
+              teams: teamsResult2.rows.map((team) => ({
+                id: team.id,
+                name: team.name,
+                url: `${baseUrl}/book/${team.team_booking_token}`,
+                short_url: `/book/${team.team_booking_token.substring(0, 8)}...`,
+                member_count: team.member_count
+              }))
+            },
+            usage: usageData
+          });
+        } catch (error) {
+          console.error('Get team links error:', error);
+          return res.json({
+            type: 'error',
+            message: 'Failed to get team links. Please try again.',
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE GET MEMBER LINK ============
+      if (parsedIntent.intent === 'get_member_link') {
+        try {
+          const memberName = parsedIntent.extracted?.member_name;
+
+          if (!memberName || memberName.trim() === '') {
+            // List all available members
+            const allMembersResult = await pool.query(
+              `SELECT tm.name, u.name as user_name, t.name as team_name
+               FROM team_members tm
+               JOIN teams t ON tm.team_id = t.id
+               LEFT JOIN users u ON tm.user_id = u.id
+               WHERE t.owner_id = $1
+               ORDER BY tm.name`,
+              [userId]
+            );
+
+            if (allMembersResult.rows.length === 0) {
+              return res.json({
+                type: 'info',
+                message: 'No team members found. Add members to your teams first.',
+                usage: usageData
+              });
+            }
+
+            const memberList = allMembersResult.rows
+              .map(
+                (m) => `• ${m.user_name || m.name} (${m.team_name})`
+              )
+              .join('\n');
+
+            return res.json({
+              type: 'clarify',
+              message: `Which team member's link do you need?
+
+Available members:
+${memberList}
+
+Say "Get [name]'s booking link"`,
+              usage: usageData
+            });
+          }
+
+          // Search for member by name
+          const memberResult = await pool.query(
+            `SELECT tm.id, tm.name, tm.booking_token, t.name as team_name,
+                    u.email as user_email, u.name as user_name
+             FROM team_members tm
+             JOIN teams t ON tm.team_id = t.id
+             LEFT JOIN users u ON tm.user_id = u.id
+             WHERE t.owner_id = $1 
+               AND (LOWER(tm.name) LIKE LOWER($2) OR LOWER(u.name) LIKE LOWER($2))
+             LIMIT 5`,
+            [userId, `%${memberName}%`]
+          );
+
+          if (memberResult.rows.length === 0) {
+            // Member not found - show available members
+            const allMembersResult = await pool.query(
+              `SELECT tm.name, u.name as user_name, t.name as team_name
+               FROM team_members tm
+               JOIN teams t ON tm.team_id = t.id
+               LEFT JOIN users u ON tm.user_id = u.id
+               WHERE t.owner_id = $1
+               ORDER BY tm.name`,
+              [userId]
+            );
+
+            if (allMembersResult.rows.length === 0) {
+              return res.json({
+                type: 'info',
+                message: `No team member found matching "${memberName}". You don't have any team members yet. Add members to your teams first.`,
+                usage: usageData
+              });
+            }
+
+            const memberList = allMembersResult.rows
+              .map(
+                (m) => `• ${m.user_name || m.name} (${m.team_name})`
+              )
+              .join('\n');
+
+            return res.json({
+              type: 'info',
+              message: `No team member found matching "${memberName}".
+
+Available members:
+${memberList}`,
+              usage: usageData
+            });
+          }
+
+          const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+
+          if (memberResult.rows.length === 1) {
+            const member = memberResult.rows[0];
+            const memberUrl = `${baseUrl}/book/${member.booking_token}`;
+            const displayName = member.user_name || member.name || 'Team Member';
+            const displayEmail = member.user_email || 'No email';
+
+            return res.json({
+              type: 'member_link',
+              message: `${displayName}'s Booking Link
+
+${displayEmail}
+${member.team_name}`,
+              data: {
+                url: memberUrl,
+                short_url: `/book/${member.booking_token.substring(0, 8)}...`,
+                name: displayName,
+                email: displayEmail,
+                team_name: member.team_name,
+                type: 'member'
+              },
+              usage: usageData
+            });
+          }
+
+          // Multiple matches
+          return res.json({
+            type: 'member_links',
+            message: `Found ${memberResult.rows.length} members matching "${memberName}":`,
+            data: {
+              members: memberResult.rows.map((m) => ({
+                name: m.user_name || m.name || 'Team Member',
+                team_name: m.team_name,
+                url: `${baseUrl}/book/${m.booking_token}`,
+                short_url: `/book/${m.booking_token.substring(0, 8)}...`
+              }))
+            },
+            usage: usageData
+          });
+        } catch (error) {
+          console.error('Get member link error:', error);
+          return res.json({
+            type: 'error',
+            message: 'Failed to get member link. Please try again.',
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE GET EVENT TYPES ============
+      if (parsedIntent.intent === 'get_event_types') {
+        try {
+          // Get user info for username
+          const userResult = await pool.query(
+            `SELECT username, email FROM users WHERE id = $1`,
+            [userId]
+          );
+          const username =
+            userResult.rows[0]?.username ||
+            userResult.rows[0]?.email?.split('@')[0] ||
+            'user';
+
+          const eventTypesResult = await pool.query(
+            `SELECT et.id, et.title, et.slug, et.duration, et.description, 
+                    et.price, et.is_active, et.color, et.location_type,
+                    COUNT(b.id) as total_bookings
+             FROM event_types et
+             LEFT JOIN bookings b ON b.event_type_id = et.id
+             WHERE et.user_id = $1
+             GROUP BY et.id
+             ORDER BY et.is_active DESC, et.title ASC`,
+            [userId]
+          );
+
+          if (eventTypesResult.rows.length === 0) {
+            return res.json({
+              type: 'info',
+              message: `You don't have any event types yet.
+
+Go to Event Types to create your first one!`,
+              usage: usageData
+            });
+          }
+
+          const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+
+          const eventTypesList = eventTypesResult.rows
+            .map((et, index) => {
+              const status = et.is_active ? '✅ Active' : '⛔ Inactive';
+              const price = et.price ? `💰 $${et.price}` : '💰 Free';
+
+              return `${index + 1}. ${et.title} ${status}
+   ⏱ ${et.duration} min | ${price} | 📊 ${et.total_bookings || 0} bookings
+   🔗 /${username}/${et.slug}${
+     et.description ? `\n   📝 ${et.description}` : ''
+   }`;
+            })
+            .join('\n\n');
+
+          return res.json({
+            type: 'list',
+            message: `Your Event Types:
+
+${eventTypesList}
+
+Full links: ${baseUrl}/book/[slug]`,
+            data: {
+              event_types: eventTypesResult.rows.map((et) => ({
+                ...et,
+                booking_url: `${baseUrl}/book/${username}/${et.slug}`
+              })),
+              count: eventTypesResult.rows.length,
+              base_url: baseUrl,
+              username
+            },
+            usage: usageData
+          });
+        } catch (error) {
+          console.error('Get event types error:', error);
+          return res.json({
+            type: 'error',
+            message: 'Failed to get event types. Please try again.',
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE GET SPECIFIC EVENT TYPE ============
+      if (parsedIntent.intent === 'get_event_type') {
+        try {
+          const eventTypeName = parsedIntent.extracted?.event_type_name;
+
+          if (!eventTypeName || eventTypeName.trim() === '') {
+            // List all available event types
+            const allEventsResult = await pool.query(
+              `SELECT title, duration, is_active 
+               FROM event_types 
+               WHERE user_id = $1 
+               ORDER BY title`,
+              [userId]
+            );
+
+            if (allEventsResult.rows.length === 0) {
+              return res.json({
+                type: 'info',
+                message: `You don't have any event types yet.
+
+Go to Event Types to create your first one!`,
+                usage: usageData
+              });
+            }
+
+            const eventList = allEventsResult.rows
+              .map(
+                (e) =>
+                  `• ${e.title} (${e.duration} min) ${
+                    e.is_active ? '✅' : '⛔'
+                  }`
+              )
+              .join('\n');
+
+            return res.json({
+              type: 'clarify',
+              message: `Which event type do you want to see?
+
+Your event types:
+${eventList}
+
+Say "Show my [event name]"`,
+              usage: usageData
+            });
+          }
+
+          // Get user info for username
+          const userResult = await pool.query(
+            `SELECT username, email FROM users WHERE id = $1`,
+            [userId]
+          );
+          const username =
+            userResult.rows[0]?.username ||
+            userResult.rows[0]?.email?.split('@')[0] ||
+            'user';
+
+          const eventTypeResult = await pool.query(
+            `SELECT et.*,
+                    COUNT(b.id) FILTER (WHERE b.status = 'confirmed') as confirmed_count,
+                    COUNT(b.id) FILTER (WHERE b.status = 'cancelled') as cancelled_count
+             FROM event_types et
+             LEFT JOIN bookings b ON b.event_type_id = et.id
+             WHERE et.user_id = $1
+               AND LOWER(et.title) LIKE LOWER($2)
+             GROUP BY et.id
+             LIMIT 1`,
+            [userId, `%${eventTypeName}%`]
+          );
+
+          if (eventTypeResult.rows.length === 0) {
+            // Event type not found - show available ones
+            const allEventsResult = await pool.query(
+              `SELECT title, duration, is_active 
+               FROM event_types 
+               WHERE user_id = $1 
+               ORDER BY title`,
+              [userId]
+            );
+
+            if (allEventsResult.rows.length === 0) {
+              return res.json({
+                type: 'info',
+                message: `No event type found matching "${eventTypeName}". You don't have any event types yet. Go to Event Types to create one!`,
+                usage: usageData
+              });
+            }
+
+            const eventList = allEventsResult.rows
+              .map((e) => `• ${e.title} (${e.duration} min)`)
+              .join('\n');
+
+            return res.json({
+              type: 'info',
+              message: `No event type found matching "${eventTypeName}".
+
+Your event types:
+${eventList}`,
+              usage: usageData
+            });
+          }
+
+          const et = eventTypeResult.rows[0];
+          const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+          const bookingUrl = `${baseUrl}/book/${username}/${et.slug}`;
+
+          return res.json({
+            type: 'event_type',
+            message: `${et.title}
+
+${et.is_active ? '✅ Active' : '⛔ Inactive'}
+⏱ Duration: ${et.duration} minutes
+💰 Price: ${et.price ? `$${et.price}` : 'Free'}
+📝 Description: ${et.description || 'None'}
+
+📊 Stats:
+   ✅ Confirmed: ${et.confirmed_count}
+   ❌ Cancelled: ${et.cancelled_count}`,
+            data: {
+              event_type: et,
+              url: bookingUrl,
+              short_url: `/${username}/${et.slug}`,
+              type: 'event_type'
+            },
+            usage: usageData
+          });
+        } catch (error) {
+          console.error('Get event type error:', error);
+          return res.json({
+            type: 'error',
+            message: 'Failed to get event type. Please try again.',
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE SHOW CONFIRMED BOOKINGS ============
+      if (
+        parsedIntent.intent === 'show_confirmed_bookings' ||
+        (parsedIntent.intent === 'show_bookings' &&
+          parsedIntent.extracted?.status_filter === 'confirmed')
+      ) {
+        try {
+          const bookingsResult2 = await pool.query(
+            `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.title as event_type_name
+             FROM bookings b
+             LEFT JOIN teams t ON b.team_id = t.id
+             LEFT JOIN team_members tm ON b.member_id = tm.id
+             LEFT JOIN event_types et ON b.event_type_id = et.id
+             WHERE (t.owner_id = $1 OR tm.user_id = $1)
+               AND b.status = 'confirmed'
+             ORDER BY b.start_time ASC
+             LIMIT 15`,
+            [userId]
+          );
+
+          if (bookingsResult2.rows.length === 0) {
+            return res.json({
+              type: 'info',
+              message: 'No confirmed bookings found.',
+              usage: usageData
+            });
+          }
+
+          const bookingsList = bookingsResult2.rows
+            .map((b, index) => {
+              const startDate = new Date(b.start_time);
+              const isPast = startDate < new Date();
+              const timeLabel = isPast ? '(Past)' : '(Upcoming)';
+
+              return `${index + 1}. ${b.attendee_name || 'Guest'} ${timeLabel}
+   📧 ${b.attendee_email}
+   📅 ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString(
+     'en-US',
+     { hour: 'numeric', minute: '2-digit' }
+   )}
+   ⏱ ${b.duration || 30} min | 📂 ${b.event_type_name || 'Meeting'}
+   👥 ${b.team_name || 'Personal'}`;
+            })
+            .join('\n\n');
+
+          return res.json({
+            type: 'list',
+            message: `Confirmed Bookings (${bookingsResult2.rows.length}):
+
+${bookingsList}`,
+            data: { bookings: bookingsResult2.rows, status: 'confirmed' },
+            usage: usageData
+          });
+        } catch (error) {
+          console.error('Show confirmed bookings error:', error);
+          return res.json({
+            type: 'error',
+            message: 'Failed to get confirmed bookings.',
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE SHOW CANCELLED BOOKINGS ============
+      if (
+        parsedIntent.intent === 'show_cancelled_bookings' ||
+        (parsedIntent.intent === 'show_bookings' &&
+          parsedIntent.extracted?.status_filter === 'cancelled')
+      ) {
+        try {
+          const bookingsResult3 = await pool.query(
+            `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.title as event_type_name
+             FROM bookings b
+             LEFT JOIN teams t ON b.team_id = t.id
+             LEFT JOIN team_members tm ON b.member_id = tm.id
+             LEFT JOIN event_types et ON b.event_type_id = et.id
+             WHERE (t.owner_id = $1 OR tm.user_id = $1)
+               AND b.status = 'cancelled'
+             ORDER BY b.updated_at DESC
+             LIMIT 15`,
+            [userId]
+          );
+
+          if (bookingsResult3.rows.length === 0) {
+            return res.json({
+              type: 'info',
+              message:
+                'No cancelled bookings! All your meetings are going as planned.',
+              usage: usageData
+            });
+          }
+
+          const bookingsList = bookingsResult3.rows
+            .map((b, index) => {
+              const startDate = new Date(b.start_time);
+
+              return `${index + 1}. ${b.attendee_name || 'Guest'} ❌
+   📧 ${b.attendee_email}
+   Was scheduled: ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString(
+     'en-US',
+     { hour: 'numeric', minute: '2-digit' }
+   )}`;
+            })
+            .join('\n\n');
+
+          return res.json({
+            type: 'list',
+            message: `Cancelled Bookings (${bookingsResult3.rows.length}):
+
+${bookingsList}`,
+            data: { bookings: bookingsResult3.rows, status: 'cancelled' },
+            usage: usageData
+          });
+        } catch (error) {
+          console.error('Show cancelled bookings error:', error);
+          return res.json({
+            type: 'error',
+            message: 'Failed to get cancelled bookings.',
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE SHOW RESCHEDULED BOOKINGS ============
+      if (
+        parsedIntent.intent === 'show_rescheduled_bookings' ||
+        (parsedIntent.intent === 'show_bookings' &&
+          parsedIntent.extracted?.status_filter === 'rescheduled')
+      ) {
+        try {
+          const bookingsResult4 = await pool.query(
+            `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.title as event_type_name
+             FROM bookings b
+             LEFT JOIN teams t ON b.team_id = t.id
+             LEFT JOIN team_members tm ON b.member_id = tm.id
+             LEFT JOIN event_types et ON b.event_type_id = et.id
+             WHERE (t.owner_id = $1 OR tm.user_id = $1)
+               AND b.status = 'rescheduled'
+             ORDER BY b.updated_at DESC
+             LIMIT 15`,
+            [userId]
+          );
+
+          if (bookingsResult4.rows.length === 0) {
+            return res.json({
+              type: 'info',
+              message: 'No rescheduled bookings found.',
+              usage: usageData
+            });
+          }
+
+          const bookingsList = bookingsResult4.rows
+            .map((b, index) => {
+              const startDate = new Date(b.start_time);
+
+              return `${index + 1}. ${b.attendee_name || 'Guest'} 🔁
+   📧 ${b.attendee_email}
+   ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString(
+     'en-US',
+     { hour: 'numeric', minute: '2-digit' }
+   )}
+   Status: ${b.status}`;
+            })
+            .join('\n\n');
+
+          return res.json({
+            type: 'list',
+            message: `Rescheduled Bookings (${bookingsResult4.rows.length}):
+
+${bookingsList}`,
+            data: { bookings: bookingsResult4.rows, status: 'rescheduled' },
+            usage: usageData
+          });
+        } catch (error) {
+          console.error('Show rescheduled bookings error:', error);
+          return res.json({
+            type: 'error',
+            message: 'Failed to get rescheduled bookings.',
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE BOOKING STATS ============
+      if (parsedIntent.intent === 'booking_stats') {
+        try {
+          const month = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+          const monthStart = `${month}-01`;
+          const nextMonth = new Date();
+          nextMonth.setMonth(nextMonth.getMonth() + 1);
+          const monthEnd = `${nextMonth.toISOString().slice(0, 7)}-01`;
+
+          const statsResult = await pool.query(
+            `SELECT 
+               COUNT(*) FILTER (WHERE status = 'confirmed') as confirmed,
+               COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled,
+               COUNT(*) FILTER (WHERE status = 'pending') as pending,
+               COUNT(*) as total,
+               COUNT(*) FILTER (WHERE start_time >= NOW() AND status = 'confirmed') as upcoming
+             FROM bookings b
+             LEFT JOIN teams t ON b.team_id = t.id
+             LEFT JOIN team_members tm ON b.member_id = tm.id
+             WHERE (t.owner_id = $1 OR tm.user_id = $1)
+               AND b.created_at >= $2 AND b.created_at < $3`,
+            [userId, monthStart, monthEnd]
+          );
+
+          // All-time stats
+          const allTimeResult = await pool.query(
+            `SELECT 
+               COUNT(*) FILTER (WHERE status = 'confirmed') as confirmed,
+               COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled,
+               COUNT(*) as total
+             FROM bookings b
+             LEFT JOIN teams t ON b.team_id = t.id
+             LEFT JOIN team_members tm ON b.member_id = tm.id
+             WHERE t.owner_id = $1 OR tm.user_id = $1`,
+            [userId]
+          );
+
+          const thisMonth = statsResult.rows[0];
+          const allTime = allTimeResult.rows[0];
+
+          const completionRate =
+            allTime.total > 0
+              ? Math.round((allTime.confirmed / allTime.total) * 100)
+              : 0;
+
+          const monthName = new Date().toLocaleString('default', {
+            month: 'long'
+          });
+
+          return res.json({
+            type: 'stats',
+            message: `Booking Statistics
+
+📅 This Month (${monthName}):
+   ✅ Confirmed: ${thisMonth.confirmed}
+   ❌ Cancelled: ${thisMonth.cancelled}
+   ⏳ Pending: ${thisMonth.pending}
+   📊 Total: ${thisMonth.total}
+   📆 Upcoming: ${thisMonth.upcoming}
+
+📈 All Time:
+   ✅ Confirmed: ${allTime.confirmed}
+   ❌ Cancelled: ${allTime.cancelled}
+   📊 Total: ${allTime.total}
+   🎯 Completion Rate: ${completionRate}%`,
+            data: {
+              this_month: thisMonth,
+              all_time: allTime,
+              completion_rate: completionRate
+            },
+            usage: usageData
+          });
+        } catch (error) {
+          console.error('Booking stats error:', error);
+          return res.json({
+            type: 'error',
+            message: 'Failed to get booking statistics.',
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE SCHEDULE TEAM MEETING ============
+      if (parsedIntent.intent === 'schedule_team_meeting') {
+        try {
+          const teamName = parsedIntent.extracted?.team_name;
+
+          // Get all teams first
+          const allTeamsResult = await pool.query(
+            `SELECT t.id, t.name 
+             FROM teams t 
+             WHERE t.owner_id = $1 
+             ORDER BY t.name`,
+            [userId]
+          );
+
+          if (allTeamsResult.rows.length === 0) {
+            return res.json({
+              type: 'info',
+              message:
+                'No teams found. Create a team first to schedule team meetings.',
+              usage: usageData
+            });
+          }
+
+          if (!teamName || teamName.trim() === '') {
+            const teamList = allTeamsResult.rows
+              .map((t, i) => `${i + 1}. ${t.name}`)
+              .join('\n');
+
+            return res.json({
+              type: 'clarify',
+              message: `Which team would you like to schedule with?
+
+${teamList}
+
+Say "Schedule with [team name]" to continue.`,
+              data: { teams: allTeamsResult.rows },
+              usage: usageData
+            });
+          }
+
+          // Find the team
+          const teamResult = await pool.query(
+            `SELECT t.id, t.name, t.team_booking_token
+             FROM teams t
+             WHERE t.owner_id = $1 AND LOWER(t.name) LIKE LOWER($2)
+             LIMIT 1`,
+            [userId, `%${teamName}%`]
+          );
+
+          if (teamResult.rows.length === 0) {
+            const teamList = allTeamsResult.rows
+              .map((t, i) => `${i + 1}. ${t.name}`)
+              .join('\n');
+
+            return res.json({
+              type: 'info',
+              message: `No team found matching "${teamName}".
+
+Your teams:
+${teamList}
+
+Say "Schedule with [team name]" to continue.`,
+              data: { teams: allTeamsResult.rows },
+              usage: usageData
+            });
+          }
+
+          const team = teamResult.rows[0];
+
+          // Validate attendees email if provided
+          if (
+            parsedIntent.extracted?.attendees &&
+            parsedIntent.extracted.attendees.length > 0
+          ) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const invalidEmails = parsedIntent.extracted.attendees.filter(
+              (email) => !emailRegex.test(email)
+            );
+
+            if (invalidEmails.length > 0) {
+              return res.json({
+                type: 'clarify',
+                message: `Invalid email address: ${invalidEmails.join(
+                  ', '
+                )}\n\nPlease provide a valid email address for the attendee.`,
+                data: { team },
+                usage: usageData
+              });
+            }
+          }
+
+          // Check if we have all required booking info
+          if (!parsedIntent.extracted?.date || !parsedIntent.extracted?.time) {
+            return res.json({
+              type: 'clarify',
+              message: `When would you like to schedule with ${team.name}?
+
+Please provide date and time.
+
+Example: "tomorrow at 2pm" or "December 10 at 3:30pm"`,
+              data: {
+                team,
+                partial_booking: parsedIntent.extracted
+              },
+              usage: usageData
+            });
+          }
+
+          if (
+            !parsedIntent.extracted?.attendees ||
+            parsedIntent.extracted.attendees.length === 0
+          ) {
+            return res.json({
+              type: 'clarify',
+              message: `Who should I invite to this ${team.name} meeting?
+
+Please provide their email address.`,
+              data: {
+                team,
+                partial_booking: parsedIntent.extracted
+              },
+              usage: usageData
+            });
+          }
+
+          // All info present - create confirmation
+          const attendeeEmail = parsedIntent.extracted.attendees[0];
+          const attendeeName = attendeeEmail
+            .split('@')[0]
+            .replace(/[._-]/g, ' ')
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+
+          const bookingData = {
+            title: parsedIntent.extracted.title || `${team.name} Meeting`,
+            date: parsedIntent.extracted.date,
+            time: parsedIntent.extracted.time,
+            duration: parsedIntent.extracted.duration_minutes || 30,
+            attendees: parsedIntent.extracted.attendees,
+            attendee_email: attendeeEmail,
+            notes:
+              parsedIntent.extracted.notes ||
+              `Meeting with ${attendeeName}`,
+            team_id: team.id,
+            team_name: team.name
+          };
+
+          return res.json({
+            type: 'confirmation',
+            message: `Ready to schedule ${team.name} meeting?
+
+📅 ${bookingData.date} at ${bookingData.time}
+👥 Attendees: ${bookingData.attendees.join(', ')}
+⏱ Duration: ${bookingData.duration} minutes
+🏷 Team: ${team.name}
+📝 Notes: ${bookingData.notes}`,
+            data: { bookingData },
+            usage: usageData
+          });
+        } catch (error) {
+          console.error('Schedule team meeting error:', error);
+          return res.json({
+            type: 'error',
+            message: 'Failed to schedule team meeting. Please try again.',
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE SHOW BOOKINGS INTENT ============
+      if (parsedIntent.intent === 'show_bookings') {
+        if (userContext.upcomingBookings.length === 0) {
+          return res.json({
+            type: 'info',
+            message: 'You have no upcoming bookings scheduled.',
+            usage: usageData
+          });
+        }
+
+        const bookingsList = userContext.upcomingBookings
+          .map((booking, index) => {
+            const startDate = new Date(booking.start);
+            const endDate = new Date(booking.end);
+
+            return `${index + 1}. ${booking.attendee_name || 'Guest'}${
+              booking.attendee_email ? ` (${booking.attendee_email})` : ''
+            }
+📞 ${booking.attendee_phone || 'No phone'}
+📅 ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString(
+  'en-US',
+  {
+    hour: 'numeric',
+    minute: '2-digit'
+  }
+)} - ${endDate.toLocaleTimeString('en-US', {
+  hour: 'numeric',
+  minute: '2-digit'
+})}
+⏱ ${booking.duration || 30} minutes
+👥 ${booking.team_name || 'Personal'}
+🔗 ${booking.meet_link || 'No meeting link'}
+📝 ${booking.notes || 'No notes'}
+Status: ${booking.status}`;
+          })
+          .join('\n\n');
+
+        return res.json({
+          type: 'list',
+          message: `Here are your upcoming bookings:
+
+${bookingsList}`,
+          data: { bookings: userContext.upcomingBookings },
+          usage: usageData
+        });
+      }
+
+      // ============ HANDLE FIND TIME INTENT ============
+      if (
+        parsedIntent.intent === 'find_time' ||
+        parsedIntent.action === 'suggest_slots'
+      ) {
+        try {
+          // Get user's booking token
+          const memberResult = await pool.query(
+            `SELECT tm.id, tm.booking_token, tm.timezone
+             FROM team_members tm
+             JOIN teams t ON tm.team_id = t.id
+             WHERE tm.user_id = $1 OR t.owner_id = $1
+             LIMIT 1`,
+            [userId]
+          );
+
+          if (memberResult.rows.length === 0) {
+            return res.json({
+              type: 'error',
+              message:
+                'No booking profile found. Please set up your availability first.',
+              usage: usageData
+            });
+          }
+
+          const member = memberResult.rows[0];
+
+          // Get availability settings
+          const availResult = await pool.query(
+            `SELECT * FROM availability_settings WHERE member_id = $1`,
+            [member.id]
+          );
+
+          if (availResult.rows.length === 0) {
+            return res.json({
+              type: 'info',
+              message:
+                'No availability settings found. Please set up your available hours in Settings > Availability first.',
+              usage: usageData
+            });
+          }
+
+          // Generate slots for next 7 days
+          const slots = [];
+          const now = new Date();
+          const daysToCheck = 7;
+
+          for (let dayOffset = 0; dayOffset < daysToCheck; dayOffset++) {
+            const checkDate = new Date(now);
+            checkDate.setDate(checkDate.getDate() + dayOffset);
+            const dayOfWeek = checkDate.getDay();
+
+            const dayAvail = availResult.rows.find(
+              (a) => a.day_of_week === dayOfWeek
+            );
+
+            if (dayAvail && dayAvail.is_available) {
+              const [startHour, startMin] = dayAvail.start_time
+                .split(':')
+                .map(Number);
+              const [endHour, endMin] = dayAvail.end_time
+                .split(':')
+                .map(Number);
+
+              let slotTime = new Date(checkDate);
+              slotTime.setHours(startHour, startMin, 0, 0);
+
+              const endTime = new Date(checkDate);
+              endTime.setHours(endHour, endMin, 0, 0);
+
+              while (slotTime < endTime && slots.length < 50) {
+                if (slotTime > now) {
+                  const conflictCheck = await pool.query(
+                    `SELECT id FROM bookings 
+                     WHERE member_id = $1 
+                     AND status = 'confirmed'
+                     AND start_time <= $2 
+                     AND end_time > $2`,
+                    [member.id, slotTime.toISOString()]
+                  );
+
+                  if (conflictCheck.rows.length === 0) {
+                    const hour = slotTime.getHours();
+                    let matchScore = 85;
+                    let matchLabel = 'Good Match';
+
+                    if (hour >= 9 && hour <= 11) {
+                      matchScore = 95;
+                      matchLabel = 'Excellent Match';
+                    } else if (hour >= 14 && hour <= 16) {
+                      matchScore = 90;
+                      matchLabel = 'Excellent Match';
+                    }
+
+                    slots.push({
+                      start: slotTime.toISOString(),
+                      end: new Date(
+                        slotTime.getTime() + 30 * 60000
+                      ).toISOString(),
+                      matchScore,
+                      matchLabel
+                    });
+                  }
+                }
+
+                slotTime = new Date(slotTime.getTime() + 30 * 60000);
+              }
+            }
+          }
+
+          if (slots.length === 0) {
+            return res.json({
+              type: 'info',
+              message:
+                'No available slots found in the next 7 days. Please check your availability settings.',
+              usage: usageData
+            });
+          }
+
+          const bestSlots = slots.slice(0, 5);
+
+          const formattedSlots = bestSlots
+            .map((slot, index) => {
+              const date = new Date(slot.start);
+              const dateStr = date.toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric'
+              });
+              const timeStr = date.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              });
+
+              return `${index + 1}. ${dateStr} • ${timeStr}    (${slot.matchLabel})`;
+            })
+            .join('\n');
+
+          return res.json({
+            type: 'slots',
+            message: `Here are your best available times:
+
+${formattedSlots}
+
+Ready to book? Just say "book slot 1" or "schedule 10 AM"!`,
+            data: { slots: bestSlots },
+            usage: usageData
+          });
+        } catch (error) {
+          console.error('Slot fetch error:', error);
+          return res.json({
+            type: 'error',
+            message:
+              'Sorry, I had trouble checking your availability. Please try again.',
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE CREATE MEETING INTENT ============
+      if (parsedIntent.intent === 'create_meeting') {
+        // Email validation function
+        const isValidEmail = (email) => {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          return emailRegex.test(email);
+        };
+
+        // Validate attendees emails
+        if (
+          parsedIntent.extracted?.attendees &&
+          parsedIntent.extracted.attendees.length > 0
+        ) {
+          const invalidEmails = parsedIntent.extracted.attendees.filter(
+            (email) => !isValidEmail(email)
+          );
+
+          if (invalidEmails.length > 0) {
+            return res.json({
+              type: 'clarify',
+              message: `Invalid email address: ${invalidEmails.join(
+                ', '
+              )}\n\nPlease provide valid email addresses.\n\nExample: john@company.com`,
+              data: parsedIntent,
+              usage: usageData
+            });
+          }
+        }
+
+        // Required field validation
+        if (
+          !parsedIntent.extracted?.date ||
+          !parsedIntent.extracted?.time
+        ) {
+          return res.json({
+            type: 'clarify',
+            message: `I need both a date and time to schedule your meeting.
+
+When would you like to meet?
+
+Example: "tomorrow at 2pm" or "December 10 at 3:30pm"`,
+            data: parsedIntent,
+            usage: usageData
+          });
+        }
+
+        if (
+          !parsedIntent.extracted?.attendees ||
+          parsedIntent.extracted.attendees.length === 0
+        ) {
+          return res.json({
+            type: 'clarify',
+            message: `Who should I invite to this meeting?
+
+Please provide their email address.
+
+Example: john@company.com`,
+            data: parsedIntent,
+            usage: usageData
+          });
+        }
+
+        // Check missing fields
+        const missing = parsedIntent.missing_fields || [];
+        if (missing.length > 0) {
+          return res.json({
+            type: 'clarify',
+            message:
+              parsedIntent.clarifying_question ||
+              `I need a bit more information. What ${missing.join(
+                ' and '
+              )} would work for you?`,
+            data: parsedIntent,
+            usage: usageData
+          });
+        }
+
+        // All validation passed - prepare booking data
+        const attendeeEmail = parsedIntent.extracted.attendees[0];
+        const attendeeName = attendeeEmail
+          .split('@')[0]
+          .replace(/[._-]/g, ' ')
+          .replace(/\b\w/g, (c) => c.toUpperCase());
+
+        const extractedNotes = parsedIntent.extracted.notes;
+        const cleanNotes =
+          extractedNotes &&
+          extractedNotes !== 'null' &&
+          extractedNotes.trim() !== ''
+            ? extractedNotes
+            : `Meeting with ${attendeeName}`;
+
+        const bookingData = {
+          title: parsedIntent.extracted.title || 'Meeting',
+          date: parsedIntent.extracted.date,
+          time: parsedIntent.extracted.time,
+          duration: parsedIntent.extracted.duration_minutes || 30,
+          attendees: parsedIntent.extracted.attendees,
+          attendee_email: attendeeEmail,
+          notes: cleanNotes
+        };
+
+        return res.json({
+          type: 'confirmation',
+          message: `Ready to schedule "${bookingData.title}" for ${bookingData.date} at ${bookingData.time}?
+
+👥 Attendees: ${bookingData.attendees.join(', ')}
+⏱ Duration: ${bookingData.duration} minutes
+📝 Notes: ${cleanNotes}`,
+          data: { bookingData },
+          usage: usageData
+        });
+      }
+
+      // ✅ STEP 16: DEFAULT SUCCESS RESPONSE FOR OTHER INTENTS
+      const finalResponse = {
+        type: 'success',
+        intent: parsedIntent.intent,
+        confidence: parsedIntent.confidence || 80,
+        extracted: {
+          link_name: parsedIntent.extracted?.link_name || null,
+          team_name: parsedIntent.extracted?.team_name || null,
+          member_name: parsedIntent.extracted?.member_name || null,
+          event_type_name: parsedIntent.extracted?.event_type_name || null,
+          status_filter: parsedIntent.extracted?.status_filter || 'confirmed',
+          date_range: parsedIntent.extracted?.date_range || 'all',
+          title: parsedIntent.extracted?.title || null,
+          attendees: parsedIntent.extracted?.attendees || [],
+          attendee_email: parsedIntent.extracted?.attendee_email || null,
+          date: parsedIntent.extracted?.date || null,
+          time: parsedIntent.extracted?.time || null,
+          duration_minutes:
+            parsedIntent.extracted?.duration_minutes || 30,
+          notes: parsedIntent.extracted?.notes || null
+        },
         missing_fields: parsedIntent.missing_fields || [],
+        clarifying_question: parsedIntent.clarifying_question || null,
+        action: parsedIntent.action || null,
+        message: parsedIntent.response_message,
         context: {
           pending: pendingBookingContext,
           teams: userContext.teams.length,
-          upcomingBookings: userContext.upcomingBookings.length
+          upcomingBookings: userContext.upcomingBookings.length,
+          userTeams: userContext.teams,
+          recentBookings: userContext.upcomingBookings.slice(0, 3)
         },
         usage: usageData
-      });
-    }
+      };
 
-    // ✅ STEP 14: RETURN COMPLETE STRUCTURED RESPONSE
-    return res.json({
-      type: 'success',
-      intent: parsedIntent.intent,
-      confidence: parsedIntent.confidence || 80,
-      extracted: {
-        link_name: parsedIntent.extracted?.link_name || null,
-        team_name: parsedIntent.extracted?.team_name || null,
-        member_name: parsedIntent.extracted?.member_name || null,
-        event_type_name: parsedIntent.extracted?.event_type_name || null,
-        status_filter: parsedIntent.extracted?.status_filter || 'confirmed',
-        date_range: parsedIntent.extracted?.date_range || 'all',
-        title: parsedIntent.extracted?.title || null,
-        attendees: parsedIntent.extracted?.attendees || [],
-        attendee_email: parsedIntent.extracted?.attendee_email || null,
-        date: parsedIntent.extracted?.date || null,
-        time: parsedIntent.extracted?.time || null,
-        duration_minutes: parsedIntent.extracted?.duration_minutes || 30,
-        notes: parsedIntent.extracted?.notes || null
-      },
-      missing_fields: parsedIntent.missing_fields || [],
-      clarifying_question: parsedIntent.clarifying_question || null,
-      action: parsedIntent.action || null,
-      message: parsedIntent.response_message,
-      context: {
-        pending: pendingBookingContext,
-        teams: userContext.teams.length,
-        upcomingBookings: userContext.upcomingBookings.length,
-        userTeams: userContext.teams,
-        recentBookings: userContext.upcomingBookings.slice(0, 3)
-      },
-      usage: usageData
-    });
+      console.log('✅ Final AI response:', JSON.stringify(finalResponse, null, 2));
+      return res.json(finalResponse);
+    } catch (error) {
+      console.error('❌ AI scheduling error:', error);
 
-  } catch (error) {
-    console.error('❌ AI scheduling error:', error);
-    
-    // Handle feature gate limit errors
-    if (error.response?.data?.upgrade_required) {
-      return res.status(403).json({
+      // Handle feature gate limit errors
+      if (error.response?.data?.upgrade_required) {
+        return res.status(403).json({
+          type: 'error',
+          message: error.response.data.message,
+          upgrade_required: true,
+          feature: error.response.data.feature,
+          usage: req.aiUsage || { used: 0, limit: 10 }
+        });
+      }
+
+      return res.status(500).json({
         type: 'error',
-        message: error.response.data.message,
-        upgrade_required: true,
-        feature: error.response.data.feature,
+        message: 'Sorry, I encountered an error. Please try again.',
         usage: req.aiUsage || { used: 0, limit: 10 }
       });
     }
-    
-    res.status(500).json({
-      type: 'error',
-      message: 'Sorry, I encountered an error. Please try again.',
-      usage: req.aiUsage || { used: 0, limit: 10 }
-    });
   }
-});
-
-// ✅ FINAL CONSOLE LOG
-console.log('✅ Final AI response:', JSON.stringify(finalResponse, null, 2));
-
-return res.json(finalResponse);
-
-    // ============ HANDLE HELP/CLARIFY INTENT ============
-    if (parsedIntent.intent === 'clarify' || cleanMessage.toLowerCase().includes('help') || cleanMessage.toLowerCase().includes('what can you do')) {
-      return res.json({
-        type: 'help',
-        message: `I can help with:\n\n?? **Meeting scheduling**\n• "Schedule with client@company.com tomorrow at 2pm"\n• "Find available times this week"\n• "Show my bookings"\n\n?? **Professional emails**\n• "Send reminder to someone@email.com"\n• "Send thank you to client@company.com"\n• "Send confirmation to team@startup.com"\n\n?? Try any of these commands!`,
-        usage: {
-          ai_queries_used: usageResult.ai_queries_used,
-          ai_queries_limit: usageResult.ai_queries_limit
-        }
-      });
-    }
-
-   // ============ HANDLE EMAIL SENDING INTENTS ============
-if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
-  const { type, recipient, meeting_details } = parsedIntent.email_action;
-  
-  // Validate email format
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!recipient || !emailRegex.test(recipient)) {
-    return res.json({
-      type: 'clarify',
-      message: `? Invalid or missing email address${recipient ? `: ${recipient}` : ''}.\n\nPlease provide a valid email address.\n\nExample: "Send reminder to john@company.com"`,
-      usage: usageData
-    });
-  }
-  
-  // Validate email type
-  const validTypes = ['reminder', 'confirmation', 'follow_up', 'cancellation'];
-  if (!type || !validTypes.includes(type)) {
-    return res.json({
-      type: 'clarify',
-      message: `?? What type of email would you like to send to ${recipient}?\n\nAvailable types:\n• Reminder\n• Confirmation\n• Follow-up\n• Cancellation\n\nExample: "Send reminder to ${recipient}"`,
-      usage: usageData
-    });
-  }
-  
-  // Check if template exists
-  // ✅ FIXED: Make the function async
-async function someFunction() {
-  const template = await selectBestTemplate(userId, type, meeting_details);
-}
-  if (!template) {
-    // List available templates
-    const templatesResult = await pool.query(
-      `SELECT name, type FROM email_templates WHERE user_id = $1 ORDER BY type, name`,
-      [userId]
-    );
-
-    if (templatesResult.rows.length === 0) {
-      return res.json({
-        type: 'info',
-        message: `? No ${type} email template found.\n\nYou don't have any email templates yet.\n\nGo to Email Templates to create one, or I can send a default ${type} email.`,
-        usage: usageData
-      });
-    }
-
-    const templateList = templatesResult.rows.map(t => 
-      `• ${t.name} (${t.type})`
-    ).join('\n');
-
-    return res.json({
-      type: 'info',
-      message: `? No ${type} template found.\n\nYour templates:\n${templateList}\n\nCreate a ${type} template or try a different email type.`,
-      usage: usageData
-    });
-  }
-  
-  // Prepare meeting details
-  const emailDetails = {
-    date: meeting_details?.date || new Date().toLocaleDateString(),
-    time: meeting_details?.time || 'TBD',
-    link: meeting_details?.link || userContext.upcomingBookings?.[0]?.meet_link || 'Will be provided',
-    title: meeting_details?.title || userContext.upcomingBookings?.[0]?.title || 'Meeting'
-  };
-  
-  // Send email
-  const emailSent = await sendEmailWithTemplate(template, recipient, emailDetails, userId);
-  
-  if (emailSent) {
-    if (template.id) {
-      await trackTemplateUsage(template.id, userId, 'sent');
-    }
-    
-    return res.json({
-      type: 'email_sent',
-      message: `? ${type.charAt(0).toUpperCase() + type.slice(1)} email sent!\n\n?? To: ${recipient}\n?? Template: "${template.name}"`,
-      data: {
-        template_used: template.name,
-        recipient: recipient,
-        email_type: type
-      },
-      usage: usageData
-    });
-  } else {
-    return res.json({
-      type: 'error',
-      message: `? Failed to send ${type} email to ${recipient}.\n\nPlease try again or check your email settings.`,
-      usage: usageData
-    });
-  }
-}
-
-    // ============ HANDLE UPDATE PENDING INTENT ============
-    if (parsedIntent.intent === 'update_pending' && pendingBookingContext) {
-      const updated = {
-        ...pendingBookingContext,
-        ...parsedIntent.extracted
-      };
+);
       
-      // Handle attendees array to single email
-      if (parsedIntent.extracted.attendees && parsedIntent.extracted.attendees.length > 0) {
-        updated.attendee_email = parsedIntent.extracted.attendees[0];
-      }
-      
-      // Rename duration_minutes to duration for consistency
-      if (parsedIntent.extracted.duration_minutes) {
-        updated.duration = parsedIntent.extracted.duration_minutes;
-      }
-
-      const changeDescription = [];
-      if (parsedIntent.extracted.duration_minutes && parsedIntent.extracted.duration_minutes !== pendingBookingContext.duration) {
-        changeDescription.push(`duration to ${parsedIntent.extracted.duration_minutes} minutes`);
-      }
-      if (parsedIntent.extracted.time && parsedIntent.extracted.time !== pendingBookingContext.time) {
-        changeDescription.push(`time to ${parsedIntent.extracted.time}`);
-      }
-      if (parsedIntent.extracted.date && parsedIntent.extracted.date !== pendingBookingContext.date) {
-        changeDescription.push(`date to ${parsedIntent.extracted.date}`);
-      }
-
-      return res.json({
-        type: 'update_pending',
-        message: changeDescription.length > 0 
-          ? `? Updated ${changeDescription.join(' and ')}. Please review and confirm.`
-          : 'Booking details updated. Please review and confirm.',
-        data: {
-          updatedBooking: updated
-        },
-        usage: {
-          ai_queries_used: usageResult.ai_queries_used,
-          ai_queries_limit: usageResult.ai_queries_limit
-        }
-      });
-    }
-
-     // ============ HANDLE GET PERSONAL LINK ============
-if (parsedIntent.intent === 'get_personal_link') {
-  try {
-    const memberResult = await pool.query(
-      `SELECT tm.booking_token, tm.name, t.name as team_name
-       FROM team_members tm
-       JOIN teams t ON tm.team_id = t.id
-       WHERE tm.user_id = $1 OR t.owner_id = $1
-       LIMIT 1`,
-      [userId]
-    );
-
-    if (memberResult.rows.length === 0) {
-      return res.json({
-        type: 'info',
-        message: '? No booking profile found. Please set up your team first.',
-        usage: usageData
-      });
-    }
-
-    const member = memberResult.rows[0];
-    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
-    const bookingUrl = `${baseUrl}/book/${member.booking_token}`;
-
-    return res.json({
-      type: 'personal_link',
-      message: `?? Your Personal Booking Link\n\n?? ${member.name}\n?? ${member.team_name}`,
-      data: {
-        url: bookingUrl,
-        short_url: `/book/${member.booking_token.substring(0, 8)}...`,
-        name: member.name,
-        team_name: member.team_name,
-        type: 'personal'
-      },
-      usage: usageData
-    });
-  } catch (error) {
-    console.error('Get personal link error:', error);
-    return res.json({
-      type: 'error',
-      message: '? Failed to get your booking link. Please try again.',
-      usage: usageData
-    });
-  }
-}
-
-// ============ HANDLE GET/CREATE MAGIC LINK ============
-if (parsedIntent.intent === 'get_magic_link') {
-  try {
-    const linkName = parsedIntent.extracted?.link_name || 'Quick Meeting';
-    
-    // Create magic link token
-    const magicToken = crypto.randomBytes(16).toString('hex');
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
-
-    // Get user's default event type (optional)
-    const eventTypeResult = await pool.query(
-      `SELECT id FROM event_types WHERE user_id = $1 LIMIT 1`,
-      [userId]
-    );
-    const eventTypeId = eventTypeResult.rows[0]?.id || null;
-
-    // Insert into magic_links using correct columns
-    await pool.query(
-      `INSERT INTO magic_links (token, created_by_user_id, event_type_id, expires_at, is_active, is_used, created_at)
-       VALUES ($1, $2, $3, $4, true, false, NOW())`,
-      [magicToken, userId, eventTypeId, expiresAt]
-    );
-
-    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
-    const magicUrl = `${baseUrl}/m/${magicToken}`;
-
-    return res.json({
-      type: 'link',
-      message: `? Magic link created for "${linkName}"!\n\n?? /m/${magicToken.substring(0, 8)}...\n? Expires: ${expiresAt.toLocaleDateString()}\n?? Single-use: Yes`,
-      data: {
-        url: magicUrl,
-        token: magicToken,
-        name: linkName,
-        expires_at: expiresAt,
-        type: 'magic'
-      },
-      usage: usageData
-    });
-  } catch (error) {
-    console.error('Create magic link error:', error);
-    return res.json({
-      type: 'error',
-      message: '? Failed to create magic link. Please try again.',
-      usage: usageData
-    });
-  }
-}
-
-// ============ HANDLE GET TEAM LINKS ============
-if (parsedIntent.intent === 'get_team_links') {
-  try {
-    const teamsResult = await pool.query(
-      `SELECT t.id, t.name, t.team_booking_token,
-              COUNT(tm.id) as member_count
-       FROM teams t
-       LEFT JOIN team_members tm ON t.id = tm.team_id
-       WHERE t.owner_id = $1
-       GROUP BY t.id
-       ORDER BY t.name`,
-      [userId]
-    );
-
-    if (teamsResult.rows.length === 0) {
-      return res.json({
-        type: 'info',
-        message: '? No teams found. Create a team first to get booking links.',
-        usage: usageData
-      });
-    }
-
-    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
-    
-    const teamLinks = teamsResult.rows.map((team, index) => {
-      const isPersonal = team.name.toLowerCase().includes('personal');
-      const label = isPersonal ? '?' : '??';
-      return `${index + 1}. ${team.name} ${label}\n   ?? ${team.member_count} members`;
-    }).join('\n\n');
-
-    return res.json({
-      type: 'team_links',
-      message: `?? Your Team Booking Links:\n\n${teamLinks}`,
-      data: {
-        teams: teamsResult.rows.map(team => ({
-          id: team.id,
-          name: team.name,
-          url: `${baseUrl}/book/${team.team_booking_token}`,
-          short_url: `/book/${team.team_booking_token.substring(0, 8)}...`,
-          member_count: team.member_count
-        }))
-      },
-      usage: usageData
-    });
-  } catch (error) {
-    console.error('Get team links error:', error);
-    return res.json({
-      type: 'error',
-      message: '? Failed to get team links. Please try again.',
-      usage: usageData
-    });
-  }
-}
-// ============ HANDLE GET MEMBER LINK ============
-if (parsedIntent.intent === 'get_member_link') {
-  try {
-    const memberName = parsedIntent.extracted?.member_name;
-    
-    if (!memberName || memberName.trim() === '') {
-      // List all available members
-      const allMembersResult = await pool.query(
-        `SELECT tm.name, u.name as user_name, t.name as team_name
-         FROM team_members tm
-         JOIN teams t ON tm.team_id = t.id
-         LEFT JOIN users u ON tm.user_id = u.id
-         WHERE t.owner_id = $1
-         ORDER BY tm.name`,
-        [userId]
-      );
-
-      if (allMembersResult.rows.length === 0) {
-        return res.json({
-          type: 'info',
-          message: '? No team members found. Add members to your teams first.',
-          usage: usageData
-        });
-      }
-
-      const memberList = allMembersResult.rows.map(m => 
-        `• ${m.user_name || m.name} (${m.team_name})`
-      ).join('\n');
-
-      return res.json({
-        type: 'clarify',
-        message: `?? Which team member's link do you need?\n\nAvailable members:\n${memberList}\n\nSay "Get [name]'s booking link"`,
-        usage: usageData
-      });
-    }
-
-    // Search for member by name
-    const memberResult = await pool.query(
-      `SELECT tm.id, tm.name, tm.booking_token, t.name as team_name,
-              u.email as user_email, u.name as user_name
-       FROM team_members tm
-       JOIN teams t ON tm.team_id = t.id
-       LEFT JOIN users u ON tm.user_id = u.id
-       WHERE t.owner_id = $1 
-         AND (LOWER(tm.name) LIKE LOWER($2) OR LOWER(u.name) LIKE LOWER($2))
-       LIMIT 5`,
-      [userId, `%${memberName}%`]
-    );
-
-    if (memberResult.rows.length === 0) {
-      // Member not found - show available members
-      const allMembersResult = await pool.query(
-        `SELECT tm.name, u.name as user_name, t.name as team_name
-         FROM team_members tm
-         JOIN teams t ON tm.team_id = t.id
-         LEFT JOIN users u ON tm.user_id = u.id
-         WHERE t.owner_id = $1
-         ORDER BY tm.name`,
-        [userId]
-      );
-
-      if (allMembersResult.rows.length === 0) {
-        return res.json({
-          type: 'info',
-          message: `? No team member found matching "${memberName}".\n\nYou don't have any team members yet. Add members to your teams first.`,
-          usage: usageData
-        });
-      }
-
-      const memberList = allMembersResult.rows.map(m => 
-        `• ${m.user_name || m.name} (${m.team_name})`
-      ).join('\n');
-
-      return res.json({
-        type: 'info',
-        message: `? No team member found matching "${memberName}".\n\nAvailable members:\n${memberList}`,
-        usage: usageData
-      });
-    }
-
-    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
-
-    if (memberResult.rows.length === 1) {
-      const member = memberResult.rows[0];
-      const memberUrl = `${baseUrl}/book/${member.booking_token}`;
-      const displayName = member.user_name || member.name || 'Team Member';
-      const displayEmail = member.user_email || 'No email';
-      
-      return res.json({
-        type: 'member_link',
-        message: `?? ${displayName}'s Booking Link\n\n?? ${displayEmail}\n?? ${member.team_name}`,
-        data: {
-          url: memberUrl,
-          short_url: `/book/${member.booking_token.substring(0, 8)}...`,
-          name: displayName,
-          email: displayEmail,
-          team_name: member.team_name,
-          type: 'member'
-        },
-        usage: usageData
-      });
-    }
-
-    // Multiple matches
-    return res.json({
-      type: 'member_links',
-      message: `Found ${memberResult.rows.length} members matching "${memberName}":`,
-      data: {
-        members: memberResult.rows.map(m => ({
-          name: m.user_name || m.name || 'Team Member',
-          team_name: m.team_name,
-          url: `${baseUrl}/book/${m.booking_token}`,
-          short_url: `/book/${m.booking_token.substring(0, 8)}...`
-        }))
-      },
-      usage: usageData
-    });
-  } catch (error) {
-    console.error('Get member link error:', error);
-    return res.json({
-      type: 'error',
-      message: '? Failed to get member link. Please try again.',
-      usage: usageData
-    });
-  }
-}
-
-// ============ HANDLE GET EVENT TYPES ============
-if (parsedIntent.intent === 'get_event_types') {
-  try {
-    // Get user info for username
-    const userResult = await pool.query(
-      `SELECT username, email FROM users WHERE id = $1`,
-      [userId]
-    );
-    const username = userResult.rows[0]?.username || userResult.rows[0]?.email?.split('@')[0] || 'user';
-
-    const eventTypesResult = await pool.query(
-      `SELECT et.id, et.title, et.slug, et.duration, et.description, 
-              et.price, et.is_active, et.color, et.location_type,
-              COUNT(b.id) as total_bookings
-       FROM event_types et
-       LEFT JOIN bookings b ON b.event_type_id = et.id
-       WHERE et.user_id = $1
-       GROUP BY et.id
-       ORDER BY et.is_active DESC, et.title ASC`,
-      [userId]
-    );
-
-    if (eventTypesResult.rows.length === 0) {
-      return res.json({
-        type: 'info',
-        message: '?? You don\'t have any event types yet.\n\nGo to Event Types to create your first one!',
-        usage: usageData
-      });
-    }
-
-    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
-    
-    const eventTypesList = eventTypesResult.rows.map((et, index) => {
-      const status = et.is_active ? '? Active' : '?? Inactive';
-      const price = et.price ? `?? $${et.price}` : '?? Free';
-      
-      return `${index + 1}. ${et.title} ${status}
-   ?? ${et.duration} min | ${price} | ?? ${et.total_bookings || 0} bookings
-   ?? /${username}/${et.slug}${et.description ? `\n   ?? ${et.description}` : ''}`;
-    }).join('\n\n');
-
-    return res.json({
-      type: 'list',
-      message: `?? Your Event Types:\n\n${eventTypesList}\n\n?? Full links: ${baseUrl}/book/[slug]`,
-      data: {
-        event_types: eventTypesResult.rows.map(et => ({
-          ...et,
-          booking_url: `${baseUrl}/book/${username}/${et.slug}`
-        })),
-        count: eventTypesResult.rows.length,
-        base_url: baseUrl,
-        username: username
-      },
-      usage: usageData
-    });
-  } catch (error) {
-    console.error('Get event types error:', error);
-    return res.json({
-      type: 'error',
-      message: '? Failed to get event types. Please try again.',
-      usage: usageData
-    });
-  }
-}
-
-// ============ HANDLE GET SPECIFIC EVENT TYPE ============
-if (parsedIntent.intent === 'get_event_type') {
-  try {
-    const eventTypeName = parsedIntent.extracted?.event_type_name;
-    
-    if (!eventTypeName || eventTypeName.trim() === '') {
-      // List all available event types
-      const allEventsResult = await pool.query(
-        `SELECT title, duration, is_active FROM event_types WHERE user_id = $1 ORDER BY title`,
-        [userId]
-      );
-
-      if (allEventsResult.rows.length === 0) {
-        return res.json({
-          type: 'info',
-          message: '? You don\'t have any event types yet.\n\nGo to Event Types to create your first one!',
-          usage: usageData
-        });
-      }
-
-      const eventList = allEventsResult.rows.map(e => 
-        `• ${e.title} (${e.duration} min) ${e.is_active ? '?' : '??'}`
-      ).join('\n');
-
-      return res.json({
-        type: 'clarify',
-        message: `?? Which event type do you want to see?\n\nYour event types:\n${eventList}\n\nSay "Show my [event name]"`,
-        usage: usageData
-      });
-    }
-
-    // Get user info for username
-    const userResult = await pool.query(
-      `SELECT username, email FROM users WHERE id = $1`,
-      [userId]
-    );
-    const username = userResult.rows[0]?.username || userResult.rows[0]?.email?.split('@')[0] || 'user';
-
-    const eventTypeResult = await pool.query(
-      `SELECT et.*,
-              COUNT(b.id) FILTER (WHERE b.status = 'confirmed') as confirmed_count,
-              COUNT(b.id) FILTER (WHERE b.status = 'cancelled') as cancelled_count
-       FROM event_types et
-       LEFT JOIN bookings b ON b.event_type_id = et.id
-       WHERE et.user_id = $1
-         AND LOWER(et.title) LIKE LOWER($2)
-       GROUP BY et.id
-       LIMIT 1`,
-      [userId, `%${eventTypeName}%`]
-    );
-
-    if (eventTypeResult.rows.length === 0) {
-      // Event type not found - show available ones
-      const allEventsResult = await pool.query(
-        `SELECT title, duration, is_active FROM event_types WHERE user_id = $1 ORDER BY title`,
-        [userId]
-      );
-
-      if (allEventsResult.rows.length === 0) {
-        return res.json({
-          type: 'info',
-          message: `? No event type found matching "${eventTypeName}".\n\nYou don't have any event types yet. Go to Event Types to create one!`,
-          usage: usageData
-        });
-      }
-
-      const eventList = allEventsResult.rows.map(e => 
-        `• ${e.title} (${e.duration} min)`
-      ).join('\n');
-
-      return res.json({
-        type: 'info',
-        message: `? No event type found matching "${eventTypeName}".\n\nYour event types:\n${eventList}`,
-        usage: usageData
-      });
-    }
-
-    const et = eventTypeResult.rows[0];
-    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
-    const bookingUrl = `${baseUrl}/book/${username}/${et.slug}`;
-
-    return res.json({
-      type: 'event_type',
-      message: `?? ${et.title}\n\n${et.is_active ? '? Active' : '?? Inactive'}\n?? Duration: ${et.duration} minutes\n?? Price: ${et.price ? `$${et.price}` : 'Free'}\n?? Description: ${et.description || 'None'}\n\n?? Stats:\n   ? Confirmed: ${et.confirmed_count}\n   ? Cancelled: ${et.cancelled_count}`,
-      data: {
-        event_type: et,
-        url: bookingUrl,
-        short_url: `/${username}/${et.slug}`,
-        type: 'event_type'
-      },
-      usage: usageData
-    });
-  } catch (error) {
-    console.error('Get event type error:', error);
-    return res.json({
-      type: 'error',
-      message: '? Failed to get event type. Please try again.',
-      usage: usageData
-    });
-  }
-}
-// ============ HANDLE SHOW CONFIRMED BOOKINGS ============
-if (parsedIntent.intent === 'show_confirmed_bookings' || 
-    (parsedIntent.intent === 'show_bookings' && parsedIntent.extracted?.status_filter === 'confirmed')) {
-  try {
-    const bookingsResult = await pool.query(
-      `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.name as event_type_name
-       FROM bookings b
-       LEFT JOIN teams t ON b.team_id = t.id
-       LEFT JOIN team_members tm ON b.member_id = tm.id
-       LEFT JOIN event_types et ON b.event_type_id = et.id
-       WHERE (t.owner_id = $1 OR tm.user_id = $1)
-         AND b.status = 'confirmed'
-       ORDER BY b.start_time ASC
-       LIMIT 15`,
-      [userId]
-    );
-
-    if (bookingsResult.rows.length === 0) {
-      return res.json({
-        type: 'info',
-        message: '? No confirmed bookings found.',
-        usage: usageData
-      });
-    }
-
-    const bookingsList = bookingsResult.rows.map((b, index) => {
-      const startDate = new Date(b.start_time);
-      const isPast = startDate < new Date();
-      const timeLabel = isPast ? '(Past)' : '(Upcoming)';
-      
-      return `${index + 1}. ${b.attendee_name || 'Guest'} ${timeLabel}
-   ?? ${b.attendee_email}
-   ?? ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-   ?? ${b.duration || 30} min | ?? ${b.event_type_name || 'Meeting'}
-   ?? ${b.team_name || 'Personal'}`;
-    }).join('\n\n');
-
-    return res.json({
-      type: 'list',
-      message: `? Confirmed Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
-      data: { bookings: bookingsResult.rows, status: 'confirmed' },
-      usage: usageData
-    });
-  } catch (error) {
-    console.error('Show confirmed bookings error:', error);
-    return res.json({
-      type: 'error',
-      message: '? Failed to get confirmed bookings.',
-      usage: usageData
-    });
-  }
-}
-
-// ============ HANDLE SHOW CANCELLED BOOKINGS ============
-if (parsedIntent.intent === 'show_cancelled_bookings' ||
-    (parsedIntent.intent === 'show_bookings' && parsedIntent.extracted?.status_filter === 'cancelled')) {
-  try {
-    const bookingsResult = await pool.query(
-      `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.title as event_type_name
-       FROM bookings b
-       LEFT JOIN teams t ON b.team_id = t.id
-       LEFT JOIN team_members tm ON b.member_id = tm.id
-       LEFT JOIN event_types et ON b.event_type_id = et.id
-       WHERE (t.owner_id = $1 OR tm.user_id = $1)
-         AND b.status = 'cancelled'
-       ORDER BY b.updated_at DESC
-       LIMIT 15`,
-      [userId]
-    );
-
-    if (bookingsResult.rows.length === 0) {
-      return res.json({
-        type: 'info',
-        message: '?? No cancelled bookings! All your meetings are going as planned.',
-        usage: usageData
-      });
-    }
-
-    const bookingsList = bookingsResult.rows.map((b, index) => {
-      const startDate = new Date(b.start_time);
-      
-      return `${index + 1}. ${b.attendee_name || 'Guest'} ?
-   ?? ${b.attendee_email}
-   ?? Was scheduled: ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
-    }).join('\n\n');
-
-    return res.json({
-      type: 'list',
-      message: `? Cancelled Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
-      data: { bookings: bookingsResult.rows, status: 'cancelled' },
-      usage: usageData
-    });
-  } catch (error) {
-    console.error('Show cancelled bookings error:', error);
-    return res.json({
-      type: 'error',
-      message: '? Failed to get cancelled bookings.',
-      usage: usageData
-    });
-  }
-}
-
-// ============ HANDLE SHOW RESCHEDULED BOOKINGS ============
-if (parsedIntent.intent === 'show_rescheduled_bookings' ||
-    (parsedIntent.intent === 'show_bookings' && parsedIntent.extracted?.status_filter === 'rescheduled')) {
-  try {
-    const bookingsResult = await pool.query(
-      `SELECT b.*, tm.name as organizer_name, t.name as team_name, et.title as event_type_name
-       FROM bookings b
-       LEFT JOIN teams t ON b.team_id = t.id
-       LEFT JOIN team_members tm ON b.member_id = tm.id
-       LEFT JOIN event_types et ON b.event_type_id = et.id
-       WHERE (t.owner_id = $1 OR tm.user_id = $1)
-         AND b.status = 'rescheduled'
-       ORDER BY b.updated_at DESC
-       LIMIT 15`,
-      [userId]
-    );
-
-    if (bookingsResult.rows.length === 0) {
-      return res.json({
-        type: 'info',
-        message: '?? No rescheduled bookings found.',
-        usage: usageData
-      });
-    }
-
-    const bookingsList = bookingsResult.rows.map((b, index) => {
-      const startDate = new Date(b.start_time);
-      
-      return `${index + 1}. ${b.attendee_name || 'Guest'} ??
-   ?? ${b.attendee_email}
-   ?? ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-   ? Status: ${b.status}`;
-    }).join('\n\n');
-
-    return res.json({
-      type: 'list',
-      message: `?? Rescheduled Bookings (${bookingsResult.rows.length}):\n\n${bookingsList}`,
-      data: { bookings: bookingsResult.rows, status: 'rescheduled' },
-      usage: usageData
-    });
-  } catch (error) {
-    console.error('Show rescheduled bookings error:', error);
-    return res.json({
-      type: 'error',
-      message: '? Failed to get rescheduled bookings.',
-      usage: usageData
-    });
-  }
-}
-// ============ HANDLE BOOKING STATS ============
-if (parsedIntent.intent === 'booking_stats') {
-  try {
-    const month = new Date().toISOString().slice(0, 7); // '2025-12'
-    const monthStart = `${month}-01`;
-    const nextMonth = new Date();
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
-    const monthEnd = `${nextMonth.toISOString().slice(0, 7)}-01`;
-
-    const statsResult = await pool.query(
-      `SELECT 
-         COUNT(*) FILTER (WHERE status = 'confirmed') as confirmed,
-         COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled,
-         COUNT(*) FILTER (WHERE status = 'pending') as pending,
-         COUNT(*) as total,
-         COUNT(*) FILTER (WHERE start_time >= NOW() AND status = 'confirmed') as upcoming
-       FROM bookings b
-       LEFT JOIN teams t ON b.team_id = t.id
-       LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE (t.owner_id = $1 OR tm.user_id = $1)
-         AND b.created_at >= $2 AND b.created_at < $3`,
-      [userId, monthStart, monthEnd]
-    );
-
-    // All-time stats
-    const allTimeResult = await pool.query(
-      `SELECT 
-         COUNT(*) FILTER (WHERE status = 'confirmed') as confirmed,
-         COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled,
-         COUNT(*) as total
-       FROM bookings b
-       LEFT JOIN teams t ON b.team_id = t.id
-       LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE t.owner_id = $1 OR tm.user_id = $1`,
-      [userId]
-    );
-
-    const thisMonth = statsResult.rows[0];
-    const allTime = allTimeResult.rows[0];
-
-    const completionRate = allTime.total > 0 
-      ? Math.round((allTime.confirmed / allTime.total) * 100) 
-      : 0;
-
-    const monthName = new Date().toLocaleString('default', { month: 'long' });
-
-    return res.json({
-      type: 'stats',
-      message: `?? Booking Statistics\n\n?? This Month (${monthName}):\n   ? Confirmed: ${thisMonth.confirmed}\n   ? Cancelled: ${thisMonth.cancelled}\n   ? Pending: ${thisMonth.pending}\n   ?? Total: ${thisMonth.total}\n   ?? Upcoming: ${thisMonth.upcoming}\n\n?? All Time:\n   ? Confirmed: ${allTime.confirmed}\n   ? Cancelled: ${allTime.cancelled}\n   ?? Total: ${allTime.total}\n   ?? Completion Rate: ${completionRate}%`,
-      data: {
-        this_month: thisMonth,
-        all_time: allTime,
-        completion_rate: completionRate
-      },
-      usage: usageData
-    });
-  } catch (error) {
-    console.error('Booking stats error:', error);
-    return res.json({
-      type: 'error',
-      message: '? Failed to get booking statistics.',
-      usage: usageData
-    });
-  }
-}
-
-// ============ HANDLE SCHEDULE TEAM MEETING ============
-if (parsedIntent.intent === 'schedule_team_meeting') {
-  try {
-    const teamName = parsedIntent.extracted?.team_name;
-    
-    // Get all teams first
-    const allTeamsResult = await pool.query(
-      `SELECT t.id, t.name FROM teams t WHERE t.owner_id = $1 ORDER BY t.name`,
-      [userId]
-    );
-
-    if (allTeamsResult.rows.length === 0) {
-      return res.json({
-        type: 'info',
-        message: '? No teams found. Create a team first to schedule team meetings.',
-        usage: usageData
-      });
-    }
-
-    if (!teamName || teamName.trim() === '') {
-      const teamList = allTeamsResult.rows.map((t, i) => `${i + 1}. ${t.name}`).join('\n');
-      
-      return res.json({
-        type: 'clarify',
-        message: `?? Which team would you like to schedule with?\n\n${teamList}\n\nSay "Schedule with [team name]" to continue.`,
-        data: { teams: allTeamsResult.rows },
-        usage: usageData
-      });
-    }
-
-    // Find the team
-    const teamResult = await pool.query(
-      `SELECT t.id, t.name, t.team_booking_token
-       FROM teams t
-       WHERE t.owner_id = $1 AND LOWER(t.name) LIKE LOWER($2)
-       LIMIT 1`,
-      [userId, `%${teamName}%`]
-    );
-
-    if (teamResult.rows.length === 0) {
-      const teamList = allTeamsResult.rows.map((t, i) => `${i + 1}. ${t.name}`).join('\n');
-
-      return res.json({
-        type: 'info',
-        message: `? No team found matching "${teamName}".\n\nYour teams:\n${teamList}\n\nSay "Schedule with [team name]" to continue.`,
-        data: { teams: allTeamsResult.rows },
-        usage: usageData
-      });
-    }
-
-    const team = teamResult.rows[0];
-
-    // Validate attendees email if provided
-    if (parsedIntent.extracted?.attendees && parsedIntent.extracted.attendees.length > 0) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const invalidEmails = parsedIntent.extracted.attendees.filter(email => !emailRegex.test(email));
-      
-      if (invalidEmails.length > 0) {
-        return res.json({
-          type: 'clarify',
-          message: `? Invalid email address: ${invalidEmails.join(', ')}\n\nPlease provide a valid email address for the attendee.`,
-          data: { team: team },
-          usage: usageData
-        });
-      }
-    }
-
-    // Check if we have all required booking info
-    if (!parsedIntent.extracted?.date || !parsedIntent.extracted?.time) {
-      return res.json({
-        type: 'clarify',
-        message: `?? When would you like to schedule with ${team.name}?\n\nPlease provide date and time.\n\nExample: "tomorrow at 2pm" or "December 10 at 3:30pm"`,
-        data: { 
-          team: team,
-          partial_booking: parsedIntent.extracted
-        },
-        usage: usageData
-      });
-    }
-
-    if (!parsedIntent.extracted?.attendees || parsedIntent.extracted.attendees.length === 0) {
-      return res.json({
-        type: 'clarify',
-        message: `?? Who should I invite to this ${team.name} meeting?\n\nPlease provide their email address.`,
-        data: { 
-          team: team,
-          partial_booking: parsedIntent.extracted
-        },
-        usage: usageData
-      });
-    }
-
-    // All info present - create confirmation
-    const attendeeEmail = parsedIntent.extracted.attendees[0];
-    const attendeeName = attendeeEmail
-      .split('@')[0]
-      .replace(/[._-]/g, ' ')
-      .replace(/\b\w/g, c => c.toUpperCase());
-
-    const bookingData = {
-      title: parsedIntent.extracted.title || `${team.name} Meeting`,
-      date: parsedIntent.extracted.date,
-      time: parsedIntent.extracted.time,
-      duration: parsedIntent.extracted.duration_minutes || 30,
-      attendees: parsedIntent.extracted.attendees,
-      attendee_email: attendeeEmail,
-      notes: parsedIntent.extracted.notes || `Meeting with ${attendeeName}`,
-      team_id: team.id,
-      team_name: team.name
-    };
-
-    return res.json({
-      type: 'confirmation',
-      message: `? Ready to schedule ${team.name} meeting?\n\n?? ${bookingData.date} at ${bookingData.time}\n?? Attendees: ${bookingData.attendees.join(', ')}\n?? Duration: ${bookingData.duration} minutes\n?? Team: ${team.name}\n?? Notes: ${bookingData.notes}`,
-      data: { bookingData },
-      usage: usageData
-    });
-  } catch (error) {
-    console.error('Schedule team meeting error:', error);
-    return res.json({
-      type: 'error',
-      message: '? Failed to schedule team meeting. Please try again.',
-      usage: usageData
-    });
-  }
-}
-    // ============ HANDLE SHOW BOOKINGS INTENT ============
-    if (parsedIntent.intent === 'show_bookings') { 
-    if (userContext.upcomingBookings.length === 0) {
-        return res.json({
-          type: 'info',
-          message: '?? You have no upcoming bookings scheduled.',
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      }
-
-      const bookingsList = userContext.upcomingBookings.map((booking, index) => {
-        const startDate = new Date(booking.start);
-        const endDate = new Date(booking.end);
-        
-        return `${index + 1}. ${booking.attendee_name} ${booking.attendee_email ? `(${booking.attendee_email})` : ''}
-?? ${booking.attendee_phone || 'No phone'}
-?? ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString('en-US', { 
-          hour: 'numeric', 
-          minute: '2-digit' 
-        })} - ${endDate.toLocaleTimeString('en-US', { 
-          hour: 'numeric', 
-          minute: '2-digit' 
-        })}
-?? ${booking.duration || 30} minutes
-?? ${booking.team_name || 'Personal'}
-?? ${booking.meet_link || 'No meeting link'}
-?? ${booking.notes || 'No notes'}
-? Status: ${booking.status}`;
-      }).join('\n\n');
-
-      return res.json({
-        type: 'list',
-        message: `Here are your upcoming bookings:\n\n${bookingsList}`,
-        data: { bookings: userContext.upcomingBookings },
-        usage: {
-          ai_queries_used: usageResult.ai_queries_used,
-          ai_queries_limit: usageResult.ai_queries_limit
-        }
-      });
-    }
-
-    // ============ HANDLE FIND TIME INTENT ============
-    if (parsedIntent.intent === 'find_time' || parsedIntent.action === 'suggest_slots') {
-      try {
-        // Get user's booking token
-        const memberResult = await pool.query(
-          `SELECT tm.id, tm.booking_token, tm.timezone
-           FROM team_members tm
-           JOIN teams t ON tm.team_id = t.id
-           WHERE tm.user_id = $1 OR t.owner_id = $1
-           LIMIT 1`,
-          [userId]
-        );
-
-        if (memberResult.rows.length === 0) {
-          return res.json({
-            type: 'error',
-            message: 'No booking profile found. Please set up your availability first.',
-            usage: {
-              ai_queries_used: usageResult.ai_queries_used,
-              ai_queries_limit: usageResult.ai_queries_limit
-            }
-          });
-        }
-
-        const member = memberResult.rows[0];
-
-        // Get availability settings
-        const availResult = await pool.query(
-          `SELECT * FROM availability_settings WHERE member_id = $1`,
-          [member.id]
-        );
-
-        if (availResult.rows.length === 0) {
-          return res.json({
-            type: 'info',
-            message: '?? No availability settings found. Please set up your available hours in Settings > Availability first.',
-            usage: {
-              ai_queries_used: usageResult.ai_queries_used,
-              ai_queries_limit: usageResult.ai_queries_limit
-            }
-          });
-        }
-
-        // Generate slots for next 7 days
-        const slots = [];
-        const now = new Date();
-        const daysToCheck = 7;
-
-        for (let dayOffset = 0; dayOffset < daysToCheck; dayOffset++) {
-          const checkDate = new Date(now);
-          checkDate.setDate(checkDate.getDate() + dayOffset);
-          const dayOfWeek = checkDate.getDay();
-
-          const dayAvail = availResult.rows.find(a => a.day_of_week === dayOfWeek);
-          
-          if (dayAvail && dayAvail.is_available) {
-            const [startHour, startMin] = dayAvail.start_time.split(':').map(Number);
-            const [endHour, endMin] = dayAvail.end_time.split(':').map(Number);
-
-            let slotTime = new Date(checkDate);
-            slotTime.setHours(startHour, startMin, 0, 0);
-
-            const endTime = new Date(checkDate);
-            endTime.setHours(endHour, endMin, 0, 0);
-
-            while (slotTime < endTime && slots.length < 10) {
-              if (slotTime > now) {
-                const conflictCheck = await pool.query(
-                  `SELECT id FROM bookings 
-                   WHERE member_id = $1 
-                   AND status = 'confirmed'
-                   AND start_time <= $2 
-                   AND end_time > $2`,
-                  [member.id, slotTime.toISOString()]
-                );
-
-                if (conflictCheck.rows.length === 0) {
-                  const hour = slotTime.getHours();
-                  let matchScore = 85;
-                  let matchLabel = 'Good Match';
-
-                  if (hour >= 9 && hour <= 11) {
-                    matchScore = 95;
-                    matchLabel = 'Excellent Match';
-                  } else if (hour >= 14 && hour <= 16) {
-                    matchScore = 90;
-                    matchLabel = 'Excellent Match';
-                  }
-
-                  slots.push({
-                    start: slotTime.toISOString(),
-                    end: new Date(slotTime.getTime() + 30 * 60000).toISOString(),
-                    matchScore,
-                    matchLabel
-                  });
-                }
-              }
-
-              slotTime = new Date(slotTime.getTime() + 30 * 60000);
-            }
-          }
-        }
-
-        if (slots.length === 0) {
-          return res.json({
-            type: 'info',
-            message: '? No available slots found in the next 7 days. Please check your availability settings.',
-            usage: {
-              ai_queries_used: usageResult.ai_queries_used,
-              ai_queries_limit: usageResult.ai_queries_limit
-            }
-          });
-        }
-
-        const formattedSlots = slots.slice(0, 5).map((slot, index) => {
-          const date = new Date(slot.start);
-          const dateStr = date.toLocaleDateString('en-US', { 
-            weekday: 'short', 
-            month: 'short', 
-            day: 'numeric' 
-          });
-          const timeStr = date.toLocaleTimeString('en-US', { 
-            hour: 'numeric', 
-            minute: '2-digit',
-            hour12: true 
-          });
-          
-          return `${index + 1}?? ${dateStr} • ${timeStr}    (${slot.matchLabel})`;
-        }).join('\n');
-
-        return res.json({
-          type: 'slots',
-          message: `?? Here are your best available times:\n\n${formattedSlots}\n\n?? Ready to book? Just say "book slot 1" or "schedule 10 AM"! ?`,
-          data: { slots: slots.slice(0, 5) },
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-
-      } catch (error) {
-        console.error('Slot fetch error:', error);
-        return res.json({
-          type: 'error', 
-          message: 'Sorry, I had trouble checking your availability. Please try again.',
-          usage: {
-            ai_queries_used: usageResult.ai_queries_used,
-            ai_queries_limit: usageResult.ai_queries_limit
-          }
-        });
-      }
-    }
-
-   // ============ HANDLE CREATE MEETING INTENT ============
-if (parsedIntent.intent === 'create_meeting') {
-  // Email validation function
-  const isValidEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
-  // Validate attendees emails
-  if (parsedIntent.extracted.attendees && parsedIntent.extracted.attendees.length > 0) {
-    const invalidEmails = parsedIntent.extracted.attendees.filter(email => !isValidEmail(email));
-    
-    if (invalidEmails.length > 0) {
-      return res.json({
-        type: 'clarify',
-        message: `? Invalid email address: ${invalidEmails.join(', ')}\n\nPlease provide valid email addresses.\n\nExample: john@company.com`,
-        data: parsedIntent,
-        usage: usageData
-      });
-    }
-  }
-
-  // Required field validation
-  if (!parsedIntent.extracted.date || !parsedIntent.extracted.time) {
-    return res.json({
-      type: 'clarify',
-      message: '?? I need both a date and time to schedule your meeting.\n\nWhen would you like to meet?\n\nExample: "tomorrow at 2pm" or "December 10 at 3:30pm"',
-      data: parsedIntent,
-      usage: usageData
-    });
-  }
-
-  if (!parsedIntent.extracted.attendees || parsedIntent.extracted.attendees.length === 0) {
-    return res.json({
-      type: 'clarify',
-      message: '?? Who should I invite to this meeting?\n\nPlease provide their email address.\n\nExample: john@company.com',
-      data: parsedIntent,
-      usage: usageData
-    });
-  }
-
-  // Check missing fields
-  const missing = parsedIntent.missing_fields || [];
-  if (missing.length > 0) {
-    return res.json({
-      type: 'clarify',
-      message: parsedIntent.clarifying_question || `I need a bit more information. What ${missing.join(' and ')} would work for you?`,
-      data: parsedIntent,
-      usage: usageData
-    });
-  }
-
-  // All validation passed - prepare booking data
-  const attendeeEmail = parsedIntent.extracted.attendees[0];
-  const attendeeName = attendeeEmail
-    .split('@')[0]
-    .replace(/[._-]/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase());
-
-  const extractedNotes = parsedIntent.extracted.notes;
-  const cleanNotes = (extractedNotes && extractedNotes !== 'null' && extractedNotes.trim() !== '') 
-    ? extractedNotes 
-    : `Meeting with ${attendeeName}`;
-
-  const bookingData = {
-    title: parsedIntent.extracted.title || 'Meeting',
-    date: parsedIntent.extracted.date,
-    time: parsedIntent.extracted.time,
-    duration: parsedIntent.extracted.duration_minutes || 30,
-    attendees: parsedIntent.extracted.attendees,
-    attendee_email: attendeeEmail,
-    notes: cleanNotes
-  };
-  
-  return res.json({
-    type: 'confirmation',
-    message: `? Ready to schedule "${bookingData.title}" for ${bookingData.date} at ${bookingData.time}?\n\n?? Attendees: ${bookingData.attendees.join(', ')}\n?? Duration: ${bookingData.duration} minutes\n?? Notes: ${cleanNotes}`,
-    data: { bookingData },
-    usage: usageData
-  });
-}
-   
-    // ============ DEFAULT RESPONSE ============
-    return res.json({
-      type: 'clarify',
-      message: parsedIntent.response_message || 'How can I help you with your scheduling today? You can ask me to show bookings, find available times, schedule meetings, or send emails.',
-      usage: {
-        ai_queries_used: usageResult.ai_queries_used,
-        ai_queries_limit: usageResult.ai_queries_limit
-      }
-    });
-
-  } catch (error) {
-    console.error('?? AI scheduling error:', error);
-    res.status(500).json({
-      type: 'error',
-      message: 'Something went wrong. Please try again.'
-    });
-  }
-}); // ? FUNCTION PROPERLY ENDS HERE WITH ALL CODE INSIDE!
 
 // ============ AI BOOKING ENDPOINT (MULTIPLE ATTENDEES) ============
 app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
