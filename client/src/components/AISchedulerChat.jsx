@@ -614,29 +614,7 @@ What would you like to do?`;
           <>
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50">
-             {/* Show limit warning instead of greeting if at limit */}
-{!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit && chatHistory.length <= 1 && (
-  <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4">
-    <div className="text-center">
-      <p className="text-2xl mb-2">🚫</p>
-      <p className="font-bold text-red-900 text-base mb-2">
-        AI Query Limit Reached
-      </p>
-      <p className="text-sm text-red-700 mb-4">
-        You've used all {usage.ai_queries_limit} free queries this month.
-      </p>
-      <button
-        onClick={() => window.location.href = '/settings?tab=billing'}
-        className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 px-4 rounded-lg font-semibold transition-all hover:shadow-lg"
-      >
-        Upgrade to Pro - Get Unlimited
-      </button>
-      <p className="text-xs text-red-600 mt-3">
-        Or wait until next month when your limit resets
-      </p>
-    </div>
-  </div>
-)}
+             
             
             {/* ✅ FIXED: Only show usage warning for free users */}
               {!usage.loading && !isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit - 1 && (

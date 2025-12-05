@@ -87,23 +87,32 @@ export default function Dashboard() {
   const loadUserTimezone = async () => {
   try {
     const response = await timezoneApi.get();
-    console.log('🌍 Timezone response:', response.data);
+    console.log('🌍 RAW response:', response);
+    console.log('🌍 response.data type:', typeof response.data);
+    console.log('🌍 response.data:', response.data);
     
-    // Handle different response formats
+    // Try to extract timezone
     let tz = '';
+    
+    // If response.data is a string like '{"timezone":"America/Los_Angeles"}'
     if (typeof response.data === 'string') {
-      tz = response.data;
-    } else if (response.data?.timezone) {
-      tz = response.data.timezone;
-    } else if (response.data) {
-      // If response.data is an object with timezone nested
-      tz = response.data.timezone || JSON.stringify(response.data);
+      try {
+        const parsed = JSON.parse(response.data);
+        tz = parsed.timezone || response.data;
+      } catch {
+        tz = response.data;
+      }
+    } 
+    // If response.data is already an object
+    else if (response.data && typeof response.data === 'object') {
+      tz = response.data.timezone || '';
     }
     
+    console.log('🌍 Final timezone:', tz);
     setTimezone(tz);
   } catch (error) {
     console.error('Timezone load error:', error);
-    setTimezone('America/Los_Angeles'); // Fallback
+    setTimezone('America/Los_Angeles');
   }
 };
 
@@ -337,7 +346,7 @@ const currentTier = limitStatus?.tier || user?.subscription_tier || user?.tier |
                         ? 'text-orange-700'
                         : 'text-purple-700'
                   }`}>
-                    {usage.ai_queries_used || 0}/{usage.ai_queries_limit || 10} AI queries
+                    {Math.min(usage.ai_queries_used || 0, usage.ai_queries_limit || 10)}/{usage.ai_queries_limit || 10}{(usage.ai_queries_used || 0) > (usage.ai_queries_limit || 10) ? '+' : ''} AI queries
                   </span>
                   {((usage.ai_queries_used || 0) >= (usage.ai_queries_limit || 10) - 2 || limitStatus.status?.upgrade_recommended) && (
                     <button 
@@ -624,9 +633,20 @@ const currentTier = limitStatus?.tier || user?.subscription_tier || user?.tier |
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">Your Timezone</h3>
-                  <p className="text-sm text-gray-600">
-                    {getTimezoneName(timezone)}
-                  </p>
+                 <p className="text-sm text-gray-600">
+  {(() => {
+    let tz = timezone;
+    if (typeof tz === 'string' && tz.includes('{')) {
+      try {
+        const parsed = JSON.parse(tz);
+        tz = parsed.timezone;
+      } catch {}
+    } else if (tz && typeof tz === 'object' && tz.timezone) {
+      tz = tz.timezone;
+    }
+    return getTimezoneName(tz);
+  })()}
+</p>
                 </div>
               </div>
               <button
