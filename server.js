@@ -5650,7 +5650,7 @@ app.get('/api/event-types', authenticateToken, async (req, res) => {
   }
 });
 
-const { checkEventTypeLimit } = require('./middleware/featureGates');
+const { checkEventTypeLimit } = require('./server/middleware/featureGates');
 
 // 2. Create a new event type
 app.post('/api/event-types', authenticateToken, checkEventTypeLimit, async (req, res) => {
