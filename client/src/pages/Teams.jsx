@@ -15,7 +15,7 @@ import {
   Edit,
   ExternalLink,
   X,
-  Check, 
+ 
 } from 'lucide-react';
 import { teams } from '../utils/api';
 
