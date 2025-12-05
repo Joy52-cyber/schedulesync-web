@@ -8033,8 +8033,10 @@ TEAM SCHEDULING:
 - "schedule with Marketing team" → intent: "schedule_team_meeting", extracted: { team_name: "Marketing" }
 
 MEETING CREATION:
-- "schedule a meeting with john@example.com tomorrow at 2pm" → intent: "create_meeting", extracted: { attendee_email: "john@example.com", date: "YYYY-MM-DD", time: "14:00", duration_minutes: 30 }
-- "book 1 hour call with Sarah on Friday" → intent: "create_meeting", extracted: { title: "Call with Sarah", duration_minutes: 60, date: "YYYY-MM-DD" }
+- "Book meeting with john@email.com tomorrow 2pm" → intent: "create_meeting", extracted: { attendee_email: "john@email.com", date: "2025-12-06", time: "14:00", duration_minutes: 30 }
+- "Schedule with client@company.com and sarah@startup.com Friday 3pm" → intent: "create_meeting", extracted: { attendees: ["client@company.com", "sarah@startup.com"], date: "2025-12-06", time: "15:00", duration_minutes: 30 }
+- "Create meeting with team@company.com next Monday 10am" → intent: "create_meeting", extracted: { attendee_email: "team@company.com", date: "2025-12-09", time: "10:00", duration_minutes: 30 }
+- "Book 1 hour call with Sarah on Friday" → intent: "create_meeting", extracted: { title: "Call with Sarah", duration_minutes: 60, date: "2025-12-06" }
 
 FIND TIME:
 - "when am I free tomorrow" or "show available slots" → intent: "find_time", extracted: { date: "YYYY-MM-DD" }
@@ -8051,19 +8053,20 @@ Return JSON structure:
   "intent": "create_meeting" | "show_bookings" | "show_confirmed_bookings" | "show_cancelled_bookings" | "show_rescheduled_bookings" | "booking_stats" | "find_time" | "get_event_types" | "get_event_type" | "get_personal_link" | "get_magic_link" | "get_team_links" | "get_member_link" | "schedule_team_meeting" | "send_email" | "update_pending" | "cancel_booking" | "clarify",
   "confidence": 0-100,
   "extracted": {
-    "link_name": "custom name for magic link",
-    "team_name": "team name to schedule with",
-    "member_name": "member name for link lookup",
-    "event_type_name": "event type name to lookup",
-    "status_filter": "confirmed" | "cancelled" | "rescheduled" | "all",
-    "date_range": "today" | "this_week" | "this_month" | "all",
-    "title": "meeting title",
-    "attendees": ["email@example.com"],
-    "attendee_email": "email for single attendee",
-    "date": "YYYY-MM-DD",
-    "time": "HH:MM in 24-hour format", 
-    "duration_minutes": number,
-    "notes": "string or null"
+  "link_name": "custom name for magic link",
+  "team_name": "team name to schedule with",
+  "member_name": "member name for link lookup",
+  "event_type_name": "event type name to lookup",
+  "status_filter": "confirmed" | "cancelled" | "rescheduled" | "all",
+  "date_range": "today" | "this_week" | "this_month" | "all",
+  "title": "meeting title",
+  "attendee_email": "single attendee email (use this for single person)",
+  "attendees": ["email1@example.com", "email2@example.com"] // Use this for multiple people
+  "date": "YYYY-MM-DD",
+  "time": "HH:MM in 24-hour format", 
+  "duration_minutes": number,
+  "notes": "string or null"
+
   },
   "missing_fields": [],
   "clarifying_question": "question if needed",
