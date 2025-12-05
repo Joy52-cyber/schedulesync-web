@@ -7908,7 +7908,7 @@ app.post('/api/ai/schedule', authenticateToken, checkAIQueryLimit, async (req, r
 
     // Check if message contains pending booking context
     pendingBookingContext = null;
-    let cleanMessage = message;
+    cleanMessage = message;
     
     const pendingMatch = message.match(/\[Current pending booking: "([^"]+)" on (\S+) at (\S+) for (\d+) minutes with (\S+)\]/);
     if (pendingMatch) {
