@@ -51,21 +51,22 @@ const TONE_OPTIONS = [
   { id: 'formal', label: 'Formal', emoji: '🎩' },
 ];
 
-// Default starter templates
+// ✅ Default starter templates WITHOUT emojis in subject/body (emoji-safe for emails)
 const DEFAULT_TEMPLATES = [
   {
     id: 'default_1',
     name: 'Friendly Reminder',
     type: 'reminder',
-    subject: 'Quick reminder: We meet tomorrow! 👋',
-    body: `Hey {{guestName}}!
+    subject: 'Reminder: Our meeting is tomorrow',
+    body: `Hi {{guestName}},
 
-Just a friendly heads up – we're scheduled to meet tomorrow!
+Just a friendly reminder that we're scheduled to meet tomorrow.
 
-📅 {{meetingDate}} at {{meetingTime}}
-🔗 {{meetingLink}}
+Date: {{meetingDate}}
+Time: {{meetingTime}}
+Meeting link: {{meetingLink}}
 
-Looking forward to it!
+Looking forward to speaking with you.
 
 {{organizerName}}`,
     is_default: true,
@@ -84,7 +85,7 @@ This is a reminder about your upcoming meeting.
 
 Date: {{meetingDate}}
 Time: {{meetingTime}}
-Meeting Link: {{meetingLink}}
+Meeting link: {{meetingLink}}
 
 Best regards,
 {{organizerName}}`,
@@ -97,14 +98,14 @@ Best regards,
     id: 'default_3',
     name: 'Thank You Follow-up',
     type: 'follow_up',
-    subject: 'Great talking with you! 🙌',
+    subject: 'Thank you for meeting with me',
     body: `Hi {{guestName}},
 
-Thank you for taking the time to meet with me today! I really enjoyed our conversation.
+Thank you for taking the time to meet with me today. I really appreciated our conversation.
 
-If you need anything else, feel free to book another time: {{bookingLink}}
+If you need anything else, you can easily book another time here: {{bookingLink}}
 
-Talk soon!
+Talk soon,
 {{organizerName}}`,
     is_default: true,
     is_favorite: false,
@@ -115,16 +116,18 @@ Talk soon!
     id: 'default_4',
     name: 'Meeting Confirmed',
     type: 'confirmation',
-    subject: 'Your meeting is confirmed! ✅',
+    subject: 'Your meeting is confirmed',
     body: `Hi {{guestName}},
 
-Great news! Your meeting has been confirmed.
+Your meeting has been confirmed.
 
-📅 {{meetingDate}}
-🕐 {{meetingTime}}
-🔗 {{meetingLink}}
+Date: {{meetingDate}}
+Time: {{meetingTime}}
+Meeting link: {{meetingLink}}
 
-See you soon!
+If you need to make changes, you can update your booking at any time.
+
+See you soon,
 {{organizerName}}`,
     is_default: true,
     is_favorite: false,
@@ -135,14 +138,16 @@ See you soon!
     id: 'default_5',
     name: 'Need to Reschedule',
     type: 'reschedule',
-    subject: 'Can we reschedule?',
+    subject: 'Can we reschedule our meeting?',
     body: `Hi {{guestName}},
 
-I'm sorry, but I need to reschedule our meeting on {{meetingDate}}.
+I’m sorry, but I need to reschedule our meeting on {{meetingDate}}.
 
-Please pick a new time that works for you: {{bookingLink}}
+Please pick a new time that works best for you using this link:
+{{bookingLink}}
 
-Apologies for any inconvenience!
+Apologies for any inconvenience this may cause.
+
 {{organizerName}}`,
     is_default: true,
     is_favorite: false,
@@ -217,7 +222,7 @@ export default function EmailTemplates() {
         // Evening or Friday - suggest follow-up templates
         suggestions.push({
           template: DEFAULT_TEMPLATES.find(t => t.type === 'follow_up'),
-          reason: "Popular for end-of-day follow-ups"
+          reason: 'Popular for end-of-day follow-ups',
         });
       }
       
@@ -225,7 +230,7 @@ export default function EmailTemplates() {
         // Morning - suggest reminders
         suggestions.push({
           template: DEFAULT_TEMPLATES.find(t => t.type === 'reminder'),
-          reason: "Perfect timing for meeting reminders"
+          reason: 'Perfect timing for meeting reminders',
         });
       }
       
@@ -237,7 +242,7 @@ export default function EmailTemplates() {
       if (!suggestions.find(s => s.template?.id === bestTemplate.id)) {
         suggestions.push({
           template: bestTemplate,
-          reason: `${bestTemplate.effectiveness}% effectiveness rate`
+          reason: `${bestTemplate.effectiveness}% effectiveness rate`,
         });
       }
       
@@ -265,7 +270,7 @@ export default function EmailTemplates() {
         id: null,
         is_default: false,
         is_favorite: false,
-        generated_by_ai: true
+        generated_by_ai: true,
       });
       
       setShowGenerator(false);
@@ -275,9 +280,8 @@ export default function EmailTemplates() {
       setGeneratorForm({
         description: '',
         type: 'other',
-        tone: 'professional but friendly'
+        tone: 'professional but friendly',
       });
-      
     } catch (error) {
       console.error('AI generation failed:', error);
       alert(error.response?.data?.error || 'Failed to generate template');
@@ -287,8 +291,9 @@ export default function EmailTemplates() {
   };
 
   // Filter templates
-  const filteredTemplates = templates.filter(t => {
-    const matchesSearch = searchQuery === '' || 
+  const filteredTemplates = templates.filter((t) => {
+    const matchesSearch =
+      searchQuery === '' ||
       t.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = filterType === 'all' || t.type === filterType;
     return matchesSearch && matchesType;
@@ -305,11 +310,13 @@ export default function EmailTemplates() {
   });
 
   const toggleFavorite = async (templateId) => {
-    const template = templates.find(t => t.id === templateId);
+    const template = templates.find((t) => t.id === templateId);
     
-    setTemplates(prev => prev.map(t => 
-      t.id === templateId ? { ...t, is_favorite: !t.is_favorite } : t
-    ));
+    setTemplates((prev) =>
+      prev.map((t) =>
+        t.id === templateId ? { ...t, is_favorite: !t.is_favorite } : t
+      )
+    );
     
     // Save to API if user template
     if (template && !template.is_default) {
@@ -324,11 +331,11 @@ export default function EmailTemplates() {
   const openEditor = (template = null) => {
     if (template) {
       // Editing existing or duplicating default
-      setEditingTemplate({ 
-        ...template, 
+      setEditingTemplate({
+        ...template,
         id: template.is_default ? null : template.id,
         name: template.is_default ? `${template.name} (My Version)` : template.name,
-        is_default: false 
+        is_default: false,
       });
     } else {
       // New template
@@ -385,7 +392,8 @@ export default function EmailTemplates() {
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const text = editingTemplate.body;
-    const newBody = text.substring(0, start) + `{{${varKey}}}` + text.substring(end);
+    const newBody =
+      text.substring(0, start) + `{{${varKey}}}` + text.substring(end);
     
     setEditingTemplate({ ...editingTemplate, body: newBody });
     
@@ -397,7 +405,7 @@ export default function EmailTemplates() {
   };
 
   const getTypeEmoji = (type) => {
-    return TEMPLATE_TYPES.find(t => t.id === type)?.emoji || '📧';
+    return TEMPLATE_TYPES.find((t) => t.id === type)?.emoji || '📧';
   };
 
   const getEffectivenessColor = (effectiveness) => {
@@ -482,16 +490,23 @@ export default function EmailTemplates() {
                   <Target className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="font-semibold text-green-900 mb-2">🎯 Recommended for you:</p>
+                  <p className="font-semibold text-green-900 mb-2">
+                    🎯 Recommended for you:
+                  </p>
                   <div className="space-y-2">
                     {smartSuggestions.map((suggestion, i) => (
-                      <div key={i} className="bg-white p-2 rounded-lg border border-green-200">
+                      <div
+                        key={i}
+                        className="bg-white p-2 rounded-lg border border-green-200"
+                      >
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-green-900">
                               {suggestion.template?.name}
                             </p>
-                            <p className="text-xs text-green-700">{suggestion.reason}</p>
+                            <p className="text-xs text-green-700">
+                              {suggestion.reason}
+                            </p>
                           </div>
                           <button
                             onClick={() => openEditor(suggestion.template)}
@@ -515,9 +530,14 @@ export default function EmailTemplates() {
                 <Sparkles className="h-5 w-5 text-purple-600" />
               </div>
               <div>
-                <p className="font-semibold text-purple-900">How it works with AI</p>
+                <p className="font-semibold text-purple-900">
+                  How it works with AI
+                </p>
                 <p className="text-sm text-purple-700 mt-1">
-                  Say: <span className="font-mono bg-white px-2 py-0.5 rounded">"Send John a friendly reminder"</span>
+                  Say:{' '}
+                  <span className="font-mono bg-white px-2 py-0.5 rounded">
+                    "Send John a friendly reminder"
+                  </span>
                   <br />
                   Your AI picks the best template automatically!
                 </p>
@@ -544,8 +564,10 @@ export default function EmailTemplates() {
             className="px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none bg-white"
           >
             <option value="all">All Types</option>
-            {TEMPLATE_TYPES.map(type => (
-              <option key={type.id} value={type.id}>{type.emoji} {type.label}</option>
+            {TEMPLATE_TYPES.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.emoji} {type.label}
+              </option>
             ))}
           </select>
         </div>
@@ -579,11 +601,15 @@ export default function EmailTemplates() {
               >
                 <div className="flex items-center gap-4 p-4">
                   {/* Emoji & Name */}
-                  <div className="text-2xl">{getTypeEmoji(template.type)}</div>
+                  <div className="text-2xl">
+                    {getTypeEmoji(template.type)}
+                  </div>
                   
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-gray-900 truncate">{template.name}</h3>
+                      <h3 className="font-semibold text-gray-900 truncate">
+                        {template.name}
+                      </h3>
                       {template.is_default && (
                         <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
                           Built-in
@@ -596,7 +622,9 @@ export default function EmailTemplates() {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-500 truncate mb-1">{template.subject}</p>
+                    <p className="text-sm text-gray-500 truncate mb-1">
+                      {template.subject}
+                    </p>
                     
                     {/* Analytics */}
                     <div className="flex items-center gap-3 text-xs">
@@ -606,7 +634,11 @@ export default function EmailTemplates() {
                         </span>
                       )}
                       {template.effectiveness && (
-                        <span className={`px-2 py-0.5 rounded-full ${getEffectivenessColor(template.effectiveness)}`}>
+                        <span
+                          className={`px-2 py-0.5 rounded-full ${getEffectivenessColor(
+                            template.effectiveness
+                          )}`}
+                        >
                           {template.effectiveness}% effective
                         </span>
                       )}
@@ -618,9 +650,19 @@ export default function EmailTemplates() {
                     <button
                       onClick={() => toggleFavorite(template.id)}
                       className="p-2 hover:bg-gray-100 rounded-lg"
-                      title={template.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+                      title={
+                        template.is_favorite
+                          ? 'Remove from favorites'
+                          : 'Add to favorites'
+                      }
                     >
-                      <Star className={`h-5 w-5 ${template.is_favorite ? 'fill-yellow-400 text-yellow-400' : 'text-gray-400'}`} />
+                      <Star
+                        className={`h-5 w-5 ${
+                          template.is_favorite
+                            ? 'fill-yellow-400 text-yellow-400'
+                            : 'text-gray-400'
+                        }`}
+                      />
                     </button>
                     <button
                       onClick={() => previewWithSampleData(template)}
@@ -662,7 +704,10 @@ export default function EmailTemplates() {
                 <Sparkles className="h-6 w-6" />
                 <h2 className="text-lg font-bold">AI Template Generator</h2>
               </div>
-              <button onClick={() => setShowGenerator(false)} className="p-2 hover:bg-white/20 rounded-lg">
+              <button
+                onClick={() => setShowGenerator(false)}
+                className="p-2 hover:bg-white/20 rounded-lg"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -675,12 +720,19 @@ export default function EmailTemplates() {
                 </label>
                 <textarea
                   value={generatorForm.description}
-                  onChange={(e) => setGeneratorForm({ ...generatorForm, description: e.target.value })}
+                  onChange={(e) =>
+                    setGeneratorForm({
+                      ...generatorForm,
+                      description: e.target.value,
+                    })
+                  }
                   placeholder="e.g., Professional follow-up for sales meetings with warm tone"
                   rows={3}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 outline-none resize-none"
                 />
-                <p className="text-xs text-gray-500 mt-1">Be specific about purpose, tone, and style</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Be specific about purpose, tone, and style
+                </p>
               </div>
 
               {/* Type */}
@@ -689,10 +741,12 @@ export default function EmailTemplates() {
                   Template Type
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  {TEMPLATE_TYPES.map(type => (
+                  {TEMPLATE_TYPES.map((type) => (
                     <button
                       key={type.id}
-                      onClick={() => setGeneratorForm({ ...generatorForm, type: type.id })}
+                      onClick={() =>
+                        setGeneratorForm({ ...generatorForm, type: type.id })
+                      }
                       className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
                         generatorForm.type === type.id
                           ? 'border-purple-500 bg-purple-50 text-purple-700'
@@ -711,10 +765,12 @@ export default function EmailTemplates() {
                   Tone
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  {TONE_OPTIONS.map(tone => (
+                  {TONE_OPTIONS.map((tone) => (
                     <button
                       key={tone.id}
-                      onClick={() => setGeneratorForm({ ...generatorForm, tone: tone.id })}
+                      onClick={() =>
+                        setGeneratorForm({ ...generatorForm, tone: tone.id })
+                      }
                       className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
                         generatorForm.tone === tone.id
                           ? 'border-purple-500 bg-purple-50 text-purple-700'
@@ -740,7 +796,11 @@ export default function EmailTemplates() {
                 disabled={generating || !generatorForm.description.trim()}
                 className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 flex items-center gap-2"
               >
-                {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {generating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
                 {generating ? 'Generating...' : 'Generate Template'}
               </button>
             </div>
@@ -754,10 +814,15 @@ export default function EmailTemplates() {
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                {editingTemplate.generated_by_ai && <Wand2 className="h-5 w-5 text-purple-600" />}
+                {editingTemplate.generated_by_ai && (
+                  <Wand2 className="h-5 w-5 text-purple-600" />
+                )}
                 {editingTemplate.id ? 'Edit Template' : 'New Template'}
               </h2>
-              <button onClick={() => setShowEditor(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button
+                onClick={() => setShowEditor(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -783,7 +848,12 @@ export default function EmailTemplates() {
                 <input
                   type="text"
                   value={editingTemplate.name}
-                  onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
+                  onChange={(e) =>
+                    setEditingTemplate({
+                      ...editingTemplate,
+                      name: e.target.value,
+                    })
+                  }
                   placeholder="e.g., Friendly Reminder"
                   className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none"
                 />
@@ -795,10 +865,15 @@ export default function EmailTemplates() {
                   Type
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {TEMPLATE_TYPES.map(type => (
+                  {TEMPLATE_TYPES.map((type) => (
                     <button
                       key={type.id}
-                      onClick={() => setEditingTemplate({ ...editingTemplate, type: type.id })}
+                      onClick={() =>
+                        setEditingTemplate({
+                          ...editingTemplate,
+                          type: type.id,
+                        })
+                      }
                       className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
                         editingTemplate.type === type.id
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
@@ -819,8 +894,13 @@ export default function EmailTemplates() {
                 <input
                   type="text"
                   value={editingTemplate.subject}
-                  onChange={(e) => setEditingTemplate({ ...editingTemplate, subject: e.target.value })}
-                  placeholder="e.g., Quick reminder about tomorrow! 👋"
+                  onChange={(e) =>
+                    setEditingTemplate({
+                      ...editingTemplate,
+                      subject: e.target.value,
+                    })
+                  }
+                  placeholder="e.g., Reminder about our meeting tomorrow"
                   className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none"
                 />
               </div>
@@ -833,7 +913,12 @@ export default function EmailTemplates() {
                 <textarea
                   id="template-body"
                   value={editingTemplate.body}
-                  onChange={(e) => setEditingTemplate({ ...editingTemplate, body: e.target.value })}
+                  onChange={(e) =>
+                    setEditingTemplate({
+                      ...editingTemplate,
+                      body: e.target.value,
+                    })
+                  }
                   rows={8}
                   placeholder="Write your email here..."
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none resize-none"
@@ -847,7 +932,7 @@ export default function EmailTemplates() {
                   Insert Variables (click to add)
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {VARIABLES.map(v => (
+                  {VARIABLES.map((v) => (
                     <button
                       key={v.key}
                       onClick={() => insertVariable(v.key)}
@@ -873,7 +958,11 @@ export default function EmailTemplates() {
                 disabled={saving}
                 className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
                 {saving ? 'Saving...' : 'Save Template'}
               </button>
             </div>
@@ -888,20 +977,31 @@ export default function EmailTemplates() {
             <div className="bg-gray-100 px-6 py-4 flex items-center justify-between border-b">
               <div>
                 <p className="text-xs text-gray-500">Preview</p>
-                <p className="font-semibold text-gray-900">{previewTemplate.name}</p>
+                <p className="font-semibold text-gray-900">
+                  {previewTemplate.name}
+                </p>
               </div>
-              <button onClick={() => setShowPreview(false)} className="p-2 hover:bg-gray-200 rounded-lg">
+              <button
+                onClick={() => setShowPreview(false)}
+                className="p-2 hover:bg-gray-200 rounded-lg"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
             
             <div className="p-6">
               <div className="mb-4">
-                <p className="text-xs font-medium text-gray-500 mb-1">SUBJECT</p>
-                <p className="text-gray-900 font-medium">{previewTemplate.subject}</p>
+                <p className="text-xs font-medium text-gray-500 mb-1">
+                  SUBJECT
+                </p>
+                <p className="text-gray-900 font-medium">
+                  {previewTemplate.subject}
+                </p>
               </div>
               <div>
-                <p className="text-xs font-medium text-gray-500 mb-1">BODY</p>
+                <p className="text-xs font-medium text-gray-500 mb-1">
+                  BODY
+                </p>
                 <div className="bg-gray-50 rounded-lg p-4 whitespace-pre-wrap text-gray-800 text-sm">
                   {previewTemplate.body}
                 </div>
@@ -912,7 +1012,11 @@ export default function EmailTemplates() {
               <button
                 onClick={() => {
                   setShowPreview(false);
-                  const originalTemplate = templates.find(t => t.id === previewTemplate.id || t.name === previewTemplate.name);
+                  const originalTemplate = templates.find(
+                    (t) =>
+                      t.id === previewTemplate.id ||
+                      t.name === previewTemplate.name
+                  );
                   if (originalTemplate) openEditor(originalTemplate);
                 }}
                 className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700"

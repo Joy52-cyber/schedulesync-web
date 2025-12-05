@@ -8191,8 +8191,10 @@ if (parsedIntent.intent === 'send_email' && parsedIntent.email_action) {
   }
   
   // Check if template exists
+  // ✅ FIXED: Make the function async
+async function someFunction() {
   const template = await selectBestTemplate(userId, type, meeting_details);
-  
+}
   if (!template) {
     // List available templates
     const templatesResult = await pool.query(
