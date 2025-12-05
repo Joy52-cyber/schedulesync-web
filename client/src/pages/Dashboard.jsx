@@ -84,18 +84,26 @@ export default function Dashboard() {
     }
   };
 
- const loadUserTimezone = async () => {
+  const loadUserTimezone = async () => {
   try {
     const response = await timezoneApi.get();
-    // ✅ FIX: Handle both string and object responses
-    const tz = response.data?.timezone || response.data;
-    if (typeof tz === 'string') {
-      setTimezone(tz);
-    } else if (typeof tz === 'object' && tz.timezone) {
-      setTimezone(tz.timezone);
+    console.log('🌍 Timezone response:', response.data);
+    
+    // Handle different response formats
+    let tz = '';
+    if (typeof response.data === 'string') {
+      tz = response.data;
+    } else if (response.data?.timezone) {
+      tz = response.data.timezone;
+    } else if (response.data) {
+      // If response.data is an object with timezone nested
+      tz = response.data.timezone || JSON.stringify(response.data);
     }
+    
+    setTimezone(tz);
   } catch (error) {
     console.error('Timezone load error:', error);
+    setTimezone('America/Los_Angeles'); // Fallback
   }
 };
 
