@@ -1,4 +1,5 @@
 ﻿import { useState, useRef, useEffect } from 'react';
+import { useUpgrade } from '../context/UpgradeContext';
 import { 
   Sparkles, 
   Send, 
@@ -17,44 +18,85 @@ import {
   Zap,
   Copy, 
   Check, 
-  Link
+  Link,
+  Lock
 } from 'lucide-react';
 import api from '../utils/api';
 
 export default function AISchedulerChat() {
   console.log('🔥 AISchedulerChat component is rendering!');
 
-  const GREETING_MESSAGE = `👋 Hi! I'm your AI scheduling assistant.
+  const { currentTier, hasProFeature, hasTeamFeature, loading: tierLoading } = useUpgrade();
 
-I can help you with:
-
-📅 Bookings
+  // Generate greeting based on user's tier
+  const getGreetingMessage = () => {
+    const baseFeatures = `📅 Bookings
 - "Book meeting with john@email.com tomorrow 2pm"
 - "Show my confirmed/cancelled/rescheduled bookings"
 - "How many bookings this month?" (stats)
 
 🔗 Links
-- "Get my booking link"
-- "Create magic link for John"
-- "Show team links"
-- "Get Sarah's booking link"
+- "Get my booking link"`;
 
-📋 Event Types
-- "What are my event types?"
-- "Show my consultation event"
+    const proFeatures = `
+- "Create magic link for John"
+
+📧 Emails (Pro)
+- "Send reminder to client@company.com"`;
+
+    const teamFeatures = `
 
 🏢 Teams
 - "Schedule with Marketing team"
-- "Find available times this week"
+- "Show team links"
+- "Get Sarah's booking link"`;
 
-📧 Emails
-- "Send reminder to client@company.com"
+    const eventTypesFeature = `
+
+📋 Event Types
+- "What are my event types?"
+- "Show my consultation event"`;
+
+    let greeting = `👋 Hi! I'm your AI scheduling assistant.
+
+I can help you with:
+
+${baseFeatures}`;
+
+    // Add Pro features if user has Pro or Team
+    if (hasProFeature()) {
+      greeting += proFeatures;
+    }
+
+    // Add event types (available to all)
+    greeting += eventTypesFeature;
+
+    // Add Team features only if user has Team tier
+    if (hasTeamFeature()) {
+      greeting += teamFeatures;
+    }
+
+    // Add upgrade hint for free users
+    if (currentTier === 'free') {
+      greeting += `
+
+💡 *Upgrade to Pro for unlimited AI queries, magic links & email templates!*`;
+    } else if (currentTier === 'pro') {
+      greeting += `
+
+💡 *Upgrade to Team for team scheduling features!*`;
+    }
+
+    greeting += `
 
 What would you like to do?`;
 
+    return greeting;
+  };
+
   const createGreeting = () => ({
     role: 'assistant',
-    content: GREETING_MESSAGE,
+    content: getGreetingMessage(),
     timestamp: new Date(),
     isGreeting: true
   });
@@ -72,8 +114,6 @@ What would you like to do?`;
     ai_queries_limit: 10,
     loading: true
   });
-
-
 
   const [chatHistory, setChatHistory] = useState(() => {
     try {
@@ -99,7 +139,7 @@ What would you like to do?`;
     } catch (e) {
       console.error('Error loading chat history:', e);
     }
-    return [createGreeting()];
+    return [];
   });
 
   const [loading, setLoading] = useState(false);
@@ -140,30 +180,28 @@ What would you like to do?`;
     setTimeout(() => setCopiedUrl(null), 2000);
   };
 
-  // ✅ Helper to check if user has unlimited (Pro/Team)
+  // Helper to check if user has unlimited (Pro/Team)
   const isUnlimited = usage.ai_queries_limit >= 1000;
 
+  // Initialize greeting when tier loads
   useEffect(() => {
-    setTimeout(() => {
-      if (chatHistory.length === 0) {
-        const greeting = createGreeting();
-        setChatHistory([greeting]);
-        localStorage.setItem('aiChat_history', JSON.stringify([greeting]));
-      }
-    }, 200);
-  }, []);
-
-  useEffect(() => {
-    const hasGreeting = chatHistory.some(msg => 
-      msg.isGreeting || 
-      (msg.role === 'assistant' && msg.content.includes("Hi! I'm your AI scheduling assistant"))
-    );
-    
-    if (chatHistory.length === 0 || !hasGreeting) {
+    if (!tierLoading && chatHistory.length === 0) {
       const greeting = createGreeting();
       setChatHistory([greeting]);
+      localStorage.setItem('aiChat_history', JSON.stringify([greeting]));
     }
-  }, [chatHistory]);
+  }, [tierLoading]);
+
+  // Update greeting if tier changes
+  useEffect(() => {
+    if (!tierLoading && chatHistory.length > 0) {
+      const hasGreeting = chatHistory.some(msg => msg.isGreeting);
+      if (!hasGreeting) {
+        const greeting = createGreeting();
+        setChatHistory(prev => [greeting, ...prev]);
+      }
+    }
+  }, [currentTier, tierLoading]);
 
   useEffect(() => {
     if (chatHistory.length > 0) {
@@ -196,7 +234,7 @@ What would you like to do?`;
   const handleSend = async () => {
     if (!message.trim() || loading) return;
 
-    // ✅ Only block if NOT unlimited and at limit
+    // Only block if NOT unlimited and at limit
     if (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit) {
       setChatHistory(prev => [...prev, { 
         role: 'assistant', 
@@ -207,6 +245,61 @@ What would you like to do?`;
     }
 
     const userMessage = message.trim();
+    
+    // Check for gated features before sending
+    const lowerMessage = userMessage.toLowerCase();
+    
+    // Block team features for non-team users
+    if (!hasTeamFeature() && (
+      lowerMessage.includes('team') || 
+      lowerMessage.includes('marketing team') ||
+      lowerMessage.includes('sales team')
+    )) {
+      setChatHistory(prev => [...prev, 
+        { role: 'user', content: userMessage, timestamp: new Date() },
+        { 
+          role: 'assistant', 
+          content: `🔒 **Team Features Locked**
+
+Team scheduling is available on the Team plan ($25/month). This includes:
+• Create unlimited teams
+• Round-robin & collective booking
+• Team booking links
+• Up to 10 team members
+
+[Upgrade to Team](/billing) to unlock team features!`,
+          timestamp: new Date()
+        }
+      ]);
+      setMessage('');
+      return;
+    }
+
+    // Block email template features for free users
+    if (!hasProFeature() && (
+      lowerMessage.includes('send reminder') ||
+      lowerMessage.includes('send email') ||
+      lowerMessage.includes('email template')
+    )) {
+      setChatHistory(prev => [...prev, 
+        { role: 'user', content: userMessage, timestamp: new Date() },
+        { 
+          role: 'assistant', 
+          content: `🔒 **Email Templates Locked**
+
+Email templates are available on the Pro plan ($12/month). This includes:
+• Unlimited custom email templates
+• AI-powered template generation
+• Automated reminders & follow-ups
+
+[Upgrade to Pro](/billing) to unlock email features!`,
+          timestamp: new Date()
+        }
+      ]);
+      setMessage('');
+      return;
+    }
+
     setMessage('');
     
     setChatHistory(prev => [...prev, { 
@@ -230,13 +323,13 @@ What would you like to do?`;
       console.log('📥 AI response received:', responseData);
 
       if (responseData.usage) {
-  console.log('✅ Updating usage state:', responseData.usage);
-  setUsage(prev => ({
-    ...prev,
-    ai_queries_used: responseData.usage.ai_queries_used,
-    ai_queries_limit: responseData.usage.ai_queries_limit
-  }));
-}
+        console.log('✅ Updating usage state:', responseData.usage);
+        setUsage(prev => ({
+          ...prev,
+          ai_queries_used: responseData.usage.ai_queries_used,
+          ai_queries_limit: responseData.usage.ai_queries_limit
+        }));
+      }
 
       if (responseData.type === 'update_pending' && responseData.data?.updatedBooking) {
         setPendingBooking(responseData.data.updatedBooking);
@@ -526,14 +619,27 @@ What would you like to do?`;
     return <p className="text-xs sm:text-sm whitespace-pre-wrap">{content}</p>;
   };
 
-  const suggestions = [
-    "Get my booking link",
-    "What are my event types?",
-    "Show confirmed bookings",
-    "Create magic link for VIP",
-    "How many bookings this month?",
-    "Show team links"
-  ];
+  // Tier-based suggestions
+  const getSuggestions = () => {
+    const baseSuggestions = [
+      "Get my booking link",
+      "What are my event types?",
+      "Show confirmed bookings",
+      "How many bookings this month?",
+    ];
+
+    if (hasProFeature()) {
+      baseSuggestions.push("Create magic link for VIP");
+    }
+
+    if (hasTeamFeature()) {
+      baseSuggestions.push("Show team links");
+    }
+
+    return baseSuggestions;
+  };
+
+  const suggestions = getSuggestions();
 
   if (!isOpen) {
     return (
@@ -573,19 +679,21 @@ What would you like to do?`;
             </div>
             <div>
               <h3 className="font-bold text-white text-sm sm:text-base">AI Scheduler</h3>
-              <p className="text-xs text-purple-200">Natural language booking</p>
+              <p className="text-xs text-purple-200">
+                {currentTier === 'free' ? 'Free' : currentTier === 'pro' ? 'Pro ⚡' : 'Team 🏢'}
+              </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* ✅ FIXED: Show "∞ Unlimited" for Pro/Team users */}
+            {/* Usage display */}
             <div className="flex items-center gap-1 bg-white/10 rounded-lg px-2 py-1">
               <Zap className="h-3 w-3 text-yellow-300" />
               {usage.loading ? (
                 <span className="text-xs text-white">...</span>
               ) : (
                 <span className="text-xs text-white font-medium">
-                  {isUnlimited ? '∞ Unlimited' : `${usage.ai_queries_used}/${usage.ai_queries_limit}`}
+                  {isUnlimited ? '∞' : `${usage.ai_queries_used}/${usage.ai_queries_limit}`}
                 </span>
               )}
             </div>
@@ -612,81 +720,68 @@ What would you like to do?`;
 
         {!isMinimized && (
           <>
-           {/* Messages */}
-<div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50">
-  
-  {/* Usage warning - ONLY show for free users */}
-  {!isUnlimited && (
-    <div className={`rounded-lg p-4 mb-4 ${
-      usage.ai_queries_used >= usage.ai_queries_limit
-        ? 'bg-red-50 border-2 border-red-300'
-        : 'bg-yellow-50 border border-yellow-200'
-    }`}>
-      <div className="flex items-start gap-3">
-        <div className={`p-2 rounded-full ${
-          usage.ai_queries_used >= usage.ai_queries_limit
-            ? 'bg-red-100'
-            : 'bg-yellow-100'
-        }`}>
-          <Zap className={`h-5 w-5 ${
-            usage.ai_queries_used >= usage.ai_queries_limit
-              ? 'text-red-600'
-              : 'text-yellow-600'
-          }`} />
-        </div>
-        
-        <div className="flex-1">
-          <p className={`font-bold mb-2 ${
-            usage.ai_queries_used >= usage.ai_queries_limit
-              ? 'text-red-800 text-base'
-              : 'text-yellow-800 text-sm'
-          }`}>
-            {usage.ai_queries_used >= usage.ai_queries_limit
-              ? `🚫 AI Query Limit Reached (${usage.ai_queries_used}/${usage.ai_queries_limit})`
-              : `⚠️ Only ${usage.ai_queries_limit - usage.ai_queries_used} AI queries remaining!`
-            }
-          </p>
-          {usage.ai_queries_used >= usage.ai_queries_limit ? (
-            <div className="space-y-2">
-              <p className="text-sm text-red-700">
-                You've used all your free AI queries this month. To continue:
-              </p>
-              <div className="bg-white rounded-lg p-3 border border-red-200 space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-2xl">⚡</span>
-                  <div>
-                    <p className="font-semibold text-red-900">Upgrade to Pro - $12/month</p>
-                    <p className="text-xs text-red-700">Get unlimited AI queries instantly</p>
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50">
+              
+              {/* Usage warning - ONLY show for free users */}
+              {!isUnlimited && (
+                <div className={`rounded-lg p-4 mb-4 ${
+                  usage.ai_queries_used >= usage.ai_queries_limit
+                    ? 'bg-red-50 border-2 border-red-300'
+                    : 'bg-yellow-50 border border-yellow-200'
+                }`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-full ${
+                      usage.ai_queries_used >= usage.ai_queries_limit
+                        ? 'bg-red-100'
+                        : 'bg-yellow-100'
+                    }`}>
+                      <Zap className={`h-5 w-5 ${
+                        usage.ai_queries_used >= usage.ai_queries_limit
+                          ? 'text-red-600'
+                          : 'text-yellow-600'
+                      }`} />
+                    </div>
+                    
+                    <div className="flex-1">
+                      <p className={`font-bold mb-2 ${
+                        usage.ai_queries_used >= usage.ai_queries_limit
+                          ? 'text-red-800 text-base'
+                          : 'text-yellow-800 text-sm'
+                      }`}>
+                        {usage.ai_queries_used >= usage.ai_queries_limit
+                          ? `🚫 AI Query Limit Reached (${usage.ai_queries_used}/${usage.ai_queries_limit})`
+                          : `⚠️ Only ${usage.ai_queries_limit - usage.ai_queries_used} AI queries remaining!`
+                        }
+                      </p>
+                      {usage.ai_queries_used >= usage.ai_queries_limit ? (
+                        <div className="space-y-2">
+                          <p className="text-sm text-red-700">
+                            You've used all your free AI queries this month.
+                          </p>
+                          <button
+                            onClick={() => window.location.href = '/billing'}
+                            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-2 px-4 rounded-lg font-semibold text-sm transition-all"
+                          >
+                            Upgrade to Pro - $12/mo
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-yellow-700">
+                          Upgrade to Pro for unlimited AI queries!
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => window.location.href = '/billing'}
-                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-2 px-4 rounded-lg font-semibold text-sm transition-all"
-                >
-                  Upgrade Now - Unlock Unlimited
-                </button>
-              </div>
-              <p className="text-xs text-red-600 mt-2">
-                💡 Or wait until next month when your limit resets
-              </p>
-            </div>
-          ) : (
-            <p className="text-xs text-yellow-700">
-              Upgrade to Pro for unlimited AI queries!
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  )}
+              )}
 
-  {/* Suggestions grid - ONLY show if NOT at limit */}
-  {chatHistory.length <= 1 && (isUnlimited || usage.ai_queries_used < usage.ai_queries_limit) && (
-    <div className="text-center py-4">
-      {/* ... rest of suggestions ... */}
-    <p className="text-sm text-gray-500 mb-3">Try saying:</p>
-    <div className="grid grid-cols-2 gap-2">
-      {suggestions.map((suggestion, i) => (
+              {/* Suggestions grid - ONLY show if NOT at limit */}
+              {chatHistory.length <= 1 && (isUnlimited || usage.ai_queries_used < usage.ai_queries_limit) && (
+                <div className="text-center py-4">
+                  <p className="text-sm text-gray-500 mb-3">Try saying:</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {suggestions.map((suggestion, i) => (
                       <button
                         key={i}
                         onClick={() => setMessage(suggestion)}
