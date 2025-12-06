@@ -12746,7 +12746,7 @@ module.exports = {
 // First, install multer for file uploads:
 // npm install multer
 
-const multer = require('multer');
+
 const path = require('path');
 const fs = require('fs');
 
