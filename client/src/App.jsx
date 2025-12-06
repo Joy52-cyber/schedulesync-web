@@ -2,9 +2,9 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
-import { SubscriptionProvider } from './hooks/useSubscription'; // ✅ ADD THIS
+import { SubscriptionProvider } from './hooks/useSubscription';
 import { UpgradeProvider } from './context/UpgradeContext';
-import UpgradeModal from './components/UpgradeModal';  // ← ADD THIS LINE
+import UpgradeModal from './components/UpgradeModal';
 
 // Layouts
 import Layout from './components/Layout';
@@ -79,81 +79,80 @@ function InnerApp() {
       <NotificationProvider>
         <SubscriptionProvider>
           <UpgradeProvider>
-          <UpgradeModal>
             <Routes>
-            {/* Marketing / Auth */}
-            <Route path="/" element={<Landing />} />
-            <Route path="/login" element={<Landing defaultLoginOpen />} />
-            <Route path="/register" element={<LoginWrapper Component={Register} />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password/:token" element={<ResetPassword />} />
-            <Route path="/verify-email" element={<VerifyEmail />} />
+              {/* Marketing / Auth */}
+              <Route path="/" element={<Landing />} />
+              <Route path="/login" element={<Landing defaultLoginOpen />} />
+              <Route path="/register" element={<LoginWrapper Component={Register} />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password/:token" element={<ResetPassword />} />
+              <Route path="/verify-email" element={<VerifyEmail />} />
 
-            {/* OAuth Callbacks */}
-            <Route path="/oauth/callback" element={<LoginWrapper Component={OAuthCallback} />} />
-            <Route path="/oauth/callback/microsoft" element={<LoginWrapper Component={OAuthCallback} />} />
-            <Route path="/oauth/callback/calendly" element={<LoginWrapper Component={OAuthCallback} />} />
-            <Route path="/oauth/callback/google/guest" element={<OAuthCallback />} />
-            <Route path="/oauth/callback/microsoft/guest" element={<OAuthCallback />} />
+              {/* OAuth Callbacks */}
+              <Route path="/oauth/callback" element={<LoginWrapper Component={OAuthCallback} />} />
+              <Route path="/oauth/callback/microsoft" element={<LoginWrapper Component={OAuthCallback} />} />
+              <Route path="/oauth/callback/calendly" element={<LoginWrapper Component={OAuthCallback} />} />
+              <Route path="/oauth/callback/google/guest" element={<OAuthCallback />} />
+              <Route path="/oauth/callback/microsoft/guest" element={<OAuthCallback />} />
 
-            {/* Onboarding */}
-            <Route path="/onboarding" element={
-              <ProtectedRoute>
-                <OnboardingWizard />
-              </ProtectedRoute>
-            } />
+              {/* Onboarding */}
+              <Route path="/onboarding" element={
+                <ProtectedRoute>
+                  <OnboardingWizard />
+                </ProtectedRoute>
+              } />
 
-            {/* Admin */}
-            <Route path="/admin" element={
-              <ProtectedRoute>
-                <AdminPanel />
-              </ProtectedRoute>
-            } />
+              {/* Admin */}
+              <Route path="/admin" element={
+                <ProtectedRoute>
+                  <AdminPanel />
+                </ProtectedRoute>
+              } />
 
-            {/* Public Guest Routes */}
-            <Route path="/book/:username/:eventSlug" element={<BookingPage />} />
-            <Route path="/book/:token" element={<BookingPage />} />
-            <Route path="/book" element={<Book />} />
-            <Route path="/manage/:token" element={<ManageBooking />} />
-            <Route path="/payment/status" element={<PaymentStatus />} />
-            <Route path="/booking-success" element={<BookingConfirmation />} />
-            <Route path="/booking-confirmation" element={<BookingConfirmation />} />
-            <Route path="/import/calendly" element={<CalendlyMigration />} />
+              {/* Public Guest Routes */}
+              <Route path="/book/:username/:eventSlug" element={<BookingPage />} />
+              <Route path="/book/:token" element={<BookingPage />} />
+              <Route path="/book" element={<Book />} />
+              <Route path="/manage/:token" element={<ManageBooking />} />
+              <Route path="/payment/status" element={<PaymentStatus />} />
+              <Route path="/booking-success" element={<BookingConfirmation />} />
+              <Route path="/booking-confirmation" element={<BookingConfirmation />} />
+              <Route path="/import/calendly" element={<CalendlyMigration />} />
 
-            {/* Protected App Layout */}
-            <Route element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
-            }>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/bookings" element={<Bookings />} />
-              <Route path="/availability" element={<Availability />} />
-              <Route path="/email-templates" element={<EmailTemplates />} />
-              <Route path="/my-links" element={<MyLinks />} />
-              <Route path="/billing" element={<BillingPage />} />
+              {/* Protected App Layout */}
+              <Route element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/bookings" element={<Bookings />} />
+                <Route path="/availability" element={<Availability />} />
+                <Route path="/email-templates" element={<EmailTemplates />} />
+                <Route path="/my-links" element={<MyLinks />} />
+                <Route path="/billing" element={<BillingPage />} />
 
-              {/* Event Types */}
-              <Route path="/events" element={<EventTypes />} />
-              <Route path="/events/new" element={<EventTypeForm />} />
-              <Route path="/events/:id" element={<EventTypeDetail />} />
-              <Route path="/events/:id/edit" element={<EventTypeForm />} />
-              
-              {/* Teams */}
-              <Route path="/teams" element={<Teams />} />
-              <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
-              <Route path="/teams/:teamId/members" element={<TeamMembers />} />
-              <Route path="/teams/:teamId/members/:memberId/availability" element={<MemberAvailability />} />
+                {/* Event Types */}
+                <Route path="/events" element={<EventTypes />} />
+                <Route path="/events/new" element={<EventTypeForm />} />
+                <Route path="/events/:id" element={<EventTypeDetail />} />
+                <Route path="/events/:id/edit" element={<EventTypeForm />} />
+                
+                {/* Teams */}
+                <Route path="/teams" element={<Teams />} />
+                <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
+                <Route path="/teams/:teamId/members" element={<TeamMembers />} />
+                <Route path="/teams/:teamId/members/:memberId/availability" element={<MemberAvailability />} />
 
-              {/* Settings */}
-              <Route path="/settings" element={<UserSettings />} />
-              <Route path="/settings/calendar" element={<CalendarSettings />} />
-            </Route>
+                {/* Settings */}
+                <Route path="/settings" element={<UserSettings />} />
+                <Route path="/settings/calendar" element={<CalendarSettings />} />
+              </Route>
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-          <UpgradeModal />
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+            <UpgradeModal />
           </UpgradeProvider>
         </SubscriptionProvider>
       </NotificationProvider>
