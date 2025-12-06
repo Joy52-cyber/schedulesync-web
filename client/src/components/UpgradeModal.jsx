@@ -1,5 +1,4 @@
-﻿import React from 'react';
-import { useNavigate } from 'react-router-dom';
+﻿import React, { useState } from 'react';
 import { 
   X, 
   Zap, 
@@ -12,13 +11,14 @@ import {
   Crown
 } from 'lucide-react';
 import { useUpgrade } from '../context/UpgradeContext';
+import SubscriptionUpgradeModal from './SubscriptionUpgradeModal';
 
 const UpgradeModal = () => {
-  const navigate = useNavigate();
-  const { modalOpen, modalFeature, closeUpgradeModal, currentTier, usage } = useUpgrade();
+  const { modalOpen, modalFeature, closeUpgradeModal, currentTier, usage, refreshUsage } = useUpgrade();
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Don't render if modal is not open
-  if (!modalOpen) return null;
+  if (!modalOpen && !showPaymentModal) return null;
 
   const featureInfo = {
     ai_queries: {
@@ -63,11 +63,33 @@ const UpgradeModal = () => {
   const Icon = info.icon;
   const needsTeamPlan = modalFeature === 'teams';
 
+  // Open the payment modal
   const handleUpgrade = () => {
     closeUpgradeModal();
-    navigate('/billing');
+    setShowPaymentModal(true);
   };
 
+  // Handle successful payment
+  const handlePaymentSuccess = (plan) => {
+    setShowPaymentModal(false);
+    // Refresh usage data to update tier
+    if (refreshUsage) refreshUsage();
+    alert(`Successfully upgraded to ${plan.name}!`);
+  };
+
+  // If showing payment modal, render SubscriptionUpgradeModal
+  if (showPaymentModal) {
+    return (
+      <SubscriptionUpgradeModal
+        isOpen={true}
+        onClose={() => setShowPaymentModal(false)}
+        onSuccess={handlePaymentSuccess}
+        currentTier={currentTier}
+      />
+    );
+  }
+
+  // Main upgrade prompt modal
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden">
@@ -97,12 +119,8 @@ const UpgradeModal = () => {
           {/* Plan comparison */}
           <div className="space-y-4 mb-6">
             {/* Pro Plan */}
-            {!needsTeamPlan && (
-              <div className={`border-2 rounded-xl p-4 ${
-                currentTier === 'pro' 
-                  ? 'border-green-300 bg-green-50' 
-                  : 'border-purple-300 bg-purple-50'
-              }`}>
+            {currentTier === 'free' && !needsTeamPlan && (
+              <div className="border-2 border-purple-300 bg-purple-50 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Crown className="h-5 w-5 text-purple-600" />
@@ -128,16 +146,11 @@ const UpgradeModal = () => {
                     Unlimited magic links
                   </li>
                 </ul>
-                {currentTier === 'pro' && (
-                  <div className="mt-3 text-sm text-green-600 font-medium">
-                    ✓ Current Plan
-                  </div>
-                )}
               </div>
             )}
 
             {/* Team Plan */}
-            {(needsTeamPlan || currentTier === 'pro') && (
+            {(needsTeamPlan || currentTier === 'pro') && currentTier !== 'team' && (
               <div className="border-2 border-green-300 bg-green-50 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -164,35 +177,52 @@ const UpgradeModal = () => {
                     Round-robin & collective booking
                   </li>
                 </ul>
-                {currentTier === 'team' && (
-                  <div className="mt-3 text-sm text-green-600 font-medium">
-                    ✓ Current Plan
-                  </div>
-                )}
+              </div>
+            )}
+
+            {/* Already on Team */}
+            {currentTier === 'team' && (
+              <div className="text-center py-4">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Check className="h-8 w-8 text-green-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">You're on the Team Plan!</h3>
+                <p className="text-gray-600">You have access to all features.</p>
               </div>
             )}
           </div>
 
           {/* Action buttons */}
-          <div className="flex gap-3">
+          {currentTier !== 'team' && (
+            <div className="flex gap-3">
+              <button
+                onClick={closeUpgradeModal}
+                className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+              >
+                Maybe Later
+              </button>
+              <button
+                onClick={handleUpgrade}
+                className={`flex-1 px-6 py-3 text-white rounded-xl font-semibold transition-all hover:shadow-lg flex items-center justify-center gap-2 ${
+                  needsTeamPlan || currentTier === 'pro'
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-600'
+                    : 'bg-gradient-to-r from-purple-600 to-pink-600'
+                }`}
+              >
+                <Zap className="h-4 w-4" />
+                Upgrade Now
+              </button>
+            </div>
+          )}
+
+          {currentTier === 'team' && (
             <button
               onClick={closeUpgradeModal}
-              className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+              className="w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 font-semibold transition-colors"
             >
-              Maybe Later
+              Close
             </button>
-            <button
-              onClick={handleUpgrade}
-              className={`flex-1 px-6 py-3 text-white rounded-xl font-semibold transition-all hover:shadow-lg flex items-center justify-center gap-2 ${
-                needsTeamPlan
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-600'
-                  : 'bg-gradient-to-r from-purple-600 to-pink-600'
-              }`}
-            >
-              <Zap className="h-4 w-4" />
-              Upgrade Now
-            </button>
-          </div>
+          )}
         </div>
       </div>
     </div>
