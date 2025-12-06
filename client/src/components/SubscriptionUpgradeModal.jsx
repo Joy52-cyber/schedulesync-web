@@ -1,8 +1,8 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-// ✅ FIX: Use Vite's env variable format (not Create React App's)
+// ? FIX: Use Vite's env variable format (not Create React App's)
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 // Payment Form Component
@@ -19,7 +19,7 @@ const PaymentForm = ({ plan, onSuccess, onCancel }) => {
 
     try {
       // Create subscription
-      const response = await fetch('/api/billing/create-subscription', {
+      const response = await fetch('/api/billing/create-checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -129,11 +129,11 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
       price: 12,
       description: 'Perfect for individuals',
       features: [
-        '🤖 UNLIMITED ChatGPT queries',
-        '📅 Unlimited bookings',
-        '🔗 Unlimited booking links',
-        '⚡ AI optimization',
-        '📞 Priority support'
+        '?? UNLIMITED ChatGPT queries',
+        '?? Unlimited bookings',
+        '?? Unlimited booking links',
+        '? AI optimization',
+        '?? Priority support'
       ],
       color: 'blue',
       popular: true
@@ -144,11 +144,11 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
       price: 25,
       description: 'Best for organizations',
       features: [
-        '✅ Everything in Pro',
-        '👥 Unlimited team members',
-        '🔄 Round-robin scheduling',
-        '📊 Admin dashboard',
-        '☎️ Phone support'
+        '? Everything in Pro',
+        '?? Unlimited team members',
+        '?? Round-robin scheduling',
+        '?? Admin dashboard',
+        '?? Phone support'
       ],
       color: 'purple',
       popular: false
@@ -211,7 +211,7 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
               onClick={handleClose}
               className="text-gray-400 hover:text-gray-600 text-2xl font-bold w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
             >
-              ×
+              �
             </button>
           </div>
         </div>
@@ -220,7 +220,7 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
         <div className="p-6">
           {stripeKeyMissing ? (
             <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
-              <p className="font-medium">⚠️ Stripe not configured</p>
+              <p className="font-medium">?? Stripe not configured</p>
               <p className="text-sm mt-1">Please add VITE_STRIPE_PUBLISHABLE_KEY to your environment variables.</p>
             </div>
           ) : step === 'select' ? (
@@ -254,7 +254,7 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
                   <ul className="space-y-2 mb-6">
                     {plan.features.map((feature, index) => (
                       <li key={index} className="flex items-center text-sm">
-                        <span className="text-green-500 mr-2">✓</span>
+                        <span className="text-green-500 mr-2">?</span>
                         {feature}
                       </li>
                     ))}
@@ -279,7 +279,7 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
                 onClick={handleBack}
                 className="mb-4 text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1"
               >
-                ← Back to plans
+                ? Back to plans
               </button>
 
               <div className="bg-gray-50 rounded-lg p-4 mb-6 text-center">
@@ -304,7 +304,7 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
         {/* Footer */}
         <div className="px-6 py-4 bg-gray-50 border-t text-center">
           <p className="text-xs text-gray-500">
-            💳 Secure payment powered by Stripe • Cancel anytime • 30-day money-back guarantee
+            ?? Secure payment powered by Stripe � Cancel anytime � 30-day money-back guarantee
           </p>
         </div>
       </div>

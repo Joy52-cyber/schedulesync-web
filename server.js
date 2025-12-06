@@ -12713,6 +12713,66 @@ module.exports = {
 };
 
 
+// ============================================
+// ADD THIS TO server.js - Username-based booking lookup
+// ============================================
+// Place this near your other /api/book routes
+
+// GET /api/book/user/:username - Get user's public profile and event types for booking
+app.get('/api/book/user/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    
+    // Find user by username
+    const userResult = await pool.query(
+      `SELECT id, name, username, email, avatar_url, bio, timezone 
+       FROM users 
+       WHERE LOWER(username) = LOWER($1)`,
+      [username]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // Get user's active event types
+    const eventTypesResult = await pool.query(
+      `SELECT id, name, slug, description, duration, color, location_type, price, is_active
+       FROM event_types 
+       WHERE user_id = $1 AND is_active = true
+       ORDER BY created_at ASC`,
+      [user.id]
+    );
+    
+    // Return public profile info (not sensitive data)
+    res.json({
+      user: {
+        name: user.name,
+        username: user.username,
+        avatar_url: user.avatar_url,
+        bio: user.bio,
+        timezone: user.timezone,
+      },
+      eventTypes: eventTypesResult.rows.map(et => ({
+        id: et.id,
+        name: et.name,
+        slug: et.slug,
+        description: et.description,
+        duration: et.duration,
+        color: et.color,
+        location_type: et.location_type,
+        price: parseFloat(et.price) || 0,
+      })),
+    });
+  } catch (error) {
+    console.error('Error fetching user profile for booking:', error);
+    res.status(500).json({ error: 'Failed to load booking page' });
+  }
+});
+
+
 // ============ ONBOARDING / PROFILE UPDATE ============
 app.put('/api/users/profile', authenticateToken, async (req, res) => {
   const client = await pool.connect();

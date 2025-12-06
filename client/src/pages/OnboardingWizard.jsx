@@ -108,7 +108,7 @@ export default function OnboardingWizard() {
     }
   };
 
-  // While we’re checking if onboarding should show, show nothing or a loader
+  // While we're checking if onboarding should show, show nothing or a loader
   if (!user || !ready) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -143,7 +143,7 @@ export default function OnboardingWizard() {
                   <User size={28} />
                 </div>
                 <h2 className="text-3xl font-bold text-gray-900 tracking-tight">
-                  Welcome to ScheduleSync!
+                  Welcome to TruCal!
                 </h2>
                 <p className="text-gray-500">
                   Let&apos;s claim your unique booking link.
@@ -156,7 +156,7 @@ export default function OnboardingWizard() {
                 </label>
                 <div className="flex rounded-xl shadow-sm ring-1 ring-gray-200 focus-within:ring-2 focus-within:ring-purple-500 transition-all overflow-hidden">
                   <span className="inline-flex items-center px-4 bg-gray-50 text-gray-500 sm:text-sm font-medium border-r border-gray-200">
-                    schedulesync.com/
+                    trucal.xyz/
                   </span>
                   <input
                     type="text"
@@ -323,7 +323,10 @@ export default function OnboardingWizard() {
                   Personal Link
                 </p>
                 <p className="text-lg font-bold text-purple-600 break-all">
-                  schedulesync.com/{formData.username}
+                  trucal.xyz/{formData.username}
+                </p>
+                <p className="text-xs text-gray-400 mt-2">
+                  Share this link to let people book time with you
                 </p>
               </div>
 

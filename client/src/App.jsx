@@ -49,6 +49,7 @@ import ManageBooking from './pages/ManageBooking';
 import PaymentStatus from './pages/PaymentStatus';
 import Book from './pages/Book';
 import BookingConfirmation from './components/BookingConfirmation';
+import UserProfilePage from './pages/UserProfilePage';
 
 // ======================
 // Login Wrapper
@@ -148,6 +149,9 @@ function InnerApp() {
                 <Route path="/settings" element={<UserSettings />} />
                 <Route path="/settings/calendar" element={<CalendarSettings />} />
               </Route>
+
+              {/* Username-based public booking page - MUST be before catch-all */}
+              <Route path="/:username" element={<UserProfilePage />} />
 
               {/* Fallback */}
               <Route path="*" element={<Navigate to="/" replace />} />
