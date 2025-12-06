@@ -12747,8 +12747,7 @@ module.exports = {
 // npm install multer
 
 
-const path = require('path');
-const fs = require('fs');
+
 
 // Configure multer for logo uploads
 const logoStorage = multer.diskStorage({
