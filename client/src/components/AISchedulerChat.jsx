@@ -19,7 +19,6 @@ import {
   Copy, 
   Check, 
   Link,
-  Lock,
   Mic,
   MicOff
 } from 'lucide-react';
@@ -30,7 +29,7 @@ export default function AISchedulerChat() {
 
   const { currentTier, hasProFeature, hasTeamFeature, loading: tierLoading } = useUpgrade();
 
-  // Generate friendly, conversational greeting based on user's tier
+  // Generate friendly, conversational greeting
   const getGreetingMessage = () => {
     const hour = new Date().getHours();
     let timeGreeting = "Hi there";
@@ -40,14 +39,14 @@ export default function AISchedulerChat() {
 
     let greeting = `${timeGreeting}! 👋
 
-I'm your scheduling assistant, and I'm here to help make booking meetings a breeze.
+I'm your scheduling assistant, here to make booking meetings a breeze.
 
-Here's what I can do for you:
+Here's what I can do:
 
 📅 **Bookings**
 • Book meetings – just tell me who and when!
-• Show your upcoming, confirmed, or past bookings
-• Give you booking stats
+• Show your upcoming or past bookings
+• Add someone to an existing meeting
 
 🔗 **Links**
 • Share your booking link
@@ -58,8 +57,7 @@ Here's what I can do for you:
 
 🏢 **Teams**
 • Schedule with your teams
-• Get team booking links
-• Find team member availability`;
+• Get team booking links`;
     }
 
     if (hasProFeature()) {
@@ -72,9 +70,9 @@ Here's what I can do for you:
 
     greeting += `
 
-🎤 **Voice** – Tap the mic and just talk to me!
+🎤 **Voice** – Tap the mic and talk to me! I'll wait for you to finish.
 
-What can I help you with today?`;
+What can I help you with?`;
 
     return greeting;
   };
@@ -133,51 +131,98 @@ What can I help you with today?`;
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Voice input states
+  // Voice input states - IMPROVED
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState('');
   const recognitionRef = useRef(null);
+  const silenceTimerRef = useRef(null);
+  const finalTranscriptRef = useRef('');
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Initialize speech recognition
+  // Initialize speech recognition - IMPROVED for continuous listening
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       setSpeechSupported(true);
       recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = true;
+      
+      // Key settings for better experience
+      recognitionRef.current.continuous = true;        // Keep listening until stopped
+      recognitionRef.current.interimResults = true;    // Show live text as user speaks
       recognitionRef.current.lang = 'en-US';
+      recognitionRef.current.maxAlternatives = 1;
 
       recognitionRef.current.onresult = (event) => {
-        const transcript = Array.from(event.results)
-          .map(result => result[0].transcript)
-          .join('');
-        
-        setMessage(transcript);
-        
-        if (event.results[event.results.length - 1].isFinal) {
-          setIsListening(false);
+        let interimText = '';
+        let finalText = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalText += transcript + ' ';
+          } else {
+            interimText += transcript;
+          }
         }
+
+        // Accumulate final transcript
+        if (finalText) {
+          finalTranscriptRef.current += finalText;
+          setMessage(finalTranscriptRef.current.trim());
+        }
+        
+        // Show interim (live) transcript
+        setInterimTranscript(interimText);
+
+        // Reset silence timer - auto-send after 2s of silence
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+        }
+        
+        silenceTimerRef.current = setTimeout(() => {
+          if (finalTranscriptRef.current.trim()) {
+            console.log('🎤 Auto-stopping after 2s silence');
+            stopListeningAndSend();
+          }
+        }, 2000); // 2 seconds of silence triggers send
       };
 
       recognitionRef.current.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
-        setIsListening(false);
+        
+        if (event.error === 'no-speech') {
+          // User didn't say anything - just stop quietly
+          setIsListening(false);
+          setInterimTranscript('');
+          return;
+        }
         
         if (event.error === 'not-allowed') {
           setChatHistory(prev => [...prev, {
             role: 'assistant',
-            content: "Oops! Looks like I don't have microphone access. Could you enable it in your browser settings? I'd love to hear from you! 🎤",
+            content: "Oops! I need microphone access to hear you. Please enable it in your browser settings and try again! 🎤",
             timestamp: new Date()
           }]);
         }
+        
+        setIsListening(false);
+        setInterimTranscript('');
       };
 
       recognitionRef.current.onend = () => {
-        setIsListening(false);
+        // Only restart if we're supposed to still be listening
+        // This handles browser auto-stop behavior
+        if (isListening && recognitionRef.current) {
+          try {
+            recognitionRef.current.start();
+          } catch (e) {
+            console.log('Could not restart recognition:', e);
+            setIsListening(false);
+          }
+        }
       };
     }
 
@@ -185,31 +230,79 @@ What can I help you with today?`;
       if (recognitionRef.current) {
         recognitionRef.current.abort();
       }
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
     };
   }, []);
 
-  const toggleListening = () => {
+  // Update onend handler when isListening changes
+  useEffect(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.onend = () => {
+        if (isListening) {
+          try {
+            recognitionRef.current.start();
+          } catch (e) {
+            setIsListening(false);
+          }
+        }
+      };
+    }
+  }, [isListening]);
+
+  const startListening = () => {
     if (!speechSupported) {
       setChatHistory(prev => [...prev, {
         role: 'assistant',
-        content: "Unfortunately, voice input isn't supported in your browser. Try Chrome, Edge, or Safari for the best experience! In the meantime, feel free to type your request. 😊",
+        content: "Voice input isn't supported in your browser. Try Chrome, Edge, or Safari for the best experience!",
         timestamp: new Date()
       }]);
       return;
     }
 
-    if (isListening) {
-      recognitionRef.current?.stop();
+    // Reset everything for fresh start
+    finalTranscriptRef.current = '';
+    setMessage('');
+    setInterimTranscript('');
+    
+    try {
+      recognitionRef.current?.start();
+      setIsListening(true);
+    } catch (error) {
+      console.error('Failed to start recognition:', error);
       setIsListening(false);
+    }
+  };
+
+  const stopListening = () => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+    }
+    
+    recognitionRef.current?.stop();
+    setIsListening(false);
+    setInterimTranscript('');
+  };
+
+  const stopListeningAndSend = () => {
+    stopListening();
+    
+    // Send if we have text
+    if (finalTranscriptRef.current.trim()) {
+      setMessage(finalTranscriptRef.current.trim());
+      // Small delay to ensure state updates before send
+      setTimeout(() => {
+        handleSendInternal(finalTranscriptRef.current.trim());
+      }, 100);
+    }
+  };
+
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
     } else {
-      setMessage('');
-      try {
-        recognitionRef.current?.start();
-        setIsListening(true);
-      } catch (error) {
-        console.error('Failed to start speech recognition:', error);
-        setIsListening(false);
-      }
+      startListening();
     }
   };
 
@@ -219,17 +312,14 @@ What can I help you with today?`;
 
   const fetchUsage = async () => {
     try {
-      console.log('📊 Fetching AI usage...');
       const response = await api.get('/user/usage');
-      console.log('📊 Usage response:', response.data);
-      
       setUsage({
         ai_queries_used: response.data.ai_queries_used || 0,
         ai_queries_limit: response.data.ai_queries_limit || 10,
         loading: false
       });
     } catch (error) {
-      console.error('❌ Failed to fetch usage:', error);
+      console.error('Failed to fetch usage:', error);
       setUsage({
         ai_queries_used: 0,
         ai_queries_limit: 10,
@@ -255,7 +345,6 @@ What can I help you with today?`;
     }
   }, [tierLoading]);
 
-  // Update greeting if tier changes
   useEffect(() => {
     if (!tierLoading && chatHistory.length > 0) {
       const hasGreeting = chatHistory.some(msg => msg.isGreeting);
@@ -294,29 +383,24 @@ What can I help you with today?`;
     }
   }, [isOpen]);
 
-  const handleSend = async () => {
-    if (!message.trim() || loading) return;
+  // Internal send function that takes message as parameter
+  const handleSendInternal = async (messageToSend) => {
+    if (!messageToSend || !messageToSend.trim() || loading) return;
 
-    // Stop listening if active
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-    }
-
-    // Only block if NOT unlimited and at limit
+    // Check limit
     if (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit) {
       setChatHistory(prev => [...prev, { 
         role: 'assistant', 
-        content: `Ah, looks like you've used all ${usage.ai_queries_limit} AI queries for this month! 😅\n\nNo worries though – upgrade to Pro and you'll get unlimited queries. I'll be here whenever you need me!\n\n[Upgrade to Pro](/billing)`,
+        content: `Looks like you've used all ${usage.ai_queries_limit} AI queries this month! 😅\n\nUpgrade to Pro for unlimited queries – I'll be here whenever you need me!\n\n[Upgrade to Pro](/billing)`,
         timestamp: new Date()
       }]);
       return;
     }
 
-    const userMessage = message.trim();
+    const userMessage = messageToSend.trim();
     const lowerMessage = userMessage.toLowerCase();
     
-    // Block team features for non-team users (friendly message)
+    // Block team features for non-team users
     if (!hasTeamFeature() && (
       lowerMessage.includes('team') || 
       lowerMessage.includes('marketing team') ||
@@ -326,7 +410,7 @@ What can I help you with today?`;
         { role: 'user', content: userMessage, timestamp: new Date() },
         { 
           role: 'assistant', 
-          content: `I'd love to help with team scheduling! 🏢\n\nThis is a Team plan feature ($25/month) that includes:\n• Unlimited teams\n• Round-robin & collective booking\n• Team booking links\n• Up to 10 team members\n\nWant to unlock it? [Check out the Team plan](/billing) – it's pretty awesome!`,
+          content: `I'd love to help with team scheduling! 🏢\n\nThis is a Team plan feature ($25/month) that includes:\n• Unlimited teams\n• Round-robin & collective booking\n• Team booking links\n\n[Check out the Team plan](/billing)`,
           timestamp: new Date()
         }
       ]);
@@ -334,7 +418,7 @@ What can I help you with today?`;
       return;
     }
 
-    // Block email features for free users (friendly message)
+    // Block email features for free users
     if (!hasProFeature() && (
       lowerMessage.includes('send reminder') ||
       lowerMessage.includes('send email') ||
@@ -344,7 +428,7 @@ What can I help you with today?`;
         { role: 'user', content: userMessage, timestamp: new Date() },
         { 
           role: 'assistant', 
-          content: `Great idea to send emails! 📧\n\nEmail features are part of the Pro plan ($12/month). You'll get:\n• Custom email templates\n• AI-powered drafts\n• Automated reminders\n\n[Upgrade to Pro](/billing) and I'll help you send those emails!`,
+          content: `Great idea to send emails! 📧\n\nEmail features are part of Pro ($12/month):\n• Custom templates\n• AI-powered drafts\n• Automated reminders\n\n[Upgrade to Pro](/billing)`,
           timestamp: new Date()
         }
       ]);
@@ -367,15 +451,10 @@ What can I help you with today?`;
         contextMessage = `[Current pending booking: "${pendingBooking.title}" on ${pendingBooking.date} at ${pendingBooking.time} for ${pendingBooking.duration} minutes with ${pendingBooking.attendee_email}]\n\nUser says: ${userMessage}`;
       }
 
-      console.log('📤 Sending AI request:', contextMessage);
-
       const response = await api.ai.schedule(contextMessage, chatHistory);
       const responseData = response.data;
-      
-      console.log('📥 AI response received:', responseData);
 
       if (responseData.usage) {
-        console.log('✅ Updating usage state:', responseData.usage);
         setUsage(prev => ({
           ...prev,
           ai_queries_used: responseData.usage.ai_queries_used,
@@ -433,6 +512,14 @@ What can I help you with today?`;
     }
   };
 
+  // Public send function for button/enter key
+  const handleSend = () => {
+    if (isListening) {
+      stopListening();
+    }
+    handleSendInternal(message);
+  };
+
   const handleConfirmBooking = async () => {
     if (!pendingBooking) return;
     setLoading(true);
@@ -452,13 +539,8 @@ What can I help you with today?`;
         team_id: pendingBooking.team_id || null
       };
 
-      console.log('📤 Sending AI booking request:', bookingData);
-
       const response = await api.post('/chatgpt/book-meeting', bookingData);
 
-      console.log('✅ AI booking response:', response.data);
-
-      // Format date nicely
       const formattedDate = startDateTime.toLocaleDateString('en-US', {
         weekday: 'long',
         month: 'long',
@@ -472,13 +554,11 @@ What can I help you with today?`;
 
       const confirmMsg = `You're all set! ✅
 
-I've booked your meeting:
-
 📅 **${pendingBooking.title || 'Meeting'}**
 🗓️ ${formattedDate} at ${formattedTime}
 👥 ${allAttendees.join(', ')}${pendingBooking.team_name ? `\n🏢 ${pendingBooking.team_name}` : ''}
 
-I've sent calendar invites to everyone. Is there anything else I can help you with?`;
+I've sent calendar invites to everyone. Anything else?`;
 
       setChatHistory(prev => [...prev, { 
         role: 'assistant', 
@@ -490,8 +570,7 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
       setPendingBooking(null);
       
     } catch (error) {
-      console.error('❌ AI booking error:', error);
-      console.error('❌ Error response:', error.response?.data);
+      console.error('Booking error:', error);
       
       let errorMessage = "Oops, I couldn't create that booking. ";
       if (error.response?.data?.error) {
@@ -514,7 +593,7 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
     setPendingBooking(null);
     setChatHistory(prev => [...prev, { 
       role: 'assistant', 
-      content: "No problem, I've cancelled that. What else can I help you with?",
+      content: "No problem, I've cancelled that. What else can I help with?",
       timestamp: new Date()
     }]);
   };
@@ -529,38 +608,14 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
     }, 100);
   };
 
-  const handleResetToGreeting = () => {
-    const newGreeting = createGreeting();
-    setChatHistory([newGreeting]);
-    setPendingBooking(null);
-    localStorage.removeItem('aiChat_pendingBooking');
-    setTimeout(() => {
-      localStorage.setItem('aiChat_history', JSON.stringify([newGreeting]));
-    }, 100);
-  };
-
   const handleDeleteMessage = (indexToDelete) => {
     const newHistory = chatHistory.filter((_, index) => index !== indexToDelete);
     if (newHistory.length === 0 || !newHistory.some(msg => msg.isGreeting)) {
       const greeting = createGreeting();
       setChatHistory([greeting]);
-      setTimeout(() => {
-        localStorage.setItem('aiChat_history', JSON.stringify([greeting]));
-      }, 100);
     } else {
       setChatHistory(newHistory);
     }
-  };
-
-  const formatDateTime = (date) => {
-    return date.toLocaleString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
   };
 
   const formatTime = (date) => {
@@ -591,15 +646,9 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
         }`}
       >
         {copiedUrl === url ? (
-          <>
-            <Check className="h-3 w-3" />
-            Copied!
-          </>
+          <><Check className="h-3 w-3" /> Copied!</>
         ) : (
-          <>
-            <Copy className="h-3 w-3" />
-            Copy
-          </>
+          <><Copy className="h-3 w-3" /> Copy</>
         )}
       </button>
     </div>
@@ -625,15 +674,9 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
             }`}
           >
             {copiedUrl === link.url ? (
-              <>
-                <Check className="h-3 w-3" />
-                Copied!
-              </>
+              <><Check className="h-3 w-3" /> Copied!</>
             ) : (
-              <>
-                <Copy className="h-3 w-3" />
-                Copy
-              </>
+              <><Copy className="h-3 w-3" /> Copy</>
             )}
           </button>
         </div>
@@ -693,7 +736,6 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
     return <p className="text-xs sm:text-sm whitespace-pre-wrap">{content}</p>;
   };
 
-  // Conversational suggestions
   const getSuggestions = () => {
     const baseSuggestions = [
       "What's my booking link?",
@@ -714,6 +756,7 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
 
   const suggestions = getSuggestions();
 
+  // Floating button when closed
   if (!isOpen) {
     return (
       <button
@@ -760,7 +803,6 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Usage display */}
             <div className="flex items-center gap-1 bg-white/10 rounded-lg px-2 py-1">
               <Zap className="h-3 w-3 text-yellow-300" />
               {usage.loading ? (
@@ -774,18 +816,12 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
             <button 
               onClick={() => setIsMinimized(!isMinimized)}
               className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-              title={isMinimized ? 'Expand' : 'Minimize'}
             >
-              {isMinimized ? (
-                <Maximize2 className="h-4 w-4 text-white" />
-              ) : (
-                <Minus className="h-4 w-4 text-white" />
-              )}
+              {isMinimized ? <Maximize2 className="h-4 w-4 text-white" /> : <Minus className="h-4 w-4 text-white" />}
             </button>
             <button 
               onClick={() => setIsOpen(false)}
               className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-              title="Close"
             >
               <X className="h-4 w-4 text-white" />
             </button>
@@ -797,7 +833,7 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50">
               
-              {/* Usage warning - ONLY show for free users */}
+              {/* Usage warning for free users */}
               {!isUnlimited && (
                 <div className={`rounded-lg p-4 mb-4 ${
                   usage.ai_queries_used >= usage.ai_queries_limit
@@ -806,51 +842,38 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
                 }`}>
                   <div className="flex items-start gap-3">
                     <div className={`p-2 rounded-full ${
-                      usage.ai_queries_used >= usage.ai_queries_limit
-                        ? 'bg-red-100'
-                        : 'bg-yellow-100'
+                      usage.ai_queries_used >= usage.ai_queries_limit ? 'bg-red-100' : 'bg-yellow-100'
                     }`}>
                       <Zap className={`h-5 w-5 ${
-                        usage.ai_queries_used >= usage.ai_queries_limit
-                          ? 'text-red-600'
-                          : 'text-yellow-600'
+                        usage.ai_queries_used >= usage.ai_queries_limit ? 'text-red-600' : 'text-yellow-600'
                       }`} />
                     </div>
                     
                     <div className="flex-1">
                       <p className={`font-bold mb-2 ${
-                        usage.ai_queries_used >= usage.ai_queries_limit
-                          ? 'text-red-800 text-base'
-                          : 'text-yellow-800 text-sm'
+                        usage.ai_queries_used >= usage.ai_queries_limit ? 'text-red-800 text-base' : 'text-yellow-800 text-sm'
                       }`}>
                         {usage.ai_queries_used >= usage.ai_queries_limit
                           ? `You've used all ${usage.ai_queries_limit} queries`
-                          : `${usage.ai_queries_limit - usage.ai_queries_used} queries left this month`
+                          : `${usage.ai_queries_limit - usage.ai_queries_used} queries left`
                         }
                       </p>
                       {usage.ai_queries_used >= usage.ai_queries_limit ? (
-                        <div className="space-y-2">
-                          <p className="text-sm text-red-700">
-                            Upgrade to keep chatting!
-                          </p>
-                          <button
-                            onClick={() => window.location.href = '/billing'}
-                            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-2 px-4 rounded-lg font-semibold text-sm transition-all"
-                          >
-                            Get Pro – $12/mo
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => window.location.href = '/billing'}
+                          className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 rounded-lg font-semibold text-sm"
+                        >
+                          Get Pro – $12/mo
+                        </button>
                       ) : (
-                        <p className="text-xs text-yellow-700">
-                          Go Pro for unlimited conversations!
-                        </p>
+                        <p className="text-xs text-yellow-700">Go Pro for unlimited!</p>
                       )}
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Suggestions grid - ONLY show if NOT at limit */}
+              {/* Suggestions */}
               {chatHistory.length <= 1 && (isUnlimited || usage.ai_queries_used < usage.ai_queries_limit) && (
                 <div className="text-center py-4">
                   <p className="text-sm text-gray-500 mb-3">Try asking:</p>
@@ -869,20 +892,18 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
               )}
 
               {chatHistory.length > 1 && (
-                <div className="flex justify-center mb-4 gap-2 sm:gap-3 p-2 bg-gray-100 rounded-lg">
+                <div className="flex justify-center mb-4 gap-2 p-2 bg-gray-100 rounded-lg">
                   <button
                     onClick={handleClearChat}
-                    className="text-xs text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 flex items-center gap-1 transition-colors px-3 py-2 rounded-lg border border-red-200"
+                    className="text-xs text-red-600 bg-red-50 hover:bg-red-100 flex items-center gap-1 px-3 py-2 rounded-lg border border-red-200"
                   >
-                    <Trash2 className="h-3 w-3" />
-                    Clear
+                    <Trash2 className="h-3 w-3" /> Clear
                   </button>
                   <button
-                    onClick={handleResetToGreeting}
-                    className="text-xs text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 flex items-center gap-1 transition-colors px-3 py-2 rounded-lg border border-blue-200"
+                    onClick={handleClearChat}
+                    className="text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 flex items-center gap-1 px-3 py-2 rounded-lg border border-blue-200"
                   >
-                    <RotateCcw className="h-3 w-3" />
-                    Start Over
+                    <RotateCcw className="h-3 w-3" /> Start Over
                   </button>
                 </div>
               )}
@@ -908,9 +929,8 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
                       <button
                         onClick={() => handleDeleteMessage(i)}
                         className={`absolute -top-2 -right-2 w-5 h-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs ${
-                          msg.role === 'user' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-gray-400 hover:bg-red-500 text-white'
+                          msg.role === 'user' ? 'bg-red-500 text-white' : 'bg-gray-400 hover:bg-red-500 text-white'
                         }`}
-                        title="Delete"
                       >
                         ×
                       </button>
@@ -921,8 +941,8 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
 
               {loading && (
                 <div className="flex justify-start">
-                  <div className="bg-white rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 shadow-sm flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin text-purple-600" />
+                  <div className="bg-white rounded-2xl px-4 py-3 border border-gray-200 shadow-sm flex items-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
                     <span className="text-sm text-gray-500">Thinking...</span>
                   </div>
                 </div>
@@ -939,11 +959,6 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
                     <h4 className="font-semibold text-gray-800 text-sm sm:text-base flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-purple-600" />
                       Ready to book?
-                      {pendingBooking.team_name && (
-                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                          {pendingBooking.team_name}
-                        </span>
-                      )}
                     </h4>
                     <button onClick={() => setPendingBooking(null)} className="text-gray-400 hover:text-red-500">
                       <X className="h-4 w-4" />
@@ -951,37 +966,37 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
                   </div>
                   
                   <div className="space-y-3 text-sm mb-4">
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <FileText className="h-4 w-4 flex-shrink-0" />
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-gray-400" />
                       <input
                         type="text"
                         value={pendingBooking.title}
                         onChange={(e) => setPendingBooking({...pendingBooking, title: e.target.value})}
-                        className="flex-1 bg-gray-50 border border-gray-200 rounded px-2 py-2 text-sm focus:ring-1 focus:ring-purple-500"
+                        className="flex-1 bg-gray-50 border border-gray-200 rounded px-2 py-2 text-sm"
                         placeholder="Meeting title"
                       />
                     </div>
                     
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Calendar className="h-4 w-4 flex-shrink-0" />
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-gray-400" />
                       <input
                         type="date"
                         value={pendingBooking.date}
                         onChange={(e) => setPendingBooking({...pendingBooking, date: e.target.value})}
-                        className="bg-gray-50 border border-gray-200 rounded px-2 py-2 text-sm focus:ring-1 focus:ring-purple-500"
+                        className="bg-gray-50 border border-gray-200 rounded px-2 py-2 text-sm"
                       />
                       <input
                         type="time"
                         value={pendingBooking.time}
                         onChange={(e) => setPendingBooking({...pendingBooking, time: e.target.value})}
-                        className="bg-gray-50 border border-gray-200 rounded px-2 py-2 text-sm focus:ring-1 focus:ring-purple-500"
+                        className="bg-gray-50 border border-gray-200 rounded px-2 py-2 text-sm"
                       />
                     </div>
 
-                    <div className="text-gray-600">
+                    <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <Mail className="h-4 w-4 flex-shrink-0" />
-                        <span className="text-sm font-medium">Who's joining?</span>
+                        <Mail className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm font-medium">Attendees</span>
                       </div>
                       <div className="space-y-2 pl-6">
                         {(pendingBooking.attendees || [pendingBooking.attendee_email]).map((email, index) => (
@@ -998,8 +1013,8 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
                                   attendee_email: newAttendees[0]
                                 });
                               }}
-                              className="flex-1 bg-gray-50 border border-gray-200 rounded px-2 py-2 text-sm focus:ring-1 focus:ring-purple-500"
-                              placeholder="attendee@email.com"
+                              className="flex-1 bg-gray-50 border border-gray-200 rounded px-2 py-2 text-sm"
+                              placeholder="email@example.com"
                             />
                             {(pendingBooking.attendees?.length > 1) && (
                               <button
@@ -1011,7 +1026,7 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
                                     attendee_email: newAttendees[0]
                                   });
                                 }}
-                                className="text-red-500 hover:text-red-700 p-1"
+                                className="text-red-500 p-1"
                               >
                                 <X className="h-4 w-4" />
                               </button>
@@ -1026,26 +1041,25 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
                               attendees: [...currentAttendees, '']
                             });
                           }}
-                          className="text-purple-600 hover:text-purple-700 text-sm flex items-center gap-1 mt-2"
+                          className="text-purple-600 text-sm"
                         >
-                          + Add someone else
+                          + Add someone
                         </button>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Clock className="h-4 w-4 flex-shrink-0" />
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-gray-400" />
                       <select
                         value={pendingBooking.duration}
                         onChange={(e) => setPendingBooking({...pendingBooking, duration: parseInt(e.target.value)})}
-                        className="bg-gray-50 border border-gray-200 rounded px-2 py-2 text-sm focus:ring-1 focus:ring-purple-500"
+                        className="bg-gray-50 border border-gray-200 rounded px-2 py-2 text-sm"
                       >
-                        <option value={15}>15 minutes</option>
-                        <option value={30}>30 minutes</option>
-                        <option value={45}>45 minutes</option>
+                        <option value={15}>15 min</option>
+                        <option value={30}>30 min</option>
+                        <option value={45}>45 min</option>
                         <option value={60}>1 hour</option>
                         <option value={90}>1.5 hours</option>
-                        <option value={120}>2 hours</option>
                       </select>
                     </div>
                   </div>
@@ -1054,39 +1068,58 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
                     <button
                       onClick={handleConfirmBooking}
                       disabled={loading}
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 sm:py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50 text-sm sm:text-base"
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                     >
-                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-4 w-4" />Book it!</>}
+                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-4 w-4" /> Book it!</>}
                     </button>
                     <button
                       onClick={handleCancelBooking}
                       disabled={loading}
-                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 sm:py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50 text-sm sm:text-base"
+                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                     >
-                      <XCircle className="h-4 w-4" />Never mind
+                      <XCircle className="h-4 w-4" /> Never mind
                     </button>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Input */}
+            {/* Input Area */}
             <div className="p-3 sm:p-4 border-t border-gray-200 bg-white">
-              {/* Voice listening indicator */}
+              {/* IMPROVED Voice Listening Indicator */}
               {isListening && (
-                <div className="mb-3 flex items-center gap-2 text-sm text-purple-600 bg-purple-50 px-3 py-2 rounded-lg border border-purple-200">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></span>
-                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></span>
+                <div className="mb-3 bg-purple-50 border border-purple-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-purple-600">
+                      <div className="flex gap-1">
+                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></span>
+                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></span>
+                      </div>
+                      <span className="text-sm font-medium">Listening...</span>
+                    </div>
+                    <button 
+                      onClick={stopListeningAndSend}
+                      className="text-xs bg-purple-600 text-white px-3 py-1 rounded-full hover:bg-purple-700 transition-colors"
+                    >
+                      Done Speaking
+                    </button>
                   </div>
-                  <span>I'm listening... speak now!</span>
-                  <button 
-                    onClick={toggleListening}
-                    className="ml-auto text-red-500 hover:text-red-700 text-xs font-medium"
-                  >
-                    Stop
-                  </button>
+                  
+                  {/* Live transcription preview */}
+                  <div className="text-sm text-gray-700 min-h-[24px] bg-white rounded px-2 py-1 border border-purple-100">
+                    {message && <span>{message}</span>}
+                    {interimTranscript && (
+                      <span className="text-gray-400 italic">{interimTranscript}</span>
+                    )}
+                    {!message && !interimTranscript && (
+                      <span className="text-gray-400">Start speaking...</span>
+                    )}
+                  </div>
+                  
+                  <p className="text-xs text-purple-500 mt-2 text-center">
+                    Tap "Done Speaking" or pause for 2 seconds to send
+                  </p>
                 </div>
               )}
               
@@ -1096,12 +1129,12 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
                   type="text"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                  onKeyPress={(e) => e.key === 'Enter' && !isListening && handleSend()}
                   placeholder={isListening ? "Listening..." : "Type or tap 🎤 to speak..."}
-                  className={`flex-1 px-3 sm:px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm ${
+                  className={`flex-1 px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm ${
                     isListening ? 'border-purple-400 bg-purple-50' : 'border-gray-200'
                   }`}
-                  disabled={loading || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
+                  disabled={loading || isListening || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
                 />
                 
                 {/* Microphone button */}
@@ -1123,9 +1156,8 @@ I've sent calendar invites to everyone. Is there anything else I can help you wi
                 {/* Send button */}
                 <button
                   onClick={handleSend}
-                  disabled={loading || !message.trim() || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
+                  disabled={loading || !message.trim() || isListening || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
                   className="p-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-xl transition-colors"
-                  title={!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit ? 'Query limit reached' : 'Send'}
                 >
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                 </button>
