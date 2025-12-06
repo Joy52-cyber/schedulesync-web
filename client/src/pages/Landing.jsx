@@ -20,7 +20,8 @@ import {
   Play,
   Check,
   ChevronRight,
-  Plus
+  Plus,
+  X
 } from 'lucide-react';
 import LoginPanel from '../components/LoginPanel';
 
@@ -55,7 +56,7 @@ export default function Landing({ defaultLoginOpen = false }) {
       else if (host.includes('google.com') && path.includes('calendar')) source = 'google-calendar';
       else if (host.includes('meet.google.com')) source = 'google-meet';
       else if (host.includes('outlook.') || host.includes('office.com') || host.includes('microsoft.')) source = 'microsoft';
-      else if (host.includes('eyeball.games') || host.includes('trucal.xyz')) source = 'schedulesync';
+      else if (host.includes('trucal.xyz')) source = 'schedulesync';
 
       setDetectedSource(source);
     } catch {
@@ -162,7 +163,7 @@ export default function Landing({ defaultLoginOpen = false }) {
       icon: Users,
       title: 'Team Scheduling',
       description: 'Round-robin, collective availability, weighted distribution. Perfect for sales teams.',
-      stat: 'Unlimited teams',
+      stat: 'Team plan',
       color: 'from-orange-500 to-red-500',
       demo: 'Book with entire team instantly'
     }
@@ -193,12 +194,68 @@ export default function Landing({ defaultLoginOpen = false }) {
   ];
 
   const comparisonData = [
-    { feature: 'AI Scheduling Assistant', schedulesync: true, calendly: false, cal: false, price: '✨ Exclusive' },
-    { feature: 'Unlimited Event Types', schedulesync: true, calendly: false, cal: true, price: 'Free' },
-    { feature: 'Team Scheduling', schedulesync: true, calendly: '$12/seat', cal: true, price: 'Included' },
-    { feature: 'Custom Branding', schedulesync: true, calendly: '$12/mo', cal: true, price: 'Free' },
-    { feature: 'Analytics', schedulesync: true, calendly: 'Limited', cal: 'Basic', price: 'Advanced' },
-    { feature: 'Email Reminders', schedulesync: true, calendly: true, cal: true, price: 'Automated' },
+    { feature: 'AI Scheduling Assistant', schedulesync: 'Free (10/mo)', calendly: false, cal: false },
+    { feature: 'Custom Booking URL', schedulesync: 'Free', calendly: '$12/mo', cal: 'Free' },
+    { feature: 'Unlimited Event Types', schedulesync: 'Pro $12/mo', calendly: '$12/mo', cal: 'Free' },
+    { feature: 'Email Templates', schedulesync: 'Pro $12/mo', calendly: '$12/mo', cal: '$12/mo' },
+    { feature: 'Team Scheduling', schedulesync: 'Team $25/mo', calendly: '$20/seat', cal: '$15/mo' },
+    { feature: 'Round-Robin Booking', schedulesync: 'Team $25/mo', calendly: '$20/seat', cal: '$15/mo' },
+    { feature: 'Magic Links', schedulesync: 'Free (3/mo)', calendly: false, cal: false },
+    { feature: 'Email Reminders', schedulesync: 'Free', calendly: 'Free', cal: 'Free' },
+  ];
+
+  const pricingTiers = [
+    {
+      name: 'Free',
+      price: '$0',
+      period: 'forever',
+      description: 'Perfect for getting started',
+      features: [
+        '50 bookings/month',
+        '2 event types',
+        '10 AI queries/month',
+        '3 magic links/month',
+        'Google & Outlook sync',
+        'Email reminders',
+        'Custom booking URL',
+      ],
+      cta: 'Get Started Free',
+      popular: false,
+    },
+    {
+      name: 'Pro',
+      price: '$12',
+      period: '/month',
+      description: 'For busy professionals',
+      features: [
+        'Unlimited bookings',
+        'Unlimited event types',
+        'Unlimited AI queries',
+        'Unlimited magic links',
+        'Email templates',
+        'Priority support',
+        'Custom branding',
+      ],
+      cta: 'Start Pro Trial',
+      popular: true,
+    },
+    {
+      name: 'Team',
+      price: '$25',
+      period: '/month',
+      description: 'For growing teams',
+      features: [
+        'Everything in Pro',
+        'Unlimited teams',
+        'Round-robin booking',
+        'Collective availability',
+        'Team booking pages',
+        'Admin controls',
+        'Up to 10 members',
+      ],
+      cta: 'Start Team Trial',
+      popular: false,
+    },
   ];
 
   return (
@@ -217,9 +274,9 @@ export default function Landing({ defaultLoginOpen = false }) {
             </div>
             
             <div className="hidden md:flex items-center gap-6 text-sm">
-              <button className="text-gray-600 hover:text-gray-900 font-medium">Features</button>
-              <button className="text-gray-600 hover:text-gray-900 font-medium">Pricing</button>
-              <button className="text-gray-600 hover:text-gray-900 font-medium">Compare</button>
+              <a href="#features" className="text-gray-600 hover:text-gray-900 font-medium">Features</a>
+              <a href="#pricing" className="text-gray-600 hover:text-gray-900 font-medium">Pricing</a>
+              <a href="#compare" className="text-gray-600 hover:text-gray-900 font-medium">Compare</a>
             </div>
 
             <div className="flex items-center gap-3">
@@ -270,7 +327,7 @@ export default function Landing({ defaultLoginOpen = false }) {
             Say goodbye to back-and-forth emails. Our AI assistant books meetings for you in seconds—just tell it what you need.
           </p>
 
-          {/* ✅ ORIGINAL LINK DETECTION INPUT */}
+          {/* Link Detection Input */}
           <div className="max-w-sm mx-auto flex flex-col items-center w-full mb-8">
             <div className="relative w-full group">
               <div className="absolute inset-0 bg-white rounded-full blur opacity-20 group-hover:opacity-30 transition duration-700"></div>
@@ -340,7 +397,7 @@ export default function Landing({ defaultLoginOpen = false }) {
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm">
               <CheckCircle className="w-4 h-4 text-green-500" />
-              <span>Free forever</span>
+              <span>Free forever plan</span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm">
               <CheckCircle className="w-4 h-4 text-green-500" />
@@ -418,7 +475,7 @@ export default function Landing({ defaultLoginOpen = false }) {
       </section>
 
       {/* ================= FEATURES SECTION ================= */}
-      <section className="py-24 bg-gray-50">
+      <section id="features" className="py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
@@ -456,8 +513,70 @@ export default function Landing({ defaultLoginOpen = false }) {
         </div>
       </section>
 
+      {/* ================= PRICING SECTION ================= */}
+      <section id="pricing" className="py-24 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
+              Simple, transparent pricing
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Start free, upgrade when you need more. No hidden fees.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {pricingTiers.map((tier, idx) => (
+              <div 
+                key={idx} 
+                className={`relative bg-white rounded-2xl p-8 border-2 transition-all ${
+                  tier.popular 
+                    ? 'border-purple-500 shadow-xl scale-105' 
+                    : 'border-gray-200 hover:border-purple-200 hover:shadow-lg'
+                }`}
+              >
+                {tier.popular && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-bold rounded-full">
+                    Most Popular
+                  </div>
+                )}
+                
+                <div className="text-center mb-6">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">{tier.name}</h3>
+                  <div className="flex items-baseline justify-center gap-1">
+                    <span className="text-5xl font-extrabold text-gray-900">{tier.price}</span>
+                    <span className="text-gray-500">{tier.period}</span>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-2">{tier.description}</p>
+                </div>
+
+                <ul className="space-y-3 mb-8">
+                  {tier.features.map((feature, fIdx) => (
+                    <li key={fIdx} className="flex items-start gap-3">
+                      <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-700 text-sm">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <button 
+                  onClick={() => navigate('/register')}
+                  className={`w-full py-3 rounded-xl font-bold transition-all ${
+                    tier.popular
+                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:shadow-lg'
+                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                  }`}
+                >
+                  {tier.cta}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ================= TESTIMONIALS ================= */}
-      <section className="py-24 bg-white">
+      <section className="py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
@@ -470,14 +589,14 @@ export default function Landing({ defaultLoginOpen = false }) {
 
           <div className="grid md:grid-cols-3 gap-8">
             {testimonials.map((testimonial, idx) => (
-              <div key={idx} className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-8 border border-purple-100">
+              <div key={idx} className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm">
                 <div className="flex items-center gap-1 mb-4">
                   {[...Array(5)].map((_, i) => (
                     <Star key={i} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
                   ))}
                 </div>
                 
-                <p className="text-gray-700 mb-6 leading-relaxed italic">
+                <p className="text-gray-700 mb-6 leading-relaxed">
                   "{testimonial.quote}"
                 </p>
                 
@@ -497,14 +616,14 @@ export default function Landing({ defaultLoginOpen = false }) {
       </section>
 
       {/* ================= COMPARISON TABLE ================= */}
-      <section className="py-24 bg-gray-50">
+      <section id="compare" className="py-24 bg-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
               Why switch to ScheduleSync?
             </h2>
             <p className="text-xl text-gray-600">
-              More features. Better AI. Lower price. Simple.
+              More features. Better AI. Competitive pricing.
             </p>
           </div>
 
@@ -519,16 +638,16 @@ export default function Landing({ defaultLoginOpen = false }) {
                         <Calendar className="w-6 h-6 text-white" />
                       </div>
                       <div className="font-bold text-gray-900">ScheduleSync</div>
-                      <div className="text-xs text-green-600 font-semibold">$12/mo</div>
+                      <div className="text-xs text-green-600 font-semibold">Free - $25/mo</div>
                     </div>
                   </th>
                   <th className="text-center p-6 text-gray-600">
                     <div className="font-semibold">Calendly</div>
-                    <div className="text-xs text-gray-500">$12/seat</div>
+                    <div className="text-xs text-gray-500">Free - $20/seat</div>
                   </th>
                   <th className="text-center p-6 text-gray-600">
                     <div className="font-semibold">Cal.com</div>
-                    <div className="text-xs text-gray-500">Free + paid</div>
+                    <div className="text-xs text-gray-500">Free - $15/mo</div>
                   </th>
                 </tr>
               </thead>
@@ -537,27 +656,30 @@ export default function Landing({ defaultLoginOpen = false }) {
                   <tr key={idx} className="border-b border-gray-100 hover:bg-purple-50/30 transition-colors">
                     <td className="p-6 font-medium text-gray-900">{row.feature}</td>
                     <td className="p-6 text-center">
-                      {row.schedulesync ? (
-                        <div className="flex flex-col items-center gap-1">
-                          <CheckCircle className="w-6 h-6 text-green-500" />
-                          <span className="text-xs text-purple-600 font-semibold">{row.price}</span>
-                        </div>
+                      {typeof row.schedulesync === 'string' ? (
+                        <span className="text-purple-600 font-semibold text-sm">{row.schedulesync}</span>
+                      ) : row.schedulesync ? (
+                        <CheckCircle className="w-6 h-6 text-green-500 mx-auto" />
                       ) : (
-                        <span className="text-gray-300">—</span>
+                        <X className="w-5 h-5 text-gray-300 mx-auto" />
                       )}
                     </td>
                     <td className="p-6 text-center text-sm text-gray-600">
-                      {typeof row.calendly === 'boolean' ? (
-                        row.calendly ? <CheckCircle className="w-5 h-5 text-gray-400 mx-auto" /> : <span className="text-gray-300">—</span>
-                      ) : (
+                      {typeof row.calendly === 'string' ? (
                         <span className="text-orange-600 font-medium">{row.calendly}</span>
+                      ) : row.calendly ? (
+                        <CheckCircle className="w-5 h-5 text-gray-400 mx-auto" />
+                      ) : (
+                        <X className="w-5 h-5 text-gray-300 mx-auto" />
                       )}
                     </td>
-                    <td className="p-6 text-center">
-                      {typeof row.cal === 'boolean' ? (
-                        row.cal ? <CheckCircle className="w-5 h-5 text-gray-400 mx-auto" /> : <span className="text-gray-300">—</span>
-                      ) : (
+                    <td className="p-6 text-center text-sm text-gray-600">
+                      {typeof row.cal === 'string' ? (
                         <span className="text-gray-600">{row.cal}</span>
+                      ) : row.cal ? (
+                        <CheckCircle className="w-5 h-5 text-gray-400 mx-auto" />
+                      ) : (
+                        <X className="w-5 h-5 text-gray-300 mx-auto" />
                       )}
                     </td>
                   </tr>
@@ -599,10 +721,10 @@ export default function Landing({ defaultLoginOpen = false }) {
             </button>
           </div>
 
-          <div className="flex items-center justify-center gap-8 text-purple-100">
+          <div className="flex flex-wrap items-center justify-center gap-8 text-purple-100">
             <div className="flex items-center gap-2">
               <CheckCircle className="w-5 h-5" />
-              <span>Free forever</span>
+              <span>Free forever plan</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="w-5 h-5" />
@@ -635,8 +757,8 @@ export default function Landing({ defaultLoginOpen = false }) {
             <div>
               <h3 className="font-bold text-white mb-4">Product</h3>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white transition-colors">Features</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
+                <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
+                <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">API</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Integrations</a></li>
               </ul>

@@ -1,14 +1,30 @@
-﻿import { useState } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Eye, EyeOff, Check } from 'lucide-react';
 import api from '../utils/api';
 
 export default function LoginForm({ onLogin, mode = 'page' }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [lastUsedMethod, setLastUsedMethod] = useState(null);
+
+  // Load last used method from localStorage
+  useEffect(() => {
+    const savedMethod = localStorage.getItem('trucal_lastLoginMethod');
+    if (savedMethod) {
+      setLastUsedMethod(savedMethod);
+    }
+  }, []);
+
+  // Save login method to localStorage
+  const saveLoginMethod = (method) => {
+    localStorage.setItem('trucal_lastLoginMethod', method);
+    setLastUsedMethod(method);
+  };
 
   const isPanel = mode === 'panel';
 
@@ -24,6 +40,7 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
       console.log('📥 Login response:', response.data);
 
       if (response.data.success && onLogin) {
+        saveLoginMethod('email');
         onLogin(response.data.token, response.data.user);
       }
     } catch (err) {
@@ -45,6 +62,7 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
       
       if (response.data.url) {
         console.log('🟢 Redirecting to:', response.data.url);
+        saveLoginMethod('google');
         window.location.href = response.data.url;
       } else {
         throw new Error('No URL in response');
@@ -79,6 +97,7 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
 
       if (response.data.url) {
         console.log('🟦 Redirecting to:', response.data.url);
+        saveLoginMethod('microsoft');
         window.location.href = response.data.url;
       } else {
         throw new Error('No URL in response');
@@ -92,7 +111,6 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
         statusText: err.response?.statusText
       });
       
-      // Handle 503 Service Unavailable (not configured)
       if (err.response?.status === 503) {
         setError('⚠️ Microsoft integration is not yet configured. Please contact support or use another sign-in method.');
       } else {
@@ -118,7 +136,7 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Welcome back</h1>
           <p className="text-gray-600 text-sm">
-            Sign in to your ScheduleSync account
+            Sign in to your TruCal account
           </p>
         </div>
       )}
@@ -159,7 +177,7 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
             />
           </div>
 
-          {/* Password */}
+          {/* Password with show/hide toggle */}
           <div className="space-y-1.5">
             <label
               htmlFor="password"
@@ -167,15 +185,29 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
             >
               Password
             </label>
-            <input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-none text-sm transition-all"
-              required
-            />
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3 py-2.5 pr-10 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-none text-sm transition-all"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Remember + Forgot */}
@@ -228,8 +260,18 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
             type="button"
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="w-full bg-white border-2 border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`relative w-full bg-white border-2 text-gray-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed ${
+              lastUsedMethod === 'google' 
+                ? 'border-green-300 bg-green-50/50' 
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
           >
+            {lastUsedMethod === 'google' && (
+              <span className="absolute -top-2 -right-2 flex items-center gap-1 bg-green-500 text-white text-[10px] font-medium px-2 py-0.5 rounded-full">
+                <Check className="h-3 w-3" />
+                Last used
+              </span>
+            )}
             <svg className="h-4 w-4" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
@@ -256,8 +298,18 @@ export default function LoginForm({ onLogin, mode = 'page' }) {
             type="button"
             onClick={handleMicrosoftLogin}
             disabled={loading}
-            className="w-full bg-white border-2 border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-50 hover:border-indigo-300 transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`relative w-full bg-white border-2 text-indigo-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-50 transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed ${
+              lastUsedMethod === 'microsoft' 
+                ? 'border-green-300 bg-green-50/50' 
+                : 'border-indigo-200 hover:border-indigo-300'
+            }`}
           >
+            {lastUsedMethod === 'microsoft' && (
+              <span className="absolute -top-2 -right-2 flex items-center gap-1 bg-green-500 text-white text-[10px] font-medium px-2 py-0.5 rounded-full">
+                <Check className="h-3 w-3" />
+                Last used
+              </span>
+            )}
             <span className="flex h-3.5 w-3.5 flex-wrap gap-[1px]">
               <span className="h-1.5 w-1.5 bg-red-500" />
               <span className="h-1.5 w-1.5 bg-green-500" />
