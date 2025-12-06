@@ -21,7 +21,7 @@ import { teams } from '../utils/api';
 
 export default function Teams() {
   const navigate = useNavigate();
-  const { showUpgradeModal, hasTeamFeature, currentTier } = useUpgrade(); 
+  const { showUpgradeModal, hasTeamFeature, currentTier, loading: tierLoading } = useUpgrade();
   const [teamsList, setTeamsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);

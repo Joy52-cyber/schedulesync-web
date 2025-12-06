@@ -160,8 +160,7 @@ Apologies for any inconvenience this may cause.
 ];
 
 export default function EmailTemplates() {
-  const { showUpgradeModal, hasProFeature, currentTier } = useUpgrade();
-  
+  const { showUpgradeModal, hasProFeature, currentTier, loading: tierLoading } = useUpgrade();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -202,6 +201,14 @@ export default function EmailTemplates() {
   // ========================================
   // PRO FEATURE GATE
   // ========================================
+ if (tierLoading) {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+    </div>
+  );
+}
+  
   if (!hasProFeature()) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
