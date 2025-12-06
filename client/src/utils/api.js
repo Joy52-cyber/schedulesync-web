@@ -32,8 +32,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     // Handle auth failures
-    if ((error.response?.status === 401 || error.response?.status === 403) && !error.config?.url?.includes('/subscription') && !error.config?.url?.includes('/limits')) {
-      console.log('?? Auth failed, clearing token and redirecting...');
+    if ((error.response?.status === 401 || error.response?.status === 403) && !error.config?.url?.includes('/subscription') && !error.config?.url?.includes('/limits') && !error.config?.url?.includes('/usage') && !error.config?.url?.includes('/teams')) {
+    console.log('?? Auth failed, clearing token and redirecting...');
       localStorage.removeItem('token');
       
       // Only redirect if we're not already on login page
