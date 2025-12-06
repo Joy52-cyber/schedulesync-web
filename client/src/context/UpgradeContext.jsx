@@ -68,7 +68,7 @@ export const UpgradeProvider = ({ children }) => {
         return;
       }
       
-      const response = await fetch('/api/user/usage', {
+      const response = await fetch('/api/usage', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
