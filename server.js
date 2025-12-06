@@ -507,7 +507,7 @@ const authenticateToken = (req, res, next) => {
 
 // ============ BRANDING ENDPOINTS ============
 
-// GET branding settings
+// GET branding settings - NO tier check needed
 app.get('/api/user/branding', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(

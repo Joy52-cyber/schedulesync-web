@@ -187,7 +187,7 @@ What can I help you with?`;
             console.log('🎤 Auto-stopping after 2s silence');
             stopListeningAndSend();
           }
-        }, 2000); // 2 seconds of silence triggers send
+        }, 3500); // 2 seconds of silence triggers send
       };
 
       recognitionRef.current.onerror = (event) => {
