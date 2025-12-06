@@ -57,7 +57,12 @@ export const UpgradeProvider = ({ children }) => {
 
   // Fetch usage on mount
   useEffect(() => {
-    fetchUsage();
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetchUsage();
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   const fetchUsage = async () => {
@@ -118,13 +123,15 @@ export const UpgradeProvider = ({ children }) => {
         return usage.magic_links_limit < 1000 && usage.magic_links_used >= usage.magic_links_limit;
       case 'teams':
         return currentTier !== 'team';
+      case 'templates':
+        return currentTier === 'free';
       default:
         return false;
     }
   }, [usage, currentTier]);
 
-  // Check if user has access to a Pro feature
-  const hasProFeature = useCallback((featureName) => {
+  // Check if user has access to Pro features (Pro or Team tier)
+  const hasProFeature = useCallback(() => {
     return currentTier === 'pro' || currentTier === 'team';
   }, [currentTier]);
 

@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
+import { useUpgrade } from '../context/UpgradeContext';
 import {
   Mail,
   Plus,
@@ -18,6 +19,8 @@ import {
   BarChart3,
   Lightbulb,
   Wand2,
+  Check,
+  Crown,
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -141,7 +144,7 @@ See you soon,
     subject: 'Can we reschedule our meeting?',
     body: `Hi {{guestName}},
 
-I’m sorry, but I need to reschedule our meeting on {{meetingDate}}.
+I'm sorry, but I need to reschedule our meeting on {{meetingDate}}.
 
 Please pick a new time that works best for you using this link:
 {{bookingLink}}
@@ -157,6 +160,8 @@ Apologies for any inconvenience this may cause.
 ];
 
 export default function EmailTemplates() {
+  const { showUpgradeModal, hasProFeature, currentTier } = useUpgrade();
+  
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -186,9 +191,81 @@ export default function EmailTemplates() {
   const [smartSuggestions, setSmartSuggestions] = useState([]);
 
   useEffect(() => {
-    loadTemplates();
-    loadSmartSuggestions();
-  }, []);
+    if (hasProFeature()) {
+      loadTemplates();
+      loadSmartSuggestions();
+    } else {
+      setLoading(false);
+    }
+  }, [hasProFeature]);
+
+  // ========================================
+  // PRO FEATURE GATE
+  // ========================================
+  if (!hasProFeature()) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 text-center border-2 border-purple-200">
+            <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Mail className="h-10 w-10 text-white" />
+            </div>
+            
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+              Email Templates
+            </h1>
+            
+            <p className="text-lg text-gray-600 mb-8 max-w-md mx-auto">
+              Create beautiful, personalized email templates for confirmations, 
+              reminders, follow-ups, and more.
+            </p>
+
+            <div className="bg-purple-50 rounded-2xl p-6 mb-8 text-left">
+              <h3 className="font-semibold text-purple-900 mb-4">What you get with Pro:</h3>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  Unlimited custom email templates
+                </li>
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  AI-powered template generation
+                </li>
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  Smart personalization variables
+                </li>
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  Template analytics & effectiveness tracking
+                </li>
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  Works with AI scheduling assistant
+                </li>
+              </ul>
+            </div>
+
+            <button
+              onClick={() => showUpgradeModal('templates')}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-xl hover:shadow-lg transition-all font-semibold text-lg flex items-center gap-2 mx-auto"
+            >
+              <Crown className="h-5 w-5" />
+              Upgrade to Pro - $12/month
+            </button>
+            
+            <p className="text-sm text-gray-500 mt-4">
+              Currently on: <span className="font-medium capitalize">{currentTier}</span> plan
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ========================================
+  // REST OF COMPONENT (Pro users only)
+  // ========================================
 
   const loadTemplates = async () => {
     try {

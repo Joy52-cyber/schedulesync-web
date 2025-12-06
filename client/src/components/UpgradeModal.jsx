@@ -51,6 +51,12 @@ const UpgradeModal = () => {
       icon: Users,
       color: 'green'
     },
+    templates: {
+      title: 'Email Templates',
+      description: 'Create custom email templates for confirmations, reminders, and follow-ups.',
+      icon: Zap,
+      color: 'purple'
+    },
     default: {
       title: 'Upgrade Your Plan',
       description: 'Get unlimited access to all features.',
