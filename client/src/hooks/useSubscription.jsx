@@ -28,14 +28,34 @@ export function SubscriptionProvider({ children }) {
   });
 
   useEffect(() => {
-    fetchSubscription();
+    // Only fetch if user is logged in
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetchSubscription();
+    } else {
+      // Not logged in - just set loading to false
+      setSubscription(prev => ({
+        ...prev,
+        loading: false,
+      }));
+    }
   }, []);
 
   const fetchSubscription = async () => {
+    // Double-check token exists
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setSubscription(prev => ({
+        ...prev,
+        loading: false,
+      }));
+      return;
+    }
+
     try {
       const response = await api.get('/user/subscription');
       const data = response.data;
-      
+
       setSubscription({
         tier: data.tier || TIERS.FREE,
         loading: false,
@@ -53,6 +73,7 @@ export function SubscriptionProvider({ children }) {
       });
     } catch (error) {
       console.error('Failed to fetch subscription:', error);
+      // Don't trigger logout on error - just use defaults
       setSubscription(prev => ({
         ...prev,
         loading: false,
@@ -83,7 +104,7 @@ export function SubscriptionProvider({ children }) {
  */
 export function useSubscription() {
   const context = useContext(SubscriptionContext);
-  
+
   if (!context) {
     throw new Error('useSubscription must be used within a SubscriptionProvider');
   }
@@ -92,11 +113,11 @@ export function useSubscription() {
 
   const canUse = useCallback((featureKey) => {
     const access = checkFeatureAccess(tier, featureKey);
-    
+
     if (typeof access === 'boolean') {
       return access;
     }
-    
+
     if (typeof access === 'number') {
       switch (featureKey) {
         case 'bookings_per_month':
@@ -109,17 +130,17 @@ export function useSubscription() {
           return access > 0;
       }
     }
-    
+
     return false;
   }, [tier, usage]);
 
   const getLimit = useCallback((featureKey) => {
     const access = checkFeatureAccess(tier, featureKey);
-    
+
     if (access === true) return 'unlimited';
     if (access === false) return 0;
     if (typeof access === 'number') return access;
-    
+
     return null;
   }, [tier]);
 
@@ -139,15 +160,15 @@ export function useSubscription() {
   const getUsageDisplay = useCallback((featureKey) => {
     const currentUsage = getUsage(featureKey);
     const limit = getLimit(featureKey);
-    
+
     if (limit === 'unlimited') {
       return `${currentUsage} used`;
     }
-    
+
     if (limit === 0) {
       return 'Not available';
     }
-    
+
     return `${currentUsage} of ${limit}`;
   }, [getUsage, getLimit]);
 
@@ -155,7 +176,7 @@ export function useSubscription() {
     const limit = getLimit(featureKey);
     if (limit === 'unlimited') return false;
     if (limit === 0) return true;
-    
+
     const currentUsage = getUsage(featureKey);
     return currentUsage >= limit;
   }, [getLimit, getUsage]);
