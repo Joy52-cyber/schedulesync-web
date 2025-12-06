@@ -80,7 +80,7 @@ const {
   PLAN_LIMITS,
   checkAndResetIfNeeded  // ← ADD THIS
 } = require('./server/middleware/featureGates');
-
+const multer = require('multer');
 
 
 const app = express();
@@ -452,9 +452,38 @@ app.use(cors());
 
 // ✅ Stripe webhook MUST be before express.json()
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }));
-
+app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 app.use(express.json());
 
+
+// ============ LOGO UPLOAD CONFIG ============
+const logoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, 'public', 'uploads', 'logos');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const filename = `${req.user.id}_${Date.now()}${ext}`;
+    cb(null, filename);
+  }
+});
+
+const logoUpload = multer({
+  storage: logoStorage,
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only PNG, JPG, SVG, and WebP are allowed.'));
+    }
+  }
+});
 
 // ============ USAGE ENFORCEMENT MIDDLEWARE ============
 
@@ -12711,9 +12740,48 @@ module.exports = {
   checkAndSendReminders,
   lastReminderRun
 };
-
 // ============ BRANDING ENDPOINTS ============
 // Add these to server.js
+
+// First, install multer for file uploads:
+// npm install multer
+
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Configure multer for logo uploads
+const logoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, 'public', 'uploads', 'logos');
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    // Generate unique filename: userId_timestamp.extension
+    const ext = path.extname(file.originalname).toLowerCase();
+    const filename = `${req.user.id}_${Date.now()}${ext}`;
+    cb(null, filename);
+  }
+});
+
+const logoUpload = multer({
+  storage: logoStorage,
+  limits: {
+    fileSize: 2 * 1024 * 1024, // 2MB max
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only PNG, JPG, SVG, and WebP are allowed.'));
+    }
+  }
+});
 
 // GET user's branding settings
 app.get('/api/user/branding', authenticateToken, async (req, res) => {
@@ -12789,9 +12857,85 @@ app.put('/api/user/branding', authenticateToken, async (req, res) => {
   }
 });
 
-// Update the /api/book/user/:username endpoint to include branding
-// Find and update the existing endpoint OR add branding to the response:
-/*
+// UPLOAD logo (Pro/Team only)
+app.post('/api/user/branding/logo', authenticateToken, logoUpload.single('logo'), async (req, res) => {
+  try {
+    // Check if user has Pro or Team tier
+    const userResult = await pool.query(
+      'SELECT subscription_tier, brand_logo_url FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const tier = userResult.rows[0].subscription_tier || 'free';
+    if (tier === 'free') {
+      // Delete uploaded file if user is on free tier
+      if (req.file) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(403).json({ error: 'Custom branding requires Pro or Team plan' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Delete old logo if exists
+    const oldLogoUrl = userResult.rows[0].brand_logo_url;
+    if (oldLogoUrl && oldLogoUrl.startsWith('/uploads/logos/')) {
+      const oldLogoPath = path.join(__dirname, 'public', oldLogoUrl);
+      if (fs.existsSync(oldLogoPath)) {
+        fs.unlinkSync(oldLogoPath);
+      }
+    }
+
+    // Generate the URL for the uploaded file
+    const logoUrl = `/uploads/logos/${req.file.filename}`;
+
+    // Update user's logo URL in database
+    await pool.query(
+      'UPDATE users SET brand_logo_url = $1, updated_at = NOW() WHERE id = $2',
+      [logoUrl, req.user.id]
+    );
+
+    res.json({ 
+      logo_url: logoUrl,
+      message: 'Logo uploaded successfully' 
+    });
+  } catch (error) {
+    console.error('Error uploading logo:', error);
+    // Clean up uploaded file on error
+    if (req.file) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (e) {}
+    }
+    res.status(500).json({ error: 'Failed to upload logo' });
+  }
+});
+
+// Handle multer errors
+app.use((error, req, res, next) => {
+  if (error instanceof multer.MulterError) {
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'File too large. Maximum size is 2MB.' });
+    }
+    return res.status(400).json({ error: error.message });
+  }
+  next(error);
+});
+
+// ============ SERVE STATIC FILES ============
+// Make sure to add this line to serve uploaded logos:
+// app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
+
+
+// ============ UPDATE BOOKING PAGE ENDPOINT ============
+// Update your /api/book/user/:username endpoint to include branding:
+
 app.get('/api/book/user/:username', async (req, res) => {
   try {
     const { username } = req.params;
@@ -12840,7 +12984,6 @@ app.get('/api/book/user/:username', async (req, res) => {
     res.status(500).json({ error: 'Failed to load booking page' });
   }
 });
-*/
 
 // ============================================
 // ADD THIS TO server.js - Username-based booking lookup
