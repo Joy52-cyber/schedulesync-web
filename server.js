@@ -8263,6 +8263,128 @@ Return JSON structure:
 Current date/time: ${new Date().toISOString()}
 User timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
 
+
+   // ========== ADD ATTENDEE DETECTION ==========
+    const addAttendeePatterns = [
+      /add\s+[\w.-]+@[\w.-]+/i,
+      /include\s+[\w.-]+@[\w.-]+/i,
+      /invite\s+[\w.-]+@[\w.-]+/i,
+      /forgot.+(?:add|include|invite)/i,
+      /also\s+add/i,
+      /add\s+(?:another|someone)/i,
+      /add\s+.*to\s+(?:that|the|my)\s+meeting/i
+    ];
+    
+    const isAddAttendee = addAttendeePatterns.some(p => p.test(message));
+    const emailMatch = message.match(/[\w.-]+@[\w.-]+\.\w+/i);
+    
+    if (isAddAttendee) {
+      console.log('🎯 Detected add attendee intent');
+      
+      // No email provided - ask for it
+      if (!emailMatch) {
+        return res.json({
+          type: 'need_email',
+          message: "Sure! Who would you like to add? Just give me their email address. 📧",
+          usage: { ai_queries_used: 0, ai_queries_limit: 10 }
+        });
+      }
+      
+      const newEmail = emailMatch[0].toLowerCase();
+
+      // Get most recent upcoming booking
+      const recentResult = await pool.query(
+        `SELECT id, title, start_time, attendee_email, attendees
+         FROM bookings 
+         WHERE user_id = $1 AND start_time > NOW() AND status = 'confirmed'
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [req.user.id]
+      );
+
+      if (recentResult.rows.length === 0) {
+        return res.json({
+          type: 'no_booking',
+          message: "Hmm, I couldn't find any upcoming meetings to add someone to. Would you like to schedule a new one?",
+          usage: { ai_queries_used: 0, ai_queries_limit: 10 }
+        });
+      }
+
+      const booking = recentResult.rows[0];
+      
+      // Parse current attendees
+      let currentAttendees = [];
+      if (booking.attendees) {
+        currentAttendees = typeof booking.attendees === 'string' 
+          ? JSON.parse(booking.attendees) 
+          : booking.attendees;
+      } else if (booking.attendee_email) {
+        currentAttendees = [booking.attendee_email];
+      }
+
+      // Check if already invited
+      if (currentAttendees.map(e => e.toLowerCase()).includes(newEmail)) {
+        return res.json({
+          type: 'already_added',
+          message: `${newEmail} is already on the invite list! 😊 Anyone else you'd like to add?`,
+          usage: { ai_queries_used: 0, ai_queries_limit: 10 }
+        });
+      }
+
+      // Add the new attendee
+      const updatedAttendees = [...currentAttendees, newEmail];
+      
+      await pool.query(
+        `UPDATE bookings SET attendees = $1, updated_at = NOW() WHERE id = $2`,
+        [JSON.stringify(updatedAttendees), booking.id]
+      );
+
+      // Try to send calendar invite to new attendee
+      try {
+        const { sendBookingConfirmation } = require('./utils/email');
+        const userResult = await pool.query('SELECT name, email FROM users WHERE id = $1', [req.user.id]);
+        const user = userResult.rows[0];
+        
+        await sendBookingConfirmation({
+          ...booking,
+          attendee_email: newEmail,
+          attendee_name: newEmail.split('@')[0],
+          host_name: user.name,
+          host_email: user.email
+        }, 'attendee');
+        console.log(`✅ Calendar invite sent to: ${newEmail}`);
+      } catch (emailError) {
+        console.error('Failed to send invite email:', emailError);
+        // Don't fail - the attendee was still added
+      }
+
+      // Format nice response
+      const startTime = new Date(booking.start_time);
+      const formattedDate = startTime.toLocaleDateString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric'
+      });
+      const formattedTime = startTime.toLocaleTimeString('en-US', {
+        hour: 'numeric', minute: '2-digit', hour12: true
+      });
+
+      return res.json({
+        type: 'attendee_added',
+        message: `Done! ✅ I've added ${newEmail} to your meeting.
+
+📅 **${booking.title || 'Meeting'}**
+🗓️ ${formattedDate} at ${formattedTime}
+👥 Now includes: ${updatedAttendees.join(', ')}
+
+I've sent them a calendar invite. Anything else I can help with?`,
+        data: { 
+          bookingId: booking.id, 
+          attendees: updatedAttendees 
+        },
+        usage: { ai_queries_used: 0, ai_queries_limit: 10 }
+      });
+    }
+
+
       // ✅ STEP 7: SINGLE GEMINI API CALL WITH COMPLETE CONTEXT
       const geminiResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
