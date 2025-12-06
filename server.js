@@ -467,7 +467,7 @@ const logoStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const filename = `${req.user.id}_${Date.now()}${ext}`;
+    const filename = `logo_${Date.now()}_${Math.random().toString(36).substring(7)}${ext}`;
     cb(null, filename);
   }
 });
