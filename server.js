@@ -505,7 +505,7 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-/ ============ BRANDING ENDPOINTS ============
+// ============ BRANDING ENDPOINTS ============
 
 // GET branding settings
 app.get('/api/user/branding', authenticateToken, async (req, res) => {
