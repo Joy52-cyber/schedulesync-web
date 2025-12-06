@@ -485,7 +485,7 @@ const logoUpload = multer({
   }
 });
 
-// ============ BRANDING ENDPOINTS ============
+/ ============ BRANDING ENDPOINTS ============
 
 // GET branding settings
 app.get('/api/user/branding', authenticateToken, async (req, res) => {
@@ -582,6 +582,7 @@ app.post('/api/user/branding/logo', authenticateToken, logoUpload.single('logo')
     res.status(500).json({ error: 'Failed to upload logo' });
   }
 });
+
 
 // ============ USAGE ENFORCEMENT MIDDLEWARE ============
 
