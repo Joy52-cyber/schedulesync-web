@@ -152,8 +152,8 @@ function InnerApp() {
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-          </UpgradeProvider>  {/* ✅ CLOSE IT */}
-           <UpgradeModal />
+          <UpgradeModal />
+          </UpgradeProvider>
         </SubscriptionProvider>
       </NotificationProvider>
     </AuthProvider>
