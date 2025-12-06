@@ -485,6 +485,104 @@ const logoUpload = multer({
   }
 });
 
+// ============ BRANDING ENDPOINTS ============
+
+// GET branding settings
+app.get('/api/user/branding', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by 
+       FROM users WHERE id = $1`,
+      [req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching branding:', error);
+    res.status(500).json({ error: 'Failed to fetch branding settings' });
+  }
+});
+
+// UPDATE branding settings
+app.put('/api/user/branding', authenticateToken, async (req, res) => {
+  try {
+    const userResult = await pool.query(
+      'SELECT subscription_tier FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    const tier = userResult.rows[0]?.subscription_tier || 'free';
+    if (tier === 'free') {
+      return res.status(403).json({ error: 'Custom branding requires Pro or Team plan' });
+    }
+
+    const { brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by } = req.body;
+
+    const result = await pool.query(
+      `UPDATE users 
+       SET brand_logo_url = $1, brand_primary_color = $2, brand_accent_color = $3, 
+           hide_powered_by = $4, updated_at = NOW()
+       WHERE id = $5
+       RETURNING brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by`,
+      [
+        brand_logo_url || null,
+        brand_primary_color || '#8B5CF6',
+        brand_accent_color || '#EC4899',
+        hide_powered_by || false,
+        req.user.id
+      ]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating branding:', error);
+    res.status(500).json({ error: 'Failed to update branding settings' });
+  }
+});
+
+// UPLOAD logo
+app.post('/api/user/branding/logo', authenticateToken, logoUpload.single('logo'), async (req, res) => {
+  try {
+    const userResult = await pool.query(
+      'SELECT subscription_tier, brand_logo_url FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    const tier = userResult.rows[0]?.subscription_tier || 'free';
+    
+    if (tier === 'free') {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(403).json({ error: 'Custom branding requires Pro or Team plan' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Delete old logo
+    const oldLogoUrl = userResult.rows[0].brand_logo_url;
+    if (oldLogoUrl && oldLogoUrl.startsWith('/uploads/logos/')) {
+      const oldLogoPath = path.join(__dirname, 'public', oldLogoUrl);
+      if (fs.existsSync(oldLogoPath)) {
+        fs.unlinkSync(oldLogoPath);
+      }
+    }
+
+    const logoUrl = `/uploads/logos/${req.file.filename}`;
+    await pool.query(
+      'UPDATE users SET brand_logo_url = $1, updated_at = NOW() WHERE id = $2',
+      [logoUrl, req.user.id]
+    );
+
+    res.json({ logo_url: logoUrl, message: 'Logo uploaded successfully' });
+  } catch (error) {
+    console.error('Error uploading logo:', error);
+    if (req.file) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+    }
+    res.status(500).json({ error: 'Failed to upload logo' });
+  }
+});
+
 // ============ USAGE ENFORCEMENT MIDDLEWARE ============
 
 const checkUsageLimits = async (req, res, next) => {
