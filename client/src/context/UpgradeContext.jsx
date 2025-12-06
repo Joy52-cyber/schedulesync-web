@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+﻿import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const UpgradeContext = createContext(null);
 
@@ -7,6 +7,7 @@ const defaultContextValue = {
   showUpgradeModal: () => {},
   closeUpgradeModal: () => {},
   isAtLimit: () => false,
+  requiresUpgrade: () => false,
   hasProFeature: () => false,
   hasTeamFeature: () => false,
   currentTier: 'free',
@@ -29,8 +30,6 @@ const defaultContextValue = {
 export const useUpgrade = () => {
   const context = useContext(UpgradeContext);
   
-  // Return default values instead of throwing error
-  // This prevents crashes when component is rendered outside provider
   if (!context) {
     console.warn('useUpgrade called outside UpgradeProvider, using defaults');
     return defaultContextValue;
@@ -42,7 +41,12 @@ export const useUpgrade = () => {
 export const UpgradeProvider = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [feature, setFeature] = useState(null);
-  const [currentTier, setCurrentTier] = useState('free');
+  
+  // ✅ FIX: Initialize from localStorage to prevent flash of "upgrade" content
+  const [currentTier, setCurrentTier] = useState(() => {
+    return localStorage.getItem('subscription_tier') || 'free';
+  });
+  
   const [usage, setUsage] = useState({
     ai_queries_used: 0,
     ai_queries_limit: 10,
@@ -79,6 +83,13 @@ export const UpgradeProvider = ({ children }) => {
       
       if (response.ok) {
         const data = await response.json();
+        
+        // ✅ FIX: Get tier from response
+        const tier = data.subscription_tier || 'free';
+        
+        // ✅ FIX: Save tier to localStorage so it persists
+        localStorage.setItem('subscription_tier', tier);
+        
         setUsage({
           ai_queries_used: data.ai_queries_used || 0,
           ai_queries_limit: data.ai_queries_limit || 10,
@@ -89,7 +100,9 @@ export const UpgradeProvider = ({ children }) => {
           magic_links_used: data.magic_links_used || 0,
           magic_links_limit: data.magic_links_limit || 3
         });
-        setCurrentTier(data.subscription_tier || 'free');
+        
+        setCurrentTier(tier);
+        console.log('✅ Subscription tier loaded:', tier);
       }
     } catch (error) {
       console.error('Failed to fetch usage:', error);
@@ -109,6 +122,22 @@ export const UpgradeProvider = ({ children }) => {
     setIsOpen(false);
     setFeature(null);
   }, []);
+
+  // Check if a feature requires upgrade based on tier
+  const requiresUpgrade = useCallback((featureName) => {
+    switch (featureName) {
+      case 'branding':
+        return currentTier === 'free';
+      case 'templates':
+        return currentTier === 'free';
+      case 'teams':
+        return currentTier !== 'team';
+      case 'magic_links':
+        return currentTier === 'free';
+      default:
+        return false;
+    }
+  }, [currentTier]);
 
   // Check if a feature is at limit (or locked for tier)
   const isAtLimit = useCallback((featureName) => {
@@ -146,6 +175,7 @@ export const UpgradeProvider = ({ children }) => {
     showUpgradeModal,
     closeUpgradeModal,
     isAtLimit,
+    requiresUpgrade,
     hasProFeature,
     hasTeamFeature,
     currentTier,
