@@ -79,6 +79,7 @@ function InnerApp() {
       <NotificationProvider>
         <SubscriptionProvider>
           <UpgradeProvider>
+          <UpgradeModal>
             <Routes>
             {/* Marketing / Auth */}
             <Route path="/" element={<Landing />} />
