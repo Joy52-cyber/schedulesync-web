@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { SubscriptionProvider } from './hooks/useSubscription'; // ✅ ADD THIS
 import { UpgradeProvider } from './context/UpgradeContext';
+import UpgradeModal from './components/UpgradeModal';  // ← ADD THIS LINE
 
 // Layouts
 import Layout from './components/Layout';
@@ -77,7 +78,7 @@ function InnerApp() {
     <AuthProvider>
       <NotificationProvider>
         <SubscriptionProvider>
-          <UpgradeProvider>  {/* ✅ ADD THIS */}
+          <UpgradeProvider>
             <Routes>
             {/* Marketing / Auth */}
             <Route path="/" element={<Landing />} />
@@ -152,6 +153,7 @@ function InnerApp() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </UpgradeProvider>  {/* ✅ CLOSE IT */}
+           <UpgradeModal />
         </SubscriptionProvider>
       </NotificationProvider>
     </AuthProvider>
