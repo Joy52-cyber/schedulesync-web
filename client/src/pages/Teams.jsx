@@ -15,7 +15,7 @@ import {
   Edit,
   ExternalLink,
   X,
- 
+  
 } from 'lucide-react';
 import { teams } from '../utils/api';
 
@@ -28,88 +28,17 @@ export default function Teams() {
   const [copiedId, setCopiedId] = useState(null);
   const [newTeam, setNewTeam] = useState({ name: '', description: '' });
   
-  // ✅ NEW: Dropdown and edit modal state
+  // Dropdown and edit modal state
   const [openMenuId, setOpenMenuId] = useState(null);
   const [editingTeam, setEditingTeam] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const menuRef = useRef(null);
 
-  useEffect(() => {
-    loadTeams();
-  }, []);
-
-  // ✅ Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setOpenMenuId(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-   if (!hasTeamFeature()) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 text-center border-2 border-purple-200">
-            <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Users className="h-10 w-10 text-white" />
-            </div>
-            
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">
-              Team Features
-            </h1>
-            
-            <p className="text-lg text-gray-600 mb-8 max-w-md mx-auto">
-              Create teams, add members, and manage group scheduling with round-robin 
-              and collective booking modes.
-            </p>
-
-            <div className="bg-purple-50 rounded-2xl p-6 mb-8 text-left">
-              <h3 className="font-semibold text-purple-900 mb-4">What you get with Team plan:</h3>
-              <ul className="space-y-3">
-                <li className="flex items-center gap-3 text-purple-800">
-                  <Check className="h-5 w-5 text-purple-600" />
-                  Create unlimited teams
-                </li>
-                <li className="flex items-center gap-3 text-purple-800">
-                  <Check className="h-5 w-5 text-purple-600" />
-                  Up to 10 team members per team
-                </li>
-                <li className="flex items-center gap-3 text-purple-800">
-                  <Check className="h-5 w-5 text-purple-600" />
-                  Round-robin booking mode
-                </li>
-                <li className="flex items-center gap-3 text-purple-800">
-                  <Check className="h-5 w-5 text-purple-600" />
-                  Collective team scheduling
-                </li>
-                <li className="flex items-center gap-3 text-purple-800">
-                  <Check className="h-5 w-5 text-purple-600" />
-                  Team booking links
-                </li>
-              </ul>
-            </div>
-
-            <button
-              onClick={() => showUpgradeModal('teams')}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-xl hover:shadow-lg transition-all font-semibold text-lg"
-            >
-              Upgrade to Team Plan - $25/month
-            </button>
-            
-            <p className="text-sm text-gray-500 mt-4">
-              Currently on: <span className="font-medium capitalize">{currentTier}</span> plan
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // ========================================
+  // HELPER FUNCTIONS - MUST BE BEFORE useEffect
+  // ========================================
+  
   const isPersonalTeam = (team) => {
     if (!team) return false;
     if (team.is_personal === true) return true;
@@ -190,7 +119,6 @@ export default function Teams() {
     }
   };
 
-  // ✅ NEW: Edit team handler
   const handleEditTeam = async (e) => {
     e.preventDefault();
     if (!editingTeam) return;
@@ -211,7 +139,6 @@ export default function Teams() {
     }
   };
 
-  // ✅ NEW: Delete team handler
   const handleDeleteTeam = async (teamId) => {
     setActionLoading(true);
     try {
@@ -226,7 +153,6 @@ export default function Teams() {
     }
   };
 
-  // ✅ NEW: Open booking page in new tab
   const handleOpenBookingPage = (team) => {
     const linkInfo = getBookingLink(team);
     if (linkInfo) {
@@ -235,7 +161,92 @@ export default function Teams() {
     setOpenMenuId(null);
   };
 
-  // ✅ NEW: Dropdown Menu Component
+  // ========================================
+  // useEffect HOOKS - AFTER function definitions
+  // ========================================
+
+  useEffect(() => {
+    loadTeams();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // ========================================
+  // EARLY RETURN - Feature gate check
+  // ========================================
+
+  if (!hasTeamFeature()) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 text-center border-2 border-purple-200">
+            <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Users className="h-10 w-10 text-white" />
+            </div>
+            
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+              Team Features
+            </h1>
+            
+            <p className="text-lg text-gray-600 mb-8 max-w-md mx-auto">
+              Create teams, add members, and manage group scheduling with round-robin 
+              and collective booking modes.
+            </p>
+
+            <div className="bg-purple-50 rounded-2xl p-6 mb-8 text-left">
+              <h3 className="font-semibold text-purple-900 mb-4">What you get with Team plan:</h3>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  Create unlimited teams
+                </li>
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  Up to 10 team members per team
+                </li>
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  Round-robin booking mode
+                </li>
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  Collective team scheduling
+                </li>
+                <li className="flex items-center gap-3 text-purple-800">
+                  <Check className="h-5 w-5 text-purple-600" />
+                  Team booking links
+                </li>
+              </ul>
+            </div>
+
+            <button
+              onClick={() => showUpgradeModal('teams')}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-xl hover:shadow-lg transition-all font-semibold text-lg"
+            >
+              Upgrade to Team Plan - $25/month
+            </button>
+            
+            <p className="text-sm text-gray-500 mt-4">
+              Currently on: <span className="font-medium capitalize">{currentTier}</span> plan
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ========================================
+  // COMPONENT: Dropdown Menu
+  // ========================================
+
   const TeamDropdownMenu = ({ team }) => {
     const personal = isPersonalTeam(team);
     const linkInfo = getBookingLink(team);
@@ -328,6 +339,10 @@ export default function Teams() {
     );
   };
 
+  // ========================================
+  // LOADING STATE
+  // ========================================
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
@@ -338,6 +353,10 @@ export default function Teams() {
       </div>
     );
   }
+
+  // ========================================
+  // MAIN RENDER
+  // ========================================
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
@@ -401,7 +420,7 @@ export default function Teams() {
                       </div>
                     )}
 
-                    {/* ✅ FIXED: Working dropdown menu */}
+                    {/* Working dropdown menu */}
                     <div className="absolute top-4 right-4">
                       <TeamDropdownMenu team={team} />
                     </div>
@@ -540,7 +559,7 @@ export default function Teams() {
         </div>
       )}
 
-      {/* ✅ NEW: Edit Team Modal */}
+      {/* Edit Team Modal */}
       {editingTeam && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl">
@@ -604,7 +623,7 @@ export default function Teams() {
         </div>
       )}
 
-      {/* ✅ NEW: Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl">
