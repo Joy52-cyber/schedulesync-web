@@ -19,7 +19,9 @@ import {
   Copy, 
   Check, 
   Link,
-  Lock
+  Lock,
+  Mic,
+  MicOff
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -28,68 +30,51 @@ export default function AISchedulerChat() {
 
   const { currentTier, hasProFeature, hasTeamFeature, loading: tierLoading } = useUpgrade();
 
-  // Generate greeting based on user's tier
+  // Generate friendly, conversational greeting based on user's tier
   const getGreetingMessage = () => {
-    const baseFeatures = `📅 Bookings
-- "Book meeting with john@email.com tomorrow 2pm"
-- "Show my confirmed/cancelled/rescheduled bookings"
-- "How many bookings this month?" (stats)
+    const hour = new Date().getHours();
+    let timeGreeting = "Hi there";
+    if (hour < 12) timeGreeting = "Good morning";
+    else if (hour < 17) timeGreeting = "Good afternoon";
+    else timeGreeting = "Good evening";
 
-🔗 Links
-- "Get my booking link"`;
+    let greeting = `${timeGreeting}! 👋
 
-    const proFeatures = `
-- "Create magic link for John"
+I'm your scheduling assistant, and I'm here to help make booking meetings a breeze.
 
-📧 Emails (Pro)
-- "Send reminder to client@company.com"`;
+Here's what I can do for you:
 
-    const teamFeatures = `
+📅 **Bookings**
+• Book meetings – just tell me who and when!
+• Show your upcoming, confirmed, or past bookings
+• Give you booking stats
 
-🏢 Teams
-- "Schedule with Marketing team"
-- "Show team links"
-- "Get Sarah's booking link"`;
+🔗 **Links**
+• Share your booking link
+• Create one-time magic links (Pro)`;
 
-    const eventTypesFeature = `
-
-📋 Event Types
-- "What are my event types?"
-- "Show my consultation event"`;
-
-    let greeting = `👋 Hi! I'm your AI scheduling assistant.
-
-I can help you with:
-
-${baseFeatures}`;
-
-    // Add Pro features if user has Pro or Team
-    if (hasProFeature()) {
-      greeting += proFeatures;
-    }
-
-    // Add event types (available to all)
-    greeting += eventTypesFeature;
-
-    // Add Team features only if user has Team tier
     if (hasTeamFeature()) {
-      greeting += teamFeatures;
+      greeting += `
+
+🏢 **Teams**
+• Schedule with your teams
+• Get team booking links
+• Find team member availability`;
     }
 
-    // Add upgrade hint for free users
-    if (currentTier === 'free') {
+    if (hasProFeature()) {
       greeting += `
 
-💡 *Upgrade to Pro for unlimited AI queries, magic links & email templates!*`;
-    } else if (currentTier === 'pro') {
-      greeting += `
-
-💡 *Upgrade to Team for team scheduling features!*`;
+📧 **Emails**
+• Send meeting reminders
+• Draft follow-up emails`;
     }
 
     greeting += `
 
-What would you like to do?`;
+🎤 **Voice** – Tap the mic and just talk to me!
+
+What can I help you with today?`;
 
     return greeting;
   };
@@ -128,7 +113,7 @@ What would you like to do?`;
           
           const hasGreeting = mappedHistory.some(msg => 
             msg.isGreeting || 
-            (msg.role === 'assistant' && msg.content.includes("Hi! I'm your AI scheduling assistant"))
+            (msg.role === 'assistant' && msg.content.includes("scheduling assistant"))
           );
           
           if (hasGreeting) {
@@ -147,7 +132,86 @@ What would you like to do?`;
     const saved = localStorage.getItem('aiChat_pendingBooking');
     return saved ? JSON.parse(saved) : null;
   });
+
+  // Voice input states
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const recognitionRef = useRef(null);
+
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Initialize speech recognition
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      setSpeechSupported(true);
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = true;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map(result => result[0].transcript)
+          .join('');
+        
+        setMessage(transcript);
+        
+        if (event.results[event.results.length - 1].isFinal) {
+          setIsListening(false);
+        }
+      };
+
+      recognitionRef.current.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        
+        if (event.error === 'not-allowed') {
+          setChatHistory(prev => [...prev, {
+            role: 'assistant',
+            content: "Oops! Looks like I don't have microphone access. Could you enable it in your browser settings? I'd love to hear from you! 🎤",
+            timestamp: new Date()
+          }]);
+        }
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
+  }, []);
+
+  const toggleListening = () => {
+    if (!speechSupported) {
+      setChatHistory(prev => [...prev, {
+        role: 'assistant',
+        content: "Unfortunately, voice input isn't supported in your browser. Try Chrome, Edge, or Safari for the best experience! In the meantime, feel free to type your request. 😊",
+        timestamp: new Date()
+      }]);
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    } else {
+      setMessage('');
+      try {
+        recognitionRef.current?.start();
+        setIsListening(true);
+      } catch (error) {
+        console.error('Failed to start speech recognition:', error);
+        setIsListening(false);
+      }
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -180,7 +244,6 @@ What would you like to do?`;
     setTimeout(() => setCopiedUrl(null), 2000);
   };
 
-  // Helper to check if user has unlimited (Pro/Team)
   const isUnlimited = usage.ai_queries_limit >= 1000;
 
   // Initialize greeting when tier loads
@@ -234,22 +297,26 @@ What would you like to do?`;
   const handleSend = async () => {
     if (!message.trim() || loading) return;
 
+    // Stop listening if active
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    }
+
     // Only block if NOT unlimited and at limit
     if (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit) {
       setChatHistory(prev => [...prev, { 
         role: 'assistant', 
-        content: `❌ You've reached your AI query limit (${usage.ai_queries_limit}). Please upgrade your plan to continue using AI features.`,
+        content: `Ah, looks like you've used all ${usage.ai_queries_limit} AI queries for this month! 😅\n\nNo worries though – upgrade to Pro and you'll get unlimited queries. I'll be here whenever you need me!\n\n[Upgrade to Pro](/billing)`,
         timestamp: new Date()
       }]);
       return;
     }
 
     const userMessage = message.trim();
-    
-    // Check for gated features before sending
     const lowerMessage = userMessage.toLowerCase();
     
-    // Block team features for non-team users
+    // Block team features for non-team users (friendly message)
     if (!hasTeamFeature() && (
       lowerMessage.includes('team') || 
       lowerMessage.includes('marketing team') ||
@@ -259,15 +326,7 @@ What would you like to do?`;
         { role: 'user', content: userMessage, timestamp: new Date() },
         { 
           role: 'assistant', 
-          content: `🔒 **Team Features Locked**
-
-Team scheduling is available on the Team plan ($25/month). This includes:
-• Create unlimited teams
-• Round-robin & collective booking
-• Team booking links
-• Up to 10 team members
-
-[Upgrade to Team](/billing) to unlock team features!`,
+          content: `I'd love to help with team scheduling! 🏢\n\nThis is a Team plan feature ($25/month) that includes:\n• Unlimited teams\n• Round-robin & collective booking\n• Team booking links\n• Up to 10 team members\n\nWant to unlock it? [Check out the Team plan](/billing) – it's pretty awesome!`,
           timestamp: new Date()
         }
       ]);
@@ -275,7 +334,7 @@ Team scheduling is available on the Team plan ($25/month). This includes:
       return;
     }
 
-    // Block email template features for free users
+    // Block email features for free users (friendly message)
     if (!hasProFeature() && (
       lowerMessage.includes('send reminder') ||
       lowerMessage.includes('send email') ||
@@ -285,14 +344,7 @@ Team scheduling is available on the Team plan ($25/month). This includes:
         { role: 'user', content: userMessage, timestamp: new Date() },
         { 
           role: 'assistant', 
-          content: `🔒 **Email Templates Locked**
-
-Email templates are available on the Pro plan ($12/month). This includes:
-• Unlimited custom email templates
-• AI-powered template generation
-• Automated reminders & follow-ups
-
-[Upgrade to Pro](/billing) to unlock email features!`,
+          content: `Great idea to send emails! 📧\n\nEmail features are part of the Pro plan ($12/month). You'll get:\n• Custom email templates\n• AI-powered drafts\n• Automated reminders\n\n[Upgrade to Pro](/billing) and I'll help you send those emails!`,
           timestamp: new Date()
         }
       ]);
@@ -359,7 +411,7 @@ Email templates are available on the Pro plan ($12/month). This includes:
           data: responseData.data
         }]);
       } else {
-        const aiMessage = responseData.message || responseData.response || 'I understood your request.';
+        const aiMessage = responseData.message || responseData.response || 'Got it! Let me know if you need anything else.';
         setChatHistory(prev => [...prev, { 
           role: 'assistant', 
           content: aiMessage,
@@ -373,7 +425,7 @@ Email templates are available on the Pro plan ($12/month). This includes:
       console.error('AI chat error:', error);
       setChatHistory(prev => [...prev, { 
         role: 'assistant', 
-        content: 'Sorry, I encountered an error. Please try again.',
+        content: "Hmm, something went wrong on my end. Mind trying that again? 🙏",
         timestamp: new Date()
       }]);
     } finally {
@@ -406,9 +458,31 @@ Email templates are available on the Pro plan ($12/month). This includes:
 
       console.log('✅ AI booking response:', response.data);
 
+      // Format date nicely
+      const formattedDate = startDateTime.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric'
+      });
+      const formattedTime = startDateTime.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+
+      const confirmMsg = `You're all set! ✅
+
+I've booked your meeting:
+
+📅 **${pendingBooking.title || 'Meeting'}**
+🗓️ ${formattedDate} at ${formattedTime}
+👥 ${allAttendees.join(', ')}${pendingBooking.team_name ? `\n🏢 ${pendingBooking.team_name}` : ''}
+
+I've sent calendar invites to everyone. Is there anything else I can help you with?`;
+
       setChatHistory(prev => [...prev, { 
         role: 'assistant', 
-        content: `✅ Booking Confirmed!\n\n📅 ${pendingBooking.title || 'Meeting'}\n🕐 ${formatDateTime(startDateTime)}\n👤 ${allAttendees.join(', ')}${pendingBooking.team_name ? `\n🏢 Team: ${pendingBooking.team_name}` : ''}\n\nConfirmation emails sent!`,
+        content: confirmMsg,
         timestamp: new Date(),
         isConfirmation: true
       }]);
@@ -419,11 +493,11 @@ Email templates are available on the Pro plan ($12/month). This includes:
       console.error('❌ AI booking error:', error);
       console.error('❌ Error response:', error.response?.data);
       
-      let errorMessage = '❌ Failed to create booking. ';
+      let errorMessage = "Oops, I couldn't create that booking. ";
       if (error.response?.data?.error) {
         errorMessage += error.response.data.error;
       } else {
-        errorMessage += 'Please try again later.';
+        errorMessage += "Want to try again?";
       }
       
       setChatHistory(prev => [...prev, { 
@@ -440,7 +514,7 @@ Email templates are available on the Pro plan ($12/month). This includes:
     setPendingBooking(null);
     setChatHistory(prev => [...prev, { 
       role: 'assistant', 
-      content: 'Booking cancelled. How else can I help you?',
+      content: "No problem, I've cancelled that. What else can I help you with?",
       timestamp: new Date()
     }]);
   };
@@ -619,21 +693,20 @@ Email templates are available on the Pro plan ($12/month). This includes:
     return <p className="text-xs sm:text-sm whitespace-pre-wrap">{content}</p>;
   };
 
-  // Tier-based suggestions
+  // Conversational suggestions
   const getSuggestions = () => {
     const baseSuggestions = [
-      "Get my booking link",
-      "What are my event types?",
-      "Show confirmed bookings",
-      "How many bookings this month?",
+      "What's my booking link?",
+      "Show my upcoming meetings",
+      "How many bookings do I have?",
     ];
 
     if (hasProFeature()) {
-      baseSuggestions.push("Create magic link for VIP");
+      baseSuggestions.push("Create a magic link");
     }
 
     if (hasTeamFeature()) {
-      baseSuggestions.push("Show team links");
+      baseSuggestions.push("Show my team links");
     }
 
     return baseSuggestions;
@@ -678,8 +751,9 @@ Email templates are available on the Pro plan ($12/month). This includes:
               <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-white text-sm sm:text-base">AI Scheduler</h3>
+              <h3 className="font-bold text-white text-sm sm:text-base">AI Assistant</h3>
               <p className="text-xs text-purple-200">
+                {speechSupported && <span className="mr-1">🎤</span>}
                 {currentTier === 'free' ? 'Free' : currentTier === 'pro' ? 'Pro ⚡' : 'Team 🏢'}
               </p>
             </div>
@@ -750,25 +824,25 @@ Email templates are available on the Pro plan ($12/month). This includes:
                           : 'text-yellow-800 text-sm'
                       }`}>
                         {usage.ai_queries_used >= usage.ai_queries_limit
-                          ? `🚫 AI Query Limit Reached (${usage.ai_queries_used}/${usage.ai_queries_limit})`
-                          : `⚠️ Only ${usage.ai_queries_limit - usage.ai_queries_used} AI queries remaining!`
+                          ? `You've used all ${usage.ai_queries_limit} queries`
+                          : `${usage.ai_queries_limit - usage.ai_queries_used} queries left this month`
                         }
                       </p>
                       {usage.ai_queries_used >= usage.ai_queries_limit ? (
                         <div className="space-y-2">
                           <p className="text-sm text-red-700">
-                            You've used all your free AI queries this month.
+                            Upgrade to keep chatting!
                           </p>
                           <button
                             onClick={() => window.location.href = '/billing'}
                             className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-2 px-4 rounded-lg font-semibold text-sm transition-all"
                           >
-                            Upgrade to Pro - $12/mo
+                            Get Pro – $12/mo
                           </button>
                         </div>
                       ) : (
                         <p className="text-xs text-yellow-700">
-                          Upgrade to Pro for unlimited AI queries!
+                          Go Pro for unlimited conversations!
                         </p>
                       )}
                     </div>
@@ -779,13 +853,13 @@ Email templates are available on the Pro plan ($12/month). This includes:
               {/* Suggestions grid - ONLY show if NOT at limit */}
               {chatHistory.length <= 1 && (isUnlimited || usage.ai_queries_used < usage.ai_queries_limit) && (
                 <div className="text-center py-4">
-                  <p className="text-sm text-gray-500 mb-3">Try saying:</p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <p className="text-sm text-gray-500 mb-3">Try asking:</p>
+                  <div className="grid grid-cols-1 gap-2">
                     {suggestions.map((suggestion, i) => (
                       <button
                         key={i}
                         onClick={() => setMessage(suggestion)}
-                        className="text-left text-xs p-2 bg-white rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors"
+                        className="text-left text-sm p-3 bg-white rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors"
                       >
                         "{suggestion}"
                       </button>
@@ -801,14 +875,14 @@ Email templates are available on the Pro plan ($12/month). This includes:
                     className="text-xs text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 flex items-center gap-1 transition-colors px-3 py-2 rounded-lg border border-red-200"
                   >
                     <Trash2 className="h-3 w-3" />
-                    Clear All
+                    Clear
                   </button>
                   <button
                     onClick={handleResetToGreeting}
                     className="text-xs text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 flex items-center gap-1 transition-colors px-3 py-2 rounded-lg border border-blue-200"
                   >
                     <RotateCcw className="h-3 w-3" />
-                    Reset
+                    Start Over
                   </button>
                 </div>
               )}
@@ -847,8 +921,9 @@ Email templates are available on the Pro plan ($12/month). This includes:
 
               {loading && (
                 <div className="flex justify-start">
-                  <div className="bg-white rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 shadow-sm">
+                  <div className="bg-white rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 shadow-sm flex items-center gap-2">
                     <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin text-purple-600" />
+                    <span className="text-sm text-gray-500">Thinking...</span>
                   </div>
                 </div>
               )}
@@ -863,7 +938,7 @@ Email templates are available on the Pro plan ($12/month). This includes:
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-semibold text-gray-800 text-sm sm:text-base flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-purple-600" />
-                      Confirm Booking
+                      Ready to book?
                       {pendingBooking.team_name && (
                         <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
                           {pendingBooking.team_name}
@@ -906,7 +981,7 @@ Email templates are available on the Pro plan ($12/month). This includes:
                     <div className="text-gray-600">
                       <div className="flex items-center gap-2 mb-2">
                         <Mail className="h-4 w-4 flex-shrink-0" />
-                        <span className="text-sm font-medium">Attendees:</span>
+                        <span className="text-sm font-medium">Who's joining?</span>
                       </div>
                       <div className="space-y-2 pl-6">
                         {(pendingBooking.attendees || [pendingBooking.attendee_email]).map((email, index) => (
@@ -953,7 +1028,7 @@ Email templates are available on the Pro plan ($12/month). This includes:
                           }}
                           className="text-purple-600 hover:text-purple-700 text-sm flex items-center gap-1 mt-2"
                         >
-                          + Add another attendee
+                          + Add someone else
                         </button>
                       </div>
                     </div>
@@ -981,14 +1056,14 @@ Email templates are available on the Pro plan ($12/month). This includes:
                       disabled={loading}
                       className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 sm:py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50 text-sm sm:text-base"
                     >
-                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-4 w-4" />Confirm</>}
+                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-4 w-4" />Book it!</>}
                     </button>
                     <button
                       onClick={handleCancelBooking}
                       disabled={loading}
                       className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 sm:py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50 text-sm sm:text-base"
                     >
-                      <XCircle className="h-4 w-4" />Cancel
+                      <XCircle className="h-4 w-4" />Never mind
                     </button>
                   </div>
                 </div>
@@ -997,21 +1072,60 @@ Email templates are available on the Pro plan ($12/month). This includes:
 
             {/* Input */}
             <div className="p-3 sm:p-4 border-t border-gray-200 bg-white">
+              {/* Voice listening indicator */}
+              {isListening && (
+                <div className="mb-3 flex items-center gap-2 text-sm text-purple-600 bg-purple-50 px-3 py-2 rounded-lg border border-purple-200">
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></span>
+                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></span>
+                  </div>
+                  <span>I'm listening... speak now!</span>
+                  <button 
+                    onClick={toggleListening}
+                    className="ml-auto text-red-500 hover:text-red-700 text-xs font-medium"
+                  >
+                    Stop
+                  </button>
+                </div>
+              )}
+              
               <div className="flex items-center gap-2">
                 <input
+                  ref={inputRef}
                   type="text"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder="Try: 'Get my booking link' "
-                  className="flex-1 px-3 sm:px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                  placeholder={isListening ? "Listening..." : "Type or tap 🎤 to speak..."}
+                  className={`flex-1 px-3 sm:px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm ${
+                    isListening ? 'border-purple-400 bg-purple-50' : 'border-gray-200'
+                  }`}
                   disabled={loading || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
                 />
+                
+                {/* Microphone button */}
+                <button
+                  onClick={toggleListening}
+                  disabled={loading || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
+                  className={`p-3 rounded-xl transition-all ${
+                    isListening 
+                      ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-200' 
+                      : speechSupported
+                        ? 'bg-gray-100 text-gray-600 hover:bg-purple-100 hover:text-purple-600'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                  title={isListening ? 'Stop listening' : 'Start voice input'}
+                >
+                  {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                </button>
+                
+                {/* Send button */}
                 <button
                   onClick={handleSend}
                   disabled={loading || !message.trim() || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
                   className="p-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-xl transition-colors"
-                  title={!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit ? 'AI query limit reached' : 'Send message'}
+                  title={!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit ? 'Query limit reached' : 'Send'}
                 >
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                 </button>
