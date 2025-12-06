@@ -30,6 +30,7 @@ import {
   Link2,
   FileText,
   CreditCard,
+  Palette,
 } from 'lucide-react';
 import api, { 
   auth, 
@@ -40,6 +41,7 @@ import api, {
 } from '../utils/api';
 
 import SubscriptionSettings from '../components/SubscriptionSettings';
+import BrandingSettings from '../components/BrandingSettings';
 
 
 export default function UserSettings() {
@@ -374,7 +376,7 @@ export default function UserSettings() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Settings</h1>
           <p className="text-gray-500 mt-1 text-sm sm:text-base">Manage your profile, calendars, integrations and notifications</p>
         </div>
-        {activeTab !== 'calendars' && activeTab !== 'integrations' && activeTab !== 'email-templates' && (
+        {activeTab !== 'calendars' && activeTab !== 'integrations' && activeTab !== 'email-templates' && activeTab !== 'branding' && (
           <button
             onClick={handleSave}
             disabled={saving}
@@ -448,6 +450,17 @@ export default function UserSettings() {
               }`}
             >
               <FileText size={18} /> Templates
+            </button>
+            <button
+              onClick={() => handleTabChange('branding')}
+              className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
+                activeTab === 'branding'
+                  ? 'bg-purple-50 text-purple-700'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Palette size={18} /> Branding
+              <span className="ml-auto text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-semibold">PRO</span>
             </button>
             
             <Link 
@@ -1091,6 +1104,13 @@ export default function UserSettings() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* BRANDING TAB */}
+          {activeTab === 'branding' && (
+            <div className="p-4 sm:p-8">
+              <BrandingSettings />
             </div>
           )}
         </div>
