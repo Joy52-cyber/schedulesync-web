@@ -10,8 +10,6 @@ import {
   Loader2,
   AlertCircle,
   ArrowRight,
-  Star,
-  CheckCircle,
 } from 'lucide-react';
 
 export default function UserProfilePage() {
@@ -22,6 +20,12 @@ export default function UserProfilePage() {
   const [error, setError] = useState(null);
   const [profile, setProfile] = useState(null);
   const [eventTypes, setEventTypes] = useState([]);
+  const [branding, setBranding] = useState({
+    logo_url: null,
+    primary_color: '#8B5CF6',
+    accent_color: '#EC4899',
+    hide_powered_by: false,
+  });
 
   useEffect(() => {
     fetchUserProfile();
@@ -41,6 +45,16 @@ export default function UserProfilePage() {
       
       setProfile(data.user);
       setEventTypes(data.eventTypes || []);
+      
+      // Set branding if available
+      if (data.user?.branding) {
+        setBranding({
+          logo_url: data.user.branding.logo_url || null,
+          primary_color: data.user.branding.primary_color || '#8B5CF6',
+          accent_color: data.user.branding.accent_color || '#EC4899',
+          hide_powered_by: data.user.branding.hide_powered_by || false,
+        });
+      }
     } catch (err) {
       console.error('Failed to fetch user profile:', err);
       setError(err.message || 'Failed to load booking page');
@@ -50,7 +64,6 @@ export default function UserProfilePage() {
   };
 
   const handleSelectEvent = (eventType) => {
-    // Navigate to the booking page for this event type
     navigate(`/book/${username}/${eventType.slug}`);
   };
 
@@ -85,11 +98,22 @@ export default function UserProfilePage() {
     }
   };
 
+  // Generate gradient style from branding colors
+  const gradientStyle = {
+    background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})`,
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
+      <div 
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: `linear-gradient(135deg, ${branding.primary_color}15, ${branding.accent_color}15)` }}
+      >
         <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-purple-600 mx-auto mb-4" />
+          <Loader2 
+            className="h-12 w-12 animate-spin mx-auto mb-4" 
+            style={{ color: branding.primary_color }}
+          />
           <p className="text-gray-600">Loading booking page...</p>
         </div>
       </div>
@@ -98,7 +122,7 @@ export default function UserProfilePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4">
         <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 text-center max-w-md w-full">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <AlertCircle className="h-8 w-8 text-red-600" />
@@ -111,7 +135,8 @@ export default function UserProfilePage() {
           </p>
           <button
             onClick={() => navigate('/')}
-            className="px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition-colors"
+            className="px-6 py-3 text-white rounded-xl font-semibold transition-colors"
+            style={gradientStyle}
           >
             Go to Homepage
           </button>
@@ -121,18 +146,40 @@ export default function UserProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    <div 
+      className="min-h-screen"
+      style={{ background: `linear-gradient(135deg, ${branding.primary_color}10, ${branding.accent_color}10, white)` }}
+    >
       {/* Header */}
       <div className="bg-white border-b">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Calendar className="h-6 w-6 text-purple-600" />
-              <span className="font-bold text-gray-900">TruCal</span>
+              {branding.logo_url ? (
+                <img 
+                  src={branding.logo_url} 
+                  alt="Logo" 
+                  className="h-8 w-8 object-contain rounded-lg"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div 
+                  className="h-8 w-8 rounded-lg flex items-center justify-center"
+                  style={gradientStyle}
+                >
+                  <Calendar className="h-5 w-5 text-white" />
+                </div>
+              )}
+              <span className="font-bold text-gray-900">
+                {profile?.name || username}
+              </span>
             </div>
             <a 
               href="/"
-              className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+              className="text-sm font-medium hover:opacity-80 transition-opacity"
+              style={{ color: branding.primary_color }}
             >
               Create your own →
             </a>
@@ -143,7 +190,10 @@ export default function UserProfilePage() {
       <div className="max-w-4xl mx-auto px-4 py-12">
         {/* Profile Card */}
         <div className="bg-white rounded-3xl shadow-xl overflow-hidden mb-8">
-          <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-12 text-center">
+          <div 
+            className="px-8 py-12 text-center"
+            style={gradientStyle}
+          >
             <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
               {profile?.avatar_url ? (
                 <img 
@@ -151,15 +201,21 @@ export default function UserProfilePage() {
                   alt={profile.name}
                   className="w-24 h-24 rounded-full object-cover"
                 />
+              ) : branding.logo_url ? (
+                <img 
+                  src={branding.logo_url} 
+                  alt="Logo"
+                  className="w-16 h-16 object-contain"
+                />
               ) : (
-                <User className="h-12 w-12 text-purple-600" />
+                <User className="h-12 w-12" style={{ color: branding.primary_color }} />
               )}
             </div>
             <h1 className="text-3xl font-bold text-white mb-2">
               {profile?.name || profile?.username || username}
             </h1>
             {profile?.bio && (
-              <p className="text-purple-100 max-w-md mx-auto">
+              <p className="text-white/90 max-w-md mx-auto">
                 {profile.bio}
               </p>
             )}
@@ -167,7 +223,7 @@ export default function UserProfilePage() {
 
           <div className="p-8">
             <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-purple-600" />
+              <Calendar className="h-5 w-5" style={{ color: branding.primary_color }} />
               Select a Meeting Type
             </h2>
 
@@ -182,16 +238,24 @@ export default function UserProfilePage() {
                   <button
                     key={eventType.id}
                     onClick={() => handleSelectEvent(eventType)}
-                    className="w-full text-left p-6 rounded-2xl border-2 border-gray-100 hover:border-purple-300 hover:bg-purple-50/50 transition-all group"
+                    className="w-full text-left p-6 rounded-2xl border-2 border-gray-100 hover:shadow-lg transition-all group"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = branding.primary_color + '50';
+                      e.currentTarget.style.backgroundColor = branding.primary_color + '08';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = '#f3f4f6';
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
                           <div 
                             className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: eventType.color || '#8B5CF6' }}
+                            style={{ backgroundColor: eventType.color || branding.primary_color }}
                           />
-                          <h3 className="text-lg font-bold text-gray-900 group-hover:text-purple-700 transition-colors">
+                          <h3 className="text-lg font-bold text-gray-900 group-hover:opacity-90 transition-colors">
                             {eventType.name}
                           </h3>
                         </div>
@@ -220,8 +284,14 @@ export default function UserProfilePage() {
                       </div>
                       
                       <div className="ml-4 flex items-center">
-                        <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center group-hover:bg-purple-200 transition-colors">
-                          <ArrowRight className="h-5 w-5 text-purple-600" />
+                        <div 
+                          className="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                          style={{ backgroundColor: branding.primary_color + '20' }}
+                        >
+                          <ArrowRight 
+                            className="h-5 w-5" 
+                            style={{ color: branding.primary_color }}
+                          />
                         </div>
                       </div>
                     </div>
@@ -232,15 +302,21 @@ export default function UserProfilePage() {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="text-center">
-          <p className="text-sm text-gray-500">
-            Powered by{' '}
-            <a href="/" className="text-purple-600 hover:text-purple-700 font-medium">
-              TruCal
-            </a>
-          </p>
-        </div>
+        {/* Footer - conditionally shown based on branding */}
+        {!branding.hide_powered_by && (
+          <div className="text-center">
+            <p className="text-sm text-gray-500">
+              Powered by{' '}
+              <a 
+                href="/" 
+                className="font-medium hover:opacity-80 transition-opacity"
+                style={{ color: branding.primary_color }}
+              >
+                ScheduleSync
+              </a>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

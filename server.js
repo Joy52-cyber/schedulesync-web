@@ -12712,6 +12712,135 @@ module.exports = {
   lastReminderRun
 };
 
+// ============ BRANDING ENDPOINTS ============
+// Add these to server.js
+
+// GET user's branding settings
+app.get('/api/user/branding', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by 
+       FROM users WHERE id = $1`,
+      [req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching branding:', error);
+    res.status(500).json({ error: 'Failed to fetch branding settings' });
+  }
+});
+
+// UPDATE user's branding settings (Pro/Team only)
+app.put('/api/user/branding', authenticateToken, async (req, res) => {
+  try {
+    // Check if user has Pro or Team tier
+    const userResult = await pool.query(
+      'SELECT subscription_tier FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const tier = userResult.rows[0].subscription_tier || 'free';
+    if (tier === 'free') {
+      return res.status(403).json({ error: 'Custom branding requires Pro or Team plan' });
+    }
+
+    const { brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by } = req.body;
+
+    // Validate color format
+    const colorRegex = /^#[0-9A-Fa-f]{6}$/;
+    if (brand_primary_color && !colorRegex.test(brand_primary_color)) {
+      return res.status(400).json({ error: 'Invalid primary color format. Use hex format (e.g., #8B5CF6)' });
+    }
+    if (brand_accent_color && !colorRegex.test(brand_accent_color)) {
+      return res.status(400).json({ error: 'Invalid accent color format. Use hex format (e.g., #EC4899)' });
+    }
+
+    const result = await pool.query(
+      `UPDATE users 
+       SET brand_logo_url = $1,
+           brand_primary_color = $2,
+           brand_accent_color = $3,
+           hide_powered_by = $4,
+           updated_at = NOW()
+       WHERE id = $5
+       RETURNING brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by`,
+      [
+        brand_logo_url || null,
+        brand_primary_color || '#8B5CF6',
+        brand_accent_color || '#EC4899',
+        hide_powered_by || false,
+        req.user.id
+      ]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating branding:', error);
+    res.status(500).json({ error: 'Failed to update branding settings' });
+  }
+});
+
+// Update the /api/book/user/:username endpoint to include branding
+// Find and update the existing endpoint OR add branding to the response:
+/*
+app.get('/api/book/user/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    
+    const userResult = await pool.query(
+      `SELECT id, name, username, email, avatar_url, bio, timezone,
+              brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by
+       FROM users WHERE LOWER(username) = LOWER($1)`,
+      [username]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    const eventTypesResult = await pool.query(
+      `SELECT id, name, slug, description, duration, color, location_type, price
+       FROM event_types WHERE user_id = $1 AND is_active = true
+       ORDER BY created_at ASC`,
+      [user.id]
+    );
+    
+    res.json({
+      user: {
+        name: user.name,
+        username: user.username,
+        avatar_url: user.avatar_url,
+        bio: user.bio,
+        // Include branding
+        branding: {
+          logo_url: user.brand_logo_url,
+          primary_color: user.brand_primary_color || '#8B5CF6',
+          accent_color: user.brand_accent_color || '#EC4899',
+          hide_powered_by: user.hide_powered_by || false,
+        }
+      },
+      eventTypes: eventTypesResult.rows.map(et => ({
+        ...et,
+        price: parseFloat(et.price) || 0,
+      })),
+    });
+  } catch (error) {
+    console.error('Error fetching user profile for booking:', error);
+    res.status(500).json({ error: 'Failed to load booking page' });
+  }
+});
+*/
 
 // ============================================
 // ADD THIS TO server.js - Username-based booking lookup

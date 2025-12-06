@@ -110,7 +110,7 @@ export const UpgradeProvider = ({ children }) => {
     setFeature(null);
   }, []);
 
-  // Check if a feature is at limit
+  // Check if a feature is at limit (or locked for tier)
   const isAtLimit = useCallback((featureName) => {
     switch (featureName) {
       case 'ai_queries':
@@ -124,6 +124,8 @@ export const UpgradeProvider = ({ children }) => {
       case 'teams':
         return currentTier !== 'team';
       case 'templates':
+        return currentTier === 'free';
+      case 'branding':
         return currentTier === 'free';
       default:
         return false;

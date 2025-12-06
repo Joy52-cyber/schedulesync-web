@@ -21,6 +21,18 @@ const UpgradeModal = () => {
   if (!modalOpen && !showPaymentModal) return null;
 
   const featureInfo = {
+      branding: {
+  title: 'Custom Branding',
+  description: 'Make your booking pages match your brand',
+  features: [
+    'Custom logo on booking pages',
+    'Custom brand colors', 
+    'Hide "Powered by ScheduleSync"',
+    'Professional appearance',
+  ],
+  requiredTier: 'pro',
+  ctaText: 'Upgrade to Pro',
+},
     ai_queries: {
       title: 'AI Query Limit Reached',
       description: `You've used ${usage?.ai_queries_used || 0}/${usage?.ai_queries_limit || 10} AI queries this month.`,
