@@ -8,17 +8,41 @@ import {
   Users, 
   Zap,
   TrendingUp,
-  ArrowRight
+  ArrowRight,
+  Loader2
 } from 'lucide-react';
 
 const DashboardUsageWidget = () => {
+  const upgradeContext = useUpgrade();
+  
+  // Safely destructure with defaults
   const { 
-    usage, 
-    currentTier, 
-    showUpgradeModal, 
-    isAtLimit,
-    hasTeamFeature 
-  } = useUpgrade();
+    usage = {
+      ai_queries_used: 0,
+      ai_queries_limit: 10,
+      bookings_used: 0,
+      bookings_limit: 50,
+      event_types_used: 0,
+      event_types_limit: 2,
+      magic_links_used: 0,
+      magic_links_limit: 3
+    }, 
+    currentTier = 'free', 
+    showUpgradeModal = () => {}, 
+    isAtLimit = () => false,
+    hasTeamFeature = () => false,
+    loading = false
+  } = upgradeContext || {};
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+        <span className="ml-2 text-gray-600">Loading usage...</span>
+      </div>
+    );
+  }
 
   // Check if limit is unlimited
   const isUnlimited = (limit) => !limit || limit >= 1000;

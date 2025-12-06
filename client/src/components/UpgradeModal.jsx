@@ -17,30 +17,31 @@ const UpgradeModal = () => {
   const navigate = useNavigate();
   const { modalOpen, modalFeature, closeUpgradeModal, currentTier, usage } = useUpgrade();
 
+  // Don't render if modal is not open
   if (!modalOpen) return null;
 
   const featureInfo = {
     ai_queries: {
       title: 'AI Query Limit Reached',
-      description: `You've used ${usage.ai_queries_used}/${usage.ai_queries_limit} AI queries this month.`,
+      description: `You've used ${usage?.ai_queries_used || 0}/${usage?.ai_queries_limit || 10} AI queries this month.`,
       icon: Bot,
       color: 'purple'
     },
     bookings: {
       title: 'Booking Limit Reached',
-      description: `You've used ${usage.bookings_used}/${usage.bookings_limit} bookings this month.`,
+      description: `You've used ${usage?.bookings_used || 0}/${usage?.bookings_limit || 50} bookings this month.`,
       icon: Calendar,
       color: 'blue'
     },
     event_types: {
       title: 'Event Type Limit Reached',
-      description: `You've created ${usage.event_types_used}/${usage.event_types_limit} event types.`,
+      description: `You've created ${usage?.event_types_used || 0}/${usage?.event_types_limit || 2} event types.`,
       icon: Sparkles,
       color: 'pink'
     },
     magic_links: {
       title: 'Magic Link Limit Reached',
-      description: `You've used ${usage.magic_links_used}/${usage.magic_links_limit} magic links this month.`,
+      description: `You've used ${usage?.magic_links_used || 0}/${usage?.magic_links_limit || 3} magic links this month.`,
       icon: Link,
       color: 'indigo'
     },
