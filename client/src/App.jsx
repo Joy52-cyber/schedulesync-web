@@ -14,6 +14,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 // Auth / Marketing pages
 import Landing from './pages/Landing';
 import AuthPage from './pages/AuthPage';
+import DemoPage from './pages/DemoPage';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -89,6 +90,7 @@ function InnerApp() {
               <Route path="/login" element={<AuthPage />} />
               <Route path="/register" element={<AuthPage />} />
               <Route path="/signup" element={<AuthPage />} />
+              <Route path="/demo" element={<DemoPage />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password/:token" element={<ResetPassword />} />
               <Route path="/verify-email" element={<VerifyEmail />} />

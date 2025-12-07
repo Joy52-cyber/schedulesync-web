@@ -11,7 +11,6 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle,
-  XCircle,
   RefreshCw,
   ExternalLink,
   Unlink,
@@ -28,7 +27,6 @@ import {
   Zap,
   X,
   Link2,
-  FileText,
   CreditCard,
   Palette,
 } from 'lucide-react';
@@ -40,7 +38,6 @@ import api, {
   chatgptIntegration,
 } from '../utils/api';
 
-import SubscriptionSettings from '../components/SubscriptionSettings';
 import BrandingSettings from '../components/BrandingSettings';
 
 
@@ -93,7 +90,6 @@ export default function UserSettings() {
   }, []);
 
   useEffect(() => {
-    // Update active tab when URL changes
     const tabFromUrl = searchParams.get('tab');
     if (tabFromUrl) {
       setActiveTab(tabFromUrl);
@@ -111,7 +107,6 @@ export default function UserSettings() {
         timezone: userData.timezone || 'America/New_York',
       });
 
-      // Find personal team (for reminders)
       const teamsRes = await api.get('/teams');
       const personalTeam = teamsRes.data.teams.find((t) =>
         t.name.includes('Personal Bookings')
@@ -120,7 +115,6 @@ export default function UserSettings() {
       if (personalTeam) {
         setPersonalTeamId(personalTeam.id);
 
-        // Load reminder settings
         try {
           setRemindersLoading(true);
           const remRes = await remindersApi.getSettings(personalTeam.id);
@@ -139,10 +133,8 @@ export default function UserSettings() {
         }
       }
 
-      // Load calendar status
       await loadCalendarStatus();
 
-      // Load ChatGPT token if on integrations tab
       if (activeTab === 'integrations') {
         await loadChatGptToken();
       }
@@ -178,7 +170,6 @@ export default function UserSettings() {
     }
   };
 
-  // ChatGPT Integration Functions
   const loadChatGptToken = async () => {
     setChatgptLoading(true);
     try {
@@ -316,10 +307,8 @@ export default function UserSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Save timezone
       await timezoneApi.update(profile.timezone);
 
-      // Save reminder settings
       if (personalTeamId) {
         await remindersApi.updateSettings(personalTeamId, {
           enabled: reminderSettings.enabled,
@@ -355,7 +344,6 @@ export default function UserSettings() {
   const handleTabChange = async (newTab) => {
     setActiveTab(newTab);
     
-    // Load ChatGPT data when switching to integrations tab
     if (newTab === 'integrations' && !chatgptToken) {
       await loadChatGptToken();
     }
@@ -376,7 +364,7 @@ export default function UserSettings() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Settings</h1>
           <p className="text-gray-500 mt-1 text-sm sm:text-base">Manage your profile, calendars, integrations and notifications</p>
         </div>
-        {activeTab !== 'calendars' && activeTab !== 'integrations' && activeTab !== 'email-templates' && activeTab !== 'branding' && (
+        {activeTab !== 'calendars' && activeTab !== 'integrations' && activeTab !== 'branding' && (
           <button
             onClick={handleSave}
             disabled={saving}
@@ -442,16 +430,6 @@ export default function UserSettings() {
               <Mail size={18} /> Notifications
             </button>
             <button
-              onClick={() => handleTabChange('email-templates')}
-              className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'email-templates'
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <FileText size={18} /> Templates
-            </button>
-            <button
               onClick={() => handleTabChange('branding')}
               className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'branding'
@@ -481,38 +459,20 @@ export default function UserSettings() {
               <h2 className="text-xl font-bold text-gray-900 mb-6">Profile Details</h2>
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={profile.name}
-                    disabled
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                  />
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
+                  <input type="text" value={profile.name} disabled className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-500" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={profile.email}
-                    disabled
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                  />
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+                  <input type="email" value={profile.email} disabled className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-500" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Timezone
-                  </label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Timezone</label>
                   <div className="relative">
                     <Globe className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                     <select
                       value={profile.timezone}
-                      onChange={(e) =>
-                        setProfile({ ...profile, timezone: e.target.value })
-                      }
+                      onChange={(e) => setProfile({ ...profile, timezone: e.target.value })}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                     >
                       <option value="America/New_York">Eastern Time</option>
@@ -534,15 +494,12 @@ export default function UserSettings() {
             <div className="p-4 sm:p-8">
               <div className="mb-6">
                 <h2 className="text-xl font-bold text-gray-900">Integrations</h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Connect external services to enhance your scheduling workflow
-                </p>
+                <p className="text-sm text-gray-500 mt-1">Connect external services to enhance your scheduling workflow</p>
               </div>
 
               <div className="space-y-6 max-w-4xl">
                 {/* ChatGPT Integration */}
                 <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-2xl border-2 border-indigo-200 p-4 sm:p-6 shadow-lg">
-                  {/* Header - Mobile Responsive */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <div className="flex items-center gap-3 sm:gap-4">
                       <div className="h-10 w-10 sm:h-12 sm:w-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
@@ -557,7 +514,6 @@ export default function UserSettings() {
                       </div>
                     </div>
                     
-                    {/* Ready Badge - Responsive */}
                     {chatgptSetupStatus?.has_booking_setup && (
                       <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg border border-green-200 self-start sm:self-auto">
                         <CheckCircle className="h-4 w-4 flex-shrink-0" />
@@ -566,7 +522,6 @@ export default function UserSettings() {
                     )}
                   </div>
 
-                  {/* JWT Token Section */}
                   <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/50 p-4 sm:p-5 mb-5 shadow-sm">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                       <h3 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -578,11 +533,7 @@ export default function UserSettings() {
                         disabled={refreshingChatgptToken}
                         className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium flex items-center gap-1 transition-all disabled:opacity-50 self-start sm:self-auto"
                       >
-                        {refreshingChatgptToken ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <RefreshCw className="h-4 w-4" />
-                        )}
+                        {refreshingChatgptToken ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                         Refresh
                       </button>
                     </div>
@@ -599,30 +550,11 @@ export default function UserSettings() {
                         </div>
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="text-xs text-gray-500 flex flex-wrap items-center gap-2 sm:gap-4">
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              Expires: {chatgptTokenExpiry}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Shield className="h-3 w-3" />
-                              Bearer Token
-                            </span>
+                            <span className="flex items-center gap-1"><Clock className="h-3 w-3" />Expires: {chatgptTokenExpiry}</span>
+                            <span className="flex items-center gap-1"><Shield className="h-3 w-3" />Bearer Token</span>
                           </div>
-                          <button
-                            onClick={handleCopyChatGptToken}
-                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-all shadow-sm w-full sm:w-auto"
-                          >
-                            {chatgptTokenCopied ? (
-                              <>
-                                <Check className="h-4 w-4" />
-                                Copied!
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="h-4 w-4" />
-                                Copy Token
-                              </>
-                            )}
+                          <button onClick={handleCopyChatGptToken} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-all shadow-sm w-full sm:w-auto">
+                            {chatgptTokenCopied ? <><Check className="h-4 w-4" />Copied!</> : <><Copy className="h-4 w-4" />Copy Token</>}
                           </button>
                         </div>
                       </div>
@@ -634,72 +566,32 @@ export default function UserSettings() {
                     )}
                   </div>
 
-                  {/* Action Buttons - Mobile Responsive */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 mb-5">
-                    <button
-                      onClick={handleTestChatGptConnection}
-                      disabled={testingConnection || !chatgptToken}
-                      className="px-4 py-2.5 sm:py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm"
-                    >
-                      {testingConnection ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Testing...
-                        </>
-                      ) : (
-                        <>
-                          <TestTube className="h-4 w-4" />
-                          Test Connection
-                        </>
-                      )}
+                    <button onClick={handleTestChatGptConnection} disabled={testingConnection || !chatgptToken} className="px-4 py-2.5 sm:py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm">
+                      {testingConnection ? <><Loader2 className="h-4 w-4 animate-spin" />Testing...</> : <><TestTube className="h-4 w-4" />Test Connection</>}
                     </button>
-
-                    <button
-                      onClick={handleDownloadSchema}
-                      disabled={!chatgptToken}
-                      className="px-4 py-2.5 sm:py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm"
-                    >
-                      <Download className="h-4 w-4" />
-                      Download Schema
+                    <button onClick={handleDownloadSchema} disabled={!chatgptToken} className="px-4 py-2.5 sm:py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm">
+                      <Download className="h-4 w-4" />Download Schema
                     </button>
-
-                    <button
-                      onClick={() => setShowInstructions(true)}
-                      className="px-4 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all shadow-sm text-sm"
-                    >
-                      <BookOpen className="h-4 w-4" />
-                      Setup Guide
+                    <button onClick={() => setShowInstructions(true)} className="px-4 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all shadow-sm text-sm">
+                      <BookOpen className="h-4 w-4" />Setup Guide
                     </button>
                   </div>
 
-                  {/* Quick Setup Steps */}
                   <div className="p-3 sm:p-4 bg-white/60 backdrop-blur-sm rounded-lg border border-white/50">
                     <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 text-sm sm:text-base">
-                      <Zap className="h-4 w-4 text-yellow-500" />
-                      Quick Setup
+                      <Zap className="h-4 w-4 text-yellow-500" />Quick Setup
                     </h4>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 sm:w-6 sm:h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0">1</div>
-                        <span className="text-gray-700">Copy token</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 sm:w-6 sm:h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0">2</div>
-                        <span className="text-gray-700">Create GPT</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 sm:w-6 sm:h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0">3</div>
-                        <span className="text-gray-700">Import schema</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 sm:w-6 sm:h-6 bg-green-600 text-white rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0">✓</div>
-                        <span className="text-gray-700">Done!</span>
-                      </div>
+                      <div className="flex items-center gap-2"><div className="w-5 h-5 sm:w-6 sm:h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0">1</div><span className="text-gray-700">Copy token</span></div>
+                      <div className="flex items-center gap-2"><div className="w-5 h-5 sm:w-6 sm:h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0">2</div><span className="text-gray-700">Create GPT</span></div>
+                      <div className="flex items-center gap-2"><div className="w-5 h-5 sm:w-6 sm:h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0">3</div><span className="text-gray-700">Import schema</span></div>
+                      <div className="flex items-center gap-2"><div className="w-5 h-5 sm:w-6 sm:h-6 bg-green-600 text-white rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0">✓</div><span className="text-gray-700">Done!</span></div>
                     </div>
                   </div>
                 </div>
 
-                {/* Coming Soon Integrations */}
+                {/* Coming Soon */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <div className="border-2 border-gray-200 rounded-xl p-4 sm:p-6 opacity-60">
                     <div className="flex items-center gap-3 sm:gap-4 mb-3">
@@ -731,14 +623,12 @@ export default function UserSettings() {
             </div>
           )}
 
-          {/* CALENDAR CONNECTIONS TAB */}
+          {/* CALENDARS TAB */}
           {activeTab === 'calendars' && (
             <div className="p-4 sm:p-8">
               <div className="mb-6">
                 <h2 className="text-xl font-bold text-gray-900">Calendar Connections</h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Connect your calendars to prevent double bookings.
-                </p>
+                <p className="text-sm text-gray-500 mt-1">Connect your calendars to prevent double bookings.</p>
               </div>
 
               {calendarLoading ? (
@@ -747,7 +637,7 @@ export default function UserSettings() {
                 </div>
               ) : (
                 <div className="space-y-4 max-w-2xl">
-                  {/* Google Calendar Card */}
+                  {/* Google */}
                   <div className="border-2 border-gray-200 rounded-xl p-4 sm:p-6 hover:border-blue-300 transition-colors">
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                       <div className="flex items-center gap-3 sm:gap-4">
@@ -758,55 +648,35 @@ export default function UserSettings() {
                           <h3 className="font-bold text-gray-900 text-base sm:text-lg">Google Calendar</h3>
                           {calendarStatus.google.connected ? (
                             <div className="space-y-1 mt-1">
-                              <div className="flex items-center gap-2">
-                                <CheckCircle className="h-4 w-4 text-green-600" />
-                                <span className="text-sm text-green-600 font-medium">Connected</span>
-                              </div>
+                              <div className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600" /><span className="text-sm text-green-600 font-medium">Connected</span></div>
                               <p className="text-xs text-gray-500 truncate max-w-[200px]">{calendarStatus.google.email}</p>
-                              <p className="text-xs text-gray-400">
-                                Last synced: {formatLastSync(calendarStatus.google.lastSync)}
-                              </p>
+                              <p className="text-xs text-gray-400">Last synced: {formatLastSync(calendarStatus.google.lastSync)}</p>
                             </div>
                           ) : (
                             <p className="text-sm text-gray-500 mt-1">Not connected</p>
                           )}
                         </div>
                       </div>
-
-                      {/* Buttons - Stack on mobile */}
                       <div className="flex flex-col gap-2 w-full sm:w-auto">
                         {calendarStatus.google.connected ? (
                           <>
-                            <button
-                              onClick={handleSyncCalendar}
-                              disabled={syncing}
-                              className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 w-full sm:w-auto"
-                            >
-                              <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-                              Sync Now
+                            <button onClick={handleSyncCalendar} disabled={syncing} className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 w-full sm:w-auto">
+                              <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />Sync Now
                             </button>
-                            <button
-                              onClick={handleDisconnectGoogle}
-                              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium flex items-center justify-center gap-2 w-full sm:w-auto"
-                            >
-                              <Unlink className="h-4 w-4" />
-                              Disconnect
+                            <button onClick={handleDisconnectGoogle} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium flex items-center justify-center gap-2 w-full sm:w-auto">
+                              <Unlink className="h-4 w-4" />Disconnect
                             </button>
                           </>
                         ) : (
-                          <button
-                            onClick={handleConnectGoogle}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-2 w-full sm:w-auto"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                            Connect
+                          <button onClick={handleConnectGoogle} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-2 w-full sm:w-auto">
+                            <ExternalLink className="h-4 w-4" />Connect
                           </button>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Microsoft Calendar Card */}
+                  {/* Microsoft */}
                   <div className="border-2 border-gray-200 rounded-xl p-4 sm:p-6 hover:border-blue-300 transition-colors">
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                       <div className="flex items-center gap-3 sm:gap-4">
@@ -817,44 +687,28 @@ export default function UserSettings() {
                           <h3 className="font-bold text-gray-900 text-base sm:text-lg">Microsoft Outlook</h3>
                           {calendarStatus.microsoft.connected ? (
                             <div className="space-y-1 mt-1">
-                              <div className="flex items-center gap-2">
-                                <CheckCircle className="h-4 w-4 text-green-600" />
-                                <span className="text-sm text-green-600 font-medium">Connected</span>
-                              </div>
+                              <div className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600" /><span className="text-sm text-green-600 font-medium">Connected</span></div>
                               <p className="text-xs text-gray-500 truncate max-w-[200px]">{calendarStatus.microsoft.email}</p>
-                              <p className="text-xs text-gray-400">
-                                Last synced: {formatLastSync(calendarStatus.microsoft.lastSync)}
-                              </p>
+                              <p className="text-xs text-gray-400">Last synced: {formatLastSync(calendarStatus.microsoft.lastSync)}</p>
                             </div>
                           ) : (
                             <p className="text-sm text-gray-500 mt-1">Not connected</p>
                           )}
                         </div>
                       </div>
-
-                      {/* Button - Responsive */}
                       <div className="w-full sm:w-auto">
                         {calendarStatus.microsoft.connected ? (
-                          <button
-                            className="px-4 py-2 bg-gray-100 text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed w-full sm:w-auto"
-                            disabled
-                          >
-                            Connected
-                          </button>
+                          <button className="px-4 py-2 bg-gray-100 text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed w-full sm:w-auto" disabled>Connected</button>
                         ) : (
-                          <button
-                            onClick={handleConnectMicrosoft}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-2 w-full sm:w-auto"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                            Connect
+                          <button onClick={handleConnectMicrosoft} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-2 w-full sm:w-auto">
+                            <ExternalLink className="h-4 w-4" />Connect
                           </button>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Info Box - MOVED after Microsoft Outlook */}
+                  {/* Info */}
                   <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
                     <div className="flex gap-3">
                       <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -870,7 +724,7 @@ export default function UserSettings() {
                     </div>
                   </div>
 
-                  {/* Calendly Import Card */}
+                  {/* Calendly Import */}
                   <div className="border-2 border-purple-300 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 sm:p-6 hover:border-purple-400 transition-colors">
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                       <div className="flex items-start gap-3 sm:gap-4">
@@ -880,37 +734,18 @@ export default function UserSettings() {
                         <div>
                           <div className="flex flex-wrap items-center gap-2 mb-1">
                             <h3 className="font-bold text-gray-900 text-base sm:text-lg">Import from Calendly</h3>
-                            <span className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full font-semibold">
-                              NEW
-                            </span>
+                            <span className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full font-semibold">NEW</span>
                           </div>
-                          <p className="text-xs sm:text-sm text-purple-700 mb-2">
-                            Migrate your event types, availability, and booking history
-                          </p>
+                          <p className="text-xs sm:text-sm text-purple-700 mb-2">Migrate your event types, availability, and booking history</p>
                           <div className="flex flex-wrap gap-2 text-xs text-purple-600">
-                            <span className="flex items-center gap-1">
-                              <CheckCircle className="h-3 w-3" />
-                              Events
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <CheckCircle className="h-3 w-3" />
-                              Availability
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <CheckCircle className="h-3 w-3" />
-                              Bookings
-                            </span>
+                            <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3" />Events</span>
+                            <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3" />Availability</span>
+                            <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3" />Bookings</span>
                           </div>
                         </div>
                       </div>
-
-                      {/* Button - Responsive */}
-                      <button
-                        onClick={() => window.location.href = '/import/calendly'}
-                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-medium flex items-center justify-center gap-2 w-full sm:w-auto"
-                      >
-                        <Upload className="h-4 w-4" />
-                        Start Import
+                      <button onClick={() => window.location.href = '/import/calendly'} className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-medium flex items-center justify-center gap-2 w-full sm:w-auto">
+                        <Upload className="h-4 w-4" />Start Import
                       </button>
                     </div>
                   </div>
@@ -924,58 +759,30 @@ export default function UserSettings() {
             <div className="p-4 sm:p-8 max-w-xl space-y-8">
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">
-                    Email reminders
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Control reminder emails sent before each meeting.
-                  </p>
+                  <h2 className="text-xl font-bold text-gray-900">Email reminders</h2>
+                  <p className="text-sm text-gray-500 mt-1">Control reminder emails sent before each meeting.</p>
                 </div>
                 <button
                   type="button"
-                  onClick={() =>
-                    setReminderSettings((prev) => ({
-                      ...prev,
-                      enabled: !prev.enabled,
-                    }))
-                  }
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
-                    reminderSettings.enabled ? 'bg-blue-600' : 'bg-gray-300'
-                  }`}
+                  onClick={() => setReminderSettings((prev) => ({ ...prev, enabled: !prev.enabled }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${reminderSettings.enabled ? 'bg-blue-600' : 'bg-gray-300'}`}
                 >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                      reminderSettings.enabled ? 'translate-x-5' : 'translate-x-1'
-                    }`}
-                  />
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${reminderSettings.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
                 </button>
               </div>
 
               {remindersLoading && (
                 <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading reminder settings…
+                  <Loader2 className="h-4 w-4 animate-spin" />Loading reminder settings…
                 </div>
               )}
 
-              <div
-                className={`space-y-6 mt-4 ${
-                  !reminderSettings.enabled ? 'opacity-60 pointer-events-none' : ''
-                }`}
-              >
-                {/* Timing */}
+              <div className={`space-y-6 mt-4 ${!reminderSettings.enabled ? 'opacity-60 pointer-events-none' : ''}`}>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    When should we send the reminder?
-                  </label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">When should we send the reminder?</label>
                   <select
                     value={reminderSettings.hoursBefore}
-                    onChange={(e) =>
-                      setReminderSettings((prev) => ({
-                        ...prev,
-                        hoursBefore: Number(e.target.value),
-                      }))
-                    }
+                    onChange={(e) => setReminderSettings((prev) => ({ ...prev, hoursBefore: Number(e.target.value) }))}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
                   >
                     <option value={1}>1 hour before</option>
@@ -983,43 +790,18 @@ export default function UserSettings() {
                     <option value={6}>6 hours before</option>
                     <option value={24}>24 hours before</option>
                   </select>
-                  <p className="mt-1 text-xs text-gray-400">
-                    Applies to all upcoming meetings booked through your personal link.
-                  </p>
+                  <p className="mt-1 text-xs text-gray-400">Applies to all upcoming meetings booked through your personal link.</p>
                 </div>
 
-                {/* Recipients */}
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-gray-700">
-                    Who should receive reminders?
-                  </h3>
+                  <h3 className="text-sm font-semibold text-gray-700">Who should receive reminders?</h3>
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={reminderSettings.sendToHost}
-                        onChange={(e) =>
-                          setReminderSettings((prev) => ({
-                            ...prev,
-                            sendToHost: e.target.checked,
-                          }))
-                        }
-                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
+                      <input type="checkbox" checked={reminderSettings.sendToHost} onChange={(e) => setReminderSettings((prev) => ({ ...prev, sendToHost: e.target.checked }))} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                       <span>Send to me (host)</span>
                     </label>
                     <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={reminderSettings.sendToGuest}
-                        onChange={(e) =>
-                          setReminderSettings((prev) => ({
-                            ...prev,
-                            sendToGuest: e.target.checked,
-                          }))
-                        }
-                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
+                      <input type="checkbox" checked={reminderSettings.sendToGuest} onChange={(e) => setReminderSettings((prev) => ({ ...prev, sendToGuest: e.target.checked }))} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                       <span>Send to guest</span>
                     </label>
                   </div>
@@ -1027,81 +809,7 @@ export default function UserSettings() {
 
                 <div className="rounded-lg border border-blue-50 bg-blue-50/50 px-4 py-3 text-xs text-blue-800 flex gap-2">
                   <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <p>
-                    Reminders will only be sent for future bookings that have a valid
-                    guest email and are not cancelled.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* EMAIL TEMPLATES TAB */}
-          {activeTab === 'email-templates' && (
-            <div className="p-4 sm:p-8">
-              <div className="mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Email Templates</h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Customize the emails sent to you and your guests
-                </p>
-              </div>
-              
-              <div className="max-w-2xl">
-                {/* Feature Overview */}
-                <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl border-2 border-blue-200 p-4 sm:p-6 mb-6">
-                  <div className="flex flex-col sm:flex-row items-start gap-4">
-                    <div className="h-10 w-10 sm:h-12 sm:w-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
-                      <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2">
-                        Personalize Your Booking Emails
-                      </h3>
-                      <p className="text-gray-600 text-xs sm:text-sm mb-4">
-                        Create custom email templates for booking confirmations, reminders, 
-                        cancellations, and more.
-                      </p>
-                      
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        <span className="px-2 sm:px-3 py-1 bg-white rounded-full text-xs font-medium text-blue-700 border border-blue-200">
-                          ✅ Confirmations
-                        </span>
-                        <span className="px-2 sm:px-3 py-1 bg-white rounded-full text-xs font-medium text-purple-700 border border-purple-200">
-                          ⏰ Reminders
-                        </span>
-                        <span className="px-2 sm:px-3 py-1 bg-white rounded-full text-xs font-medium text-red-700 border border-red-200">
-                          ❌ Cancellations
-                        </span>
-                        <span className="px-2 sm:px-3 py-1 bg-white rounded-full text-xs font-medium text-green-700 border border-green-200">
-                          🔄 Reschedules
-                        </span>
-                      </div>
-
-                      <a
-                        href="/email-templates"
-                        className="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm text-sm"
-                      >
-                        <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
-                        Manage Templates
-                      </a>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick Tips */}
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                  <div className="flex gap-3">
-                    <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-amber-800">
-                      <p className="font-semibold mb-1">Tips for great email templates:</p>
-                      <ul className="space-y-1 text-xs">
-                        <li>• Use variables like <code className="bg-amber-100 px-1 rounded">{'{{attendee_name}}'}</code> to personalize</li>
-                        <li>• Keep subject lines clear with key info</li>
-                        <li>• Include a link for guests to manage booking</li>
-                        <li>• Preview templates before setting as default</li>
-                      </ul>
-                    </div>
-                  </div>
+                  <p>Reminders will only be sent for future bookings that have a valid guest email and are not cancelled.</p>
                 </div>
               </div>
             </div>
@@ -1126,14 +834,12 @@ export default function UserSettings() {
 
             <div className="mb-6">
               <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
-                <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-indigo-600" />
-                ChatGPT Setup Guide
+                <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-indigo-600" />ChatGPT Setup Guide
               </h3>
               <p className="text-gray-600 text-sm">Follow these steps to connect ScheduleSync to ChatGPT</p>
             </div>
 
             <div className="space-y-4 sm:space-y-6">
-              {/* Step 1 */}
               <div className="border border-gray-200 rounded-xl p-4 sm:p-5">
                 <div className="flex items-start gap-3 sm:gap-4">
                   <div className="w-7 h-7 sm:w-8 sm:h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">1</div>
@@ -1147,7 +853,6 @@ export default function UserSettings() {
                 </div>
               </div>
 
-              {/* Step 2 */}
               <div className="border border-gray-200 rounded-xl p-4 sm:p-5">
                 <div className="flex items-start gap-3 sm:gap-4">
                   <div className="w-7 h-7 sm:w-8 sm:h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">2</div>
@@ -1155,34 +860,25 @@ export default function UserSettings() {
                     <h4 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">Create ChatGPT Custom GPT</h4>
                     <p className="text-gray-600 text-sm mb-3">Go to ChatGPT and create a new custom GPT.</p>
                     <a href="https://chat.openai.com/gpts/discovery" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors text-sm">
-                      <ExternalLink className="h-4 w-4" />
-                      Open ChatGPT GPTs
+                      <ExternalLink className="h-4 w-4" />Open ChatGPT GPTs
                     </a>
                   </div>
                 </div>
               </div>
 
-              {/* Step 3 */}
               <div className="border border-gray-200 rounded-xl p-4 sm:p-5">
                 <div className="flex items-start gap-3 sm:gap-4">
                   <div className="w-7 h-7 sm:w-8 sm:h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">3</div>
                   <div className="flex-1">
                     <h4 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">Configure Your GPT</h4>
                     <div className="space-y-2">
-                      <div>
-                        <label className="text-xs sm:text-sm font-medium text-gray-700">Name:</label>
-                        <div className="bg-gray-50 p-2 rounded font-mono text-xs sm:text-sm">AI Meeting Booker</div>
-                      </div>
-                      <div>
-                        <label className="text-xs sm:text-sm font-medium text-gray-700">Description:</label>
-                        <div className="bg-gray-50 p-2 rounded font-mono text-xs sm:text-sm">The fastest way to a confirmed meeting</div>
-                      </div>
+                      <div><label className="text-xs sm:text-sm font-medium text-gray-700">Name:</label><div className="bg-gray-50 p-2 rounded font-mono text-xs sm:text-sm">AI Meeting Booker</div></div>
+                      <div><label className="text-xs sm:text-sm font-medium text-gray-700">Description:</label><div className="bg-gray-50 p-2 rounded font-mono text-xs sm:text-sm">The fastest way to a confirmed meeting</div></div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Step 4 */}
               <div className="border border-gray-200 rounded-xl p-4 sm:p-5">
                 <div className="flex items-start gap-3 sm:gap-4">
                   <div className="w-7 h-7 sm:w-8 sm:h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">4</div>
@@ -1200,7 +896,6 @@ export default function UserSettings() {
                 </div>
               </div>
 
-              {/* Step 5 */}
               <div className="border border-gray-200 rounded-xl p-4 sm:p-5">
                 <div className="flex items-start gap-3 sm:gap-4">
                   <div className="w-7 h-7 sm:w-8 sm:h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">✓</div>
@@ -1208,11 +903,7 @@ export default function UserSettings() {
                     <h4 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">Test Your Integration</h4>
                     <p className="text-gray-600 text-sm mb-3">Try these commands in your ChatGPT:</p>
                     <div className="space-y-2">
-                      {[
-                        '"What\'s my booking link?"',
-                        '"Create a temp link for John"',
-                        '"Find meeting times for next week"',
-                      ].map((command, idx) => (
+                      {['"What\'s my booking link?"', '"Create a temp link for John"', '"Find meeting times for next week"'].map((command, idx) => (
                         <div key={idx} className="bg-gray-50 p-2 rounded font-mono text-xs sm:text-sm">{command}</div>
                       ))}
                     </div>
@@ -1223,15 +914,8 @@ export default function UserSettings() {
 
             <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="text-xs sm:text-sm text-gray-500 text-center sm:text-left">
-                  Need help? Test your connection above or contact support.
-                </div>
-                <button
-                  onClick={() => setShowInstructions(false)}
-                  className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors w-full sm:w-auto"
-                >
-                  Got it!
-                </button>
+                <div className="text-xs sm:text-sm text-gray-500 text-center sm:text-left">Need help? Test your connection above or contact support.</div>
+                <button onClick={() => setShowInstructions(false)} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors w-full sm:w-auto">Got it!</button>
               </div>
             </div>
           </div>

@@ -1,8 +1,11 @@
 ﻿import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import Walkthrough from '../components/Walkthrough';
 
-// Walkthrough steps configuration
-const WALKTHROUGH_STEPS = [
+// Check if mobile screen
+const isMobile = () => window.innerWidth < 768;
+
+// Desktop steps - targets sidebar elements
+const DESKTOP_STEPS = [
   {
     id: 'welcome',
     title: 'Welcome to ScheduleSync! 🎉',
@@ -17,17 +20,15 @@ const WALKTHROUGH_STEPS = [
     description: 'Click the chat bubble in the bottom-right corner to talk to your AI scheduler. Just say "Book a meeting with john@email.com tomorrow at 2pm" and it handles everything!',
     target: '[data-walkthrough="ai-chat"]',
     icon: 'Bot',
-    position: 'top-left',
-    fallbackPosition: 'center'
+    position: 'top-left'
   },
   {
     id: 'availability',
     title: 'Set Your Availability',
-    description: 'Define when you\'re free for meetings. Click "Availability" to set your working hours, buffer times, and booking limits.',
+    description: 'Define when you\'re free for meetings. Set your working hours, buffer times, and booking limits.',
     target: '[data-walkthrough="availability-btn"]',
     icon: 'Clock',
-    position: 'bottom',
-    fallbackPosition: 'center'
+    position: 'bottom'
   },
   {
     id: 'event-types',
@@ -35,8 +36,7 @@ const WALKTHROUGH_STEPS = [
     description: 'Set up different meeting types like "30-min Call", "1-hour Consultation", or "Quick Chat". Each gets its own booking link!',
     target: '[data-walkthrough="events-nav"]',
     icon: 'Sparkles',
-    position: 'right',
-    fallbackPosition: 'center'
+    position: 'right'
   },
   {
     id: 'booking-link',
@@ -44,8 +44,7 @@ const WALKTHROUGH_STEPS = [
     description: 'Copy your personal booking link and share it anywhere. People can book directly on your calendar!',
     target: '[data-walkthrough="my-links-nav"]',
     icon: 'Link',
-    position: 'right',
-    fallbackPosition: 'center'
+    position: 'right'
   },
   {
     id: 'calendar-sync',
@@ -53,8 +52,7 @@ const WALKTHROUGH_STEPS = [
     description: 'Sync with Google or Outlook to automatically check for conflicts. Go to Settings → Calendar to connect.',
     target: '[data-walkthrough="settings-nav"]',
     icon: 'Globe',
-    position: 'right',
-    fallbackPosition: 'center'
+    position: 'right'
   },
   {
     id: 'teams',
@@ -62,8 +60,7 @@ const WALKTHROUGH_STEPS = [
     description: 'Create teams for round-robin booking, collective availability, or weighted distribution. Perfect for sales teams!',
     target: '[data-walkthrough="teams-nav"]',
     icon: 'Users',
-    position: 'right',
-    fallbackPosition: 'center'
+    position: 'right'
   },
   {
     id: 'email-templates',
@@ -71,8 +68,7 @@ const WALKTHROUGH_STEPS = [
     description: 'Personalize confirmation and reminder emails. Add your branding, custom messages, and AI-generated content.',
     target: '[data-walkthrough="email-nav"]',
     icon: 'Mail',
-    position: 'right',
-    fallbackPosition: 'center'
+    position: 'right'
   },
   {
     id: 'complete',
@@ -85,13 +81,72 @@ const WALKTHROUGH_STEPS = [
   }
 ];
 
+// Mobile steps - simplified, no sidebar targets (uses menu icon instead)
+const MOBILE_STEPS = [
+  {
+    id: 'welcome',
+    title: 'Welcome to ScheduleSync! 🎉',
+    description: 'Let\'s take a quick tour to help you get started with AI-powered scheduling.',
+    target: null,
+    icon: 'Calendar',
+    position: 'center'
+  },
+  {
+    id: 'ai-assistant',
+    title: 'Meet Your AI Assistant 🤖',
+    description: 'Tap the purple chat bubble in the bottom-right corner. Say things like "Book a meeting with john@email.com tomorrow at 2pm" and it handles everything!',
+    target: '[data-walkthrough="ai-chat"]',
+    icon: 'Bot',
+    position: 'top'
+  },
+  {
+    id: 'menu',
+    title: 'Open the Menu ☰',
+    description: 'Tap the menu icon in the top-left to access all features: Event Types, My Links, Teams, Email Templates, and Settings.',
+    target: '[data-walkthrough="mobile-menu"]',
+    icon: 'Sparkles',
+    position: 'bottom'
+  },
+  {
+    id: 'features',
+    title: 'Key Features 📋',
+    description: '• Event Types - Create different meeting types\n• My Links - Get your booking link to share\n• Settings - Connect Google/Outlook calendar\n• Teams - Set up team scheduling (Team plan)',
+    target: null,
+    icon: 'CheckCircle',
+    position: 'center'
+  },
+  {
+    id: 'complete',
+    title: 'You\'re All Set! 🚀',
+    description: 'Start by setting your availability and creating your first event type. Need help? Just ask the AI assistant!',
+    target: null,
+    icon: 'CheckCircle',
+    position: 'center',
+    isLast: true
+  }
+];
+
 const WalkthroughContext = createContext(null);
 
 export function WalkthroughProvider({ children }) {
   const [isActive, setIsActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [hasCompleted, setHasCompleted] = useState(true); // Default true to prevent flash
+  const [hasCompleted, setHasCompleted] = useState(true);
   const [showPrompt, setShowPrompt] = useState(false);
+  const [isMobileView, setIsMobileView] = useState(false);
+
+  // Get steps based on screen size
+  const getSteps = useCallback(() => {
+    return isMobileView ? MOBILE_STEPS : DESKTOP_STEPS;
+  }, [isMobileView]);
+
+  // Check screen size on mount and resize
+  useEffect(() => {
+    const checkMobile = () => setIsMobileView(isMobile());
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Check if user has completed walkthrough
   useEffect(() => {
@@ -101,7 +156,6 @@ export function WalkthroughProvider({ children }) {
     
     setHasCompleted(completed === 'true' || dismissed === 'true');
     
-    // Show prompt for new users after a short delay
     if (isNewUser) {
       const timer = setTimeout(() => {
         setShowPrompt(true);
@@ -111,6 +165,7 @@ export function WalkthroughProvider({ children }) {
   }, []);
 
   const startWalkthrough = useCallback(() => {
+    setIsMobileView(isMobile()); // Re-check on start
     setShowPrompt(false);
     setCurrentStep(0);
     setIsActive(true);
@@ -138,13 +193,15 @@ export function WalkthroughProvider({ children }) {
     setHasCompleted(true);
   }, []);
 
+  const steps = getSteps();
+
   const nextStep = useCallback(() => {
-    if (currentStep < WALKTHROUGH_STEPS.length - 1) {
+    if (currentStep < steps.length - 1) {
       setCurrentStep(prev => prev + 1);
     } else {
       endWalkthrough(true);
     }
-  }, [currentStep, endWalkthrough]);
+  }, [currentStep, steps.length, endWalkthrough]);
 
   const prevStep = useCallback(() => {
     if (currentStep > 0) {
@@ -153,12 +210,11 @@ export function WalkthroughProvider({ children }) {
   }, [currentStep]);
 
   const goToStep = useCallback((step) => {
-    if (step >= 0 && step < WALKTHROUGH_STEPS.length) {
+    if (step >= 0 && step < steps.length) {
       setCurrentStep(step);
     }
-  }, []);
+  }, [steps.length]);
 
-  // Reset walkthrough (for testing)
   const resetWalkthrough = useCallback(() => {
     localStorage.removeItem('schedulesync_walkthrough_completed');
     localStorage.removeItem('schedulesync_walkthrough_dismissed');
@@ -169,10 +225,10 @@ export function WalkthroughProvider({ children }) {
   const value = {
     isActive,
     currentStep,
-    totalSteps: WALKTHROUGH_STEPS.length,
+    totalSteps: steps.length,
     hasCompleted,
     showPrompt,
-    currentStepData: WALKTHROUGH_STEPS[currentStep],
+    currentStepData: steps[currentStep],
     startWalkthrough,
     endWalkthrough,
     dismissWalkthrough,
@@ -180,7 +236,8 @@ export function WalkthroughProvider({ children }) {
     nextStep,
     prevStep,
     goToStep,
-    resetWalkthrough
+    resetWalkthrough,
+    isMobileView
   };
 
   return (
@@ -189,8 +246,8 @@ export function WalkthroughProvider({ children }) {
       <Walkthrough
         isActive={isActive}
         currentStep={currentStep}
-        totalSteps={WALKTHROUGH_STEPS.length}
-        currentStepData={WALKTHROUGH_STEPS[currentStep]}
+        totalSteps={steps.length}
+        currentStepData={steps[currentStep]}
         onNext={nextStep}
         onPrev={prevStep}
         onDismiss={dismissWalkthrough}
