@@ -455,7 +455,7 @@ app.use(cors());
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 app.use(express.json());
-
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); 
 
 // ============ LOGO UPLOAD CONFIG ============
 const logoStorage = multer.diskStorage({
@@ -506,7 +506,24 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-
+// Get branding by user ID (public endpoint for booking pages)
+app.get('/api/user/:userId/branding', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const result = await pool.query(
+      `SELECT brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching branding:', error);
+    res.status(500).json({ error: 'Failed to fetch branding' });
+  }
+});
 
 // ============ BRANDING ENDPOINTS ============
 
@@ -1205,25 +1222,26 @@ setInterval(() => {
 app.get('/api/public/booking/:username/:eventSlug', async (req, res) => {
   try {
     const { username, eventSlug } = req.params;
-    console.log(`?? Public Event Type request: ${username}/${eventSlug}`);
-
-    // Find user by username or email prefix
+    console.log(`📅 Public Event Type request: ${username}/${eventSlug}`);
+    
+    // Find user by username or email prefix - NOW WITH BRANDING FIELDS
     const userResult = await pool.query(
-      `SELECT id, name, email, username 
+      `SELECT id, name, email, username,
+              brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by
        FROM users 
        WHERE LOWER(username) = LOWER($1) 
           OR LOWER(email) LIKE LOWER($2)
        LIMIT 1`,
       [username, `${username}%`]
     );
-
+    
     if (userResult.rows.length === 0) {
-      console.log(`? User not found: ${username}`);
+      console.log(`❌ User not found: ${username}`);
       return res.status(404).json({ error: 'User not found' });
     }
-
+    
     const host = userResult.rows[0];
-
+    
     // Find active event type by slug
     const eventResult = await pool.query(
       `SELECT id, title, duration, description, color, slug, is_active
@@ -1233,16 +1251,15 @@ app.get('/api/public/booking/:username/:eventSlug', async (req, res) => {
          AND is_active = true`,
       [host.id, eventSlug]
     );
-
+    
     if (eventResult.rows.length === 0) {
-      console.log(`? Event type not found or inactive: ${eventSlug}`);
+      console.log(`❌ Event type not found or inactive: ${eventSlug}`);
       return res.status(404).json({ error: 'Event type not found or inactive' });
     }
-
+    
     const eventType = eventResult.rows[0];
-
-    console.log(`? Event Type found: ${eventType.title} (${eventType.duration}min)`);
-
+    console.log(`✅ Event Type found: ${eventType.title} (${eventType.duration}min)`);
+    
     res.json({
       success: true,
       host: {
@@ -1258,9 +1275,16 @@ app.get('/api/public/booking/:username/:eventSlug', async (req, res) => {
         color: eventType.color,
         slug: eventType.slug,
       },
+      // ✅ ADD BRANDING
+      branding: {
+        logo_url: host.brand_logo_url,
+        primary_color: host.brand_primary_color || '#3B82F6',
+        accent_color: host.brand_accent_color || '#6366F1',
+        hide_powered_by: host.hide_powered_by || false
+      }
     });
   } catch (error) {
-    console.error('? Error fetching Event Type booking info:', error);
+    console.error('❌ Error fetching Event Type booking info:', error);
     res.status(500).json({ error: 'Failed to load event information' });
   }
 });
