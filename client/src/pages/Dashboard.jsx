@@ -28,11 +28,13 @@ import AISchedulerChat from '../components/AISchedulerChat';
 import { useNotification } from '../contexts/NotificationContext';
 import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal';
 import DashboardUsageWidget from '../components/DashboardUsageWidget';
-
+import { useWalkthrough } from '../context/WalkthroughContext';
+import { WalkthroughPrompt, WalkthroughButton } from '../components/Walkthrough';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const notify = useNotification();
+  const { showPrompt, startWalkthrough, dismissPrompt } = useWalkthrough();
 
   const [stats, setStats] = useState({
     totalBookings: 0,
@@ -283,8 +285,12 @@ export default function Dashboard() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Take a Tour Button */}
+              <WalkthroughButton onClick={startWalkthrough} />
+
               <button
+                data-walkthrough="availability-btn"
                 onClick={() => navigate('/availability')}
                 className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all font-semibold flex items-center gap-2 shadow-sm"
               >
@@ -330,10 +336,18 @@ export default function Dashboard() {
         <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8">
           <div className="space-y-6">
             
+            {/* Walkthrough Prompt for New Users */}
+            {showPrompt && (
+              <WalkthroughPrompt 
+                onStart={startWalkthrough} 
+                onDismiss={dismissPrompt} 
+              />
+            )}
+            
             {/* Critical warning banner */}
             <LimitWarningBanner />
             
-            {/* ✅ NEW: Clean Usage Widget */}
+            {/* Usage Widget */}
             <DashboardUsageWidget />
 
             {/* Upgrade Card for Free Users (Only show if not in critical state) */}

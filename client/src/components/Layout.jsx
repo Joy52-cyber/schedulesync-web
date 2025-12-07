@@ -9,7 +9,9 @@ import {
   ShieldAlert,
   Clock,
   Settings,
-   Link2
+  Link2,
+  Mail,
+  Sparkles
 
 } from "lucide-react";
 import { useState } from "react";
@@ -28,17 +30,18 @@ export default function Layout() {
   const isAdmin = adminEmails.includes(userEmail);
 
   const navigation = [
-  { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-  { name: "Event Types", path: "/events", icon: Clock },
-  { name: "Teams", path: "/teams", icon: Users },
-  { name: "Bookings", path: "/bookings", icon: Calendar },
-  { name: "My Link", path: "/my-links", icon: Link2 },
-  { name: "Settings", path: "/settings", icon: Settings },
-];
+    { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, walkthrough: "dashboard-nav" },
+    { name: "Event Types", path: "/events", icon: Clock, walkthrough: "events-nav" },
+    { name: "Teams", path: "/teams", icon: Users, walkthrough: "teams-nav" },
+    { name: "Bookings", path: "/bookings", icon: Calendar, walkthrough: "bookings-nav" },
+    { name: "My Link", path: "/my-links", icon: Link2, walkthrough: "my-links-nav" },
+    { name: "Email Templates", path: "/email-templates", icon: Mail, walkthrough: "email-nav" },
+    { name: "Settings", path: "/settings", icon: Settings, walkthrough: "settings-nav" },
+  ];
 
   // Add Admin Panel to navigation if user is admin
   if (isAdmin) {
-    navigation.push({ name: "Admin Panel", path: "/admin", icon: ShieldAlert });
+    navigation.push({ name: "Admin Panel", path: "/admin", icon: ShieldAlert, walkthrough: "admin-nav" });
   }
 
   const handleLogout = () => {
@@ -82,6 +85,7 @@ export default function Layout() {
                   <Link
                     key={item.name}
                     to={item.path}
+                    data-walkthrough={item.walkthrough}
                     className={`flex items-center gap-2 px-3 xl:px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
                       isActive
                         ? isAdminLink 
@@ -101,10 +105,10 @@ export default function Layout() {
 
             {/* Right side */}
             <div className="flex items-center gap-3 sm:gap-4">
-  {/* Notification Bell with proper spacing */}
-  <div className="flex-shrink-0">
-    <NotificationBell />
-  </div>
+              {/* Notification Bell with proper spacing */}
+              <div className="flex-shrink-0">
+                <NotificationBell />
+              </div>
 
               <div className="hidden sm:block text-right">
                 <p className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-[150px]">
@@ -145,11 +149,10 @@ export default function Layout() {
         </div>
 
         {/* Mobile menu */}
-        
         {mobileMenuOpen && (
-  <div className="lg:hidden border-t border-gray-200 bg-white shadow-2xl">
-    <div className="px-3 sm:px-4 py-3 space-y-2">
-        <div className="sm:hidden px-4 py-3 bg-gray-50 rounded-lg mb-2">
+          <div className="lg:hidden border-t border-gray-200 bg-white shadow-2xl">
+            <div className="px-3 sm:px-4 py-3 space-y-2">
+              <div className="sm:hidden px-4 py-3 bg-gray-50 rounded-lg mb-2">
                 <p className="text-sm font-semibold text-gray-900 truncate">
                   {user?.name || "User"}
                 </p>
@@ -165,6 +168,7 @@ export default function Layout() {
                   <Link
                     key={item.name}
                     to={item.path}
+                    data-walkthrough={item.walkthrough}
                     onClick={() => setMobileMenuOpen(false)}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
                       isActive

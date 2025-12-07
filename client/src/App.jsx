@@ -19,6 +19,8 @@ import VerifyEmail from './pages/VerifyEmail';
 import OAuthCallback from './pages/OAuthCallback';
 import OnboardingWizard from './pages/OnboardingWizard';
 import AdminPanel from './pages/AdminPanel';
+import { WalkthroughProvider } from './context/WalkthroughContext';
+
 
 // Dashboard Pages
 import Dashboard from './pages/Dashboard';
@@ -81,6 +83,7 @@ function InnerApp() {
       <NotificationProvider>
         <SubscriptionProvider>
           <UpgradeProvider>
+          <WalkthroughProvider> 
             <Routes>
               {/* Marketing / Auth */}
               <Route path="/" element={<Landing />} />
@@ -159,6 +162,7 @@ function InnerApp() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             <UpgradeModal />
+             </WalkthroughProvider> 
           </UpgradeProvider>
         </SubscriptionProvider>
       </NotificationProvider>
