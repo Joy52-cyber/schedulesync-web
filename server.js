@@ -673,12 +673,12 @@ app.delete('/api/user/branding/logo', authenticateToken, async (req, res) => {
 
 
 // ============ USAGE ENFORCEMENT MIDDLEWARE ============
+// Add this to your server.js - replaces existing checkUsageLimits
 
 const checkUsageLimits = async (req, res, next) => {
   try {
     const userId = req.user.id;
     
-    // ? UPDATE: Use the columns we actually set up
     const userResult = await pool.query(
       `SELECT tier, ai_queries_used, ai_queries_limit, monthly_bookings
        FROM users WHERE id = $1`,
@@ -692,38 +692,40 @@ const checkUsageLimits = async (req, res, next) => {
     const user = userResult.rows[0];
     const tier = user.tier || 'free';
     
-    // ? UPDATE: Use the new better limits  
+    // Usage limits by tier
     const usageLimits = {
-      free: { chatgpt: 10, bookings: 50 },     // ? Changed from 3 to 10, 25 to 50
-      pro: { chatgpt: -1, bookings: -1 },     // -1 = unlimited
-      team: { chatgpt: -1, bookings: -1 }
+      free: { ai: 10, bookings: 50 },
+      pro: { ai: -1, bookings: -1 },      // -1 = unlimited
+      team: { ai: -1, bookings: -1 }
     };
     
-    const currentLimits = usageLimits[tier];
+    const currentLimits = usageLimits[tier] || usageLimits.free;
+    const isUnlimited = tier === 'pro' || tier === 'team';
     
     // Check what feature is being accessed
-    const endpoint = req.route.path;
+    const endpoint = req.route?.path || req.path;
     
-    // ? UPDATE: ChatGPT usage check with new column names
-    if (endpoint.includes('/ai/') && currentLimits.chatgpt !== -1) {
-      const used = user.ai_queries_used || 0;  // ? Updated column name
+    // AI usage check
+    if (endpoint.includes('/ai/') && !isUnlimited) {
+      const used = user.ai_queries_used || 0;
+      const limit = user.ai_queries_limit || currentLimits.ai;
       
-      if (used >= currentLimits.chatgpt) {
+      if (used >= limit) {
         return res.status(402).json({ 
           error: 'AI limit reached',
           type: 'usage_limit_exceeded',
           feature: 'ai',
-          usage: { used, limit: currentLimits.chatgpt },
+          usage: { used, limit },
           tier: tier,
           upgrade_required: true,
-          message: `You've used all ${currentLimits.chatgpt} AI queries this month. Upgrade to Pro for unlimited AI assistance!`
+          message: `You've used all ${limit} AI queries this month. Upgrade to Pro for unlimited AI assistance!`
         });
       }
     }
     
-    // ? UPDATE: Booking creation check with new limits
-    if ((endpoint.includes('/bookings') && req.method === 'POST') && currentLimits.bookings !== -1) {
-      const bookingsUsed = user.monthly_bookings || 0;  // ? Use the column we set up
+    // Booking creation check
+    if ((endpoint.includes('/bookings') && req.method === 'POST') && !isUnlimited) {
+      const bookingsUsed = user.monthly_bookings || 0;
       
       if (bookingsUsed >= currentLimits.bookings) {
         return res.status(402).json({
@@ -738,13 +740,15 @@ const checkUsageLimits = async (req, res, next) => {
       }
     }
     
-    // ? UPDATE: Add usage info to request
+    // Add usage info to request for downstream use
     req.userUsage = {
       tier,
+      isUnlimited,
       limits: currentLimits,
-      ai_used: user.ai_queries_used || 0,      // ? Updated
-      ai_limit: user.ai_queries_limit || currentLimits.chatgpt,  // ? Updated
-      bookings_used: user.monthly_bookings || 0
+      ai_used: user.ai_queries_used || 0,
+      ai_limit: isUnlimited ? null : (user.ai_queries_limit || currentLimits.ai),
+      bookings_used: user.monthly_bookings || 0,
+      bookings_limit: isUnlimited ? null : currentLimits.bookings
     };
     
     next();
@@ -753,15 +757,29 @@ const checkUsageLimits = async (req, res, next) => {
     res.status(500).json({ error: 'Usage check failed' });
   }
 };
-// Helper function to increment usage
-const incrementChatGPTUsage = async (userId) => {
+
+// Helper function to increment AI usage - FIXED column name
+const incrementAIUsage = async (userId) => {
   try {
     await pool.query(
-      'UPDATE users SET chatgpt_queries_used = chatgpt_queries_used + 1 WHERE id = $1',
+      'UPDATE users SET ai_queries_used = COALESCE(ai_queries_used, 0) + 1 WHERE id = $1',
+      [userId]
+    );
+    console.log(`✅ AI usage incremented for user ${userId}`);
+  } catch (error) {
+    console.error('Failed to increment AI usage:', error);
+  }
+};
+
+// Helper function to increment booking usage
+const incrementBookingUsage = async (userId) => {
+  try {
+    await pool.query(
+      'UPDATE users SET monthly_bookings = COALESCE(monthly_bookings, 0) + 1 WHERE id = $1',
       [userId]
     );
   } catch (error) {
-    console.error('Failed to increment ChatGPT usage:', error);
+    console.error('Failed to increment booking usage:', error);
   }
 };
 
@@ -10972,60 +10990,51 @@ const trackTemplateUsage = async (templateId, userId, action) => {
 // ================================================================================
 app.get('/api/user/usage', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
-    
-    // Check and reset if needed
-    await checkAndResetIfNeeded(userId);
-    
-    const result = await pool.query(
-      `SELECT 
-        subscription_tier,
-        ai_queries_used,
-        ai_queries_limit,
-        monthly_bookings,
-        bookings_limit,
-        magic_links_used,
-        magic_links_limit,
-        event_types_limit
+    const userResult = await pool.query(
+      `SELECT tier, ai_queries_used, ai_queries_limit, monthly_bookings 
        FROM users WHERE id = $1`,
-      [userId]
+      [req.user.id]
     );
     
-    if (result.rows.length === 0) {
+    if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    const user = result.rows[0];
-    const tier = user.subscription_tier || 'free';
-    
-    // Pro/Team users get unlimited (null = unlimited in frontend)
+    const user = userResult.rows[0];
+    const tier = user.tier || 'free';
     const isUnlimited = tier === 'pro' || tier === 'team';
     
-    // Count event types
-    const eventCountResult = await pool.query(
-      'SELECT COUNT(*) as count FROM event_types WHERE user_id = $1',
-      [userId]
-    );
+    // Default limits
+    const defaultLimits = {
+      free: { ai: 10, bookings: 50, event_types: 2, magic_links: 3 },
+      pro: { ai: null, bookings: null, event_types: null, magic_links: null },
+      team: { ai: null, bookings: null, event_types: null, magic_links: null }
+    };
+    
+    const limits = defaultLimits[tier] || defaultLimits.free;
     
     res.json({
       subscription_tier: tier,
+      tier: tier,
+      is_unlimited: isUnlimited,
+      
+      // AI queries
       ai_queries_used: user.ai_queries_used || 0,
-      ai_queries_limit: isUnlimited ? null : (user.ai_queries_limit || 10),
+      ai_queries_limit: isUnlimited ? null : (user.ai_queries_limit || limits.ai),
+      
+      // Bookings
       bookings_used: user.monthly_bookings || 0,
-      bookings_limit: isUnlimited ? null : (user.bookings_limit || 50),
-      event_types_used: parseInt(eventCountResult.rows[0].count) || 0,
-      event_types_limit: isUnlimited ? null : (user.event_types_limit || 2),
-      magic_links_used: user.magic_links_used || 0,
-      magic_links_limit: isUnlimited ? null : (user.magic_links_limit || 3),
-      is_unlimited: isUnlimited
+      bookings_limit: isUnlimited ? null : limits.bookings,
+      
+      // Other limits
+      event_types_limit: isUnlimited ? null : limits.event_types,
+      magic_links_limit: isUnlimited ? null : limits.magic_links
     });
-    
   } catch (error) {
-    console.error('❌ Failed to fetch usage:', error);
-    res.status(500).json({ error: 'Failed to fetch usage data' });
+    console.error('Error fetching usage:', error);
+    res.status(500).json({ error: 'Failed to fetch usage' });
   }
 });
-
 // ============ AI USAGE TRACKING ============
 async function incrementAIUsage(userId) {
   try {
@@ -11253,13 +11262,14 @@ app.post('/api/subscriptions/billing-portal', authenticateToken, async (req, res
     res.status(500).json({ error: 'Failed to create billing portal session' });
   }
 });
-// ? REPLACE your checkout endpoint with this:
+// ✅ FIXED checkout endpoint - Replace in your server.js
+
 app.post('/api/billing/create-checkout', authenticateToken, async (req, res) => {
   try {
     const { plan } = req.body;
     const userId = req.user.id;
     
-    console.log(`?? Creating checkout session for user ${userId}, plan: ${plan}`);
+    console.log(`💳 Creating checkout session for user ${userId}, plan: ${plan}`);
     
     // Define plan details  
     const plans = {
@@ -11272,35 +11282,37 @@ app.post('/api/billing/create-checkout', authenticateToken, async (req, res) => 
       return res.status(400).json({ error: 'Invalid plan selected' });
     }
     
-    // Update user's plan immediately (simulated success)
+    // ✅ FIXED: Use 'tier' column (not 'subscription_tier') to match middleware
     await pool.query(
-      'UPDATE users SET subscription_tier = $1, subscription_status = $2, ai_queries_limit = $3 WHERE id = $4',
-      [plan, 'active', 999999, userId]
+      `UPDATE users 
+       SET tier = $1, 
+           subscription_tier = $1,
+           subscription_status = 'active', 
+           ai_queries_limit = 999999,
+           ai_queries_used = 0
+       WHERE id = $2`,
+      [plan, userId]
     );
     
-    console.log(`? User ${userId} upgraded to ${plan} plan - SIMULATED SUCCESS`);
+    console.log(`✅ User ${userId} upgraded to ${plan} plan`);
     
-    // ? FIX: Return the field name your frontend expects
     res.json({
       success: true,
-      checkout_url: `${process.env.CLIENT_URL || 'https://schedulesync-web-production.up.railway.app'}/billing?upgraded=true`,  // ? Fixed field name
+      checkout_url: `${process.env.CLIENT_URL || 'https://schedulesync-web-production.up.railway.app'}/billing?upgraded=true`,
       session_id: `sim_${Date.now()}`
     });
     
   } catch (error) {
-    console.error('? Checkout creation failed:', error);
+    console.error('❌ Checkout creation failed:', error);
     res.status(500).json({ error: 'Failed to create checkout session' });
   }
 });
-   
-// Add invoices endpoint (empty for now)
+
+// Add invoices endpoint
 app.get('/api/billing/invoices', authenticateToken, async (req, res) => {
   try {
-    // Return empty invoices for now
-    // Later you can implement actual invoice tracking
     res.json({
       invoices: [
-        // Mock invoice for demo
         {
           id: 'inv_demo',
           amount: 12.00,
@@ -11310,13 +11322,11 @@ app.get('/api/billing/invoices', authenticateToken, async (req, res) => {
         }
       ]
     });
-    
   } catch (error) {
-    console.error('? Invoices error:', error);
+    console.error('❌ Invoices error:', error);
     res.status(500).json({ error: 'Failed to fetch invoices' });
   }
 });
-
 // Billing subscription endpoint (used by /billing page)
 app.get('/api/billing/subscription', authenticateToken, async (req, res) => {
   try {
