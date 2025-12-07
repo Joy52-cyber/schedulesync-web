@@ -506,7 +506,27 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// Get branding by user ID (public endpoint for booking pages)
+// ============ BRANDING ENDPOINTS ============
+
+// ✅ SPECIFIC ROUTE FIRST - GET authenticated user's own branding
+app.get('/api/user/branding', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by 
+       FROM users WHERE id = $1`,
+      [req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching branding:', error);
+    res.status(500).json({ error: 'Failed to fetch branding settings' });
+  }
+});
+
+// ✅ PARAMETERIZED ROUTE AFTER - GET branding by user ID (public endpoint for booking pages)
 app.get('/api/user/:userId/branding', async (req, res) => {
   try {
     const { userId } = req.params;
@@ -522,26 +542,6 @@ app.get('/api/user/:userId/branding', async (req, res) => {
   } catch (error) {
     console.error('Error fetching branding:', error);
     res.status(500).json({ error: 'Failed to fetch branding' });
-  }
-});
-
-// ============ BRANDING ENDPOINTS ============
-
-// GET branding settings - NO tier check needed
-app.get('/api/user/branding', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by 
-       FROM users WHERE id = $1`,
-      [req.user.id]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Error fetching branding:', error);
-    res.status(500).json({ error: 'Failed to fetch branding settings' });
   }
 });
 
@@ -601,7 +601,7 @@ app.post('/api/user/branding/logo', authenticateToken, logoUpload.single('logo')
     // Delete old logo
     const oldLogoUrl = userResult.rows[0].brand_logo_url;
     if (oldLogoUrl && oldLogoUrl.startsWith('/uploads/logos/')) {
-      const oldLogoPath = path.join(__dirname, 'public', oldLogoUrl);
+      const oldLogoPath = path.join(__dirname, 'uploads', 'logos', path.basename(oldLogoUrl));
       if (fs.existsSync(oldLogoPath)) {
         fs.unlinkSync(oldLogoPath);
       }
@@ -623,6 +623,33 @@ app.post('/api/user/branding/logo', authenticateToken, logoUpload.single('logo')
   }
 });
 
+// DELETE logo
+app.delete('/api/user/branding/logo', authenticateToken, async (req, res) => {
+  try {
+    const userResult = await pool.query(
+      'SELECT brand_logo_url FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    
+    const oldLogoUrl = userResult.rows[0]?.brand_logo_url;
+    if (oldLogoUrl && oldLogoUrl.startsWith('/uploads/logos/')) {
+      const oldLogoPath = path.join(__dirname, 'uploads', 'logos', path.basename(oldLogoUrl));
+      if (fs.existsSync(oldLogoPath)) {
+        fs.unlinkSync(oldLogoPath);
+      }
+    }
+
+    await pool.query(
+      'UPDATE users SET brand_logo_url = NULL, updated_at = NOW() WHERE id = $1',
+      [req.user.id]
+    );
+
+    res.json({ message: 'Logo deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting logo:', error);
+    res.status(500).json({ error: 'Failed to delete logo' });
+  }
+});
 
 
 // ============ USAGE ENFORCEMENT MIDDLEWARE ============
