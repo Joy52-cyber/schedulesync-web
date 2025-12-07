@@ -12,7 +12,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 // Auth / Marketing pages
 import Landing from './pages/Landing';
-import AuthPage from './pages/AuthPage';
+//import AuthPage from './pages/AuthPage';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
