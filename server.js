@@ -506,6 +506,52 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// ============ PUBLIC BOOKING PAGE ENDPOINT ============
+app.get('/api/book/user/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    
+    const result = await pool.query(
+      `SELECT id, name, email, username, timezone, 
+              brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by
+       FROM users WHERE LOWER(username) = LOWER($1)`,
+      [username]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = result.rows[0];
+    
+    // Get user's event types
+    const eventTypes = await pool.query(
+      `SELECT id, title, slug, description, duration, color, is_active
+       FROM event_types WHERE user_id = $1 AND is_active = true`,
+      [user.id]
+    );
+    
+    res.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        timezone: user.timezone || 'UTC'
+      },
+      eventTypes: eventTypes.rows,
+      branding: {
+        logo_url: user.brand_logo_url,
+        primary_color: user.brand_primary_color || '#8B5CF6',
+        accent_color: user.brand_accent_color || '#EC4899',
+        hide_powered_by: user.hide_powered_by || false
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching booking page:', error);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
 // ============ BRANDING ENDPOINTS ============
 
 // GET branding settings - NO tier check needed
