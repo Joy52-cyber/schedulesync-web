@@ -121,7 +121,7 @@ export default function AuthPage() {
             {activeTab === 'login' ? 'Welcome back' : 'Create your account'}
           </h2>
           <p className="text-center text-sm text-gray-500 mb-6">
-            {activeTab === 'login' ? 'Log in to manage your scheduling' : 'Get started free — no credit card required'}
+            {activeTab === 'login' ? 'Log in to manage your scheduling' : 'Get started free â€” no credit card required'}
           </p>
 
           {/* OAuth Buttons */}
@@ -180,7 +180,7 @@ export default function AuthPage() {
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all" required minLength={6} />
+                <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" className="w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all" required minLength={6} />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
