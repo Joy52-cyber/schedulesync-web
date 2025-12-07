@@ -1,9 +1,7 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Calendar, Mail, Lock, User, Eye, EyeOff, ArrowRight, Sparkles, Check } from 'lucide-react';
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://schedulesync-api-production.up.railway.app';
+import api from '../utils/api';
 
 export default function AuthPage() {
   const navigate = useNavigate();
@@ -24,13 +22,28 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [lastUsedMethod, setLastUsedMethod] = useState(null);
+
+  // Load last used method from localStorage
+  useEffect(() => {
+    const savedMethod = localStorage.getItem('trucal_lastLoginMethod');
+    if (savedMethod) {
+      setLastUsedMethod(savedMethod);
+    }
+  }, []);
+
+  // Save login method to localStorage
+  const saveLoginMethod = (method) => {
+    localStorage.setItem('trucal_lastLoginMethod', method);
+    setLastUsedMethod(method);
+  };
 
   useEffect(() => {
     const newPath = activeTab === 'login' ? '/login' : '/register';
     if (location.pathname !== newPath) {
       navigate(newPath, { replace: true });
     }
-  }, [activeTab]);
+  }, [activeTab, navigate, location.pathname]);
 
   useEffect(() => {
     setActiveTab(getInitialTab());
@@ -44,8 +57,9 @@ export default function AuthPage() {
 
     try {
       if (activeTab === 'login') {
-        const response = await axios.post(`${API_BASE_URL}/api/auth/login`, { email, password });
-        if (response.data.token) {
+        const response = await api.auth.login(email, password);
+        if (response.data.success && response.data.token) {
+          saveLoginMethod('email');
           localStorage.setItem('token', response.data.token);
           localStorage.setItem('user', JSON.stringify(response.data.user));
           navigate('/dashboard');
@@ -56,8 +70,9 @@ export default function AuthPage() {
           setIsLoading(false);
           return;
         }
-        const response = await axios.post(`${API_BASE_URL}/api/auth/register`, { name, email, password });
+        const response = await api.auth.register(name, email, password);
         if (response.data.token) {
+          saveLoginMethod('email');
           localStorage.setItem('token', response.data.token);
           localStorage.setItem('user', JSON.stringify(response.data.user));
           navigate('/dashboard');
@@ -73,8 +88,64 @@ export default function AuthPage() {
     }
   };
 
-  const handleOAuthLogin = (provider) => {
-    window.location.href = `${API_BASE_URL}/api/auth/${provider}`;
+  const handleGoogleLogin = async () => {
+    try {
+      setError('');
+      setIsLoading(true);
+      console.log('🟢 Google login clicked');
+      const response = await api.oauth.getGoogleUrl();
+      console.log('🟢 Google OAuth URL response:', response.data);
+      
+      if (response.data.url) {
+        console.log('🟢 Redirecting to:', response.data.url);
+        saveLoginMethod('google');
+        window.location.href = response.data.url;
+      } else {
+        throw new Error('No URL in response');
+      }
+    } catch (err) {
+      console.error('❌ Google auth error:', err);
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to start Google login');
+      setIsLoading(false);
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    try {
+      setError('');
+      setIsLoading(true);
+      console.log('🟦 Microsoft login clicked');
+
+      const response = await api.oauth.getMicrosoftUrl();
+      console.log('🟦 Microsoft OAuth URL response:', response.data);
+
+      if (response.data.error) {
+        setError(response.data.message || response.data.error);
+        setIsLoading(false);
+        return;
+      }
+
+      if (response.data.url) {
+        console.log('🟦 Redirecting to:', response.data.url);
+        saveLoginMethod('microsoft');
+        window.location.href = response.data.url;
+      } else {
+        throw new Error('No URL in response');
+      }
+    } catch (err) {
+      console.error('❌ Microsoft auth error:', err);
+      
+      if (err.response?.status === 503) {
+        setError('⚠️ Microsoft integration is not yet configured. Please use another sign-in method.');
+      } else {
+        setError(
+          err.response?.data?.message || 
+          err.response?.data?.error || 
+          'Failed to start Microsoft login. Please try again.'
+        );
+      }
+      setIsLoading(false);
+    }
   };
 
   const features = [
@@ -87,7 +158,6 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left Panel - Auth Form */}
       <div className="flex-1 flex flex-col justify-center px-6 py-12 lg:px-8 bg-white">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <Link to="/" className="flex items-center justify-center gap-2 mb-8">
@@ -97,7 +167,6 @@ export default function AuthPage() {
             <span className="font-bold text-xl text-gray-900">ScheduleSync</span>
           </Link>
 
-          {/* Tab Switcher */}
           <div className="flex bg-gray-100 rounded-xl p-1 mb-8">
             <button
               onClick={() => setActiveTab('login')}
@@ -126,7 +195,21 @@ export default function AuthPage() {
 
           {/* OAuth Buttons */}
           <div className="space-y-3 mb-6">
-            <button onClick={() => handleOAuthLogin('google')} className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all">
+            <button 
+              onClick={handleGoogleLogin} 
+              disabled={isLoading}
+              className={`relative w-full flex items-center justify-center gap-3 px-4 py-3 border rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                lastUsedMethod === 'google' 
+                  ? 'border-green-300 bg-green-50/50' 
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              {lastUsedMethod === 'google' && (
+                <span className="absolute -top-2 -right-2 flex items-center gap-1 bg-green-500 text-white text-[10px] font-medium px-2 py-0.5 rounded-full">
+                  <Check className="h-3 w-3" />
+                  Last used
+                </span>
+              )}
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -135,7 +218,21 @@ export default function AuthPage() {
               </svg>
               Continue with Google
             </button>
-            <button onClick={() => handleOAuthLogin('microsoft')} className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all">
+            <button 
+              onClick={handleMicrosoftLogin} 
+              disabled={isLoading}
+              className={`relative w-full flex items-center justify-center gap-3 px-4 py-3 border rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                lastUsedMethod === 'microsoft' 
+                  ? 'border-green-300 bg-green-50/50' 
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              {lastUsedMethod === 'microsoft' && (
+                <span className="absolute -top-2 -right-2 flex items-center gap-1 bg-green-500 text-white text-[10px] font-medium px-2 py-0.5 rounded-full">
+                  <Check className="h-3 w-3" />
+                  Last used
+                </span>
+              )}
               <svg className="w-5 h-5" viewBox="0 0 23 23">
                 <path fill="#f35325" d="M1 1h10v10H1z"/>
                 <path fill="#81bc06" d="M12 1h10v10H12z"/>
@@ -202,12 +299,15 @@ export default function AuthPage() {
           </form>
 
           <p className="mt-6 text-center text-sm text-gray-500">
-            {activeTab === 'login' ? <>Don't have an account? <button onClick={() => setActiveTab('signup')} className="text-purple-600 hover:text-purple-700 font-semibold">Sign up free</button></> : <>Already have an account? <button onClick={() => setActiveTab('login')} className="text-purple-600 hover:text-purple-700 font-semibold">Log in</button></>}
+            {activeTab === 'login' ? (
+              <>Don't have an account? <button onClick={() => setActiveTab('signup')} className="text-purple-600 hover:text-purple-700 font-semibold">Sign up free</button></>
+            ) : (
+              <>Already have an account? <button onClick={() => setActiveTab('login')} className="text-purple-600 hover:text-purple-700 font-semibold">Log in</button></>
+            )}
           </p>
         </div>
       </div>
 
-      {/* Right Panel - Feature Showcase (hidden on mobile) */}
       <div className="hidden lg:flex lg:flex-1 bg-gradient-to-br from-purple-600 via-purple-700 to-pink-600 relative overflow-hidden">
         <div className="absolute inset-0">
           <div className="absolute top-20 right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
