@@ -14,10 +14,8 @@ import {
   Plus,
   X
 } from 'lucide-react';
-import LoginPanel from '../components/LoginPanel';
 
-export default function Landing({ defaultLoginOpen = false }) {
-  const [isLoginOpen, setIsLoginOpen] = useState(defaultLoginOpen);
+export default function Landing() {
   const [bookingLink, setBookingLink] = useState('');
   const [detectedSource, setDetectedSource] = useState(null);
   const [showConnectionOptions, setShowConnectionOptions] = useState(false);
@@ -99,13 +97,13 @@ export default function Landing({ defaultLoginOpen = false }) {
         <div className="font-bold text-center mb-2 text-xs">How do you want to connect?</div>
         
         <div className="flex flex-col gap-2">
-          <button type="button" onClick={() => setIsLoginOpen(true)} className="w-full flex items-center justify-between rounded-lg bg-white text-slate-900 px-3 py-2 text-xs font-bold hover:bg-slate-100 transition-all">
+          <button type="button" onClick={() => navigate('/login')} className="w-full flex items-center justify-between rounded-lg bg-white text-slate-900 px-3 py-2 text-xs font-bold hover:bg-slate-100 transition-all">
             <span>Connect Google / Outlook</span>
             <span className="text-[10px] text-slate-500 font-medium">Recommended</span>
           </button>
 
           {isCalendly && (
-            <button type="button" onClick={() => setIsLoginOpen(true)} className="w-full flex items-center justify-between rounded-lg bg-sky-100 text-sky-900 px-3 py-2 text-xs font-bold hover:bg-sky-200 transition-all">
+            <button type="button" onClick={() => navigate('/login')} className="w-full flex items-center justify-between rounded-lg bg-sky-100 text-sky-900 px-3 py-2 text-xs font-bold hover:bg-sky-200 transition-all">
               <span>Connect Calendly</span>
               <span className="text-[10px] text-sky-700 font-medium">Uses existing link</span>
             </button>
@@ -118,7 +116,7 @@ export default function Landing({ defaultLoginOpen = false }) {
         </div>
         
         <div className="text-center mt-2 text-[10px] text-white/60">
-          Already have an account? <button onClick={() => setIsLoginOpen(true)} className="text-white font-semibold hover:underline ml-1">Sign in</button>
+          Already have an account? <button onClick={() => navigate('/login')} className="text-white font-semibold hover:underline ml-1">Sign in</button>
         </div>
       </div>
     );
@@ -250,7 +248,7 @@ export default function Landing({ defaultLoginOpen = false }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-white font-sans">
-      <LoginPanel isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
+
 
       {/* ================= HEADER ================= */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100">
