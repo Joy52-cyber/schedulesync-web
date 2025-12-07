@@ -190,7 +190,6 @@ async function callAnthropicWithRetry(requestBody, retries = 2) {
 // ============================================
 // HELPER FUNCTIONS - Add after imports
 // ============================================
-
 // Fixed Gemini API call with retry
 async function callGeminiWithRetry(requestBody, retries = 2) {
   for (let i = 0; i <= retries; i++) {
@@ -198,17 +197,29 @@ async function callGeminiWithRetry(requestBody, retries = 2) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
       
-      // ✅ FIXED: Proper template literal syntax
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal
-      });
+      // ✅ FIXED: Proper fetch syntax (not template literal)
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, 
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
+        }
+      );
       
       clearTimeout(timeout);
+      
+      // Handle rate limiting with exponential backoff
+      if (response.status === 429) {
+        const waitTime = Math.pow(2, i + 1) * 1000; // 2s, 4s, 8s
+        console.log(`⏳ Rate limited, waiting ${waitTime/1000}s before retry ${i + 1}/${retries}`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue;
+      }
+      
       return response;
       
     } catch (error) {
@@ -220,7 +231,7 @@ async function callGeminiWithRetry(requestBody, retries = 2) {
   }
 }
 
-// If you actually want Anthropic API, use this instead:
+// Anthropic API with retry (if you want to use Claude instead)
 async function callAnthropicWithRetry(requestBody, retries = 2) {
   for (let i = 0; i <= retries; i++) {
     try {
@@ -239,6 +250,15 @@ async function callAnthropicWithRetry(requestBody, retries = 2) {
       });
       
       clearTimeout(timeout);
+      
+      // Handle rate limiting
+      if (response.status === 429) {
+        const waitTime = Math.pow(2, i + 1) * 1000;
+        console.log(`⏳ Rate limited, waiting ${waitTime/1000}s before retry`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue;
+      }
+      
       return response;
       
     } catch (error) {
@@ -10976,6 +10996,10 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
     }
     
     const user = result.rows[0];
+    const tier = user.subscription_tier || 'free';
+    
+    // Pro/Team users get unlimited (null = unlimited in frontend)
+    const isUnlimited = tier === 'pro' || tier === 'team';
     
     // Count event types
     const eventCountResult = await pool.query(
@@ -10984,15 +11008,16 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
     );
     
     res.json({
-      subscription_tier: user.subscription_tier || 'free',
+      subscription_tier: tier,
       ai_queries_used: user.ai_queries_used || 0,
-      ai_queries_limit: user.ai_queries_limit || 10,
+      ai_queries_limit: isUnlimited ? null : (user.ai_queries_limit || 10),
       bookings_used: user.monthly_bookings || 0,
-      bookings_limit: user.bookings_limit || 50,
+      bookings_limit: isUnlimited ? null : (user.bookings_limit || 50),
       event_types_used: parseInt(eventCountResult.rows[0].count) || 0,
-      event_types_limit: user.event_types_limit || 2,
+      event_types_limit: isUnlimited ? null : (user.event_types_limit || 2),
       magic_links_used: user.magic_links_used || 0,
-      magic_links_limit: user.magic_links_limit || 3
+      magic_links_limit: isUnlimited ? null : (user.magic_links_limit || 3),
+      is_unlimited: isUnlimited
     });
     
   } catch (error) {

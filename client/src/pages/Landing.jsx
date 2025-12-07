@@ -271,19 +271,22 @@ export default function Landing({ defaultLoginOpen = false }) {
               <a href="#compare" className="text-gray-600 hover:text-gray-900 font-medium">Compare</a>
             </div>
 
-            {/* Desktop Auth Buttons - hidden on mobile */}
-            <div className="hidden md:flex items-center gap-3">
+            {/* Auth Buttons - visible on all screen sizes */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Log in - always visible */}
               <button 
-                onClick={() => setIsLoginOpen(true)}
-                className="text-sm font-medium text-gray-600 hover:text-gray-900"
+                onClick={() => navigate('/login')}
+                className="text-sm font-medium text-gray-600 hover:text-gray-900 px-2 sm:px-3 py-2"
               >
                 Log in
               </button>
+              {/* Get Started - always visible but smaller on mobile */}
               <button 
                 onClick={() => navigate('/register')}
-                className="text-sm font-bold bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full px-4 py-2 hover:shadow-lg transition-all"
+                className="text-xs sm:text-sm font-bold bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full px-3 sm:px-4 py-2 hover:shadow-lg transition-all"
               >
-                Get Started Free
+                <span className="hidden sm:inline">Get Started Free</span>
+                <span className="sm:hidden">Sign Up</span>
               </button>
             </div>
           </div>

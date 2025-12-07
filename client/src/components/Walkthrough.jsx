@@ -17,6 +17,50 @@ import {
   Globe
 } from 'lucide-react';
 
+// Inject walkthrough CSS once
+const WALKTHROUGH_STYLES = `
+  @keyframes walkthrough-pulse {
+    0%, 100% { 
+      box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.9),
+                  0 0 20px 8px rgba(168, 85, 247, 0.4),
+                  0 0 40px 16px rgba(236, 72, 153, 0.2);
+    }
+    50% { 
+      box-shadow: 0 0 0 6px rgba(168, 85, 247, 1),
+                  0 0 30px 12px rgba(168, 85, 247, 0.6),
+                  0 0 60px 24px rgba(236, 72, 153, 0.3);
+    }
+  }
+  
+  @keyframes walkthrough-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  
+  .walkthrough-spotlight-pulse {
+    animation: walkthrough-pulse 1.5s ease-in-out infinite;
+  }
+  
+  .walkthrough-highlighted {
+    position: relative !important;
+    z-index: 9999 !important;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(236, 72, 153, 0.15)) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.5) !important;
+  }
+`;
+
+// Inject styles on first import
+if (typeof document !== 'undefined') {
+  const styleId = 'walkthrough-styles';
+  if (!document.getElementById(styleId)) {
+    const styleEl = document.createElement('style');
+    styleEl.id = styleId;
+    styleEl.textContent = WALKTHROUGH_STYLES;
+    document.head.appendChild(styleEl);
+  }
+}
+
 // Icon mapping
 const ICONS = {
   Calendar,
@@ -87,25 +131,64 @@ function getTooltipPosition(targetEl, position) {
   return style;
 }
 
-// Spotlight/highlight component
-function Spotlight({ targetEl }) {
+// Spotlight/highlight component with enhanced emphasis
+function Spotlight({ targetEl, position }) {
   const [style, setStyle] = useState(null);
+  const [arrowStyle, setArrowStyle] = useState(null);
 
   useEffect(() => {
     if (!targetEl) {
       setStyle(null);
+      setArrowStyle(null);
       return;
     }
 
     const updatePosition = () => {
       const rect = targetEl.getBoundingClientRect();
-      const padding = 8;
+      const padding = 12;
       setStyle({
         top: rect.top - padding,
         left: rect.left - padding,
         width: rect.width + padding * 2,
         height: rect.height + padding * 2,
       });
+
+      // Calculate arrow position based on tooltip position
+      const arrowSize = 32;
+      let arrow = {};
+      switch (position) {
+        case 'bottom':
+          arrow = {
+            top: rect.bottom + 8,
+            left: rect.left + rect.width / 2 - arrowSize / 2,
+            transform: 'rotate(180deg)',
+          };
+          break;
+        case 'top':
+          arrow = {
+            top: rect.top - arrowSize - 8,
+            left: rect.left + rect.width / 2 - arrowSize / 2,
+            transform: 'rotate(0deg)',
+          };
+          break;
+        case 'left':
+          arrow = {
+            top: rect.top + rect.height / 2 - arrowSize / 2,
+            left: rect.left - arrowSize - 8,
+            transform: 'rotate(90deg)',
+          };
+          break;
+        case 'right':
+          arrow = {
+            top: rect.top + rect.height / 2 - arrowSize / 2,
+            left: rect.right + 8,
+            transform: 'rotate(-90deg)',
+          };
+          break;
+        default:
+          arrow = null;
+      }
+      setArrowStyle(arrow);
     };
 
     updatePosition();
@@ -116,18 +199,72 @@ function Spotlight({ targetEl }) {
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition);
     };
-  }, [targetEl]);
+  }, [targetEl, position]);
 
   if (!style) return null;
 
   return (
-    <div
-      className="fixed rounded-xl ring-4 ring-purple-500 ring-opacity-75 pointer-events-none z-[9998] transition-all duration-300"
-      style={{
-        ...style,
-        boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.6)'
-      }}
-    />
+    <>
+      {/* Dark overlay with cutout */}
+      <div
+        className="fixed rounded-2xl pointer-events-none z-[9998] transition-all duration-300"
+        style={{
+          ...style,
+          boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.75)'
+        }}
+      />
+      
+      {/* Pulsing glow ring */}
+      <div
+        className="fixed rounded-2xl pointer-events-none z-[9998] transition-all duration-300 walkthrough-spotlight-pulse"
+        style={style}
+      />
+      
+      {/* Inner highlight border */}
+      <div
+        className="fixed rounded-2xl border-2 border-white/50 pointer-events-none z-[9998] transition-all duration-300"
+        style={style}
+      />
+      
+      {/* "Look here" label */}
+      <div
+        className="fixed z-[9999] pointer-events-none animate-bounce"
+        style={{
+          top: style.top - 36,
+          left: style.left + style.width / 2,
+          transform: 'translateX(-50%)'
+        }}
+      >
+        <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
+          <Sparkles className="w-3 h-3" />
+          Look here!
+        </div>
+      </div>
+      
+      {/* Animated arrow pointer */}
+      {arrowStyle && (
+        <div
+          className="fixed z-[9999] pointer-events-none"
+          style={arrowStyle}
+        >
+          <svg 
+            width="32" 
+            height="32" 
+            viewBox="0 0 32 32" 
+            className="animate-bounce text-purple-500 drop-shadow-lg"
+          >
+            <path 
+              d="M16 4 L16 24 M8 16 L16 24 L24 16" 
+              stroke="currentColor" 
+              strokeWidth="4" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+              fill="none"
+            />
+          </svg>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -144,6 +281,27 @@ export default function Walkthrough({
 }) {
   const [targetEl, setTargetEl] = useState(null);
   const [tooltipStyle, setTooltipStyle] = useState({});
+
+  // Apply/remove highlight styles to target element
+  useEffect(() => {
+    if (!targetEl) return;
+
+    // Add walkthrough highlight class
+    targetEl.classList.add('walkthrough-highlighted');
+    targetEl.style.position = 'relative';
+    targetEl.style.zIndex = '9999';
+    targetEl.style.transform = 'scale(1.05)';
+    targetEl.style.transition = 'transform 0.3s ease';
+
+    return () => {
+      // Clean up styles when step changes
+      targetEl.classList.remove('walkthrough-highlighted');
+      targetEl.style.position = '';
+      targetEl.style.zIndex = '';
+      targetEl.style.transform = '';
+      targetEl.style.transition = '';
+    };
+  }, [targetEl]);
 
   useEffect(() => {
     if (!isActive || !currentStepData) return;
@@ -207,7 +365,7 @@ export default function Walkthrough({
       />
 
       {/* Spotlight on target element */}
-      <Spotlight targetEl={targetEl} />
+      <Spotlight targetEl={targetEl} position={currentStepData?.position} />
 
       {/* Tooltip */}
       <div

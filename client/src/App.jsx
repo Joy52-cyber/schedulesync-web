@@ -12,6 +12,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 // Auth / Marketing pages
 import Landing from './pages/Landing';
+import AuthPage from './pages/AuthPage';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -19,8 +20,7 @@ import VerifyEmail from './pages/VerifyEmail';
 import OAuthCallback from './pages/OAuthCallback';
 import OnboardingWizard from './pages/OnboardingWizard';
 import AdminPanel from './pages/AdminPanel';
-import { WalkthroughProvider } from './context/WalkthroughContext';
-
+import DemoPage from './pages/DemoPage';
 
 // Dashboard Pages
 import Dashboard from './pages/Dashboard';
@@ -34,7 +34,6 @@ import EmailTemplates from './pages/EmailTemplates';
 import MyLinks from './pages/MyLinks';
 import BillingSettings from './pages/BillingSettings';
 import BillingPage from './pages/BillingPage';
-import DemoPage from './pages/DemoPage';
 
 // Team
 import Teams from './pages/Teams';
@@ -83,12 +82,13 @@ function InnerApp() {
       <NotificationProvider>
         <SubscriptionProvider>
           <UpgradeProvider>
-          <WalkthroughProvider> 
             <Routes>
               {/* Marketing / Auth */}
               <Route path="/" element={<Landing />} />
-              <Route path="/login" element={<Landing defaultLoginOpen />} />
-              <Route path="/register" element={<LoginWrapper Component={Register} />} />
+              <Route path="/login" element={<AuthPage />} />
+              <Route path="/register" element={<AuthPage />} />
+              <Route path="/signup" element={<AuthPage />} />
+              <Route path="/demo" element={<DemoPage />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password/:token" element={<ResetPassword />} />
               <Route path="/verify-email" element={<VerifyEmail />} />
@@ -123,7 +123,6 @@ function InnerApp() {
               <Route path="/booking-success" element={<BookingConfirmation />} />
               <Route path="/booking-confirmation" element={<BookingConfirmation />} />
               <Route path="/import/calendly" element={<CalendlyMigration />} />
-              <Route path="/demo" element={<DemoPage />} />
 
               {/* Protected App Layout */}
               <Route element={
@@ -162,7 +161,6 @@ function InnerApp() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             <UpgradeModal />
-             </WalkthroughProvider> 
           </UpgradeProvider>
         </SubscriptionProvider>
       </NotificationProvider>
