@@ -9,7 +9,6 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Determine initial tab from URL path
   const getInitialTab = () => {
     if (location.pathname === '/login') return 'login';
     if (location.pathname === '/register' || location.pathname === '/signup') return 'signup';
@@ -21,14 +20,11 @@ export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  
-  // Form fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [agreeTerms, setAgreeTerms] = useState(false);
 
-  // Update URL when tab changes
   useEffect(() => {
     const newPath = activeTab === 'login' ? '/login' : '/register';
     if (location.pathname !== newPath) {
@@ -36,7 +32,6 @@ export default function AuthPage() {
     }
   }, [activeTab]);
 
-  // Update tab when URL changes
   useEffect(() => {
     setActiveTab(getInitialTab());
   }, [location.pathname]);
@@ -49,31 +44,19 @@ export default function AuthPage() {
 
     try {
       if (activeTab === 'login') {
-        // Login
-        const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
-          email,
-          password
-        });
-        
+        const response = await axios.post(`${API_BASE_URL}/api/auth/login`, { email, password });
         if (response.data.token) {
           localStorage.setItem('token', response.data.token);
           localStorage.setItem('user', JSON.stringify(response.data.user));
           navigate('/dashboard');
         }
       } else {
-        // Register
         if (!agreeTerms) {
           setError('Please agree to the Terms of Service and Privacy Policy');
           setIsLoading(false);
           return;
         }
-        
-        const response = await axios.post(`${API_BASE_URL}/api/auth/register`, {
-          name,
-          email,
-          password
-        });
-        
+        const response = await axios.post(`${API_BASE_URL}/api/auth/register`, { name, email, password });
         if (response.data.token) {
           localStorage.setItem('token', response.data.token);
           localStorage.setItem('user', JSON.stringify(response.data.user));
@@ -84,7 +67,7 @@ export default function AuthPage() {
         }
       }
     } catch (err) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Something went wrong. Please try again.');
+      setError(err.response?.data?.error || err.response?.data?.message || 'Something went wrong.');
     } finally {
       setIsLoading(false);
     }
@@ -107,7 +90,6 @@ export default function AuthPage() {
       {/* Left Panel - Auth Form */}
       <div className="flex-1 flex flex-col justify-center px-6 py-12 lg:px-8 bg-white">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          {/* Logo */}
           <Link to="/" className="flex items-center justify-center gap-2 mb-8">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg">
               <Calendar className="w-6 h-6 text-white" />
@@ -120,9 +102,7 @@ export default function AuthPage() {
             <button
               onClick={() => setActiveTab('login')}
               className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${
-                activeTab === 'login'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                activeTab === 'login' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               Log in
@@ -130,31 +110,23 @@ export default function AuthPage() {
             <button
               onClick={() => setActiveTab('signup')}
               className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${
-                activeTab === 'signup'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                activeTab === 'signup' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               Sign up
             </button>
           </div>
 
-          {/* Title */}
           <h2 className="text-center text-2xl font-bold text-gray-900 mb-2">
             {activeTab === 'login' ? 'Welcome back' : 'Create your account'}
           </h2>
           <p className="text-center text-sm text-gray-500 mb-6">
-            {activeTab === 'login' 
-              ? 'Log in to manage your scheduling' 
-              : 'Get started free — no credit card required'}
+            {activeTab === 'login' ? 'Log in to manage your scheduling' : 'Get started free — no credit card required'}
           </p>
 
           {/* OAuth Buttons */}
           <div className="space-y-3 mb-6">
-            <button
-              onClick={() => handleOAuthLogin('google')}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all"
-            >
+            <button onClick={() => handleOAuthLogin('google')} className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all">
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -163,11 +135,7 @@ export default function AuthPage() {
               </svg>
               Continue with Google
             </button>
-
-            <button
-              onClick={() => handleOAuthLogin('microsoft')}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all"
-            >
+            <button onClick={() => handleOAuthLogin('microsoft')} className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all">
               <svg className="w-5 h-5" viewBox="0 0 23 23">
                 <path fill="#f35325" d="M1 1h10v10H1z"/>
                 <path fill="#81bc06" d="M12 1h10v10H12z"/>
@@ -178,93 +146,42 @@ export default function AuthPage() {
             </button>
           </div>
 
-          {/* Divider */}
           <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200"></div>
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="px-3 bg-white text-gray-400 uppercase tracking-wide">Or continue with email</span>
-            </div>
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div>
+            <div className="relative flex justify-center text-xs"><span className="px-3 bg-white text-gray-400 uppercase tracking-wide">Or continue with email</span></div>
           </div>
 
-          {/* Error/Success Messages */}
-          {error && (
-            <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">
-              {error}
-            </div>
-          )}
-          {success && (
-            <div className="mb-4 p-3 rounded-xl bg-green-50 border border-green-100 text-green-600 text-sm">
-              {success}
-            </div>
-          )}
+          {error && <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{error}</div>}
+          {success && <div className="mb-4 p-3 rounded-xl bg-green-50 border border-green-100 text-green-600 text-sm">{success}</div>}
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {activeTab === 'signup' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Full name
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Full name</label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="John Doe"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    required
-                  />
+                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="John Doe" className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all" required />
                 </div>
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Email address
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email address</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                  required
-                />
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all" required />
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium text-gray-700">
-                  Password
-                </label>
-                {activeTab === 'login' && (
-                  <Link to="/forgot-password" className="text-sm text-purple-600 hover:text-purple-700 font-medium">
-                    Forgot password?
-                  </Link>
-                )}
+                <label className="block text-sm font-medium text-gray-700">Password</label>
+                {activeTab === 'login' && <Link to="/forgot-password" className="text-sm text-purple-600 hover:text-purple-700 font-medium">Forgot password?</Link>}
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                  required
-                  minLength={6}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
+                <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all" required minLength={6} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
@@ -272,135 +189,46 @@ export default function AuthPage() {
 
             {activeTab === 'signup' && (
               <div className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  id="terms"
-                  checked={agreeTerms}
-                  onChange={(e) => setAgreeTerms(e.target.checked)}
-                  className="mt-1 w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                />
+                <input type="checkbox" id="terms" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} className="mt-1 w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500" />
                 <label htmlFor="terms" className="text-sm text-gray-500">
-                  I agree to the{' '}
-                  <Link to="/terms" className="text-purple-600 hover:text-purple-700 font-medium">
-                    Terms of Service
-                  </Link>{' '}
-                  and{' '}
-                  <Link to="/privacy" className="text-purple-600 hover:text-purple-700 font-medium">
-                    Privacy Policy
-                  </Link>
+                  I agree to the <Link to="/terms" className="text-purple-600 hover:text-purple-700 font-medium">Terms of Service</Link> and <Link to="/privacy" className="text-purple-600 hover:text-purple-700 font-medium">Privacy Policy</Link>
                 </label>
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-purple-500/25 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  {activeTab === 'login' ? 'Log in' : 'Create account'}
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
+            <button type="submit" disabled={isLoading} className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-purple-500/25 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              {isLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <>{activeTab === 'login' ? 'Log in' : 'Create account'}<ArrowRight className="w-4 h-4" /></>}
             </button>
           </form>
 
-          {/* Switch Tab Link */}
           <p className="mt-6 text-center text-sm text-gray-500">
-            {activeTab === 'login' ? (
-              <>
-                Don't have an account?{' '}
-                <button 
-                  onClick={() => setActiveTab('signup')}
-                  className="text-purple-600 hover:text-purple-700 font-semibold"
-                >
-                  Sign up free
-                </button>
-              </>
-            ) : (
-              <>
-                Already have an account?{' '}
-                <button 
-                  onClick={() => setActiveTab('login')}
-                  className="text-purple-600 hover:text-purple-700 font-semibold"
-                >
-                  Log in
-                </button>
-              </>
-            )}
+            {activeTab === 'login' ? <>Don't have an account? <button onClick={() => setActiveTab('signup')} className="text-purple-600 hover:text-purple-700 font-semibold">Sign up free</button></> : <>Already have an account? <button onClick={() => setActiveTab('login')} className="text-purple-600 hover:text-purple-700 font-semibold">Log in</button></>}
           </p>
         </div>
       </div>
 
       {/* Right Panel - Feature Showcase (hidden on mobile) */}
       <div className="hidden lg:flex lg:flex-1 bg-gradient-to-br from-purple-600 via-purple-700 to-pink-600 relative overflow-hidden">
-        {/* Background Pattern */}
         <div className="absolute inset-0">
           <div className="absolute top-20 right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
           <div className="absolute bottom-20 left-20 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl"></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-purple-400/20 rounded-full blur-3xl"></div>
         </div>
-
-        {/* Content */}
         <div className="relative flex flex-col justify-center px-12 py-16">
           <div className="max-w-lg">
             <div className="flex items-center gap-2 mb-6">
               <Sparkles className="w-6 h-6 text-pink-300" />
               <span className="text-pink-200 font-medium text-sm uppercase tracking-wide">AI-Powered Scheduling</span>
             </div>
-            
-            <h1 className="text-4xl font-bold text-white mb-4 leading-tight">
-              Scheduling made<br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-200 to-white">
-                effortless
-              </span>
-            </h1>
-            
-            <p className="text-lg text-purple-100 mb-8 leading-relaxed">
-              Join thousands of professionals who save hours every week with intelligent scheduling that works the way you think.
-            </p>
-
-            {/* Features List */}
+            <h1 className="text-4xl font-bold text-white mb-4 leading-tight">Scheduling made<br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-200 to-white">effortless</span></h1>
+            <p className="text-lg text-purple-100 mb-8 leading-relaxed">Join thousands of professionals who save hours every week with intelligent scheduling.</p>
             <ul className="space-y-4">
               {features.map((feature, i) => (
                 <li key={i} className="flex items-center gap-3 text-white/90">
-                  <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-                    <Check className="w-4 h-4 text-white" />
-                  </div>
+                  <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0"><Check className="w-4 h-4 text-white" /></div>
                   <span className="text-sm">{feature}</span>
                 </li>
               ))}
             </ul>
-
-            {/* Social Proof */}
-            <div className="mt-12 pt-8 border-t border-white/20">
-              <div className="flex items-center gap-4">
-                <div className="flex -space-x-2">
-                  {['SC', 'MR', 'EW', 'JD'].map((initials, i) => (
-                    <div 
-                      key={i}
-                      className="w-10 h-10 rounded-full bg-gradient-to-br from-white/30 to-white/10 flex items-center justify-center text-white text-xs font-bold border-2 border-purple-600"
-                    >
-                      {initials}
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  <p className="text-white font-semibold text-sm">Trusted by 10,000+ users</p>
-                  <div className="flex items-center gap-1">
-                    {[...Array(5)].map((_, i) => (
-                      <svg key={i} className="w-4 h-4 text-yellow-400 fill-current" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                    ))}
-                    <span className="text-purple-200 text-xs ml-1">4.9/5</span>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
