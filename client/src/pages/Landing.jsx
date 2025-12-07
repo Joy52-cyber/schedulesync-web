@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -6,20 +6,11 @@ import {
   Sparkles,
   ArrowRight,
   CheckCircle,
-  Clock,
   Users,
   Shield,
-  Smartphone,
   Star,
-  Globe,
   Bot,
-  Mail,
-  Link2,
-  TrendingUp,
-  MessageSquare,
   Play,
-  Check,
-  ChevronRight,
   Plus,
   X
 } from 'lucide-react';
@@ -32,7 +23,6 @@ export default function Landing({ defaultLoginOpen = false }) {
   const [showConnectionOptions, setShowConnectionOptions] = useState(false);
   const navigate = useNavigate();
 
-  // Detect source system from pasted booking link
   const handleBookingLinkChange = (value) => {
     setBookingLink(value);
     setShowConnectionOptions(false);
@@ -263,42 +253,42 @@ export default function Landing({ defaultLoginOpen = false }) {
       <LoginPanel isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
 
       {/* ================= HEADER ================= */}
-<header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100">
-  <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-    <div className="flex items-center justify-between">
-      {/* Logo - always visible */}
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg">
-          <Calendar className="w-5 h-5 text-white" />
-        </div>
-        <span className="font-bold text-lg">ScheduleSync</span>
-      </div>
-      
-      {/* Desktop Nav - hidden on mobile */}
-      <div className="hidden md:flex items-center gap-6 text-sm">
-        <a href="#features" className="text-gray-600 hover:text-gray-900 font-medium">Features</a>
-        <a href="#pricing" className="text-gray-600 hover:text-gray-900 font-medium">Pricing</a>
-        <a href="#compare" className="text-gray-600 hover:text-gray-900 font-medium">Compare</a>
-      </div>
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+          <div className="flex items-center justify-between">
+            {/* Logo - always visible */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg">
+                <Calendar className="w-5 h-5 text-white" />
+              </div>
+              <span className="font-bold text-lg">ScheduleSync</span>
+            </div>
+            
+            {/* Desktop Nav - hidden on mobile */}
+            <div className="hidden md:flex items-center gap-6 text-sm">
+              <a href="#features" className="text-gray-600 hover:text-gray-900 font-medium">Features</a>
+              <a href="#pricing" className="text-gray-600 hover:text-gray-900 font-medium">Pricing</a>
+              <a href="#compare" className="text-gray-600 hover:text-gray-900 font-medium">Compare</a>
+            </div>
 
-      {/* Desktop Auth Buttons - hidden on mobile */}
-      <div className="hidden md:flex items-center gap-3">
-        <button 
-          onClick={() => setIsLoginOpen(true)}
-          className="text-sm font-medium text-gray-600 hover:text-gray-900"
-        >
-          Log in
-        </button>
-        <button 
-          onClick={() => navigate('/register')}
-          className="text-sm font-bold bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full px-4 py-2 hover:shadow-lg transition-all"
-        >
-          Get Started Free
-        </button>
-      </div>
-    </div>
-  </div>
-</header>
+            {/* Desktop Auth Buttons - hidden on mobile */}
+            <div className="hidden md:flex items-center gap-3">
+              <button 
+                onClick={() => setIsLoginOpen(true)}
+                className="text-sm font-medium text-gray-600 hover:text-gray-900"
+              >
+                Log in
+              </button>
+              <button 
+                onClick={() => navigate('/register')}
+                className="text-sm font-bold bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full px-4 py-2 hover:shadow-lg transition-all"
+              >
+                Get Started Free
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
 
       {/* ================= HERO SECTION ================= */}
       <section className="relative bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 overflow-hidden pt-20 pb-32">
@@ -386,9 +376,12 @@ export default function Landing({ defaultLoginOpen = false }) {
               Start for Free
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
-            <button className="px-8 py-4 bg-white text-gray-900 rounded-full text-lg font-semibold border-2 border-gray-200 hover:border-purple-300 hover:shadow-lg transition-all flex items-center gap-2">
+            <button 
+              onClick={() => navigate('/demo')}
+              className="px-8 py-4 bg-white text-gray-900 rounded-full text-lg font-semibold border-2 border-gray-200 hover:border-purple-300 hover:shadow-lg transition-all flex items-center gap-2"
+            >
               <Play className="w-5 h-5" />
-              Watch Demo
+              Try Live Demo
             </button>
           </div>
 
@@ -409,32 +402,55 @@ export default function Landing({ defaultLoginOpen = false }) {
           </div>
 
           {/* Hero Demo/Screenshot */}
-<div className="mt-16 relative max-w-5xl mx-auto">
-  <div className="relative rounded-2xl overflow-hidden shadow-2xl border-8 border-white">
-    <div className="bg-gradient-to-br from-purple-100 to-pink-100 aspect-video flex items-center justify-center">
-      {/* Mockup Chat Interface */}
-      <div className="w-full max-w-2xl bg-white rounded-xl shadow-xl p-6 mx-4">
-        {/* ... chat content ... */}
-      </div>
-    </div>
-  </div>
-  
-  {/* Stats - NOW INSIDE as a proper row below */}
-  <div className="flex flex-wrap justify-center gap-4 mt-8">
-    <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
-      <div className="text-3xl font-bold text-purple-600">10x</div>
-      <div className="text-sm text-gray-600">Faster booking</div>
-    </div>
-    <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
-      <div className="text-3xl font-bold text-pink-600">95%</div>
-      <div className="text-sm text-gray-600">Time saved</div>
-    </div>
-    <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
-      <div className="text-3xl font-bold text-blue-600">0</div>
-      <div className="text-sm text-gray-600">Double bookings</div>
-    </div>
-  </div>
-</div>
+          <div className="mt-16 relative max-w-5xl mx-auto">
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl border-8 border-white">
+              <div className="bg-gradient-to-br from-purple-100 to-pink-100 aspect-video flex items-center justify-center">
+                {/* Mockup Chat Interface */}
+                <div className="w-full max-w-2xl bg-white rounded-xl shadow-xl p-6 mx-4">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center">
+                      <Bot className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-gray-900">AI Scheduler</div>
+                      <div className="text-xs text-gray-500">Always ready to help</div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex justify-end">
+                      <div className="bg-purple-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 max-w-sm text-sm">
+                        Book meeting with john@email.com tomorrow at 2pm
+                      </div>
+                    </div>
+                    <div className="flex justify-start">
+                      <div className="bg-gray-100 text-gray-900 rounded-2xl rounded-tl-sm px-4 py-3 max-w-sm text-sm">
+                        ✅ Done! Meeting scheduled with john@email.com for tomorrow at 2:00 PM. Confirmation emails sent.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Stats - proper row below */}
+            <div className="flex flex-wrap justify-center gap-4 mt-8">
+              <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
+                <div className="text-3xl font-bold text-purple-600">10x</div>
+                <div className="text-sm text-gray-600">Faster booking</div>
+              </div>
+              <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
+                <div className="text-3xl font-bold text-pink-600">95%</div>
+                <div className="text-sm text-gray-600">Time saved</div>
+              </div>
+              <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
+                <div className="text-3xl font-bold text-blue-600">0</div>
+                <div className="text-sm text-gray-600">Double bookings</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* ================= TRUSTED BY ================= */}
       <section className="py-16 bg-white">
@@ -608,64 +624,66 @@ export default function Landing({ defaultLoginOpen = false }) {
           </div>
 
           <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-left p-6 text-sm font-semibold text-gray-600 uppercase tracking-wider">Feature</th>
-                  <th className="text-center p-6">
-                    <div className="flex flex-col items-center">
-                      <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center mb-2">
-                        <Calendar className="w-6 h-6 text-white" />
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="text-left p-4 md:p-6 text-sm font-semibold text-gray-600 uppercase tracking-wider">Feature</th>
+                    <th className="text-center p-4 md:p-6">
+                      <div className="flex flex-col items-center">
+                        <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center mb-2">
+                          <Calendar className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="font-bold text-gray-900 text-sm md:text-base">ScheduleSync</div>
+                        <div className="text-xs text-green-600 font-semibold">Free - $25/mo</div>
                       </div>
-                      <div className="font-bold text-gray-900">ScheduleSync</div>
-                      <div className="text-xs text-green-600 font-semibold">Free - $25/mo</div>
-                    </div>
-                  </th>
-                  <th className="text-center p-6 text-gray-600">
-                    <div className="font-semibold">Calendly</div>
-                    <div className="text-xs text-gray-500">Free - $20/seat</div>
-                  </th>
-                  <th className="text-center p-6 text-gray-600">
-                    <div className="font-semibold">Cal.com</div>
-                    <div className="text-xs text-gray-500">Free - $15/mo</div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {comparisonData.map((row, idx) => (
-                  <tr key={idx} className="border-b border-gray-100 hover:bg-purple-50/30 transition-colors">
-                    <td className="p-6 font-medium text-gray-900">{row.feature}</td>
-                    <td className="p-6 text-center">
-                      {typeof row.schedulesync === 'string' ? (
-                        <span className="text-purple-600 font-semibold text-sm">{row.schedulesync}</span>
-                      ) : row.schedulesync ? (
-                        <CheckCircle className="w-6 h-6 text-green-500 mx-auto" />
-                      ) : (
-                        <X className="w-5 h-5 text-gray-300 mx-auto" />
-                      )}
-                    </td>
-                    <td className="p-6 text-center text-sm text-gray-600">
-                      {typeof row.calendly === 'string' ? (
-                        <span className="text-orange-600 font-medium">{row.calendly}</span>
-                      ) : row.calendly ? (
-                        <CheckCircle className="w-5 h-5 text-gray-400 mx-auto" />
-                      ) : (
-                        <X className="w-5 h-5 text-gray-300 mx-auto" />
-                      )}
-                    </td>
-                    <td className="p-6 text-center text-sm text-gray-600">
-                      {typeof row.cal === 'string' ? (
-                        <span className="text-gray-600">{row.cal}</span>
-                      ) : row.cal ? (
-                        <CheckCircle className="w-5 h-5 text-gray-400 mx-auto" />
-                      ) : (
-                        <X className="w-5 h-5 text-gray-300 mx-auto" />
-                      )}
-                    </td>
+                    </th>
+                    <th className="text-center p-4 md:p-6 text-gray-600">
+                      <div className="font-semibold text-sm md:text-base">Calendly</div>
+                      <div className="text-xs text-gray-500">Free - $20/seat</div>
+                    </th>
+                    <th className="text-center p-4 md:p-6 text-gray-600">
+                      <div className="font-semibold text-sm md:text-base">Cal.com</div>
+                      <div className="text-xs text-gray-500">Free - $15/mo</div>
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {comparisonData.map((row, idx) => (
+                    <tr key={idx} className="border-b border-gray-100 hover:bg-purple-50/30 transition-colors">
+                      <td className="p-4 md:p-6 font-medium text-gray-900 text-sm">{row.feature}</td>
+                      <td className="p-4 md:p-6 text-center">
+                        {typeof row.schedulesync === 'string' ? (
+                          <span className="text-purple-600 font-semibold text-xs md:text-sm">{row.schedulesync}</span>
+                        ) : row.schedulesync ? (
+                          <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-green-500 mx-auto" />
+                        ) : (
+                          <X className="w-4 h-4 md:w-5 md:h-5 text-gray-300 mx-auto" />
+                        )}
+                      </td>
+                      <td className="p-4 md:p-6 text-center text-xs md:text-sm text-gray-600">
+                        {typeof row.calendly === 'string' ? (
+                          <span className="text-orange-600 font-medium">{row.calendly}</span>
+                        ) : row.calendly ? (
+                          <CheckCircle className="w-4 h-4 md:w-5 md:h-5 text-gray-400 mx-auto" />
+                        ) : (
+                          <X className="w-4 h-4 md:w-5 md:h-5 text-gray-300 mx-auto" />
+                        )}
+                      </td>
+                      <td className="p-4 md:p-6 text-center text-xs md:text-sm text-gray-600">
+                        {typeof row.cal === 'string' ? (
+                          <span className="text-gray-600">{row.cal}</span>
+                        ) : row.cal ? (
+                          <CheckCircle className="w-4 h-4 md:w-5 md:h-5 text-gray-400 mx-auto" />
+                        ) : (
+                          <X className="w-4 h-4 md:w-5 md:h-5 text-gray-300 mx-auto" />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div className="text-center mt-12">
@@ -696,8 +714,12 @@ export default function Landing({ defaultLoginOpen = false }) {
             >
               Get Started Free
             </button>
-            <button className="px-8 py-4 bg-purple-500/30 backdrop-blur-sm text-white rounded-full text-lg font-semibold border-2 border-white/30 hover:bg-purple-500/50 transition-all">
-              Book a Demo
+            <button 
+              onClick={() => navigate('/demo')}
+              className="px-8 py-4 bg-purple-500/30 backdrop-blur-sm text-white rounded-full text-lg font-semibold border-2 border-white/30 hover:bg-purple-500/50 transition-all flex items-center gap-2"
+            >
+              <Play className="w-5 h-5" />
+              Try Live Demo
             </button>
           </div>
 

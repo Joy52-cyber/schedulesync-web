@@ -32,6 +32,7 @@ import EmailTemplates from './pages/EmailTemplates';
 import MyLinks from './pages/MyLinks';
 import BillingSettings from './pages/BillingSettings';
 import BillingPage from './pages/BillingPage';
+import DemoPage from './pages/DemoPage';
 
 // Team
 import Teams from './pages/Teams';
@@ -119,6 +120,7 @@ function InnerApp() {
               <Route path="/booking-success" element={<BookingConfirmation />} />
               <Route path="/booking-confirmation" element={<BookingConfirmation />} />
               <Route path="/import/calendly" element={<CalendlyMigration />} />
+              <Route path="/demo" element={<DemoPage />} />
 
               {/* Protected App Layout */}
               <Route element={
