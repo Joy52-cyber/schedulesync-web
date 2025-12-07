@@ -46,15 +46,15 @@ export default function UserProfilePage() {
       setProfile(data.user);
       setEventTypes(data.eventTypes || []);
       
-      // Set branding if available
-      if (data.user?.branding) {
-        setBranding({
-          logo_url: data.user.branding.logo_url || null,
-          primary_color: data.user.branding.primary_color || '#8B5CF6',
-          accent_color: data.user.branding.accent_color || '#EC4899',
-          hide_powered_by: data.user.branding.hide_powered_by || false,
-        });
-      }
+     // Set branding if available
+if (data.branding) {
+  setBranding({
+    logo_url: data.branding.logo_url || null,
+    primary_color: data.branding.primary_color || '#8B5CF6',
+    accent_color: data.branding.accent_color || '#EC4899',
+    hide_powered_by: data.branding.hide_powered_by || false,
+  });
+}
     } catch (err) {
       console.error('Failed to fetch user profile:', err);
       setError(err.message || 'Failed to load booking page');
