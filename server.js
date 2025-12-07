@@ -80,6 +80,7 @@ const {
   PLAN_LIMITS,
   checkAndResetIfNeeded  // ← ADD THIS
 } = require('./server/middleware/featureGates');
+const fs = require('fs');
 const multer = require('multer');
 
 
