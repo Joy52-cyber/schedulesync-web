@@ -512,9 +512,34 @@ What can I help you with?`;
 
     } catch (error) {
       console.error('AI chat error:', error);
+      
+      // Generate helpful fallback response based on what user asked
+      const lowerMessage = messageToSend.toLowerCase();
+      let fallbackResponse = "Hmm, something went wrong on my end. Mind trying that again? 🙏";
+      
+      // Check if rate limited (429)
+      const isRateLimited = error?.response?.status === 429 || 
+                           error?.message?.includes('429') ||
+                           error?.response?.data?.message?.includes('rate');
+      
+      if (isRateLimited) {
+        fallbackResponse = "I'm getting a lot of requests right now! 🔥 Please wait 10-15 seconds and try again.";
+      }
+      
+      // Add contextual help based on what they were trying to do
+      if (lowerMessage.includes('booking link') || lowerMessage.includes('create link') || lowerMessage.includes('link for')) {
+        fallbackResponse += "\n\n**Quick workaround:** Go to **My Links** in the sidebar to create a booking link manually! 🔗";
+      } else if (lowerMessage.includes('book') || lowerMessage.includes('schedule') || lowerMessage.includes('meeting')) {
+        fallbackResponse += "\n\n**Quick workaround:** Go to **Events** → Create a new event type, then share your booking page! 📅";
+      } else if (lowerMessage.includes('availability') || lowerMessage.includes('free') || lowerMessage.includes('when')) {
+        fallbackResponse += "\n\n**Quick workaround:** Check **Availability** in the sidebar to see and edit your schedule! ⏰";
+      } else if (lowerMessage.includes('cancel') || lowerMessage.includes('reschedule')) {
+        fallbackResponse += "\n\n**Quick workaround:** Go to **Bookings** to manage your upcoming meetings! 📋";
+      }
+      
       setChatHistory(prev => [...prev, { 
         role: 'assistant', 
-        content: "Hmm, something went wrong on my end. Mind trying that again? 🙏",
+        content: fallbackResponse,
         timestamp: new Date()
       }]);
     } finally {
