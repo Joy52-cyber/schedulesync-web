@@ -27,7 +27,7 @@ import api, {
 import AISchedulerChat from '../components/AISchedulerChat';
 import { useNotification } from '../contexts/NotificationContext';
 import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal';
-import DashboardUsageWidget from '../components/DashboardUsageWidget';
+//import DashboardUsageWidget from '../components/DashboardUsageWidget';
 
 
 export default function Dashboard() {

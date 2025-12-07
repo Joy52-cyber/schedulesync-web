@@ -27,41 +27,49 @@ export default function UserProfilePage() {
     hide_powered_by: false,
   });
 
+
+
   useEffect(() => {
     fetchUserProfile();
   }, [username]);
 
   const fetchUserProfile = async () => {
-    setLoading(true);
-    setError(null);
+  setLoading(true);
+  setError(null);
+  
+  try {
+    const response = await fetch(`/api/book/user/${username}`);
+    const data = await response.json();
     
-    try {
-      const response = await fetch(`/api/book/user/${username}`);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'User not found');
-      }
-      
-      setProfile(data.user);
-      setEventTypes(data.eventTypes || []);
-      
-     // Set branding if available
-if (data.branding) {
-  setBranding({
-    logo_url: data.branding.logo_url || null,
-    primary_color: data.branding.primary_color || '#8B5CF6',
-    accent_color: data.branding.accent_color || '#EC4899',
-    hide_powered_by: data.branding.hide_powered_by || false,
-  });
-}
-    } catch (err) {
-      console.error('Failed to fetch user profile:', err);
-      setError(err.message || 'Failed to load booking page');
-    } finally {
-      setLoading(false);
+    // DEBUG - remove later
+    console.log('🎨 RAW DATA:', data);
+    console.log('🎨 BRANDING:', data.branding);
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'User not found');
     }
-  };
+    
+    setProfile(data.user);
+    setEventTypes(data.eventTypes || []);
+    
+    // Set branding if available
+    if (data.branding) {
+      console.log('🎨 Setting branding to:', data.branding);
+      setBranding({
+        logo_url: data.branding.logo_url || null,
+        primary_color: data.branding.primary_color || '#8B5CF6',
+        accent_color: data.branding.accent_color || '#EC4899',
+        hide_powered_by: data.branding.hide_powered_by || false,
+      });
+    }
+  } catch (err) {
+    console.error('Failed to fetch user profile:', err);
+    setError(err.message || 'Failed to load booking page');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleSelectEvent = (eventType) => {
     navigate(`/book/${username}/${eventType.slug}`);
