@@ -20,7 +20,6 @@ export default function BookingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Detect route type: /book/:token OR /book/:username/:eventSlug
   const isPublicEventType = params.username && params.eventSlug;
   const token = params.token;
   const username = params.username;
@@ -42,7 +41,6 @@ export default function BookingPage() {
   const [selectedEventType, setSelectedEventType] = useState(null);
   const [error, setError] = useState('');
   
-  // ✅ BRANDING STATE - at top level, not inside a function
   const [branding, setBranding] = useState({
     logo_url: null,
     primary_color: '#3B82F6',
@@ -66,22 +64,17 @@ export default function BookingPage() {
     
   const [selectedSlot, setSelectedSlot] = useState(null);
 
-  // Detect guest timezone
   useEffect(() => {
     try {
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       setGuestTimezone(timezone);
-      console.log('🌍 Guest timezone detected:', timezone);
     } catch (error) {
-      console.error('Failed to detect timezone:', error);
       setGuestTimezone('UTC');
     }
   }, []);
 
-  // Check for reschedule mode (only for token-based bookings)
   useEffect(() => {
     if (isPublicEventType) return;
-    
     const rescheduleParam = searchParams.get('reschedule');
     if (rescheduleParam) {
       setIsReschedule(true);
@@ -89,22 +82,17 @@ export default function BookingPage() {
     }
   }, [token, isPublicEventType]);
 
-  // Load booking info on mount
   useEffect(() => {
     loadBookingInfo();
   }, []);
 
-  // Handle OAuth callback (only for token-based bookings)
   useEffect(() => {
     if (isPublicEventType) return;
-    
     const code = searchParams.get('code');
     const state = searchParams.get('state');
-    
     if (!code || !state?.startsWith('guest-booking:') || !token || hasProcessedOAuth) return;
 
     setHasProcessedOAuth(true);
-    console.log('🔄 Processing OAuth callback...');
 
     (async () => {
       try {
@@ -119,7 +107,6 @@ export default function BookingPage() {
         }
         
         const data = response.data;
-        console.log('✅ OAuth successful:', data.email);
         
         setGuestCalendar({
           signedIn: true,
@@ -148,7 +135,6 @@ export default function BookingPage() {
         navigate(newUrl, { replace: true });
         
       } catch (err) {
-        console.error('❌ Guest OAuth failed:', err);
         setError('Failed to connect calendar. Please try again.');
         setStep('calendar-choice');
         
@@ -160,7 +146,6 @@ export default function BookingPage() {
     })();
   }, [searchParams, token, navigate, hasProcessedOAuth, isPublicEventType]);
 
-  // Restore saved state after OAuth
   useEffect(() => {
     if (isPublicEventType) return;
     if (!guestCalendar?.signedIn || eventTypes.length === 0) return;
@@ -193,7 +178,6 @@ export default function BookingPage() {
       localStorage.removeItem('schedulesync_oauth_return');
       
     } catch (err) {
-      console.error('Failed to restore state:', err);
       localStorage.removeItem('schedulesync_oauth_return');
     }
   }, [guestCalendar?.signedIn, eventTypes, searchParams, setSearchParams, isPublicEventType]);
@@ -202,24 +186,15 @@ export default function BookingPage() {
     try {
       setLoading(true);
       
-      // ============ PUBLIC EVENT TYPE ROUTE: /book/:username/:eventSlug ============
       if (isPublicEventType) {
-        console.log('📅 Loading public event type:', username, eventSlug);
-        
         const response = await fetch(`/api/public/booking/${username}/${eventSlug}`);
-        if (!response.ok) {
-          throw new Error('Event type not found');
-        }
+        if (!response.ok) throw new Error('Event type not found');
         
         const data = await response.json();
-        console.log('✅ Public event type loaded:', data);
         
-        // Set host info
         setHostInfo(data.host);
         
-        // ✅ Set branding if available
         if (data.branding) {
-          console.log('🎨 Setting branding:', data.branding);
           setBranding({
             logo_url: data.branding.logo_url || null,
             primary_color: data.branding.primary_color || '#3B82F6',
@@ -228,30 +203,24 @@ export default function BookingPage() {
           });
         }
         
-        // Create member info for UI compatibility
         setMemberInfo({
           name: data.host.name,
           user_name: data.host.username,
           id: data.host.username,
         });
         
-        // Create team info for UI
         setTeamInfo({
           name: `${data.host.name}'s Events`,
           id: 'public',
         });
         
-        // Set the event type
         setSelectedEventType(data.eventType);
         setEventTypes([data.eventType]);
-        
-        // Skip directly to form
         setStep('form');
         setLoading(false);
         return;
       }
       
-      // ============ TOKEN-BASED ROUTE: /book/:token ============
       const response = await bookings.getByToken(token);
       const payload = response.data?.data || response.data || {};
 
@@ -267,7 +236,6 @@ export default function BookingPage() {
       setTeamInfo(payload.team);
       setMemberInfo(payload.member);
       
-      // ✅ Fetch branding for token-based bookings
       if (payload.member?.user_id) {
         try {
           const brandingRes = await fetch(`/api/user/${payload.member.user_id}/branding`);
@@ -280,9 +248,7 @@ export default function BookingPage() {
               hide_powered_by: brandingData.hide_powered_by || false,
             });
           }
-        } catch (e) {
-          console.log('Could not fetch branding:', e);
-        }
+        } catch (e) {}
       }
       
       const directMemberLink = payload.isDirectLink === true || 
@@ -329,7 +295,6 @@ export default function BookingPage() {
       }
 
     } catch (err) {
-      console.error('❌ Error loading booking info:', err);
       if (err.response?.status === 410 || err.response?.data?.code === 'LINK_USED') {
         setIsLinkUsed(true);
         setLoading(false);
@@ -373,7 +338,6 @@ export default function BookingPage() {
       window.location.href = authUrl;
       
     } catch (error) {
-      console.error('❌ OAuth URL generation failed:', error);
       setError('Failed to connect calendar. Please try again.');
     }
   };
@@ -407,7 +371,6 @@ export default function BookingPage() {
     try {
       setSubmitting(true);
       
-      // ============ PUBLIC EVENT TYPE BOOKING ============
       if (isPublicEventType) {
         const response = await fetch('/api/public/booking/create', {
           method: 'POST',
@@ -455,7 +418,6 @@ export default function BookingPage() {
         return;
       }
       
-      // ============ TOKEN-BASED BOOKING ============
       const response = await bookings.create({
         token, 
         slot: selectedSlot, 
@@ -489,7 +451,6 @@ export default function BookingPage() {
       navigate(`/booking-confirmation?data=${encodeURIComponent(JSON.stringify(bookingData))}`);
       
     } catch (err) {
-      console.error('❌ Booking failed:', err);
       if (err.response?.status === 410) setIsLinkUsed(true);
       else alert(err.message || err.response?.data?.error || 'Failed to create booking.');
     } finally {
@@ -525,22 +486,24 @@ export default function BookingPage() {
 
           <div className="flex-1 mt-8">
             <div className="mb-6">
-              {/* ✅ BRANDED AVATAR/LOGO */}
-              <div 
-                className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-4"
-                style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}
-              >
-                {branding.logo_url ? (
+              {/* ✅ FIXED: Logo fills container completely, no white spacing */}
+              {branding.logo_url ? (
+                <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg mb-4 bg-white border border-slate-200">
                   <img 
                     src={branding.logo_url} 
                     alt="Logo" 
-                    className="w-10 h-10 object-contain rounded"
-                    onError={(e) => { e.target.style.display = 'none'; }}
+                    className="w-full h-full object-contain"
+                    onError={(e) => { e.target.parentElement.style.display = 'none'; }}
                   />
-                ) : (
-                  avatarLetter
-                )}
-              </div>
+                </div>
+              ) : (
+                <div 
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-4"
+                  style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}
+                >
+                  {avatarLetter}
+                </div>
+              )}
               <p className="text-slate-500 font-medium text-sm">Book a meeting with</p>
               <h2 className="text-2xl font-bold text-slate-900">{displayName}</h2>
               <p className="text-slate-400 text-sm mt-1">{teamInfo?.name}</p>
@@ -583,7 +546,6 @@ export default function BookingPage() {
             )}
           </div>
           
-          {/* ✅ CONDITIONAL POWERED BY */}
           {!branding.hide_powered_by && (
             <div className="mt-auto pt-6 text-xs text-slate-300 font-medium">
               Powered by ScheduleSync
@@ -594,7 +556,6 @@ export default function BookingPage() {
         {/* Right Content Area */}
         <div className="md:w-2/3 bg-white p-6 md:p-10 overflow-y-auto relative">
           
-          {/* Event Type Selection */}
           {step === 'event-select' && !isPublicEventType && (
             <FadeIn className="max-w-xl mx-auto">
               <h2 className="text-2xl font-bold text-slate-900 mb-2">Select a Meeting Type</h2>
@@ -606,45 +567,30 @@ export default function BookingPage() {
                     key={et.id}
                     onClick={() => handleSelectEventType(et)}
                     className="group relative flex items-center gap-4 p-5 rounded-2xl border border-slate-200 hover:shadow-lg transition-all text-left bg-white"
-                    style={{ '--hover-color': branding.primary_color }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = branding.primary_color;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = '#e2e8f0';
-                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = branding.primary_color; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; }}
                   >
                     <div 
                       className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"
-                      style={{ 
-                        backgroundColor: branding.primary_color + '20',
-                        color: branding.primary_color
-                      }}
+                      style={{ backgroundColor: branding.primary_color + '20', color: branding.primary_color }}
                     >
                       <Clock className="h-6 w-6" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-slate-900 text-lg transition-colors">{et.title}</h3>
+                      <h3 className="font-bold text-slate-900 text-lg">{et.title}</h3>
                       <p className="text-slate-500 text-sm mt-1">{et.duration} minutes</p>
                     </div>
-                    <ChevronRight 
-                      className="h-5 w-5 text-slate-300 group-hover:translate-x-1 transition-all" 
-                      style={{ color: branding.primary_color }}
-                    />
+                    <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-all" style={{ color: branding.primary_color }} />
                   </button>
                 ))}
               </div>
             </FadeIn>
           )}
 
-          {/* Calendar Connection Choice */}
           {step === 'calendar-choice' && !isPublicEventType && (
             <FadeIn className="max-w-lg mx-auto py-8">
               <div className="text-center mb-8">
-                <div 
-                  className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
-                  style={{ backgroundColor: branding.primary_color + '15' }}
-                >
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: branding.primary_color + '15' }}>
                   <Sparkles className="h-8 w-8" style={{ color: branding.primary_color }} />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900">Check for conflicts?</h2>
@@ -682,25 +628,17 @@ export default function BookingPage() {
                 </button>
 
                 <div className="relative py-4">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-slate-100"></div>
-                  </div>
-                  <div className="relative flex justify-center">
-                    <span className="bg-white px-2 text-xs text-slate-400 uppercase tracking-wide">Or</span>
-                  </div>
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
+                  <div className="relative flex justify-center"><span className="bg-white px-2 text-xs text-slate-400 uppercase tracking-wide">Or</span></div>
                 </div>
 
-                <button 
-                  onClick={() => setStep('form')} 
-                  className="w-full py-4 text-slate-600 font-medium hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-colors"
-                >
+                <button onClick={() => setStep('form')} className="w-full py-4 text-slate-600 font-medium hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-colors">
                   Skip and select time manually
                 </button>
               </div>
             </FadeIn>
           )}
 
-          {/* Booking Form */}
           {step === 'form' && (
             <FadeIn className="h-full flex flex-col">
               {guestCalendar?.signedIn && (
@@ -711,13 +649,7 @@ export default function BookingPage() {
               )}
 
               {guestTimezone && (
-                <div 
-                  className="mb-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium self-start"
-                  style={{ 
-                    backgroundColor: branding.primary_color + '15',
-                    color: branding.primary_color
-                  }}
-                >
+                <div className="mb-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium self-start" style={{ backgroundColor: branding.primary_color + '15', color: branding.primary_color }}>
                   <Clock className="h-4 w-4" />
                   Your timezone: {guestTimezone}
                 </div>
@@ -741,21 +673,9 @@ export default function BookingPage() {
 
               {selectedSlot && (
                 <div className="max-w-lg mx-auto w-full animate-in slide-in-from-right-8 duration-300">
-                  {/* ✅ BRANDED SELECTED TIME BOX */}
-                  <div 
-                    className="rounded-xl p-4 mb-6 flex justify-between items-center border"
-                    style={{ 
-                      backgroundColor: branding.primary_color + '15',
-                      borderColor: branding.primary_color + '30'
-                    }}
-                  >
+                  <div className="rounded-xl p-4 mb-6 flex justify-between items-center border" style={{ backgroundColor: branding.primary_color + '15', borderColor: branding.primary_color + '30' }}>
                     <div>
-                      <p 
-                        className="text-xs font-bold uppercase tracking-wide"
-                        style={{ color: branding.primary_color }}
-                      >
-                        Selected Time
-                      </p>
+                      <p className="text-xs font-bold uppercase tracking-wide" style={{ color: branding.primary_color }}>Selected Time</p>
                       <p className="font-semibold mt-1" style={{ color: branding.primary_color }}>
                         {new Date(selectedSlot.start).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
                       </p>
@@ -763,70 +683,37 @@ export default function BookingPage() {
                         {new Date(selectedSlot.start).toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' })} - {new Date(selectedSlot.end).toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' })}
                       </p>
                     </div>
-                    <button 
-                      onClick={() => setSelectedSlot(null)} 
-                      className="text-sm font-medium underline"
-                      style={{ color: branding.primary_color }}
-                    >
-                      Change
-                    </button>
+                    <button onClick={() => setSelectedSlot(null)} className="text-sm font-medium underline" style={{ color: branding.primary_color }}>Change</button>
                   </div>
 
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Your Name</label>
-                      <input 
-                        type="text"
-                        required
-                        value={formData.attendee_name} 
-                        onChange={(e) => setFormData({ ...formData, attendee_name: e.target.value })} 
-                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all"
-                        style={{ '--tw-ring-color': branding.primary_color }}
-                        placeholder="John Doe"
-                      />
+                      <input type="text" required value={formData.attendee_name} onChange={(e) => setFormData({ ...formData, attendee_name: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all" placeholder="John Doe" />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-                      <input 
-                        type="email"
-                        required
-                        value={formData.attendee_email} 
-                        onChange={(e) => setFormData({ ...formData, attendee_email: e.target.value })} 
-                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all"
-                        placeholder="john@example.com"
-                      />
+                      <input type="email" required value={formData.attendee_email} onChange={(e) => setFormData({ ...formData, attendee_email: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all" placeholder="john@example.com" />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Additional Notes</label>
-                      <textarea 
-                        value={formData.notes}
-                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })} 
-                        rows="3"
-                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all resize-none"
-                        placeholder="Anything specific you want to discuss?"
-                      />
+                      <textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows="3" className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all resize-none" placeholder="Anything specific you want to discuss?" />
                     </div>
 
                     <div className="pt-4 border-t border-slate-200">
-                      <label className="block text-sm font-medium text-slate-700 mb-3">
-                        Invite Others to This Meeting
-                      </label>
+                      <label className="block text-sm font-medium text-slate-700 mb-3">Invite Others to This Meeting</label>
                       
                       {additionalAttendees.length > 0 && (
                         <div className="space-y-2 mb-3">
                           {additionalAttendees.map((email, index) => (
-                            <div key={index} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg group">
+                            <div key={index} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg">
                               <div className="flex items-center gap-2">
                                 <User className="h-4 w-4 text-slate-400" />
                                 <span className="text-sm text-slate-700">{email}</span>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveAttendee(email)}
-                                className="text-slate-400 hover:text-red-600 transition-colors"
-                              >
+                              <button type="button" onClick={() => handleRemoveAttendee(email)} className="text-slate-400 hover:text-red-600 transition-colors">
                                 <X className="h-4 w-4" />
                               </button>
                             </div>
@@ -835,48 +722,16 @@ export default function BookingPage() {
                       )}
 
                       <div className="flex gap-2">
-                        <input
-                          type="email"
-                          value={newAttendeeEmail}
-                          onChange={(e) => setNewAttendeeEmail(e.target.value)}
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddAttendee();
-                            }
-                          }}
-                          className="flex-1 px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all text-sm"
-                          placeholder="colleague@example.com"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddAttendee}
-                          className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium text-sm flex items-center gap-1"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Add
+                        <input type="email" value={newAttendeeEmail} onChange={(e) => setNewAttendeeEmail(e.target.value)} onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttendee(); } }} className="flex-1 px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all text-sm" placeholder="colleague@example.com" />
+                        <button type="button" onClick={handleAddAttendee} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium text-sm flex items-center gap-1">
+                          <Plus className="h-4 w-4" />Add
                         </button>
                       </div>
-                      <p className="text-xs text-slate-500 mt-2">
-                        Additional attendees will receive calendar invites and meeting details
-                      </p>
+                      <p className="text-xs text-slate-500 mt-2">Additional attendees will receive calendar invites and meeting details</p>
                     </div>
 
-                    {/* ✅ BRANDED SUBMIT BUTTON */}
-                    <button 
-                      type="submit"
-                      disabled={submitting} 
-                      className="w-full mt-4 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                      style={{ backgroundColor: branding.primary_color }}
-                    >
-                      {submitting ? (
-                        <>
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                          {isReschedule ? 'Confirming...' : 'Booking...'}
-                        </>
-                      ) : (
-                        <>{isReschedule ? 'Confirm Reschedule' : 'Confirm Booking'}</>
-                      )}
+                    <button type="submit" disabled={submitting} className="w-full mt-4 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2" style={{ backgroundColor: branding.primary_color }}>
+                      {submitting ? (<><Loader2 className="h-5 w-5 animate-spin" />{isReschedule ? 'Confirming...' : 'Booking...'}</>) : (<>{isReschedule ? 'Confirm Reschedule' : 'Confirm Booking'}</>)}
                     </button>
                   </form>
                 </div>
@@ -894,19 +749,10 @@ function LoadingScreen({ redirecting, memberName, branding }) {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
       <div className="text-center animate-pulse">
-        <div 
-          className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
-          style={{ backgroundColor: primaryColor + '20' }}
-        >
-          {redirecting ? (
-            <ExternalLink className="h-8 w-8" style={{ color: primaryColor }} />
-          ) : (
-            <Loader2 className="h-8 w-8 animate-spin" style={{ color: primaryColor }} />
-          )}
+        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: primaryColor + '20' }}>
+          {redirecting ? <ExternalLink className="h-8 w-8" style={{ color: primaryColor }} /> : <Loader2 className="h-8 w-8 animate-spin" style={{ color: primaryColor }} />}
         </div>
-        <h2 className="text-xl font-semibold text-slate-900">
-          {redirecting ? `Redirecting to ${memberName}...` : 'Loading availability...'}
-        </h2>
+        <h2 className="text-xl font-semibold text-slate-900">{redirecting ? `Redirecting to ${memberName}...` : 'Loading availability...'}</h2>
       </div>
     </div>
   );
@@ -916,16 +762,10 @@ function ExpiredLinkScreen() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center border border-slate-100">
-        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Ban className="h-10 w-10 text-red-500" />
-        </div>
+        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6"><Ban className="h-10 w-10 text-red-500" /></div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Link Already Used</h2>
-        <p className="text-gray-600 mb-6">
-          This single-use booking link has already been used or has expired.
-        </p>
-        <p className="text-sm text-gray-500">
-          Please request a new link from the organizer if you need to book another time.
-        </p>
+        <p className="text-gray-600 mb-6">This single-use booking link has already been used or has expired.</p>
+        <p className="text-sm text-gray-500">Please request a new link from the organizer if you need to book another time.</p>
       </div>
     </div>
   );
@@ -935,16 +775,10 @@ function ErrorScreen({ error }) {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center border border-slate-100">
-        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
-          <AlertTriangle className="h-10 w-10 text-red-500" />
-        </div>
+        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6"><AlertTriangle className="h-10 w-10 text-red-500" /></div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Booking Not Found</h2>
-        <p className="text-gray-600 mb-6">
-          {error || 'This booking link is invalid or has expired. Please check your email for the correct link or contact the organizer.'}
-        </p>
-        <p className="text-sm text-gray-500">
-          You can safely close this page.
-        </p>
+        <p className="text-gray-600 mb-6">{error || 'This booking link is invalid or has expired.'}</p>
+        <p className="text-sm text-gray-500">You can safely close this page.</p>
       </div>
     </div>
   );
