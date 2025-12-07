@@ -84,10 +84,8 @@ What can I help you with?`;
     isGreeting: true
   });
 
-  const [isOpen, setIsOpen] = useState(() => {
-    const saved = localStorage.getItem('aiChat_isOpen');
-    return saved ? JSON.parse(saved) : false;
-  });
+  // Always start closed - user must click to open
+  const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [message, setMessage] = useState('');
   const [copiedUrl, setCopiedUrl] = useState(null);
@@ -178,16 +176,23 @@ What can I help you with?`;
         setInterimTranscript(interimText);
 
         // Reset silence timer - auto-send after 2s of silence
+        // Clear existing timer first to prevent stacking
         if (silenceTimerRef.current) {
           clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
         }
         
-        silenceTimerRef.current = setTimeout(() => {
-          if (finalTranscriptRef.current.trim()) {
-            console.log('🎤 Auto-stopping after 2s silence');
-            stopListeningAndSend();
-          }
-        }, 3500); // 2 seconds of silence triggers send
+        // Only set new timer if we have accumulated text
+        if (finalTranscriptRef.current.trim()) {
+          silenceTimerRef.current = setTimeout(() => {
+            // Double-check we still have text to send (prevents race conditions)
+            if (finalTranscriptRef.current.trim()) {
+              console.log('🎤 Auto-stopping after 2s silence');
+              stopListeningAndSend();
+            }
+            silenceTimerRef.current = null;
+          }, 2000); // 2 seconds of silence triggers send
+        }
       };
 
       recognitionRef.current.onerror = (event) => {
@@ -278,6 +283,7 @@ What can I help you with?`;
   const stopListening = () => {
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
     }
     
     recognitionRef.current?.stop();
@@ -286,15 +292,23 @@ What can I help you with?`;
   };
 
   const stopListeningAndSend = () => {
+    // Clear any pending silence timers first
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    
     stopListening();
     
-    // Send if we have text
-    if (finalTranscriptRef.current.trim()) {
-      setMessage(finalTranscriptRef.current.trim());
-      // Small delay to ensure state updates before send
-      setTimeout(() => {
-        handleSendInternal(finalTranscriptRef.current.trim());
-      }, 100);
+    // Send if we have text and not already sending
+    const textToSend = finalTranscriptRef.current.trim();
+    if (textToSend && !loading) {
+      // Clear the ref BEFORE sending to prevent double-send
+      finalTranscriptRef.current = '';
+      setMessage('');
+      
+      // Send the message
+      handleSendInternal(textToSend);
     }
   };
 
@@ -368,10 +382,6 @@ What can I help you with?`;
       localStorage.removeItem('aiChat_pendingBooking');
     }
   }, [pendingBooking]);
-
-  useEffect(() => {
-    localStorage.setItem('aiChat_isOpen', JSON.stringify(isOpen));
-  }, [isOpen]);
 
   useEffect(() => {
     scrollToBottom();
@@ -514,9 +524,19 @@ What can I help you with?`;
 
   // Public send function for button/enter key
   const handleSend = () => {
+    // Clear any pending silence timer
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    
     if (isListening) {
       stopListening();
     }
+    
+    // Clear transcript ref to prevent double-send from voice
+    finalTranscriptRef.current = '';
+    
     handleSendInternal(message);
   };
 

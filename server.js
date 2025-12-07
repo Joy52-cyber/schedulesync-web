@@ -214,8 +214,8 @@ async function callGeminiWithRetry(requestBody, retries = 2) {
       
       // Handle rate limiting with exponential backoff
       if (response.status === 429) {
-        const waitTime = Math.pow(2, i + 1) * 1000; // 2s, 4s, 8s
-        console.log(`⏳ Rate limited, waiting ${waitTime/1000}s before retry ${i + 1}/${retries}`);
+       const waitTime = Math.pow(2, i + 2) * 1000; // 4s, 8s, 16s
+      console.log(`⏳ Rate limited, waiting ${waitTime/1000}s before retry ${i + 1}/${retries}`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
         continue;
       }
