@@ -263,39 +263,42 @@ export default function Landing({ defaultLoginOpen = false }) {
       <LoginPanel isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
 
       {/* ================= HEADER ================= */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg">
-                <Calendar className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-bold text-lg">ScheduleSync</span>
-            </div>
-            
-            <div className="hidden md:flex items-center gap-6 text-sm">
-              <a href="#features" className="text-gray-600 hover:text-gray-900 font-medium">Features</a>
-              <a href="#pricing" className="text-gray-600 hover:text-gray-900 font-medium">Pricing</a>
-              <a href="#compare" className="text-gray-600 hover:text-gray-900 font-medium">Compare</a>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setIsLoginOpen(true)}
-                className="text-sm font-medium text-gray-600 hover:text-gray-900"
-              >
-                Log in
-              </button>
-              <button 
-                onClick={() => navigate('/register')}
-                className="text-sm font-bold bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full px-4 py-2 hover:shadow-lg transition-all"
-              >
-                Get Started Free
-              </button>
-            </div>
-          </div>
+<header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+    <div className="flex items-center justify-between">
+      {/* Logo - always visible */}
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg">
+          <Calendar className="w-5 h-5 text-white" />
         </div>
-      </header>
+        <span className="font-bold text-lg">ScheduleSync</span>
+      </div>
+      
+      {/* Desktop Nav - hidden on mobile */}
+      <div className="hidden md:flex items-center gap-6 text-sm">
+        <a href="#features" className="text-gray-600 hover:text-gray-900 font-medium">Features</a>
+        <a href="#pricing" className="text-gray-600 hover:text-gray-900 font-medium">Pricing</a>
+        <a href="#compare" className="text-gray-600 hover:text-gray-900 font-medium">Compare</a>
+      </div>
+
+      {/* Desktop Auth Buttons - hidden on mobile */}
+      <div className="hidden md:flex items-center gap-3">
+        <button 
+          onClick={() => setIsLoginOpen(true)}
+          className="text-sm font-medium text-gray-600 hover:text-gray-900"
+        >
+          Log in
+        </button>
+        <button 
+          onClick={() => navigate('/register')}
+          className="text-sm font-bold bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full px-4 py-2 hover:shadow-lg transition-all"
+        >
+          Get Started Free
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
 
       {/* ================= HERO SECTION ================= */}
       <section className="relative bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 overflow-hidden pt-20 pb-32">
@@ -406,55 +409,32 @@ export default function Landing({ defaultLoginOpen = false }) {
           </div>
 
           {/* Hero Demo/Screenshot */}
-          <div className="mt-16 relative max-w-5xl mx-auto">
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl border-8 border-white">
-              <div className="bg-gradient-to-br from-purple-100 to-pink-100 aspect-video flex items-center justify-center">
-                {/* Mockup Chat Interface */}
-                <div className="w-full max-w-2xl bg-white rounded-xl shadow-xl p-6 mx-4">
-                  <div className="flex items-center gap-3 mb-6 pb-4 border-b">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center">
-                      <Bot className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <div className="font-bold text-gray-900">AI Scheduler</div>
-                      <div className="text-xs text-gray-500">Always ready to help</div>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex justify-end">
-                      <div className="bg-purple-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 max-w-sm">
-                        Book meeting with john@email.com tomorrow at 2pm
-                      </div>
-                    </div>
-                    <div className="flex justify-start">
-                      <div className="bg-gray-100 text-gray-900 rounded-2xl rounded-tl-sm px-4 py-3 max-w-sm">
-                        ✅ Done! Meeting scheduled with john@email.com for tomorrow at 2:00 PM. Confirmation emails sent.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Floating Stats */}
-            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 flex gap-4">
-              <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
-                <div className="text-3xl font-bold text-purple-600">10x</div>
-                <div className="text-sm text-gray-600">Faster booking</div>
-              </div>
-              <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
-                <div className="text-3xl font-bold text-pink-600">95%</div>
-                <div className="text-sm text-gray-600">Time saved</div>
-              </div>
-              <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
-                <div className="text-3xl font-bold text-blue-600">0</div>
-                <div className="text-sm text-gray-600">Double bookings</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+<div className="mt-16 relative max-w-5xl mx-auto">
+  <div className="relative rounded-2xl overflow-hidden shadow-2xl border-8 border-white">
+    <div className="bg-gradient-to-br from-purple-100 to-pink-100 aspect-video flex items-center justify-center">
+      {/* Mockup Chat Interface */}
+      <div className="w-full max-w-2xl bg-white rounded-xl shadow-xl p-6 mx-4">
+        {/* ... chat content ... */}
+      </div>
+    </div>
+  </div>
+  
+  {/* Stats - NOW INSIDE as a proper row below */}
+  <div className="flex flex-wrap justify-center gap-4 mt-8">
+    <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
+      <div className="text-3xl font-bold text-purple-600">10x</div>
+      <div className="text-sm text-gray-600">Faster booking</div>
+    </div>
+    <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
+      <div className="text-3xl font-bold text-pink-600">95%</div>
+      <div className="text-sm text-gray-600">Time saved</div>
+    </div>
+    <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
+      <div className="text-3xl font-bold text-blue-600">0</div>
+      <div className="text-sm text-gray-600">Double bookings</div>
+    </div>
+  </div>
+</div>
 
       {/* ================= TRUSTED BY ================= */}
       <section className="py-16 bg-white">
