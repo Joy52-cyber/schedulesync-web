@@ -11,8 +11,10 @@ import {
   RefreshCw,
   Sparkles,
   Upload,
-  X,
-  AlertCircle
+  AlertCircle,
+  Clock,
+  ChevronRight,
+  MapPin
 } from 'lucide-react';
 import { useUpgrade } from '../context/UpgradeContext';
 import api from '../utils/api';
@@ -32,6 +34,7 @@ export default function BrandingSettings() {
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [previewStep, setPreviewStep] = useState('event-select'); // Toggle preview between steps
   
   const fileInputRef = useRef(null);
 
@@ -61,14 +64,12 @@ export default function BrandingSettings() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       setUploadError('Please upload a PNG, JPG, SVG, or WebP image');
       return;
     }
 
-    // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
       setUploadError('Image must be less than 2MB');
       return;
@@ -82,9 +83,7 @@ export default function BrandingSettings() {
       formData.append('logo', file);
 
       const response = await api.post('/user/branding/logo', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
       if (response.data.logo_url) {
@@ -95,7 +94,6 @@ export default function BrandingSettings() {
       setUploadError(err.response?.data?.error || 'Failed to upload logo');
     } finally {
       setUploading(false);
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -142,7 +140,6 @@ export default function BrandingSettings() {
     { primary: '#000000', accent: '#374151', name: 'Monochrome' },
   ];
 
-  // Show loading state while tier is loading
   if (tierLoading || loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -151,7 +148,6 @@ export default function BrandingSettings() {
     );
   }
 
-  // Show upgrade prompt for free users
   if (!hasProFeature()) {
     return (
       <div className="text-center py-8">
@@ -196,7 +192,7 @@ export default function BrandingSettings() {
   }
 
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-6xl">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
@@ -236,7 +232,6 @@ export default function BrandingSettings() {
                     src={branding.brand_logo_url} 
                     alt="Logo preview" 
                     className="max-w-full max-h-full object-contain"
-                    style={{ width: 'auto', height: 'auto' }}
                   />
                 </div>
                 <div className="flex-1">
@@ -439,86 +434,211 @@ export default function BrandingSettings() {
           </div>
         </div>
 
-        {/* Preview Column */}
+        {/* ========== ACCURATE PREVIEW - Matches BookingPage.jsx ========== */}
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">
-            Live Preview
-          </label>
-          <div className="bg-gray-100 rounded-xl p-6 sticky top-4">
-            <div 
-              className="bg-white rounded-xl shadow-lg overflow-hidden"
-              style={{ borderTop: `4px solid ${branding.brand_primary_color}` }}
-            >
-              {/* Preview Header */}
-              <div className="p-5">
-                <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <label className="block text-sm font-semibold text-gray-700">
+              Live Preview
+            </label>
+            {/* Preview step toggle */}
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setPreviewStep('event-select')}
+                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                  previewStep === 'event-select' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Step 1
+              </button>
+              <button
+                onClick={() => setPreviewStep('form')}
+                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                  previewStep === 'form' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Step 2
+              </button>
+            </div>
+          </div>
+          
+          <div className="bg-slate-100 rounded-xl p-3 sticky top-4">
+            {/* Exact BookingPage Layout */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden flex min-h-[380px] border border-slate-100">
+              
+              {/* ===== LEFT SIDEBAR - matches BookingPage ===== */}
+              <div className="w-[38%] bg-slate-50 border-r border-slate-200 p-4 flex flex-col">
+                <div className="flex-1">
+                  {/* Branded Avatar/Logo */}
                   {branding.brand_logo_url ? (
-                    <div className="w-12 h-12 rounded-lg overflow-hidden flex items-center justify-center bg-gray-50">
+                    <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-lg mb-3 bg-white border border-slate-200">
                       <img 
                         src={branding.brand_logo_url} 
                         alt="Logo" 
-                        className="max-w-full max-h-full object-contain"
-                        style={{ width: 'auto', height: 'auto' }}
+                        className="w-full h-full object-contain"
                       />
                     </div>
                   ) : (
                     <div 
-                      className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-lg"
+                      className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold shadow-lg mb-3"
                       style={{ background: `linear-gradient(135deg, ${branding.brand_primary_color}, ${branding.brand_accent_color})` }}
                     >
                       Y
                     </div>
                   )}
-                  <div>
-                    <div className="font-bold text-gray-900">Your Name</div>
-                    <div className="text-sm text-gray-500">30 Minute Meeting</div>
-                  </div>
-                </div>
-                
-                <p className="text-sm text-gray-600 mb-4">
-                  A quick call to discuss your project needs and how we can help.
-                </p>
+                  
+                  <p className="text-slate-500 font-medium text-xs">Book a meeting with</p>
+                  <h2 className="text-base font-bold text-slate-900">Your Name</h2>
+                  <p className="text-slate-400 text-xs mt-0.5">Your Team</p>
 
-                {/* Fake calendar preview */}
-                <div className="bg-gray-50 rounded-lg p-3 mb-4">
-                  <div className="text-xs font-medium text-gray-500 mb-2">Select a time</div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {['9:00 AM', '10:00 AM', '2:00 PM'].map((time) => (
-                      <div 
-                        key={time}
-                        className="text-xs py-2 px-3 rounded-lg text-center font-medium border-2 transition-colors"
-                        style={{ 
-                          borderColor: branding.brand_primary_color + '40',
-                          color: branding.brand_primary_color,
-                        }}
-                      >
-                        {time}
+                  {/* Event type info - shown when selected */}
+                  {previewStep === 'form' && (
+                    <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-800 mb-1">30 Minute Meeting</h3>
+                        <div className="flex items-center gap-1.5 text-slate-600 text-xs">
+                          <Clock className="h-3 w-3" />
+                          <span className="font-medium">30 min</span>
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        A quick call to discuss your needs and answer questions.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Prompt when no event selected */}
+                  {previewStep === 'event-select' && (
+                    <div 
+                      className="mt-4 p-3 rounded-xl border text-xs"
+                      style={{ 
+                        backgroundColor: branding.brand_primary_color + '10',
+                        borderColor: branding.brand_primary_color + '30',
+                        color: branding.brand_primary_color
+                      }}
+                    >
+                      Select a meeting type to continue.
+                    </div>
+                  )}
                 </div>
                 
-                {/* Preview button - not clickable, just for display */}
-                <div
-                  className="w-full py-3 rounded-xl text-white font-semibold text-center cursor-default select-none"
-                  style={{ background: `linear-gradient(135deg, ${branding.brand_primary_color}, ${branding.brand_accent_color})` }}
-                >
-                  Book Now
-                </div>
+                {/* Powered by footer */}
+                {!branding.hide_powered_by && (
+                  <div className="pt-4 text-[10px] text-slate-300 font-medium">
+                    Powered by ScheduleSync
+                  </div>
+                )}
               </div>
 
-              {/* Powered by footer */}
-              {!branding.hide_powered_by && (
-                <div className="border-t border-gray-100 py-3">
-                  <p className="text-center text-xs text-gray-400">
-                    Powered by ScheduleSync
-                  </p>
-                </div>
-              )}
+              {/* ===== RIGHT CONTENT AREA - matches BookingPage ===== */}
+              <div className="w-[62%] bg-white p-4 overflow-hidden">
+                
+                {/* Step 1: Event Type Selection */}
+                {previewStep === 'event-select' && (
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900 mb-1">Select a Meeting Type</h2>
+                    <p className="text-slate-500 text-xs mb-4">Choose the type of meeting you'd like to schedule.</p>
+                    
+                    <div className="space-y-2">
+                      {['30 Minute Meeting', 'Quick Chat', 'Consultation'].map((title, idx) => (
+                        <div
+                          key={idx}
+                          className="group flex items-center gap-3 p-3 rounded-xl border border-slate-200 transition-all cursor-pointer hover:shadow-md"
+                          style={{ 
+                            borderColor: idx === 0 ? branding.brand_primary_color : '#e2e8f0',
+                          }}
+                        >
+                          <div 
+                            className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110"
+                            style={{ 
+                              backgroundColor: branding.brand_primary_color + '20',
+                              color: branding.brand_primary_color
+                            }}
+                          >
+                            <Clock className="h-4 w-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-slate-900 text-xs">{title}</h3>
+                            <p className="text-slate-500 text-[10px]">{idx === 0 ? '30' : idx === 1 ? '15' : '60'} minutes</p>
+                          </div>
+                          <ChevronRight 
+                            className="h-4 w-4 transition-transform group-hover:translate-x-1"
+                            style={{ color: branding.brand_primary_color }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 2: Form with selected time */}
+                {previewStep === 'form' && (
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900 mb-3">Finalize Booking</h2>
+                    
+                    {/* Selected Time Box - branded */}
+                    <div 
+                      className="rounded-xl p-3 mb-4 flex justify-between items-center border"
+                      style={{ 
+                        backgroundColor: branding.brand_primary_color + '15',
+                        borderColor: branding.brand_primary_color + '30'
+                      }}
+                    >
+                      <div>
+                        <p 
+                          className="text-[10px] font-bold uppercase tracking-wide"
+                          style={{ color: branding.brand_primary_color }}
+                        >
+                          Selected Time
+                        </p>
+                        <p className="font-semibold text-xs mt-0.5" style={{ color: branding.brand_primary_color }}>
+                          Monday, January 15
+                        </p>
+                        <p className="text-[10px]" style={{ color: branding.brand_primary_color + 'cc' }}>
+                          10:00 AM - 10:30 AM
+                        </p>
+                      </div>
+                      <button 
+                        className="text-[10px] font-medium underline"
+                        style={{ color: branding.brand_primary_color }}
+                      >
+                        Change
+                      </button>
+                    </div>
+
+                    {/* Form fields */}
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-[10px] font-medium text-slate-700 mb-1">Your Name</label>
+                        <div className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 text-xs text-slate-400">
+                          John Doe
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-medium text-slate-700 mb-1">Email Address</label>
+                        <div className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 text-xs text-slate-400">
+                          john@example.com
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Confirm Button - branded */}
+                    <button
+                      className="w-full mt-4 text-white py-2.5 rounded-xl font-bold text-xs cursor-default"
+                      style={{ backgroundColor: branding.brand_primary_color }}
+                    >
+                      Confirm Booking
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <p className="text-xs text-gray-500 text-center mt-4">
-              This is how your booking page will appear to visitors
+            <p className="text-[10px] text-gray-500 text-center mt-2">
+              This preview matches your actual booking page layout
             </p>
           </div>
         </div>
