@@ -1,4 +1,4 @@
-﻿// Add this at the top of your server.js
+﻿// ============ SAFE FEATURE GATES ============
 let incrementAIUsage = async (userId) => {
   console.log(`⚠️ AI usage tracking skipped for user ${userId}`);
 };
@@ -19,6 +19,7 @@ console.log('🚀 SERVER STARTUP INITIATED');
 console.log('Time:', new Date().toISOString());
 console.log('Node Version:', process.version);
 console.log('========================================');
+
 
 // Log each require as it happens
 console.log('Loading dotenv...');
