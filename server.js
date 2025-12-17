@@ -1,8 +1,21 @@
-﻿
+﻿// Add this at the top of your server.js
+let incrementAIUsage = async (userId) => {
+  console.log(`⚠️ AI usage tracking skipped for user ${userId}`);
+};
+
+try {
+  const gates = require('./server/middleware/featureGates');
+  if (gates.incrementAIUsage) {
+    incrementAIUsage = gates.incrementAIUsage;
+    console.log('✅ Feature gates loaded');
+  }
+} catch (e) {
+  console.warn('ℹ️ Feature gates not available');
+}
 
 // ============ STARTUP DEBUGGING ============
 console.log('========================================');
-console.log('?? SERVER STARTUP INITIATED');
+console.log('🚀 SERVER STARTUP INITIATED');
 console.log('Time:', new Date().toISOString());
 console.log('Node Version:', process.version);
 console.log('========================================');
