@@ -10949,17 +10949,18 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
       is_unlimited: isUnlimited,
       
       // AI queries
-      ai_queries_used: user.ai_queries_used || 0,
-      ai_queries_limit: isUnlimited ? null : (user.ai_queries_limit || limits.ai),
-      
-      // Bookings
-      bookings_used: user.monthly_bookings || 0,
-      bookings_limit: isUnlimited ? null : limits.bookings,
-      
-      // Other limits
-      event_types_limit: isUnlimited ? null : limits.event_types,
-      magic_links_limit: isUnlimited ? null : limits.magic_links
-    });
+ai_queries_used: user.ai_queries_used || 0,
+ai_queries_limit: isUnlimited ? 999999 : (user.ai_queries_limit || limits.ai),
+
+// Bookings
+bookings_used: user.monthly_bookings || 0,
+bookings_limit: isUnlimited ? 999999 : limits.bookings,
+
+// Other limits
+event_types_limit: isUnlimited ? 999999 : limits.event_types,
+magic_links_limit: isUnlimited ? 999999 : limits.magic_links     
+    
+});
   } catch (error) {
     console.error('Error fetching usage:', error);
     res.status(500).json({ error: 'Failed to fetch usage' });
