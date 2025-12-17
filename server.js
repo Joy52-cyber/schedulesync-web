@@ -10649,7 +10649,78 @@ app.get('/api/user/limits', authenticateToken, async (req, res) => {
   }
 });
 
+// ============ AI CHAT ENDPOINT ============
+app.post('/api/ai/chat', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { message } = req.body;
 
+    console.log(`🤖 AI request from user: ${userId} Message: ${message}`);
+
+    // Check AI usage limit
+    const canUse = await checkAIQueryLimit(userId);
+    if (!canUse) {
+      return res.status(429).json({ 
+        error: "You've reached your AI query limit. Upgrade to Pro for unlimited access! 🚀" 
+      });
+    }
+
+    // Call Claude API
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-3-haiku-20240307',  // Fast & cheap
+        max_tokens: 1024,
+        system: `You are a helpful scheduling assistant for ScheduleSync. Help users book meetings, manage their calendar, and answer scheduling questions. 
+        
+When a user wants to book a meeting:
+1. Extract: attendee email, date, time, duration (default 30 min)
+2. Respond with a confirmation in this JSON format:
+{"action": "book_meeting", "attendee": "email@example.com", "date": "YYYY-MM-DD", "time": "HH:MM", "duration": 30}
+
+For general questions, respond naturally and helpfully.
+Today's date is ${new Date().toISOString().split('T')[0]}.`,
+        messages: [
+          { role: 'user', content: message }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Claude API error: ${response.status}`, errorText);
+      throw new Error(`Claude API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const aiResponse = data.content[0].text;
+
+    console.log('✅ Claude response received');
+
+    // Track usage
+    await incrementAIUsage(userId);
+
+    res.json({ response: aiResponse });
+
+  } catch (error) {
+    console.error('AI chat error:', error.message);
+    
+    if (error.message.includes('429')) {
+      return res.status(429).json({ 
+        error: "AI is busy right now. Please wait a moment and try again. 🕐" 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: "Hmm, something went wrong. Mind trying that again? 🙏" 
+    });
+  }
+});
 
 // ============ AI TEMPLATE GENERATION ENDPOINT (GEMINI VERSION) ============
 app.post('/api/ai/generate-template', authenticateToken, checkUsageLimits, async (req, res) => {
