@@ -11730,14 +11730,14 @@ const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${
     }
 
    
-// ✅ Return SUCCESS response (not clarify)
+    // ✅ Return SUCCESS response (not clarify)
 return res.json({
   type: 'booking_created',
   message: `✅ Meeting scheduled for ${formattedDate} at ${formattedTime}`,
   data: { booking },
   usage: {
-    ai_queries_used: req.userUsage.chatgpt_queries_used + 1,
-    ai_queries_limit: 3
+    ai_queries_used: (req.userUsage?.chatgpt_queries_used || 0) + 1,
+    ai_queries_limit: req.userUsage?.ai_queries_limit || 10
   }
 });
 
