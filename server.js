@@ -8420,40 +8420,24 @@ I've sent them a calendar invite. Anything else I can help with?`,
       });
     }
 
+    // ✅ STEP 7: SINGLE CLAUDE API CALL WITH COMPLETE CONTEXT
+      const claudeResponse = await callAnthropicWithRetry({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 1500,
+        system: systemInstruction,
+        messages: [
+          ...formattedHistory.map(msg => ({
+            role: msg.role === 'user' ? 'user' : 'assistant',
+            content: msg.parts?.[0]?.text || msg.content || ''
+          })),
+          { role: 'user', content: cleanMessage }
+        ]
+      });
 
-      // ✅ STEP 7: SINGLE GEMINI API CALL WITH COMPLETE CONTEXT
-      const geminiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            contents: [
-              ...formattedHistory,
-              {
-                role: 'user',
-                parts: [{ text: `${systemInstruction}\n\nUser message: ${cleanMessage}` }]
-              }
-            ],
-            generationConfig: {
-              temperature: 0.1,
-              topK: 1,
-              topP: 0.8,
-              maxOutputTokens: 1500
-            }
-          })
-        }
-      );
-
-      // ✅ STEP 8: ERROR HANDLING FOR GEMINI
-      if (!geminiResponse.ok) {
-        console.error(
-          'Gemini API error:',
-          geminiResponse.status,
-          geminiResponse.statusText
-        );
+      // ✅ STEP 8: ERROR HANDLING FOR CLAUDE
+      if (!claudeResponse.ok) {
+        const errorText = await claudeResponse.text();
+        console.error('Claude API error:', claudeResponse.status, errorText);
         return res.status(500).json({
           type: 'error',
           message: 'AI service temporarily unavailable. Please try again.',
@@ -8461,10 +8445,9 @@ I've sent them a calendar invite. Anything else I can help with?`,
         });
       }
 
-      const geminiData = await geminiResponse.json();
-
-      if (!geminiData?.candidates?.[0]?.content) {
-        console.error('Invalid Gemini response:', geminiData);
+      const claudeData = await claudeResponse.json();
+      if (!claudeData?.content?.[0]?.text) {
+        console.error('Invalid Claude response:', claudeData);
         return res.status(500).json({
           type: 'error',
           message: 'AI service temporarily unavailable.',
@@ -8472,7 +8455,7 @@ I've sent them a calendar invite. Anything else I can help with?`,
         });
       }
 
-      const aiText = geminiData.candidates[0].content.parts[0].text;
+      const aiText = claudeData.content[0].text;
       console.log('🧠 AI raw response:', aiText);
 
       // ✅ STEP 9: INCREMENT USAGE ONCE
@@ -8499,8 +8482,8 @@ I've sent them a calendar invite. Anything else I can help with?`,
           usage: usageData
         });
       }
-
       console.log('🎯 Parsed intent:', parsedIntent);
+      
 
       // ✅ STEP 11: BASIC VALIDATION
       if (!parsedIntent.intent || !parsedIntent.response_message) {
@@ -10493,7 +10476,7 @@ app.post('/api/ai/chat', authenticateToken, async (req, res) => {
     const { message } = req.body;
     
     console.log(`🤖 AI request from user: ${userId} Message: ${message}`);
-    
+    console.log('🔵 USING CLAUDE API');
     // Check AI usage limit
     const canUse = await checkAIQueryLimit(userId);
     if (!canUse) {
