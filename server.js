@@ -8064,69 +8064,6 @@ const enforceUsageLimits = async (req, res, next) => {
   }
 };
 
-// ============ AI USAGE LIMIT MIDDLEWARE ============
-// Make sure this is defined BEFORE app.post('/api/ai/schedule', ...)
-
-async function checkAIQueryLimit(req, res, next) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        type: 'error',
-        message: 'Not authenticated.',
-        usage: { ai_queries_used: 0, ai_queries_limit: 0 }
-      });
-    }
-
-    const result = await pool.query(
-      `SELECT 
-         COALESCE(ai_queries_used, 0) AS ai_queries_used,
-         COALESCE(ai_queries_limit, 10) AS ai_queries_limit
-       FROM users
-       WHERE id = $1`,
-      [userId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        type: 'error',
-        message: 'User not found.',
-        usage: { ai_queries_used: 0, ai_queries_limit: 0 }
-      });
-    }
-
-    const { ai_queries_used, ai_queries_limit } = result.rows[0];
-
-    // Attach usage for the route to use
-    req.aiUsage = { ai_queries_used, ai_queries_limit };
-
-    // ✅ Skip limit check for unlimited users (Pro/Team have limit >= 1000)
-    const isUnlimited = ai_queries_limit >= 1000;
-    
-    if (!isUnlimited && ai_queries_used >= ai_queries_limit) {
-      console.log(`🚫 AI limit reached for user ${userId}: ${ai_queries_used}/${ai_queries_limit}`);
-      return res.status(429).json({
-        type: 'error',
-        message: `You've reached your AI query limit (${ai_queries_limit}). Please upgrade to continue.`,
-        upgrade_required: true,
-        feature: 'ai_scheduling',
-        usage: { ai_queries_used, ai_queries_limit }
-      });
-    }
-
-    console.log(`✅ AI limit check passed for user ${userId}: ${ai_queries_used}/${ai_queries_limit}`);
-    return next();
-
-  } catch (err) {
-    console.error('❌ checkAIQueryLimit error:', err);
-    // ✅ FAIL CLOSED - block the request if we can't verify limits
-    return res.status(500).json({
-      type: 'error',
-      message: 'Unable to verify usage limits. Please try again.',
-      usage: { ai_queries_used: 0, ai_queries_limit: 0 }
-    });
-  }
-}
 
 
 
