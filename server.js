@@ -1,17 +1,4 @@
-﻿// ============ SAFE FEATURE GATES ============
-let incrementAIUsage = async (userId) => {
-  console.log(`⚠️ AI usage tracking skipped for user ${userId}`);
-};
-
-try {
-  const gates = require('./server/middleware/featureGates');
-  if (gates.incrementAIUsage) {
-    incrementAIUsage = gates.incrementAIUsage;
-    console.log('✅ Feature gates loaded');
-  }
-} catch (e) {
-  console.warn('ℹ️ Feature gates not available');
-}
+﻿
 
 // ============ STARTUP DEBUGGING ============
 console.log('========================================');
@@ -174,85 +161,93 @@ try {
   console.log('?? Calendar utilities not available - calendar sync disabled');
 }
 
-// Add this helper function at the top of server.js (after imports)
-async function callAnthropicWithRetry(requestBody, retries = 2) {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+// ============================================
+// AI HELPER FUNCTIONS - CLEAN VERSION
+// ============================================
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-      method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify(requestBody),
-  signal: controller.signal
-});
+// Configuration
+const AI_CONFIG = {
+  GEMINI_TIMEOUT: 30000,
+  ANTHROPIC_TIMEOUT: 30000,
+  DEFAULT_RETRIES: 2
+};
 
-      clearTimeout(timeout);
-      return response;
-    } catch (error) {
-      console.error(`Anthropic API attempt ${i + 1} failed:`, error.message);
-      if (i === retries) throw error;
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
-    }
-  }
+// ============================================
+// SAFE FEATURE GATES LOADING
+// ============================================
+let incrementAIUsage = async (userId) => {
+  console.log(`⚠️ AI usage tracking skipped for user ${userId}`);
+};
+
+let checkAIQueryLimit = async (userId) => {
+  console.log(`⚠️ AI limit check skipped for user ${userId}`);
+  return true;
+};
+
+try {
+  const gates = require('./server/middleware/featureGates');
+  if (gates.incrementAIUsage) incrementAIUsage = gates.incrementAIUsage;
+  if (gates.checkAIQueryLimit) checkAIQueryLimit = gates.checkAIQueryLimit;
+  console.log('✅ Feature gates loaded');
+} catch (e) {
+  console.warn('ℹ️ Feature gates not available - using defaults');
 }
-  
 
 // ============================================
-// HELPER FUNCTIONS - Add after imports
+// GEMINI API CLIENT
 // ============================================
-// Fixed Gemini API call with retry
-async function callGeminiWithRetry(requestBody, retries = 2) {
+async function callGeminiWithRetry(requestBody, retries = AI_CONFIG.DEFAULT_RETRIES) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
   for (let i = 0; i <= retries; i++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), AI_CONFIG.GEMINI_TIMEOUT);
+
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-      
-      // ✅ FIXED: Proper fetch syntax (not template literal)
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, 
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal
-        }
-      );
-      
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+
       clearTimeout(timeout);
-      
-      // Handle rate limiting with exponential backoff
+
+      if (response.ok) return response;
+
       if (response.status === 429) {
-       const waitTime = Math.pow(2, i + 2) * 1000; // 4s, 8s, 16s
-      console.log(`⏳ Rate limited, waiting ${waitTime/1000}s before retry ${i + 1}/${retries}`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        continue;
+        const waitTime = Math.pow(2, i + 2) * 1000;
+        console.log(`⏳ Gemini 429 - waiting ${waitTime/1000}s...`);
+        if (i < retries) {
+          await new Promise(r => setTimeout(r, waitTime));
+          continue;
+        }
       }
-      
-      return response;
-      
+
+      console.error(`Gemini API error: ${response.status} ${response.statusText}`);
+      throw new Error(`Gemini API error: ${response.status}`);
+
     } catch (error) {
-      // ✅ FIXED: Proper console.error syntax
-      console.error(`Gemini API attempt ${i + 1} failed:`, error.message);
+      clearTimeout(timeout);
+      console.error(`Gemini attempt ${i + 1} failed:`, error.message);
       if (i === retries) throw error;
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+      await new Promise(r => setTimeout(r, 1000));
     }
   }
 }
 
-// Anthropic API with retry (if you want to use Claude instead)
-async function callAnthropicWithRetry(requestBody, retries = 2) {
+// ============================================
+// ANTHROPIC (CLAUDE) API CLIENT
+// ============================================
+async function callAnthropicWithRetry(requestBody, retries = AI_CONFIG.DEFAULT_RETRIES) {
+  const url = 'https://api.anthropic.com/v1/messages';
+
   for (let i = 0; i <= retries; i++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), AI_CONFIG.ANTHROPIC_TIMEOUT);
+
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
-      
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -262,28 +257,36 @@ async function callAnthropicWithRetry(requestBody, retries = 2) {
         body: JSON.stringify(requestBody),
         signal: controller.signal
       });
-      
+
       clearTimeout(timeout);
-      
-      // Handle rate limiting
+
+      if (response.ok) return response;
+
       if (response.status === 429) {
         const waitTime = Math.pow(2, i + 1) * 1000;
-        console.log(`⏳ Rate limited, waiting ${waitTime/1000}s before retry`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        continue;
+        console.log(`⏳ Claude 429 - waiting ${waitTime/1000}s...`);
+        if (i < retries) {
+          await new Promise(r => setTimeout(r, waitTime));
+          continue;
+        }
       }
-      
-      return response;
-      
+
+      const errorText = await response.text();
+      console.error(`Claude API error: ${response.status}`, errorText);
+      throw new Error(`Claude API error: ${response.status}`);
+
     } catch (error) {
-      console.error(`Anthropic API attempt ${i + 1} failed:`, error.message);
+      clearTimeout(timeout);
+      console.error(`Claude attempt ${i + 1} failed:`, error.message);
       if (i === retries) throw error;
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(r => setTimeout(r, 1000));
     }
   }
 }
 
-// Time parsing utility
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
 function safeParseTime(timeString) {
   if (!timeString || typeof timeString !== 'string') return null;
   const parts = timeString.split(':');
@@ -291,10 +294,10 @@ function safeParseTime(timeString) {
   const hours = parseInt(parts[0], 10);
   const minutes = parseInt(parts[1], 10);
   if (isNaN(hours) || isNaN(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
   return { hours, minutes };
 }
 
-// Timezone validation utility
 function validateTimezone(timezone) {
   if (!timezone || typeof timezone !== 'string') return false;
   try {
@@ -306,111 +309,8 @@ function validateTimezone(timezone) {
 }
 
 // ============================================
-// FEATURE GATES LOADING
+// END AI HELPER FUNCTIONS
 // ============================================
-console.log('Loading feature gates...');
-try {
-  const { 
-    checkAIQueryLimit, 
-    checkBookingLimit, 
-    checkTeamAccess, 
-    checkEventTypeLimit,
-    incrementAIUsage,
-    incrementBookingUsage,
-    checkFeatureAccess 
-  } = require('./server/middleware/featureGates');
-  console.log('✅ Feature gates loaded');
-} catch (e) {
-  console.error('❌ Failed to load feature gates:', e.message);
-  // Don't exit - feature gates are optional for now
-}
-
-// ============================================
-// AI API WRAPPER (Bulletproof Version)
-// ============================================
-
-// Helper: Convert Gemini JSON format to Anthropic JSON format
-function convertBodyToAnthropic(geminiBody) {
-  try {
-    const text = geminiBody.contents?.[0]?.parts?.[0]?.text || "";
-    if (!text) return null;
-    return {
-      model: "claude-3-haiku-20240307",
-      max_tokens: 1024,
-      messages: [{ role: "user", content: text }]
-    };
-  } catch (e) {
-    return null;
-  }
-}
-
-async function callAIWithTracking(userId, requestBody, apiProvider = 'gemini') {
-  try {
-    // 1. OPTIONAL: Check Limits
-    // await checkAIQueryLimit(userId); 
-
-    let response;
-
-    // ---------------------------------------------------------
-    // ATTEMPT 1: Primary Provider (Gemini)
-    // ---------------------------------------------------------
-    try {
-      if (apiProvider === 'gemini') {
-        response = await callGeminiWithRetry(requestBody);
-      } else if (apiProvider === 'anthropic') {
-        response = await callAnthropicWithRetry(requestBody);
-      }
-    } catch (primaryError) {
-      
-      // -------------------------------------------------------
-      // ATTEMPT 2: Failover Logic
-      // -------------------------------------------------------
-      const isRateLimit = primaryError.message.includes('429') || primaryError.message.includes('Quota');
-      const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
-
-      if (apiProvider === 'gemini' && isRateLimit && hasAnthropicKey) {
-        console.log(`⚠️ Gemini 429 Limit. Switching to Anthropic for User ${userId}...`);
-        
-        const anthropicBody = convertBodyToAnthropic(requestBody);
-        
-        if (anthropicBody) {
-          // Return the Anthropic response directly
-          response = await callAnthropicWithRetry(anthropicBody);
-        } else {
-          throw primaryError; 
-        }
-      } else {
-        console.warn(`❌ Failover skipped. Key exists: ${hasAnthropicKey}. Error: ${primaryError.message}`);
-        throw primaryError; // Cannot failover
-      }
-    }
-
-    // 2. Track Usage
-    await incrementAIUsage(userId);
-    return response;
-
-  } catch (error) {
-    // ---------------------------------------------------------
-    // FINAL SAFETY NET (Prevents 500 Crash)
-    // ---------------------------------------------------------
-    console.error(`❌ ALL AI ATTEMPTS FAILED for User ${userId}:`, error.message);
-    
-    // Instead of throwing (which crashes the app), return a "Fake" response
-    // ensuring the frontend gets valid JSON and displays a polite message.
-    return {
-      ok: true,
-      json: async () => ({
-        candidates: [{
-          content: {
-            parts: [{ 
-              text: "I'm currently experiencing very high traffic. Please wait 1 minute and try again." 
-            }]
-          }
-        }]
-      })
-    };
-  }
-}
 
 // ============ MICROSOFT OAUTH CONFIG ============
 const MICROSOFT_CONFIG = {
