@@ -11035,34 +11035,6 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch usage' });
   }
 });
-// ============ AI USAGE TRACKING ============
-async function incrementAIUsage(userId) {
-  try {
-    const result = await pool.query(
-      'UPDATE users SET ai_queries_used = COALESCE(ai_queries_used, 0) + 1 WHERE id = $1 RETURNING ai_queries_used, ai_queries_limit',  // ? Fixed
-      [userId]
-    );
-    
-    if (result.rows.length === 0) {
-      throw new Error('User not found');
-    }
-    
-    const updated = result.rows[0];
-    console.log(`? AI usage incremented for user ${userId}: ${updated.ai_queries_used}/${updated.ai_queries_limit}`);  // ? Fixed
-    
-    return {
-      success: true,
-      ai_queries_used: updated.ai_queries_used,
-      ai_queries_limit: updated.ai_queries_limit || 10
-    };
-  } catch (error) {
-    console.error('? Failed to increment AI usage:', error);
-    return { 
-      success: false,
-      error: error.message
-    };
-  }
-}
 
 
 // ============ SUBSCRIPTION MANAGEMENT ============
@@ -11704,7 +11676,7 @@ console.log('? AI Booking created:', booking.id);
 
 // ? Track AI usage after successful booking
 console.log(`?? About to increment AI usage for user ${userId}`);
-
+await incrementAIUsage(userId);
 console.log(`?? AI query used by user ${userId} for successful booking`);
 
 // Format times for email
