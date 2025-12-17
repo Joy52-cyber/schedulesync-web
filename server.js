@@ -326,29 +326,77 @@ try {
 }
 
 // ============================================
-// AI API WRAPPER WITH FEATURE GATES
+// AI API WRAPPER WITH FEATURE GATES & FAILOVER
 // ============================================
+
+// Helper: Convert Gemini JSON format to Anthropic JSON format
+function convertBodyToAnthropic(geminiBody) {
+  try {
+    // Gemini puts the prompt in contents[0].parts[0].text
+    const text = geminiBody.contents?.[0]?.parts?.[0]?.text || "";
+    if (!text) return null;
+
+    return {
+      model: "claude-3-haiku-20240307", // Fast, cheap model
+      max_tokens: 1024,
+      messages: [{ role: "user", content: text }]
+    };
+  } catch (e) {
+    console.warn("⚠️ Data conversion failed:", e.message);
+    return null;
+  }
+}
+
 async function callAIWithTracking(userId, requestBody, apiProvider = 'gemini') {
   try {
-    // Check if user can make AI queries (this will throw if limit reached)
-    // Note: You'll need to implement middleware check here or call before this function
-    
+    // 1. OPTIONAL: Check Limits (Uncomment if needed)
+    // await checkAIQueryLimit(userId); 
+
     let response;
-    if (apiProvider === 'gemini') {
-      response = await callGeminiWithRetry(requestBody);
-    } else if (apiProvider === 'anthropic') {
-      response = await callAnthropicWithRetry(requestBody);
-    } else {
-      throw new Error('Unsupported AI provider');
+
+    // ---------------------------------------------------------
+    // ATTEMPT 1: Primary Provider
+    // ---------------------------------------------------------
+    try {
+      if (apiProvider === 'gemini') {
+        response = await callGeminiWithRetry(requestBody);
+      } else if (apiProvider === 'anthropic') {
+        response = await callAnthropicWithRetry(requestBody);
+      } else {
+        throw new Error('Unsupported AI provider');
+      }
+
+    } catch (primaryError) {
+      // -------------------------------------------------------
+      // ATTEMPT 2: Failover Logic (Gemini 429 -> Anthropic)
+      // -------------------------------------------------------
+      const isRateLimit = primaryError.message.includes('429') || primaryError.message.includes('Quota');
+
+      // If Gemini failed due to Rate Limit, try Anthropic
+      if (apiProvider === 'gemini' && isRateLimit) {
+        console.log(`⚠️ Gemini Rate Limit hit for User ${userId}. Failing over to Anthropic...`);
+        
+        const anthropicBody = convertBodyToAnthropic(requestBody);
+        
+        if (anthropicBody && process.env.ANTHROPIC_API_KEY) {
+          response = await callAnthropicWithRetry(anthropicBody);
+        } else {
+          // If conversion fails or no key, throw the original error
+          throw primaryError;
+        }
+      } else {
+        // If it wasn't a rate limit error, just fail normally
+        throw primaryError;
+      }
     }
-    
-    // ✅ INCREMENT usage after successful call
+
+    // 2. Track Usage (Only counts if successful)
     await incrementAIUsage(userId);
-    
+
     return response;
-    
+
   } catch (error) {
-    console.error('AI API call failed:', error);
+    console.error(`❌ AI Call Failed (User ${userId}):`, error.message);
     throw error;
   }
 }
