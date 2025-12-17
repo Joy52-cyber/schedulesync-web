@@ -244,8 +244,9 @@ export default function Book() {
 
   if (!bookingData) return null;
 
-  {/* External booking redirect */}
-if (bookingData?.member?.external_booking_link) {
+ {/* External booking redirect - but NOT for reschedules */}
+const isReschedule = new URLSearchParams(window.location.search).has('reschedule');
+if (bookingData?.member?.external_booking_link && !isReschedule) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
