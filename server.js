@@ -772,18 +772,6 @@ const checkUsageLimits = async (req, res, next) => {
   }
 };
 
-// Helper function to increment AI usage - FIXED column name
-const incrementAIUsage = async (userId) => {
-  try {
-    await pool.query(
-      'UPDATE users SET ai_queries_used = COALESCE(ai_queries_used, 0) + 1 WHERE id = $1',
-      [userId]
-    );
-    console.log(`✅ AI usage incremented for user ${userId}`);
-  } catch (error) {
-    console.error('Failed to increment AI usage:', error);
-  }
-};
 
 // Helper function to increment booking usage
 const incrementBookingUsage = async (userId) => {
