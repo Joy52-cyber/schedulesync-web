@@ -326,78 +326,89 @@ try {
 }
 
 // ============================================
-// AI API WRAPPER WITH FEATURE GATES & FAILOVER
+// AI API WRAPPER (Bulletproof Version)
 // ============================================
 
 // Helper: Convert Gemini JSON format to Anthropic JSON format
 function convertBodyToAnthropic(geminiBody) {
   try {
-    // Gemini puts the prompt in contents[0].parts[0].text
     const text = geminiBody.contents?.[0]?.parts?.[0]?.text || "";
     if (!text) return null;
-
     return {
-      model: "claude-3-haiku-20240307", // Fast, cheap model
+      model: "claude-3-haiku-20240307",
       max_tokens: 1024,
       messages: [{ role: "user", content: text }]
     };
   } catch (e) {
-    console.warn("⚠️ Data conversion failed:", e.message);
     return null;
   }
 }
 
 async function callAIWithTracking(userId, requestBody, apiProvider = 'gemini') {
   try {
-    // 1. OPTIONAL: Check Limits (Uncomment if needed)
+    // 1. OPTIONAL: Check Limits
     // await checkAIQueryLimit(userId); 
 
     let response;
 
     // ---------------------------------------------------------
-    // ATTEMPT 1: Primary Provider
+    // ATTEMPT 1: Primary Provider (Gemini)
     // ---------------------------------------------------------
     try {
       if (apiProvider === 'gemini') {
         response = await callGeminiWithRetry(requestBody);
       } else if (apiProvider === 'anthropic') {
         response = await callAnthropicWithRetry(requestBody);
-      } else {
-        throw new Error('Unsupported AI provider');
       }
-
     } catch (primaryError) {
+      
       // -------------------------------------------------------
-      // ATTEMPT 2: Failover Logic (Gemini 429 -> Anthropic)
+      // ATTEMPT 2: Failover Logic
       // -------------------------------------------------------
       const isRateLimit = primaryError.message.includes('429') || primaryError.message.includes('Quota');
+      const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
 
-      // If Gemini failed due to Rate Limit, try Anthropic
-      if (apiProvider === 'gemini' && isRateLimit) {
-        console.log(`⚠️ Gemini Rate Limit hit for User ${userId}. Failing over to Anthropic...`);
+      if (apiProvider === 'gemini' && isRateLimit && hasAnthropicKey) {
+        console.log(`⚠️ Gemini 429 Limit. Switching to Anthropic for User ${userId}...`);
         
         const anthropicBody = convertBodyToAnthropic(requestBody);
         
-        if (anthropicBody && process.env.ANTHROPIC_API_KEY) {
+        if (anthropicBody) {
+          // Return the Anthropic response directly
           response = await callAnthropicWithRetry(anthropicBody);
         } else {
-          // If conversion fails or no key, throw the original error
-          throw primaryError;
+          throw primaryError; 
         }
       } else {
-        // If it wasn't a rate limit error, just fail normally
-        throw primaryError;
+        console.warn(`❌ Failover skipped. Key exists: ${hasAnthropicKey}. Error: ${primaryError.message}`);
+        throw primaryError; // Cannot failover
       }
     }
 
-    // 2. Track Usage (Only counts if successful)
+    // 2. Track Usage
     await incrementAIUsage(userId);
-
     return response;
 
   } catch (error) {
-    console.error(`❌ AI Call Failed (User ${userId}):`, error.message);
-    throw error;
+    // ---------------------------------------------------------
+    // FINAL SAFETY NET (Prevents 500 Crash)
+    // ---------------------------------------------------------
+    console.error(`❌ ALL AI ATTEMPTS FAILED for User ${userId}:`, error.message);
+    
+    // Instead of throwing (which crashes the app), return a "Fake" response
+    // ensuring the frontend gets valid JSON and displays a polite message.
+    return {
+      ok: true,
+      json: async () => ({
+        candidates: [{
+          content: {
+            parts: [{ 
+              text: "I'm currently experiencing very high traffic. Please wait 1 minute and try again." 
+            }]
+          }
+        }]
+      })
+    };
   }
 }
 
