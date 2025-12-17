@@ -6,15 +6,10 @@ import {
   Sparkles,
   Calendar,
   ArrowRight,
-  Mic,
-  MicOff,
-  X,
   Clock,
   CheckCircle,
   Zap,
-  MessageSquare,
-  Lock,
-  Volume2
+  Lock
 } from 'lucide-react';
 
 const DEMO_LIMIT = 5;
@@ -156,9 +151,9 @@ export default function DemoPage() {
       role: 'assistant',
       content: `👋 **Welcome to the ScheduleSync AI Demo!**
 
-I'm your AI scheduling assistant. Try talking to me using your voice or type a message!
+I'm your AI scheduling assistant. Try sending me a message!
 
-**Try saying:**
+**Try these:**
 • "Book a meeting with john@example.com tomorrow at 2pm"
 • "What's my availability this week?"
 • "Create a booking link for Sarah"
@@ -171,53 +166,6 @@ This is a demo with simulated responses. Sign up to connect your real calendar!`
   const [demoCount, setDemoCount] = useState(0);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const messagesEndRef = useRef(null);
-  
-  // Voice recognition state
-  const [isListening, setIsListening] = useState(false);
-  const [speechSupported, setSpeechSupported] = useState(false);
-  const recognitionRef = useRef(null);
-
-  // Check for speech recognition support
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      setSpeechSupported(true);
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'en-US';
-
-      recognitionRef.current.onresult = (event) => {
-        const transcript = Array.from(event.results)
-          .map(result => result[0].transcript)
-          .join('');
-        setInput(transcript);
-        
-        // If final result, auto-send
-        if (event.results[event.results.length - 1].isFinal) {
-          setTimeout(() => {
-            handleSendMessage(transcript);
-            setIsListening(false);
-          }, 500);
-        }
-      };
-
-      recognitionRef.current.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-      };
-
-      recognitionRef.current.onend = () => {
-        setIsListening(false);
-      };
-    }
-
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-    };
-  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -227,33 +175,17 @@ This is a demo with simulated responses. Sign up to connect your real calendar!`
     scrollToBottom();
   }, [messages]);
 
-  const toggleListening = () => {
-    if (!speechSupported) {
-      alert('Speech recognition is not supported in your browser. Try Chrome or Edge.');
-      return;
-    }
-
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    } else {
-      setInput('');
-      recognitionRef.current.start();
-      setIsListening(true);
-    }
-  };
-
-  const handleSendMessage = async (messageText) => {
-    const textToSend = messageText || input;
-    if (!textToSend.trim()) return;
+  const handleSendMessage = async () => {
+    if (!input.trim()) return;
 
     if (demoCount >= DEMO_LIMIT) {
       setShowLimitModal(true);
       return;
     }
 
-    const userMessage = { role: 'user', content: textToSend };
+    const userMessage = { role: 'user', content: input };
     setMessages(prev => [...prev, userMessage]);
+    const messageText = input;
     setInput('');
     setIsTyping(true);
     setDemoCount(prev => prev + 1);
@@ -261,7 +193,7 @@ This is a demo with simulated responses. Sign up to connect your real calendar!`
     // Simulate typing delay
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
 
-    const response = generateDemoResponse(textToSend);
+    const response = generateDemoResponse(messageText);
     setMessages(prev => [...prev, { role: 'assistant', content: response.message }]);
     setIsTyping(false);
   };
@@ -300,22 +232,6 @@ This is a demo with simulated responses. Sign up to connect your real calendar!`
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
-        {/* Voice Feature Highlight */}
-        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 backdrop-blur-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center animate-pulse">
-              <Volume2 className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h3 className="text-white font-bold text-lg flex items-center gap-2">
-                🎤 Try Voice Commands!
-                <span className="text-xs bg-purple-500 px-2 py-0.5 rounded-full">NEW</span>
-              </h3>
-              <p className="text-purple-200 text-sm">Click the microphone button and speak naturally. Say "Book a meeting with john@email.com tomorrow"</p>
-            </div>
-          </div>
-        </div>
-
         {/* Chat Container */}
         <div className="bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
           {/* Chat Header */}
@@ -367,48 +283,24 @@ This is a demo with simulated responses. Sign up to connect your real calendar!`
           {/* Input Area */}
           <div className="p-4 border-t border-white/10 bg-black/20">
             <div className="flex gap-2">
-              {/* Voice Button */}
-              <button
-                onClick={toggleListening}
-                disabled={!speechSupported}
-                className={`p-3 rounded-xl transition-all flex-shrink-0 ${
-                  isListening 
-                    ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/50' 
-                    : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
-                } ${!speechSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
-                title={speechSupported ? (isListening ? 'Stop listening' : 'Start voice input') : 'Voice not supported'}
-              >
-                {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-              </button>
-
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder={isListening ? "Listening... speak now" : "Type or click mic to speak..."}
-                className={`flex-1 bg-white/10 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm ${
-                  isListening ? 'border-red-500 bg-red-500/10' : ''
-                }`}
+                placeholder="Type a message..."
+                className="flex-1 bg-white/10 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                 disabled={isTyping}
               />
               
               <button
-                onClick={() => handleSendMessage()}
+                onClick={handleSendMessage}
                 disabled={!input.trim() || isTyping}
                 className="p-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-lg hover:shadow-purple-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
               >
                 <Send className="w-5 h-5" />
               </button>
             </div>
-
-            {/* Voice Status */}
-            {isListening && (
-              <div className="mt-2 flex items-center gap-2 text-red-400 text-sm">
-                <span className="w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
-                Listening... speak now
-              </div>
-            )}
           </div>
         </div>
 
@@ -432,8 +324,8 @@ This is a demo with simulated responses. Sign up to connect your real calendar!`
         <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="p-4 rounded-xl bg-white/5 border border-white/10">
             <Zap className="w-8 h-8 text-yellow-400 mb-2" />
-            <h3 className="text-white font-semibold mb-1">Voice Commands</h3>
-            <p className="text-white/50 text-sm">Just speak naturally - "Book a meeting with John tomorrow"</p>
+            <h3 className="text-white font-semibold mb-1">Natural Language</h3>
+            <p className="text-white/50 text-sm">Just type what you need - "Book a meeting with John tomorrow"</p>
           </div>
           <div className="p-4 rounded-xl bg-white/5 border border-white/10">
             <Calendar className="w-8 h-8 text-blue-400 mb-2" />

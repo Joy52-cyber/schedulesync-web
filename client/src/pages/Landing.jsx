@@ -126,7 +126,7 @@ export default function Landing() {
     {
       icon: Bot,
       title: 'AI Scheduling Assistant',
-      description: 'Say "Book meeting with john@email.com tomorrow 2pm" and it\'s done. No forms, no clicks.',
+      description: 'Type "Book meeting with john@email.com tomorrow 2pm" and it\'s done. No forms, no clicks.',
       stat: '10x faster',
       color: 'from-purple-500 to-pink-500',
       demo: 'Ask AI: "Book with client@company.com tomorrow"'
@@ -249,12 +249,10 @@ export default function Landing() {
   return (
     <div className="min-h-screen flex flex-col bg-white font-sans">
 
-
       {/* ================= HEADER ================= */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between">
-            {/* Logo - always visible */}
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg">
                 <Calendar className="w-5 h-5 text-white" />
@@ -262,23 +260,19 @@ export default function Landing() {
               <span className="font-bold text-lg">ScheduleSync</span>
             </div>
             
-            {/* Desktop Nav - hidden on mobile */}
             <div className="hidden md:flex items-center gap-6 text-sm">
               <a href="#features" className="text-gray-600 hover:text-gray-900 font-medium">Features</a>
               <a href="#pricing" className="text-gray-600 hover:text-gray-900 font-medium">Pricing</a>
               <a href="#compare" className="text-gray-600 hover:text-gray-900 font-medium">Compare</a>
             </div>
 
-            {/* Auth Buttons - visible on all screen sizes */}
             <div className="flex items-center gap-2 sm:gap-3">
-              {/* Log in - always visible */}
               <button 
                 onClick={() => navigate('/login')}
                 className="text-sm font-medium text-gray-600 hover:text-gray-900 px-2 sm:px-3 py-2"
               >
                 Log in
               </button>
-              {/* Get Started - always visible but smaller on mobile */}
               <button 
                 onClick={() => navigate('/register')}
                 className="text-xs sm:text-sm font-bold bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full px-3 sm:px-4 py-2 hover:shadow-lg transition-all"
@@ -293,7 +287,6 @@ export default function Landing() {
 
       {/* ================= HERO SECTION ================= */}
       <section className="relative bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 overflow-hidden pt-20 pb-32">
-        {/* Animated Background */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
           <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
@@ -301,7 +294,6 @@ export default function Landing() {
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 text-center">
-          {/* Trust Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 backdrop-blur-sm border border-purple-200 text-sm font-medium text-purple-600 mb-8 shadow-sm">
             <Sparkles className="w-4 h-4 text-yellow-500" />
             <span>Trusted by 10,000+ professionals</span>
@@ -311,14 +303,14 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* Main Headline */}
+          {/* Main Headline - Changed from "with just your voice" */}
           <h1 className="text-5xl md:text-7xl font-extrabold text-gray-900 mb-6 tracking-tight">
             Schedule meetings<br />
-            with <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">just your voice</span>
+            <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">in seconds with AI</span>
           </h1>
 
           <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto mb-8 leading-relaxed">
-            Say goodbye to back-and-forth emails. Our AI assistant books meetings for you in seconds—just tell it what you need.
+            Say goodbye to back-and-forth emails. Our AI assistant books meetings for you instantly—just tell it what you need.
           </p>
 
           {/* Link Detection Input */}
@@ -342,7 +334,6 @@ export default function Landing() {
               </form>
             </div>
             
-            {/* Detection Badge & Connection Options */}
             {detectedSource && (
               <div className="w-full animate-in fade-in slide-in-from-top-2 duration-300 flex flex-col items-center">
                 {!showConnectionOptions && (
@@ -356,7 +347,6 @@ export default function Landing() {
               </div>
             )}
 
-            {/* "Continue without link" Option */}
             {!detectedSource && (
               <button
                 onClick={() => navigate('/register')}
@@ -406,7 +396,6 @@ export default function Landing() {
           <div className="mt-16 relative max-w-5xl mx-auto">
             <div className="relative rounded-2xl overflow-hidden shadow-2xl border-8 border-white">
               <div className="bg-gradient-to-br from-purple-100 to-pink-100 aspect-video flex items-center justify-center">
-                {/* Mockup Chat Interface */}
                 <div className="w-full max-w-2xl bg-white rounded-xl shadow-xl p-6 mx-4">
                   <div className="flex items-center gap-3 mb-6 pb-4 border-b">
                     <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center">
@@ -434,7 +423,6 @@ export default function Landing() {
               </div>
             </div>
             
-            {/* Stats - proper row below */}
             <div className="flex flex-wrap justify-center gap-4 mt-8">
               <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
                 <div className="text-3xl font-bold text-purple-600">10x</div>

@@ -18,9 +18,7 @@ import {
   Zap,
   Copy, 
   Check, 
-  Link,
-  Mic,
-  MicOff
+  Link
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -29,7 +27,6 @@ export default function AISchedulerChat() {
 
   const { currentTier, hasProFeature, hasTeamFeature, loading: tierLoading } = useUpgrade();
 
-  // Generate friendly, conversational greeting
   const getGreetingMessage = () => {
     const hour = new Date().getHours();
     let timeGreeting = "Hi there";
@@ -70,8 +67,6 @@ Here's what I can do:
 
     greeting += `
 
-🎤 **Voice** – Tap the mic and talk to me! I'll wait for you to finish.
-
 What can I help you with?`;
 
     return greeting;
@@ -84,7 +79,6 @@ What can I help you with?`;
     isGreeting: true
   });
 
-  // Always start closed - user must click to open
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [message, setMessage] = useState('');
@@ -129,196 +123,8 @@ What can I help you with?`;
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Voice input states - IMPROVED
-  const [isListening, setIsListening] = useState(false);
-  const [speechSupported, setSpeechSupported] = useState(false);
-  const [interimTranscript, setInterimTranscript] = useState('');
-  const recognitionRef = useRef(null);
-  const silenceTimerRef = useRef(null);
-  const finalTranscriptRef = useRef('');
-
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-
-  // Initialize speech recognition - IMPROVED for continuous listening
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      setSpeechSupported(true);
-      recognitionRef.current = new SpeechRecognition();
-      
-      // Key settings for better experience
-      recognitionRef.current.continuous = true;        // Keep listening until stopped
-      recognitionRef.current.interimResults = true;    // Show live text as user speaks
-      recognitionRef.current.lang = 'en-US';
-      recognitionRef.current.maxAlternatives = 1;
-
-      recognitionRef.current.onresult = (event) => {
-        let interimText = '';
-        let finalText = '';
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalText += transcript + ' ';
-          } else {
-            interimText += transcript;
-          }
-        }
-
-        // Accumulate final transcript
-        if (finalText) {
-          finalTranscriptRef.current += finalText;
-          setMessage(finalTranscriptRef.current.trim());
-        }
-        
-        // Show interim (live) transcript
-        setInterimTranscript(interimText);
-
-        // Reset silence timer - auto-send after 2s of silence
-        // Clear existing timer first to prevent stacking
-        if (silenceTimerRef.current) {
-          clearTimeout(silenceTimerRef.current);
-          silenceTimerRef.current = null;
-        }
-        
-        // Only set new timer if we have accumulated text
-        if (finalTranscriptRef.current.trim()) {
-          silenceTimerRef.current = setTimeout(() => {
-            // Double-check we still have text to send (prevents race conditions)
-            if (finalTranscriptRef.current.trim()) {
-              console.log('🎤 Auto-stopping after 2s silence');
-              stopListeningAndSend();
-            }
-            silenceTimerRef.current = null;
-          }, 2000); // 2 seconds of silence triggers send
-        }
-      };
-
-      recognitionRef.current.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        
-        if (event.error === 'no-speech') {
-          // User didn't say anything - just stop quietly
-          setIsListening(false);
-          setInterimTranscript('');
-          return;
-        }
-        
-        if (event.error === 'not-allowed') {
-          setChatHistory(prev => [...prev, {
-            role: 'assistant',
-            content: "Oops! I need microphone access to hear you. Please enable it in your browser settings and try again! 🎤",
-            timestamp: new Date()
-          }]);
-        }
-        
-        setIsListening(false);
-        setInterimTranscript('');
-      };
-
-      recognitionRef.current.onend = () => {
-        // Only restart if we're supposed to still be listening
-        // This handles browser auto-stop behavior
-        if (isListening && recognitionRef.current) {
-          try {
-            recognitionRef.current.start();
-          } catch (e) {
-            console.log('Could not restart recognition:', e);
-            setIsListening(false);
-          }
-        }
-      };
-    }
-
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-      }
-    };
-  }, []);
-
-  // Update onend handler when isListening changes
-  useEffect(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.onend = () => {
-        if (isListening) {
-          try {
-            recognitionRef.current.start();
-          } catch (e) {
-            setIsListening(false);
-          }
-        }
-      };
-    }
-  }, [isListening]);
-
-  const startListening = () => {
-    if (!speechSupported) {
-      setChatHistory(prev => [...prev, {
-        role: 'assistant',
-        content: "Voice input isn't supported in your browser. Try Chrome, Edge, or Safari for the best experience!",
-        timestamp: new Date()
-      }]);
-      return;
-    }
-
-    // Reset everything for fresh start
-    finalTranscriptRef.current = '';
-    setMessage('');
-    setInterimTranscript('');
-    
-    try {
-      recognitionRef.current?.start();
-      setIsListening(true);
-    } catch (error) {
-      console.error('Failed to start recognition:', error);
-      setIsListening(false);
-    }
-  };
-
-  const stopListening = () => {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-    
-    recognitionRef.current?.stop();
-    setIsListening(false);
-    setInterimTranscript('');
-  };
-
-  const stopListeningAndSend = () => {
-    // Clear any pending silence timers first
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-    
-    stopListening();
-    
-    // Send if we have text and not already sending
-    const textToSend = finalTranscriptRef.current.trim();
-    if (textToSend && !loading) {
-      // Clear the ref BEFORE sending to prevent double-send
-      finalTranscriptRef.current = '';
-      setMessage('');
-      
-      // Send the message
-      handleSendInternal(textToSend);
-    }
-  };
-
-  const toggleListening = () => {
-    if (isListening) {
-      stopListening();
-    } else {
-      startListening();
-    }
-  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -350,7 +156,6 @@ What can I help you with?`;
 
   const isUnlimited = usage.ai_queries_limit >= 1000;
 
-  // Initialize greeting when tier loads
   useEffect(() => {
     if (!tierLoading && chatHistory.length === 0) {
       const greeting = createGreeting();
@@ -393,11 +198,9 @@ What can I help you with?`;
     }
   }, [isOpen]);
 
-  // Internal send function that takes message as parameter
-  const handleSendInternal = async (messageToSend) => {
-    if (!messageToSend || !messageToSend.trim() || loading) return;
+  const handleSend = async () => {
+    if (!message || !message.trim() || loading) return;
 
-    // Check limit
     if (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit) {
       setChatHistory(prev => [...prev, { 
         role: 'assistant', 
@@ -407,10 +210,9 @@ What can I help you with?`;
       return;
     }
 
-    const userMessage = messageToSend.trim();
+    const userMessage = message.trim();
     const lowerMessage = userMessage.toLowerCase();
     
-    // Block team features for non-team users
     if (!hasTeamFeature() && (
       lowerMessage.includes('team') || 
       lowerMessage.includes('marketing team') ||
@@ -428,7 +230,6 @@ What can I help you with?`;
       return;
     }
 
-    // Block email features for free users
     if (!hasProFeature() && (
       lowerMessage.includes('send reminder') ||
       lowerMessage.includes('send email') ||
@@ -513,11 +314,8 @@ What can I help you with?`;
     } catch (error) {
       console.error('AI chat error:', error);
       
-      // Generate helpful fallback response based on what user asked
-      const lowerMessage = messageToSend.toLowerCase();
       let fallbackResponse = "Hmm, something went wrong on my end. Mind trying that again? 🙏";
       
-      // Check if rate limited (429)
       const isRateLimited = error?.response?.status === 429 || 
                            error?.message?.includes('429') ||
                            error?.response?.data?.message?.includes('rate');
@@ -526,14 +324,14 @@ What can I help you with?`;
         fallbackResponse = "I'm getting a lot of requests right now! 🔥 Please wait 10-15 seconds and try again.";
       }
       
-      // Add contextual help based on what they were trying to do
-      if (lowerMessage.includes('booking link') || lowerMessage.includes('create link') || lowerMessage.includes('link for')) {
+      const lowerMsg = userMessage.toLowerCase();
+      if (lowerMsg.includes('booking link') || lowerMsg.includes('create link') || lowerMsg.includes('link for')) {
         fallbackResponse += "\n\n**Quick workaround:** Go to **My Links** in the sidebar to create a booking link manually! 🔗";
-      } else if (lowerMessage.includes('book') || lowerMessage.includes('schedule') || lowerMessage.includes('meeting')) {
+      } else if (lowerMsg.includes('book') || lowerMsg.includes('schedule') || lowerMsg.includes('meeting')) {
         fallbackResponse += "\n\n**Quick workaround:** Go to **Events** → Create a new event type, then share your booking page! 📅";
-      } else if (lowerMessage.includes('availability') || lowerMessage.includes('free') || lowerMessage.includes('when')) {
+      } else if (lowerMsg.includes('availability') || lowerMsg.includes('free') || lowerMsg.includes('when')) {
         fallbackResponse += "\n\n**Quick workaround:** Check **Availability** in the sidebar to see and edit your schedule! ⏰";
-      } else if (lowerMessage.includes('cancel') || lowerMessage.includes('reschedule')) {
+      } else if (lowerMsg.includes('cancel') || lowerMsg.includes('reschedule')) {
         fallbackResponse += "\n\n**Quick workaround:** Go to **Bookings** to manage your upcoming meetings! 📋";
       }
       
@@ -545,24 +343,6 @@ What can I help you with?`;
     } finally {
       setLoading(false);
     }
-  };
-
-  // Public send function for button/enter key
-  const handleSend = () => {
-    // Clear any pending silence timer
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-    
-    if (isListening) {
-      stopListening();
-    }
-    
-    // Clear transcript ref to prevent double-send from voice
-    finalTranscriptRef.current = '';
-    
-    handleSendInternal(message);
   };
 
   const handleConfirmBooking = async () => {
@@ -801,7 +581,6 @@ I've sent calendar invites to everyone. Anything else?`;
 
   const suggestions = getSuggestions();
 
-  // Floating button when closed
   if (!isOpen) {
     return (
       <button
@@ -841,7 +620,6 @@ I've sent calendar invites to everyone. Anything else?`;
             <div>
               <h3 className="font-bold text-white text-sm sm:text-base">AI Assistant</h3>
               <p className="text-xs text-purple-200">
-                {speechSupported && <span className="mr-1">🎤</span>}
                 {currentTier === 'free' ? 'Free' : currentTier === 'pro' ? 'Pro ⚡' : 'Team 🏢'}
               </p>
             </div>
@@ -878,7 +656,6 @@ I've sent calendar invites to everyone. Anything else?`;
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50">
               
-              {/* Usage warning for free users */}
               {!isUnlimited && (
                 <div className={`rounded-lg p-4 mb-4 ${
                   usage.ai_queries_used >= usage.ai_queries_limit
@@ -918,7 +695,6 @@ I've sent calendar invites to everyone. Anything else?`;
                 </div>
               )}
 
-              {/* Suggestions */}
               {chatHistory.length <= 1 && (isUnlimited || usage.ai_queries_used < usage.ai_queries_limit) && (
                 <div className="text-center py-4">
                   <p className="text-sm text-gray-500 mb-3">Try asking:</p>
@@ -1129,79 +905,23 @@ I've sent calendar invites to everyone. Anything else?`;
               </div>
             )}
 
-            {/* Input Area */}
+            {/* Input Area - Text Only */}
             <div className="p-3 sm:p-4 border-t border-gray-200 bg-white">
-              {/* IMPROVED Voice Listening Indicator */}
-              {isListening && (
-                <div className="mb-3 bg-purple-50 border border-purple-200 rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2 text-purple-600">
-                      <div className="flex gap-1">
-                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></span>
-                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></span>
-                      </div>
-                      <span className="text-sm font-medium">Listening...</span>
-                    </div>
-                    <button 
-                      onClick={stopListeningAndSend}
-                      className="text-xs bg-purple-600 text-white px-3 py-1 rounded-full hover:bg-purple-700 transition-colors"
-                    >
-                      Done Speaking
-                    </button>
-                  </div>
-                  
-                  {/* Live transcription preview */}
-                  <div className="text-sm text-gray-700 min-h-[24px] bg-white rounded px-2 py-1 border border-purple-100">
-                    {message && <span>{message}</span>}
-                    {interimTranscript && (
-                      <span className="text-gray-400 italic">{interimTranscript}</span>
-                    )}
-                    {!message && !interimTranscript && (
-                      <span className="text-gray-400">Start speaking...</span>
-                    )}
-                  </div>
-                  
-                  <p className="text-xs text-purple-500 mt-2 text-center">
-                    Tap "Done Speaking" or pause for 2 seconds to send
-                  </p>
-                </div>
-              )}
-              
               <div className="flex items-center gap-2">
                 <input
                   ref={inputRef}
                   type="text"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && !isListening && handleSend()}
-                  placeholder={isListening ? "Listening..." : "Type or tap 🎤 to speak..."}
-                  className={`flex-1 px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm ${
-                    isListening ? 'border-purple-400 bg-purple-50' : 'border-gray-200'
-                  }`}
-                  disabled={loading || isListening || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                  placeholder="Type a message..."
+                  className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                  disabled={loading || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
                 />
                 
-                {/* Microphone button */}
-                <button
-                  onClick={toggleListening}
-                  disabled={loading || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
-                  className={`p-3 rounded-xl transition-all ${
-                    isListening 
-                      ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-200' 
-                      : speechSupported
-                        ? 'bg-gray-100 text-gray-600 hover:bg-purple-100 hover:text-purple-600'
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }`}
-                  title={isListening ? 'Stop listening' : 'Start voice input'}
-                >
-                  {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-                </button>
-                
-                {/* Send button */}
                 <button
                   onClick={handleSend}
-                  disabled={loading || !message.trim() || isListening || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
+                  disabled={loading || !message.trim() || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
                   className="p-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-xl transition-colors"
                 >
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
