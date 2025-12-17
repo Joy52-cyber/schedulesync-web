@@ -7090,19 +7090,22 @@ app.get('/api/bookings/manage/:token', async (req, res) => {
     console.log('?? Getting booking for management:', token);
     
     const result = await pool.query(
-      `SELECT b.*, 
-       b.meet_link,
-       b.calendar_event_id,
-       t.name as team_name,
-       tm.name as organizer_name,
-       tm.email as organizer_email,
-       tm.booking_token as member_booking_token
-       FROM bookings b
-       JOIN teams t ON b.team_id = t.id
-       LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE b.manage_token = $1`,   // ? CORRECT - uses booking-specific token
-      [token]
-    );
+  `SELECT b.*, 
+   b.meet_link,
+   b.calendar_event_id,
+   t.name as team_name,
+   tm.name as organizer_name,
+   tm.email as organizer_email,
+   tm.booking_token as member_booking_token,
+   u.name as user_organizer_name,
+   u.email as user_organizer_email
+   FROM bookings b
+   LEFT JOIN teams t ON b.team_id = t.id
+   LEFT JOIN team_members tm ON b.member_id = tm.id
+   LEFT JOIN users u ON b.user_id = u.id
+   WHERE b.manage_token = $1`,
+  [token]
+);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Booking not found' });
@@ -7125,8 +7128,9 @@ app.get('/api/bookings/manage/:token', async (req, res) => {
         notes: booking.notes,
         status: booking.status,
         team_name: booking.team_name,
-        organizer_name: booking.organizer_name,
-        organizer_email: booking.organizer_email,
+     
+     organizer_name: booking.organizer_name || booking.user_organizer_name,
+    organizer_email: booking.organizer_email || booking.user_organizer_email,
         member_booking_token: booking.member_booking_token,
         meet_link: booking.meet_link,              
     calendar_event_id: booking.calendar_event_id,
