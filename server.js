@@ -11704,7 +11704,7 @@ console.log('? AI Booking created:', booking.id);
 
 // ? Track AI usage after successful booking
 console.log(`?? About to increment AI usage for user ${userId}`);
-await incrementAIUsage(userId);
+
 console.log(`?? AI query used by user ${userId} for successful booking`);
 
 // Format times for email
