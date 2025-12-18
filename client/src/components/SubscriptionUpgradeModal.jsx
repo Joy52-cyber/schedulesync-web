@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-// ? FIX: Use Vite's env variable format (not Create React App's)
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 // Payment Form Component
@@ -18,7 +17,6 @@ const PaymentForm = ({ plan, onSuccess, onCancel }) => {
     setError(null);
 
     try {
-      // Create subscription
       const response = await fetch('/api/billing/create-checkout', {
         method: 'POST',
         headers: {
@@ -34,7 +32,6 @@ const PaymentForm = ({ plan, onSuccess, onCancel }) => {
         throw new Error(data.error || 'Failed to create subscription');
       }
 
-      // If we get a client_secret, confirm the payment
       if (data.clientSecret) {
         const cardElement = elements.getElement(CardElement);
         const result = await stripe.confirmCardPayment(data.clientSecret, {
@@ -47,7 +44,6 @@ const PaymentForm = ({ plan, onSuccess, onCancel }) => {
           onSuccess(plan);
         }
       } else if (data.success) {
-        // Subscription created without requiring payment confirmation
         onSuccess(plan);
       }
     } catch (err) {
@@ -120,7 +116,7 @@ const PaymentForm = ({ plan, onSuccess, onCancel }) => {
 // Main Upgrade Modal Component
 const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'free' }) => {
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [step, setStep] = useState('select'); // 'select' or 'payment'
+  const [step, setStep] = useState('select');
 
   const plans = [
     {
@@ -129,11 +125,11 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
       price: 12,
       description: 'Perfect for individuals',
       features: [
-        '?? UNLIMITED ChatGPT queries',
-        '?? Unlimited bookings',
-        '?? Unlimited booking links',
-        '? AI optimization',
-        '?? Priority support'
+        'UNLIMITED AI queries',
+        'Unlimited bookings',
+        'Unlimited booking links',
+        'AI optimization',
+        'Priority support'
       ],
       color: 'blue',
       popular: true
@@ -144,18 +140,17 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
       price: 25,
       description: 'Best for organizations',
       features: [
-        '? Everything in Pro',
-        '?? Unlimited team members',
-        '?? Round-robin scheduling',
-        '?? Admin dashboard',
-        '?? Phone support'
+        'Everything in Pro',
+        'Unlimited team members',
+        'Round-robin scheduling',
+        'Admin dashboard',
+        'Phone support'
       ],
       color: 'purple',
       popular: false
     }
   ];
 
-  // Filter out current plan
   const availablePlans = plans.filter(p => p.id !== currentTier);
 
   const handlePlanSelect = (plan) => {
@@ -186,7 +181,6 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
 
   if (!isOpen) return null;
 
-  // Check if Stripe key is configured
   const stripeKeyMissing = !import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
   return (
@@ -202,7 +196,7 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
               </h2>
               <p className="text-gray-600 mt-1">
                 {step === 'select' 
-                  ? 'Unlock unlimited ChatGPT and advanced features'
+                  ? 'Unlock unlimited AI queries and advanced features'
                   : 'Complete your payment to upgrade'
                 }
               </p>
@@ -211,7 +205,7 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
               onClick={handleClose}
               className="text-gray-400 hover:text-gray-600 text-2xl font-bold w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
             >
-              ×
+              &times;
             </button>
           </div>
         </div>
@@ -220,7 +214,7 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
         <div className="p-6">
           {stripeKeyMissing ? (
             <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
-              <p className="font-medium">?? Stripe not configured</p>
+              <p className="font-medium">Stripe not configured</p>
               <p className="text-sm mt-1">Please add VITE_STRIPE_PUBLISHABLE_KEY to your environment variables.</p>
             </div>
           ) : step === 'select' ? (
@@ -254,7 +248,9 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
                   <ul className="space-y-2 mb-6">
                     {plan.features.map((feature, index) => (
                       <li key={index} className="flex items-center text-sm">
-                        <span className="text-green-500 mr-2">?</span>
+                        <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
                         {feature}
                       </li>
                     ))}
@@ -279,7 +275,10 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
                 onClick={handleBack}
                 className="mb-4 text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1"
               >
-                ? Back to plans
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Back to plans
               </button>
 
               <div className="bg-gray-50 rounded-lg p-4 mb-6 text-center">
@@ -304,7 +303,7 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
         {/* Footer */}
         <div className="px-6 py-4 bg-gray-50 border-t text-center">
           <p className="text-xs text-gray-500">
-            ?? Secure payment powered by Stripe • Cancel anytime • 30-day money-back guarantee
+            Secure payment powered by Stripe &bull; Cancel anytime &bull; 30-day money-back guarantee
           </p>
         </div>
       </div>

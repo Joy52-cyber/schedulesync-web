@@ -322,13 +322,17 @@ What can I help you with?`;
     const userMessage = message.trim();
     const lowerMessage = userMessage.toLowerCase();
 
-    // Check for timezone change requests
+    // Check for timezone change requests - be very inclusive
     const isTimezoneRequest = 
       lowerMessage.includes('timezone') || 
       lowerMessage.includes('time zone') ||
       lowerMessage.includes('change my time') ||
       lowerMessage.includes('set my time') ||
-      lowerMessage.includes('update my time');
+      lowerMessage.includes('update my time') ||
+      lowerMessage === 'tz' ||
+      lowerMessage.match(/^(my )?(current )?time\s*zone?$/i);
+    
+    console.log('🌍 Timezone check:', { lowerMessage, isTimezoneRequest });
 
     if (isTimezoneRequest) {
       setMessage('');
