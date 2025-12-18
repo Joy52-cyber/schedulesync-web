@@ -10954,7 +10954,7 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
       
       // AI queries
 ai_queries_used: user.ai_queries_used || 0,
-ai_queries_limit: isUnlimited ? 999999 : (user.ai_queries_limit || limits.ai),
+ai_queries_limit: isUnlimited ? 999999 : limits.ai,
 
 // Bookings
 bookings_used: user.monthly_bookings || 0,
