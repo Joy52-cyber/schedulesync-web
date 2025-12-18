@@ -8860,8 +8860,8 @@ if (parsedIntent.intent === 'get_magic_link') {
     if (eventTypeResult.rows.length === 0) {
       console.log('📝 No event types found, creating default event type for user:', userId);
     const newEventType = await pool.query(
-  `INSERT INTO event_types (user_id, title, duration, description, color)
-   VALUES ($1, 'Quick Meeting', 30, 'Default meeting created for magic links', '#3B82F6')
+  `INSERT INTO event_types (user_id, title, slug, duration, description, color)
+   VALUES ($1, 'Quick Meeting', 'quick-meeting', 30, 'Default meeting created for magic links', '#3B82F6')
    RETURNING id`,
   [userId]
 );
