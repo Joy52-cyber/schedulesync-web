@@ -10925,8 +10925,8 @@ const trackTemplateUsage = async (templateId, userId, action) => {
 app.get('/api/user/usage', authenticateToken, async (req, res) => {
   try {
     const userResult = await pool.query(
-      `SELECT tier, ai_queries_used, ai_queries_limit, monthly_bookings 
-       FROM users WHERE id = $1`,
+      `SELECT subscription_tier, ai_queries_used, ai_queries_limit, monthly_bookings 
+ FROM users WHERE id = $1`,
       [req.user.id]
     );
     
@@ -10935,7 +10935,7 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
     }
     
     const user = userResult.rows[0];
-    const tier = user.tier || 'free';
+   const tier = user.subscription_tier || 'free';
     const isUnlimited = tier === 'pro' || tier === 'team';
     
     // Default limits
