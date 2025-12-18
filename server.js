@@ -8767,53 +8767,47 @@ Please try again or check your email settings.`,
       }
 
       // ============ HANDLE GET PERSONAL LINK ============
-      if (parsedIntent.intent === 'get_personal_link') {
-        try {
-          const memberResult = await pool.query(
-            `SELECT tm.booking_token, tm.name, t.name as team_name
-             FROM team_members tm
-             JOIN teams t ON tm.team_id = t.id
-             WHERE tm.user_id = $1 OR t.owner_id = $1
-             LIMIT 1`,
-            [userId]
-          );
-
-          if (memberResult.rows.length === 0) {
-            return res.json({
-              type: 'info',
-              message: 'No booking profile found. Please set up your team first.',
-              usage: usageData
-            });
-          }
-
-          const member = memberResult.rows[0];
-          const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
-          const bookingUrl = `${baseUrl}/book/${member.booking_token}`;
-
-          return res.json({
-            type: 'personal_link',
-            message: `Your Personal Booking Link
-
-${member.name}
-${member.team_name}`,
-            data: {
-              url: bookingUrl,
-              short_url: `/book/${member.booking_token.substring(0, 8)}...`,
-              name: member.name,
-              team_name: member.team_name,
-              type: 'personal'
-            },
-            usage: usageData
-          });
-        } catch (error) {
-          console.error('Get personal link error:', error);
-          return res.json({
-            type: 'error',
-            message: 'Failed to get your booking link. Please try again.',
-            usage: usageData
-          });
-        }
-      }
+if (parsedIntent.intent === 'get_personal_link') {
+  try {
+    const memberResult = await pool.query(
+      `SELECT tm.booking_token, tm.name, t.name as team_name
+       FROM team_members tm
+       JOIN teams t ON tm.team_id = t.id
+       WHERE tm.user_id = $1 OR t.owner_id = $1
+       LIMIT 1`,
+      [userId]
+    );
+    if (memberResult.rows.length === 0) {
+      return res.json({
+        type: 'info',
+        message: 'No booking profile found. Please set up your team first.',
+        usage: usageData
+      });
+    }
+    const member = memberResult.rows[0];
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    const bookingUrl = `${baseUrl}/book/${member.booking_token}`;
+    return res.json({
+      type: 'personal_link',
+      message: `Here's your personal booking link! Share it and people can book time with you.`,
+      data: {
+        url: bookingUrl,
+        short_url: `/book/${member.booking_token.substring(0, 8)}...`,
+        name: member.name || 'Your Link',
+        team_name: member.team_name,
+        type: 'personal'
+      },
+      usage: usageData
+    });
+  } catch (error) {
+    console.error('Get personal link error:', error);
+    return res.json({
+      type: 'error',
+      message: 'Failed to get your booking link. Please try again.',
+      usage: usageData
+    });
+  }
+}
 
        // ============ HANDLE GET/CREATE MAGIC LINK ============
 if (parsedIntent.intent === 'get_magic_link') {
