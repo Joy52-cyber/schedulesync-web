@@ -3,6 +3,17 @@
 const UpgradeContext = createContext(null);
 
 // Default values for when context is not available
+const defaultUsage = {
+  ai_queries_used: 0,
+  ai_queries_limit: 10,
+  bookings_used: 0,
+  bookings_limit: 50,
+  event_types_used: 0,
+  event_types_limit: 2,
+  magic_links_used: 0,
+  magic_links_limit: 3
+};
+
 const defaultContextValue = {
   showUpgradeModal: () => {},
   closeUpgradeModal: () => {},
@@ -11,20 +22,33 @@ const defaultContextValue = {
   hasProFeature: () => false,
   hasTeamFeature: () => false,
   currentTier: 'free',
-  usage: {
-    ai_queries_used: 0,
-    ai_queries_limit: 10,
-    bookings_used: 0,
-    bookings_limit: 50,
-    event_types_used: 0,
-    event_types_limit: 2,
-    magic_links_used: 0,
-    magic_links_limit: 3
-  },
+  usage: defaultUsage,
   loading: false,
   refreshUsage: () => {},
   modalOpen: false,
   modalFeature: null
+};
+
+// Helper to get usage from localStorage
+const getStoredUsage = () => {
+  try {
+    const stored = localStorage.getItem('usage_data');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.warn('Failed to parse stored usage:', e);
+  }
+  return defaultUsage;
+};
+
+// Helper to save usage to localStorage
+const saveUsage = (usage) => {
+  try {
+    localStorage.setItem('usage_data', JSON.stringify(usage));
+  } catch (e) {
+    console.warn('Failed to save usage:', e);
+  }
 };
 
 export const useUpgrade = () => {
@@ -42,21 +66,13 @@ export const UpgradeProvider = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [feature, setFeature] = useState(null);
   
-  // ✅ FIX: Initialize from localStorage to prevent flash of "upgrade" content
+  // Initialize from localStorage to prevent flash
   const [currentTier, setCurrentTier] = useState(() => {
     return localStorage.getItem('subscription_tier') || 'free';
   });
   
-  const [usage, setUsage] = useState({
-    ai_queries_used: 0,
-    ai_queries_limit: 10,
-    bookings_used: 0,
-    bookings_limit: 50,
-    event_types_used: 0,
-    event_types_limit: 2,
-    magic_links_used: 0,
-    magic_links_limit: 3
-  });
+  // Initialize usage from localStorage
+  const [usage, setUsage] = useState(() => getStoredUsage());
   const [loading, setLoading] = useState(true);
 
   // Fetch usage on mount
@@ -84,13 +100,14 @@ export const UpgradeProvider = ({ children }) => {
       if (response.ok) {
         const data = await response.json();
         
-        // ✅ FIX: Get tier from response
-        const tier = data.subscription_tier || 'free';
+        // Get tier from response
+        const tier = data.subscription_tier || data.tier || 'free';
         
-        // ✅ FIX: Save tier to localStorage so it persists
+        // Save tier to localStorage
         localStorage.setItem('subscription_tier', tier);
         
-        setUsage({
+        // Build usage object
+        const newUsage = {
           ai_queries_used: data.ai_queries_used || 0,
           ai_queries_limit: data.ai_queries_limit || 10,
           bookings_used: data.bookings_used || data.monthly_bookings || 0,
@@ -99,10 +116,15 @@ export const UpgradeProvider = ({ children }) => {
           event_types_limit: data.event_types_limit || 2,
           magic_links_used: data.magic_links_used || 0,
           magic_links_limit: data.magic_links_limit || 3
-        });
+        };
         
+        // Save to localStorage for persistence
+        saveUsage(newUsage);
+        
+        setUsage(newUsage);
         setCurrentTier(tier);
-        console.log('✅ Subscription tier loaded:', tier);
+        
+        console.log('✅ Usage loaded:', { tier, usage: newUsage });
       }
     } catch (error) {
       console.error('Failed to fetch usage:', error);

@@ -1059,7 +1059,7 @@ await pool.query(`
 // DATABASE MIGRATIONS
 // ============================================
 
-// Event Types columns migration
+// Event Types columns migra tion
 async function migrateEventTypesColumns() {
   try {
     console.log('?? Checking Event Types columns...');
@@ -10918,9 +10918,12 @@ const trackTemplateUsage = async (templateId, userId, action) => {
 // ================================================================================
 app.get('/api/user/usage', authenticateToken, async (req, res) => {
   try {
+    // Get user data
     const userResult = await pool.query(
-      `SELECT subscription_tier, ai_queries_used, ai_queries_limit, monthly_bookings 
- FROM users WHERE id = $1`,
+      `SELECT subscription_tier, ai_queries_used, ai_queries_limit, 
+              monthly_bookings, magic_links_used, magic_links_limit,
+              event_types_limit, bookings_limit
+       FROM users WHERE id = $1`,
       [req.user.id]
     );
     
@@ -10929,14 +10932,21 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
     }
     
     const user = userResult.rows[0];
-   const tier = user.subscription_tier || 'free';
+    const tier = user.subscription_tier || 'free';
     const isUnlimited = tier === 'pro' || tier === 'team';
+    
+    // Count event types
+    const eventTypesResult = await pool.query(
+      'SELECT COUNT(*) as count FROM event_types WHERE user_id = $1',
+      [req.user.id]
+    );
+    const eventTypesUsed = parseInt(eventTypesResult.rows[0].count) || 0;
     
     // Default limits
     const defaultLimits = {
       free: { ai: 10, bookings: 50, event_types: 2, magic_links: 3 },
-      pro: { ai: null, bookings: null, event_types: null, magic_links: null },
-      team: { ai: null, bookings: null, event_types: null, magic_links: null }
+      pro: { ai: 999999, bookings: 999999, event_types: 999999, magic_links: 999999 },
+      team: { ai: 999999, bookings: 999999, event_types: 999999, magic_links: 999999 }
     };
     
     const limits = defaultLimits[tier] || defaultLimits.free;
@@ -10947,25 +10957,26 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
       is_unlimited: isUnlimited,
       
       // AI queries
-ai_queries_used: user.ai_queries_used || 0,
-ai_queries_limit: isUnlimited ? 999999 : limits.ai,
-
-// Bookings
-bookings_used: user.monthly_bookings || 0,
-bookings_limit: isUnlimited ? 999999 : limits.bookings,
-
-// Other limits
-event_types_limit: isUnlimited ? 999999 : limits.event_types,
-magic_links_limit: isUnlimited ? 999999 : limits.magic_links     
-    
-});
+      ai_queries_used: user.ai_queries_used || 0,
+      ai_queries_limit: isUnlimited ? 999999 : limits.ai,
+      
+      // Bookings
+      bookings_used: user.monthly_bookings || 0,
+      bookings_limit: isUnlimited ? 999999 : limits.bookings,
+      
+      // Event types (counted from table)
+      event_types_used: eventTypesUsed,
+      event_types_limit: isUnlimited ? 999999 : limits.event_types,
+      
+      // Magic links
+      magic_links_used: user.magic_links_used || 0,
+      magic_links_limit: isUnlimited ? 999999 : limits.magic_links
+    });
   } catch (error) {
     console.error('Error fetching usage:', error);
     res.status(500).json({ error: 'Failed to fetch usage' });
   }
 });
-
-
 // ============ SUBSCRIPTION MANAGEMENT ============
 // (Add this section after your existing payment endpoints)
 // Get current subscription
