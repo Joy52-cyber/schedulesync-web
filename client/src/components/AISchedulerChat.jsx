@@ -529,7 +529,7 @@ I've sent calendar invites to everyone. Anything else?`;
       
       return (
         <>
-          <p className="text-xs sm:text-sm whitespace-pre-wrap">{content}</p>
+          <p className="text-xs sm:text-sm whitespace-pre-wrap break-words">{content}</p>
           <LinkWithCopy url={data.url} label={shortLabel} />
         </>
       );
@@ -538,7 +538,7 @@ I've sent calendar invites to everyone. Anything else?`;
     if (data?.teams && Array.isArray(data.teams) && data.teams.length > 0 && data.teams[0]?.url) {
       return (
         <>
-          <p className="text-xs sm:text-sm whitespace-pre-wrap">{content}</p>
+          <p className="text-xs sm:text-sm whitespace-pre-wrap break-words">{content}</p>
           <LinksGrid links={data.teams} labelKey="name" />
         </>
       );
@@ -547,7 +547,7 @@ I've sent calendar invites to everyone. Anything else?`;
     if (data?.members && Array.isArray(data.members) && data.members.length > 0 && data.members[0]?.url) {
       return (
         <>
-          <p className="text-xs sm:text-sm whitespace-pre-wrap">{content}</p>
+          <p className="text-xs sm:text-sm whitespace-pre-wrap break-words">{content}</p>
           <LinksGrid links={data.members} labelKey="name" />
         </>
       );
@@ -561,13 +561,13 @@ I've sent calendar invites to everyone. Anything else?`;
       }));
       return (
         <>
-          <p className="text-xs sm:text-sm whitespace-pre-wrap">{content}</p>
+          <p className="text-xs sm:text-sm whitespace-pre-wrap break-words">{content}</p>
           <LinksGrid links={linksWithUrl} labelKey="title" />
         </>
       );
     }
     
-    return <p className="text-xs sm:text-sm whitespace-pre-wrap">{content}</p>;
+    return <p className="text-xs sm:text-sm whitespace-pre-wrap break-words">{content}</p>;
   };
 
   const getSuggestions = () => {
@@ -746,7 +746,7 @@ I've sent calendar invites to everyone. Anything else?`;
                       : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md shadow-sm'
                   }`}>
                     {msg.role === 'user' ? (
-                      <p className="text-xs sm:text-sm whitespace-pre-wrap">{renderMessage(msg.content)}</p>
+                      <p className="text-xs sm:text-sm whitespace-pre-wrap break-words">{renderMessage(msg.content)}</p>
                     ) : (
                       renderMessageContent(msg)
                     )}
