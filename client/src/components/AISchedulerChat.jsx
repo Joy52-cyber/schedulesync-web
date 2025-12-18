@@ -18,7 +18,8 @@ import {
   Zap,
   Copy, 
   Check, 
-  Link
+  Link,
+  Globe
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -26,6 +27,32 @@ export default function AISchedulerChat() {
   console.log('🔥 AISchedulerChat component is rendering!');
 
   const { currentTier, hasProFeature, hasTeamFeature, loading: tierLoading } = useUpgrade();
+
+  // Timezone state
+  const [currentTimezone, setCurrentTimezone] = useState('');
+  const [showTimezoneSelector, setShowTimezoneSelector] = useState(false);
+
+  // Common timezones for quick selection
+  const commonTimezones = [
+    { value: 'America/New_York', label: 'Eastern Time (ET)' },
+    { value: 'America/Chicago', label: 'Central Time (CT)' },
+    { value: 'America/Denver', label: 'Mountain Time (MT)' },
+    { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+    { value: 'Europe/London', label: 'London (GMT)' },
+    { value: 'Europe/Paris', label: 'Paris (CET)' },
+    { value: 'Asia/Singapore', label: 'Singapore (SGT)' },
+    { value: 'Asia/Tokyo', label: 'Tokyo (JST)' },
+    { value: 'Asia/Shanghai', label: 'Shanghai (CST)' },
+    { value: 'Asia/Manila', label: 'Manila (PHT)' },
+    { value: 'Asia/Dubai', label: 'Dubai (GST)' },
+    { value: 'Australia/Sydney', label: 'Sydney (AEDT)' },
+    { value: 'Pacific/Auckland', label: 'Auckland (NZDT)' },
+  ];
+
+  const getTimezoneLabel = (tz) => {
+    const found = commonTimezones.find(t => t.value === tz);
+    return found ? found.label : tz;
+  };
 
   const getGreetingMessage = () => {
     const hour = new Date().getHours();
@@ -47,7 +74,10 @@ Here's what I can do:
 
 🔗 **Links**
 • Share your booking link
-• Create one-time magic links (Pro)`;
+• Create one-time magic links (Pro)
+
+🌍 **Settings**
+• Change your timezone`;
 
     if (hasTeamFeature()) {
       greeting += `
@@ -131,31 +161,71 @@ What can I help you with?`;
   };
 
   const fetchUsage = async () => {
-  console.log('📊 AIChat: Fetching usage...');
-  try {
-    const response = await api.get('/user/usage');
-    console.log('📊 AIChat: Raw response:', response);
-    console.log('📊 AIChat: Response data:', response.data);
-    
-    const data = response.data;
-    setUsage({
-      ai_queries_used: data.ai_queries_used ?? 0,
-      ai_queries_limit: data.ai_queries_limit ?? 10,
-      loading: false
-    });
-    console.log('📊 AIChat: Usage set:', {
-      used: data.ai_queries_used,
-      limit: data.ai_queries_limit
-    });
-  } catch (error) {
-    console.error('📊 AIChat: Failed to fetch usage:', error);
-    setUsage({
-      ai_queries_used: 0,
-      ai_queries_limit: 10,
-      loading: false
-    });
-  }
-};
+    console.log('📊 AIChat: Fetching usage...');
+    try {
+      const response = await api.get('/user/usage');
+      console.log('📊 AIChat: Response data:', response.data);
+      
+      const data = response.data;
+      setUsage({
+        ai_queries_used: data.ai_queries_used ?? 0,
+        ai_queries_limit: data.ai_queries_limit ?? 10,
+        loading: false
+      });
+    } catch (error) {
+      console.error('📊 AIChat: Failed to fetch usage:', error);
+      setUsage({
+        ai_queries_used: 0,
+        ai_queries_limit: 10,
+        loading: false
+      });
+    }
+  };
+
+  const fetchTimezone = async () => {
+    try {
+      const response = await api.timezone.get();
+      let tz = '';
+      if (typeof response.data === 'string') {
+        try {
+          const parsed = JSON.parse(response.data);
+          tz = parsed.timezone || response.data;
+        } catch {
+          tz = response.data;
+        }
+      } else if (response.data && typeof response.data === 'object') {
+        tz = response.data.timezone || '';
+      }
+      setCurrentTimezone(tz);
+    } catch (error) {
+      console.error('Failed to fetch timezone:', error);
+    }
+  };
+
+  const handleTimezoneChange = async (newTimezone) => {
+    setLoading(true);
+    try {
+      await api.timezone.update(newTimezone);
+      setCurrentTimezone(newTimezone);
+      setShowTimezoneSelector(false);
+      
+      const tzLabel = getTimezoneLabel(newTimezone);
+      setChatHistory(prev => [...prev, { 
+        role: 'assistant', 
+        content: `✅ Done! Your timezone has been updated to **${tzLabel}** (${newTimezone}).\n\nAll your bookings and availability will now use this timezone. 🌍`,
+        timestamp: new Date()
+      }]);
+    } catch (error) {
+      console.error('Failed to update timezone:', error);
+      setChatHistory(prev => [...prev, { 
+        role: 'assistant', 
+        content: `❌ Oops, I couldn't update your timezone. Please try again or go to Settings to change it manually.`,
+        timestamp: new Date()
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCopyLink = (url) => {
     navigator.clipboard.writeText(url);
@@ -204,8 +274,38 @@ What can I help you with?`;
   useEffect(() => {
     if (isOpen) {
       fetchUsage();
+      fetchTimezone();
     }
   }, [isOpen]);
+
+  // Parse timezone from natural language
+  const parseTimezoneFromMessage = (msg) => {
+    const lowerMsg = msg.toLowerCase();
+    
+    // Check for specific timezone mentions
+    const timezonePatterns = [
+      { pattern: /eastern|new york|est|edt/i, value: 'America/New_York' },
+      { pattern: /central|chicago|cst|cdt/i, value: 'America/Chicago' },
+      { pattern: /mountain|denver|mst|mdt/i, value: 'America/Denver' },
+      { pattern: /pacific|los angeles|pst|pdt/i, value: 'America/Los_Angeles' },
+      { pattern: /london|uk|gmt|bst/i, value: 'Europe/London' },
+      { pattern: /paris|cet|cest|france/i, value: 'Europe/Paris' },
+      { pattern: /singapore|sgt/i, value: 'Asia/Singapore' },
+      { pattern: /tokyo|japan|jst/i, value: 'Asia/Tokyo' },
+      { pattern: /shanghai|china|cst(?!.*central)/i, value: 'Asia/Shanghai' },
+      { pattern: /manila|philippines|pht/i, value: 'Asia/Manila' },
+      { pattern: /dubai|gst|uae/i, value: 'Asia/Dubai' },
+      { pattern: /sydney|australia|aedt|aest/i, value: 'Australia/Sydney' },
+      { pattern: /auckland|new zealand|nzdt|nzst/i, value: 'Pacific/Auckland' },
+    ];
+
+    for (const { pattern, value } of timezonePatterns) {
+      if (pattern.test(lowerMsg)) {
+        return value;
+      }
+    }
+    return null;
+  };
 
   const handleSend = async () => {
     if (!message || !message.trim() || loading) return;
@@ -221,6 +321,56 @@ What can I help you with?`;
 
     const userMessage = message.trim();
     const lowerMessage = userMessage.toLowerCase();
+
+    // Check for timezone change requests
+    const isTimezoneRequest = 
+      lowerMessage.includes('timezone') || 
+      lowerMessage.includes('time zone') ||
+      lowerMessage.includes('change my time') ||
+      lowerMessage.includes('set my time') ||
+      lowerMessage.includes('update my time');
+
+    if (isTimezoneRequest) {
+      setMessage('');
+      setChatHistory(prev => [...prev, { 
+        role: 'user', 
+        content: userMessage, 
+        timestamp: new Date() 
+      }]);
+
+      // Try to parse timezone from the message
+      const parsedTimezone = parseTimezoneFromMessage(userMessage);
+      
+      if (parsedTimezone) {
+        // User specified a timezone, update it
+        await handleTimezoneChange(parsedTimezone);
+      } else {
+        // Show timezone selector
+        const currentTzLabel = getTimezoneLabel(currentTimezone);
+        setChatHistory(prev => [...prev, { 
+          role: 'assistant', 
+          content: `🌍 Your current timezone is **${currentTzLabel}** (${currentTimezone || 'Not set'}).\n\nSelect your new timezone below, or tell me which timezone you'd like (e.g., "Change to Pacific Time" or "Set to Singapore"):`,
+          timestamp: new Date(),
+          showTimezoneSelector: true
+        }]);
+        setShowTimezoneSelector(true);
+      }
+      return;
+    }
+
+    // Check for "what's my timezone" queries
+    if (lowerMessage.includes('what') && (lowerMessage.includes('timezone') || lowerMessage.includes('time zone'))) {
+      setMessage('');
+      setChatHistory(prev => [...prev, 
+        { role: 'user', content: userMessage, timestamp: new Date() },
+        { 
+          role: 'assistant', 
+          content: `🌍 Your current timezone is **${getTimezoneLabel(currentTimezone)}** (${currentTimezone || 'Not set'}).\n\nWant to change it? Just say "Change my timezone" or "Set timezone to [location]".`,
+          timestamp: new Date()
+        }
+      ]);
+      return;
+    }
     
     if (!hasTeamFeature() && (
       lowerMessage.includes('team') || 
@@ -436,6 +586,7 @@ I've sent calendar invites to everyone. Anything else?`;
     const newGreeting = createGreeting();
     setChatHistory([newGreeting]);
     setPendingBooking(null);
+    setShowTimezoneSelector(false);
     localStorage.removeItem('aiChat_pendingBooking');
     setTimeout(() => {
       localStorage.setItem('aiChat_history', JSON.stringify([newGreeting]));
@@ -518,6 +669,32 @@ I've sent calendar invites to everyone. Anything else?`;
     </div>
   );
 
+  // Timezone selector component
+  const TimezoneSelector = () => (
+    <div className="mt-3 bg-gray-50 rounded-lg p-3 border border-gray-200">
+      <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
+        {commonTimezones.map((tz) => (
+          <button
+            key={tz.value}
+            onClick={() => handleTimezoneChange(tz.value)}
+            disabled={loading}
+            className={`text-left text-xs p-2 rounded-lg border transition-colors ${
+              currentTimezone === tz.value
+                ? 'bg-purple-100 border-purple-300 text-purple-800'
+                : 'bg-white border-gray-200 hover:border-purple-300 hover:bg-purple-50'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Globe className="h-3 w-3 text-gray-500" />
+              <span className="font-medium">{tz.label}</span>
+            </div>
+            <span className="text-gray-500 ml-5">{tz.value}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   const renderMessageContent = (msg) => {
     const content = renderMessage(msg.content);
     const data = msg.data;
@@ -566,6 +743,16 @@ I've sent calendar invites to everyone. Anything else?`;
         </>
       );
     }
+
+    // Show timezone selector if flagged
+    if (msg.showTimezoneSelector) {
+      return (
+        <>
+          <p className="text-xs sm:text-sm whitespace-pre-wrap break-words">{content}</p>
+          <TimezoneSelector />
+        </>
+      );
+    }
     
     return <p className="text-xs sm:text-sm whitespace-pre-wrap break-words">{content}</p>;
   };
@@ -574,7 +761,7 @@ I've sent calendar invites to everyone. Anything else?`;
     const baseSuggestions = [
       "What's my booking link?",
       "Show my upcoming meetings",
-      "How many bookings do I have?",
+      "Change my timezone",
     ];
 
     if (hasProFeature()) {
@@ -641,8 +828,8 @@ I've sent calendar invites to everyone. Anything else?`;
                 <span className="text-xs text-white">...</span>
               ) : (
                 <span className="text-xs text-white font-medium">
-  {isUnlimited ? '∞' : `${usage.ai_queries_used ?? 0}/${usage.ai_queries_limit ?? 10}`}
-</span>
+                  {isUnlimited ? '∞' : `${usage.ai_queries_used ?? 0}/${usage.ai_queries_limit ?? 10}`}
+                </span>
               )}
             </div>
             <button 
