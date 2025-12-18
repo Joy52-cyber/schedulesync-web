@@ -131,22 +131,31 @@ What can I help you with?`;
   };
 
   const fetchUsage = async () => {
-    try {
-      const response = await api.get('/user/usage');
-      setUsage({
-        ai_queries_used: response.data.ai_queries_used || 0,
-        ai_queries_limit: response.data.ai_queries_limit || 10,
-        loading: false
-      });
-    } catch (error) {
-      console.error('Failed to fetch usage:', error);
-      setUsage({
-        ai_queries_used: 0,
-        ai_queries_limit: 10,
-        loading: false
-      });
-    }
-  };
+  console.log('📊 AIChat: Fetching usage...');
+  try {
+    const response = await api.get('/user/usage');
+    console.log('📊 AIChat: Raw response:', response);
+    console.log('📊 AIChat: Response data:', response.data);
+    
+    const data = response.data;
+    setUsage({
+      ai_queries_used: data.ai_queries_used ?? 0,
+      ai_queries_limit: data.ai_queries_limit ?? 10,
+      loading: false
+    });
+    console.log('📊 AIChat: Usage set:', {
+      used: data.ai_queries_used,
+      limit: data.ai_queries_limit
+    });
+  } catch (error) {
+    console.error('📊 AIChat: Failed to fetch usage:', error);
+    setUsage({
+      ai_queries_used: 0,
+      ai_queries_limit: 10,
+      loading: false
+    });
+  }
+};
 
   const handleCopyLink = (url) => {
     navigator.clipboard.writeText(url);
@@ -154,7 +163,7 @@ What can I help you with?`;
     setTimeout(() => setCopiedUrl(null), 2000);
   };
 
-  const isUnlimited = usage.ai_queries_limit >= 1000;
+  const isUnlimited = (usage.ai_queries_limit ?? 0) >= 1000;
 
   useEffect(() => {
     if (!tierLoading && chatHistory.length === 0) {
@@ -632,8 +641,8 @@ I've sent calendar invites to everyone. Anything else?`;
                 <span className="text-xs text-white">...</span>
               ) : (
                 <span className="text-xs text-white font-medium">
-                  {isUnlimited ? '∞' : `${usage.ai_queries_used}/${usage.ai_queries_limit}`}
-                </span>
+  {isUnlimited ? '∞' : `${usage.ai_queries_used ?? 0}/${usage.ai_queries_limit ?? 10}`}
+</span>
               )}
             </div>
             <button 
@@ -677,7 +686,7 @@ I've sent calendar invites to everyone. Anything else?`;
                       }`}>
                         {usage.ai_queries_used >= usage.ai_queries_limit
                           ? `You've used all ${usage.ai_queries_limit} queries`
-                          : `${usage.ai_queries_limit - usage.ai_queries_used} queries left`
+                          : `${(usage.ai_queries_limit ?? 10) - (usage.ai_queries_used ?? 0)} queries left`
                         }
                       </p>
                       {usage.ai_queries_used >= usage.ai_queries_limit ? (
