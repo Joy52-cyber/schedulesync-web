@@ -5558,9 +5558,10 @@ app.get('/api/my-booking-link', authenticateToken, async (req, res) => {
 
     // Check if user already has a personal team
     let personalTeam = await pool.query(
-      `SELECT * FROM teams WHERE owner_id = $1 AND name = $2`,
-      [userId, `${userName}'s Personal Bookings`]
-    );
+  `SELECT * FROM teams WHERE owner_id = $1 AND name LIKE '%Personal%'
+   ORDER BY created_at DESC LIMIT 1`,
+  [userId]
+);
 
     // Create personal team if it doesn't exist
     if (personalTeam.rows.length === 0) {

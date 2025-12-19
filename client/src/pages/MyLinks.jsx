@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  RefreshCw,
 } from 'lucide-react';
 import api from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
@@ -23,6 +24,7 @@ export default function MyLinks() {
 
   const [user, setUser] = useState(null);
   const [bookingLink, setBookingLink] = useState('');
+  const [bookingToken, setBookingToken] = useState('');
   const [copied, setCopied] = useState('');
   const [generatingLink, setGeneratingLink] = useState(false);
   
@@ -40,6 +42,7 @@ export default function MyLinks() {
     setLoading(true);
     await Promise.all([
       loadUserProfile(),
+      loadBookingLink(),
       loadSingleUseLinks()
     ]);
     setLoading(false);
@@ -50,12 +53,27 @@ export default function MyLinks() {
       const response = await api.get('/auth/me');
       const userData = response.data.user;
       setUser(userData);
-      if (userData?.booking_token) {
-        setBookingLink(`${window.location.origin}/book/${userData.booking_token}`);
-      }
     } catch (error) {
       console.error('Failed to load profile:', error);
       notify.error('Failed to load profile');
+    }
+  };
+
+  const loadBookingLink = async () => {
+    try {
+      // Try to get personal team booking link first
+      const response = await api.get('/api/my-booking-link');
+      if (response.data.bookingLink) {
+        setBookingLink(response.data.bookingLink);
+        setBookingToken(response.data.token);
+      }
+    } catch (error) {
+      console.error('Failed to load booking link:', error);
+      // Fallback to user booking token if available
+      if (user?.booking_token) {
+        setBookingLink(`${window.location.origin}/book/${user.booking_token}`);
+        setBookingToken(user.booking_token);
+      }
     }
   };
 
@@ -71,9 +89,12 @@ export default function MyLinks() {
   const handleCreateLink = async () => {
     setGeneratingLink(true);
     try {
-      await api.get('/my-booking-link');
-      await loadUserProfile();
-      notify.success('Booking link created successfully! 🎉');
+      const response = await api.post('/api/my-booking-link');
+      if (response.data.bookingLink) {
+        setBookingLink(response.data.bookingLink);
+        setBookingToken(response.data.token);
+        notify.success('Booking link created successfully! 🎉');
+      }
     } catch (error) {
       console.error('Generate link error:', error);
       notify.error('Could not generate booking link');
@@ -154,56 +175,81 @@ export default function MyLinks() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
           {/* Permanent Link */}
-          <div className="bg-blue-50/50 rounded-2xl border border-blue-200 p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-blue-900 flex items-center gap-3 mb-4">
-              <Link2 className="h-6 w-6" />
-              Permanent Link
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-blue-900 flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                <Link2 className="h-5 w-5 text-blue-600" />
+              </div>
+              My Booking Link
             </h2>
             <p className="text-blue-700 text-sm mb-4">
-              ♾️ Unlimited uses • Never expires • Perfect for email signatures and social media
+              Share this link anywhere - email signatures, social media, websites
             </p>
             
             {bookingLink ? (
               <div className="space-y-4">
-                <div className="font-mono text-sm text-blue-700 bg-white border border-blue-200 rounded-lg px-4 py-3 break-all">
-                  {bookingLink}
+                <div className="bg-white border border-blue-200 rounded-xl p-4">
+                  <p className="text-xs text-gray-500 mb-1">Your personal booking page</p>
+                  <p className="font-mono text-sm text-blue-700 break-all">
+                    {bookingLink}
+                  </p>
                 </div>
+                
                 <div className="flex gap-3">
                   <button
                     onClick={handleCopyLink}
-                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                    className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-sm ${
+                      copied === 'permanent'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
                   >
-                    {copied === 'permanent' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    {copied === 'permanent' ? 'Copied!' : 'Copy Link'}
+                    {copied === 'permanent' ? (
+                      <>
+                        <Check className="h-4 w-4" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4" />
+                        Copy Link
+                      </>
+                    )}
                   </button>
                   <button
                     onClick={() => window.open(bookingLink, '_blank')}
-                    className="px-6 py-3 bg-white text-blue-600 border border-blue-300 rounded-xl hover:bg-blue-50 transition-colors"
+                    className="px-4 py-3 bg-white text-blue-600 border border-blue-300 rounded-xl hover:bg-blue-50 transition-colors"
+                    title="Preview booking page"
                   >
-                    <ExternalLink className="h-4 w-4" />
+                    <ExternalLink className="h-5 w-5" />
                   </button>
+                </div>
+                
+                <div className="flex items-center gap-2 text-sm text-blue-600">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Unlimited uses, never expires</span>
                 </div>
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
                   <p className="text-sm text-orange-800 mb-3">
-                    You don&apos;t have a personal booking link yet.
+                    You don't have a personal booking link yet. Create one to start accepting bookings!
                   </p>
                   <button
                     onClick={handleCreateLink}
                     disabled={generatingLink}
-                    className="w-full px-6 py-3 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="w-full px-6 py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {generatingLink ? (
                       <>
                         <Loader2 className="animate-spin h-5 w-5" />
-                        Generating...
+                        Creating...
                       </>
                     ) : (
                       <>
                         <Sparkles className="h-5 w-5" />
-                        Create Link
+                        Create My Booking Link
                       </>
                     )}
                   </button>
@@ -213,13 +259,15 @@ export default function MyLinks() {
           </div>
 
           {/* Single-Use Links */}
-          <div className="bg-purple-50/50 rounded-2xl border border-purple-200 p-6 shadow-sm">
+          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border border-purple-200 p-6 shadow-sm">
             <h2 className="text-xl font-bold text-purple-900 flex items-center gap-3 mb-2">
-              <Ticket className="h-6 w-6" />
+              <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                <Ticket className="h-5 w-5 text-purple-600" />
+              </div>
               Single-Use Links
             </h2>
             <p className="text-purple-700 text-sm mb-4">
-              🎯 One-time use • Expires in 24h • Perfect for specific clients
+              Generate one-time links for specific clients or meetings
             </p>
 
             <div className="space-y-4">
@@ -228,7 +276,7 @@ export default function MyLinks() {
                 placeholder="Name this link (optional) - e.g., 'Client ABC'"
                 value={linkName}
                 onChange={(e) => setLinkName(e.target.value)}
-                className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full px-4 py-3 bg-white border border-purple-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 maxLength={50}
               />
 
@@ -245,10 +293,15 @@ export default function MyLinks() {
                 ) : (
                   <>
                     <Plus className="h-5 w-5" />
-                    Generate Link
+                    Generate Single-Use Link
                   </>
                 )}
               </button>
+              
+              <div className="flex items-center gap-2 text-sm text-purple-600">
+                <Clock className="h-4 w-4" />
+                <span>Expires in 24 hours, one-time use only</span>
+              </div>
             </div>
           </div>
         </div>
@@ -256,7 +309,16 @@ export default function MyLinks() {
         {/* Recent Single-Use Links */}
         {singleUseLinks.length > 0 && (
           <div className="mt-8 bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Recent Single-Use Links</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Recent Single-Use Links</h3>
+              <button
+                onClick={loadSingleUseLinks}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Refresh"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
+            </div>
             <div className="space-y-3">
               {singleUseLinks.map((link) => {
                 const status = getSingleUseLinkStatus(link);
@@ -266,7 +328,11 @@ export default function MyLinks() {
                 return (
                   <div
                     key={link.token}
-                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200"
+                    className={`flex items-center justify-between p-4 rounded-xl border ${
+                      isActive 
+                        ? 'bg-green-50 border-green-200' 
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className={`px-3 py-1 rounded-lg ${status.color} text-sm font-medium flex items-center gap-2`}>
@@ -292,7 +358,11 @@ export default function MyLinks() {
                     {isActive && (
                       <button
                         onClick={() => handleCopySingleUse(link.token)}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors flex items-center gap-2"
+                        className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                          copied === link.token
+                            ? 'bg-green-600 text-white'
+                            : 'bg-purple-600 text-white hover:bg-purple-700'
+                        }`}
                       >
                         {copied === link.token ? (
                           <>
@@ -311,6 +381,17 @@ export default function MyLinks() {
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Empty state for single-use links */}
+        {singleUseLinks.length === 0 && (
+          <div className="mt-8 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300 p-8 text-center">
+            <Ticket className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+            <h3 className="font-semibold text-gray-700 mb-1">No single-use links yet</h3>
+            <p className="text-sm text-gray-500">
+              Generate your first single-use link above for specific clients
+            </p>
           </div>
         )}
       </div>
