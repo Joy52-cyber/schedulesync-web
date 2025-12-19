@@ -26,7 +26,14 @@ import api from '../utils/api';
 export default function AISchedulerChat() {
   console.log('🔥 AISchedulerChat component is rendering!');
 
-  const { currentTier, hasProFeature, hasTeamFeature, loading: tierLoading } = useUpgrade();
+  // Add refreshUsage to sync with global context
+  const { 
+    currentTier, 
+    hasProFeature, 
+    hasTeamFeature, 
+    loading: tierLoading,
+    refreshUsage 
+  } = useUpgrade();
 
   // Timezone state
   const [currentTimezone, setCurrentTimezone] = useState('');
@@ -428,12 +435,18 @@ What can I help you with?`;
       const response = await api.ai.schedule(contextMessage, chatHistory);
       const responseData = response.data;
 
+      // Update local usage state
       if (responseData.usage) {
         setUsage(prev => ({
           ...prev,
           ai_queries_used: responseData.usage.ai_queries_used,
           ai_queries_limit: responseData.usage.ai_queries_limit
         }));
+      }
+      
+      // IMPORTANT: Always refresh global usage context so Dashboard updates
+      if (refreshUsage) {
+        refreshUsage();
       }
 
       if (responseData.type === 'update_pending' && responseData.data?.updatedBooking) {
@@ -503,6 +516,11 @@ What can I help you with?`;
         content: fallbackResponse,
         timestamp: new Date()
       }]);
+      
+      // Still refresh usage on error in case query was counted
+      if (refreshUsage) {
+        refreshUsage();
+      }
     } finally {
       setLoading(false);
     }
@@ -556,6 +574,11 @@ I've sent calendar invites to everyone. Anything else?`;
       }]);
 
       setPendingBooking(null);
+      
+      // Refresh usage after booking
+      if (refreshUsage) {
+        refreshUsage();
+      }
       
     } catch (error) {
       console.error('Booking error:', error);
