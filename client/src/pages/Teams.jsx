@@ -47,26 +47,26 @@ export default function Teams() {
     return false;
   };
 
-  const loadTeams = async () => {
-    try {
-      const response = await teams.getAll();
-      const allTeams = response.data.teams || [];
+  // In loadTeams function, filter out personal teams:
+const loadTeams = async () => {
+  try {
+    const response = await teams.getAll();
+    const allTeams = response.data.teams || [];
 
-      const sortedTeams = [...allTeams].sort((a, b) => {
-        const aIsPersonal = isPersonalTeam(a);
-        const bIsPersonal = isPersonalTeam(b);
-        if (aIsPersonal && !bIsPersonal) return -1;
-        if (!aIsPersonal && bIsPersonal) return 1;
-        return (a.name || '').localeCompare(b.name || '');
-      });
+    // Filter OUT personal booking teams - they show in MyLinks now
+    const nonPersonalTeams = allTeams.filter(team => !isPersonalTeam(team));
 
-      setTeamsList(sortedTeams);
-    } catch (error) {
-      console.error('❌ Error loading teams:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const sortedTeams = [...nonPersonalTeams].sort((a, b) => {
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    setTeamsList(sortedTeams);
+  } catch (error) {
+    console.error('❌ Error loading teams:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const getBookingLink = (team) => {
     const personal = isPersonalTeam(team);

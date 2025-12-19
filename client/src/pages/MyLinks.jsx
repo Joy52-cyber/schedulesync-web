@@ -9,7 +9,6 @@ import {
   ExternalLink,
   Sparkles,
   Loader2,
-  X,
   CheckCircle2,
   XCircle,
   Clock,
@@ -40,40 +39,42 @@ export default function MyLinks() {
 
   const loadAllData = async () => {
     setLoading(true);
-    await Promise.all([
-      loadUserProfile(),
-      loadBookingLink(),
-      loadSingleUseLinks()
-    ]);
-    setLoading(false);
+    try {
+      await Promise.all([
+        loadUserProfile(),
+        loadBookingLink(),
+        loadSingleUseLinks()
+      ]);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadUserProfile = async () => {
     try {
       const response = await api.get('/auth/me');
-      const userData = response.data.user;
+      const userData = response.data.user || response.data;
       setUser(userData);
     } catch (error) {
       console.error('Failed to load profile:', error);
-      notify.error('Failed to load profile');
     }
   };
 
   const loadBookingLink = async () => {
     try {
-      // Try to get personal team booking link first
-      const response = await api.get('/api/my-booking-link');
-      if (response.data.bookingLink) {
-        setBookingLink(response.data.bookingLink);
-        setBookingToken(response.data.token);
+      // Note: api.js already has baseURL = '/api', so don't add /api again
+      const response = await api.get('/my-booking-link');
+      
+      // Backend returns: { success, bookingUrl, bookingToken, team }
+      if (response.data.bookingUrl) {
+        setBookingLink(response.data.bookingUrl);
+        setBookingToken(response.data.bookingToken);
       }
     } catch (error) {
       console.error('Failed to load booking link:', error);
-      // Fallback to user booking token if available
-      if (user?.booking_token) {
-        setBookingLink(`${window.location.origin}/book/${user.booking_token}`);
-        setBookingToken(user.booking_token);
-      }
+      // Silent fail - user may not have a link yet
     }
   };
 
@@ -89,11 +90,13 @@ export default function MyLinks() {
   const handleCreateLink = async () => {
     setGeneratingLink(true);
     try {
-      const response = await api.post('/api/my-booking-link');
-      if (response.data.bookingLink) {
-        setBookingLink(response.data.bookingLink);
-        setBookingToken(response.data.token);
-        notify.success('Booking link created successfully! 🎉');
+      // This endpoint creates a personal booking team if it doesn't exist
+      const response = await api.get('/my-booking-link');
+      
+      if (response.data.bookingUrl) {
+        setBookingLink(response.data.bookingUrl);
+        setBookingToken(response.data.bookingToken);
+        notify.success('Booking link ready! 🎉');
       }
     } catch (error) {
       console.error('Generate link error:', error);
@@ -114,7 +117,7 @@ export default function MyLinks() {
   const handleGenerateSingleUse = async () => {
     setGeneratingSingleUse(true);
     try {
-      const response = await api.singleUseLinks.generate({ 
+      await api.singleUseLinks.generate({ 
         name: linkName.trim() || null 
       });
       
@@ -174,7 +177,7 @@ export default function MyLinks() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
-          {/* Permanent Link */}
+          {/* Permanent Booking Link */}
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 p-6 shadow-sm">
             <h2 className="text-xl font-bold text-blue-900 flex items-center gap-3 mb-2">
               <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
