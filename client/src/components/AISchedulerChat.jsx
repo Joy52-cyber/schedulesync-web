@@ -28,12 +28,13 @@ export default function AISchedulerChat() {
 
   // Add refreshUsage to sync with global context
   const { 
-    currentTier, 
-    hasProFeature, 
-    hasTeamFeature, 
-    loading: tierLoading,
-    refreshUsage 
-  } = useUpgrade();
+  currentTier, 
+  hasProFeature, 
+  hasTeamFeature, 
+  loading: tierLoading,
+  refreshUsage,
+  usage: globalUsage  // Add this
+} = useUpgrade();
 
   // Timezone state
   const [currentTimezone, setCurrentTimezone] = useState('');
@@ -121,11 +122,12 @@ What can I help you with?`;
   const [message, setMessage] = useState('');
   const [copiedUrl, setCopiedUrl] = useState(null);
 
-  const [usage, setUsage] = useState({
-    ai_queries_used: 0,
-    ai_queries_limit: 10,
-    loading: true
-  });
+  // NEW - use global usage, fallback to defaults
+const usage = {
+  ai_queries_used: globalUsage?.ai_queries_used ?? 0,
+  ai_queries_limit: globalUsage?.ai_queries_limit ?? 10,
+  loading: tierLoading
+};
 
   const [chatHistory, setChatHistory] = useState(() => {
     try {
