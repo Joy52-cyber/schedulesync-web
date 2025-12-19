@@ -7885,11 +7885,18 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
 });
 
 
-// ============ DASHBOARD STATS ENDPOINT ============
 
+// ============ DASHBOARD STATS ENDPOINT ============
 app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
+    
+    // Get user's subscription tier
+    const userResult = await pool.query(
+      'SELECT subscription_tier FROM users WHERE id = $1',
+      [userId]
+    );
+    const tier = userResult.rows[0]?.subscription_tier || 'free';
     
     // Total bookings for user's teams
     const totalBookingsResult = await pool.query(
@@ -7924,13 +7931,18 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
       [userId]
     );
     
-    // Active teams
-    const teamsResult = await pool.query(
-      `SELECT COUNT(*) as count
-       FROM teams
-       WHERE owner_id = $1`,
-      [userId]
-    );
+    // Active teams - Only for Team tier, exclude personal booking teams
+    let activeTeamsCount = 0;
+    if (tier === 'team') {
+      const teamsResult = await pool.query(
+        `SELECT COUNT(*) as count
+         FROM teams
+         WHERE owner_id = $1
+         AND name NOT LIKE '%Personal%'`,
+        [userId]
+      );
+      activeTeamsCount = parseInt(teamsResult.rows[0].count);
+    }
     
     // Recent bookings
     const recentBookingsResult = await pool.query(
@@ -7949,7 +7961,8 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
         totalBookings: parseInt(totalBookingsResult.rows[0].count),
         upcomingBookings: parseInt(upcomingResult.rows[0].count),
         revenue: parseFloat(revenueResult.rows[0].revenue).toFixed(2),
-        activeTeams: parseInt(teamsResult.rows[0].count)
+        activeTeams: activeTeamsCount,
+        tier: tier
       },
       recentBookings: recentBookingsResult.rows
     });
