@@ -10956,6 +10956,15 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
     );
     const eventTypesUsed = parseInt(eventTypesResult.rows[0].count) || 0;
     
+    // Count actual bookings this month (more reliable than counter)
+const bookingsResult = await pool.query(
+  `SELECT COUNT(*) as count FROM bookings 
+   WHERE user_id = $1 
+   AND start_time >= date_trunc('month', CURRENT_DATE)`,
+  [req.user.id]
+);
+const bookingsUsed = parseInt(bookingsResult.rows[0].count) || 0;
+
     // Default limits
     const defaultLimits = {
       free: { ai: 10, bookings: 50, event_types: 2, magic_links: 3 },
@@ -10975,7 +10984,7 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
       ai_queries_limit: isUnlimited ? 999999 : limits.ai,
       
       // Bookings
-      bookings_used: user.monthly_bookings || 0,
+     bookings_used: bookingsUsed, 
       bookings_limit: isUnlimited ? 999999 : limits.bookings,
       
       // Event types (counted from table)
