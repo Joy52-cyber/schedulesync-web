@@ -342,14 +342,21 @@ What can I help you with?`;
       return;
     }
     
-    if (!hasTeamFeature() && (lowerMessage.includes('team') || lowerMessage.includes('marketing team') || lowerMessage.includes('sales team'))) {
-      setChatHistory(prev => [...prev, 
-        { role: 'user', content: userMessage, timestamp: new Date() },
-        { role: 'assistant', content: `I'd love to help with team scheduling! 🏢\n\nThis is a Team plan feature ($25/month).\n\n[Check out the Team plan](/billing)`, timestamp: new Date() }
-      ]);
-      setMessage('');
-      return;
-    }
+   if (!hasTeamFeature() && (
+  lowerMessage.includes('create a team') ||
+  lowerMessage.includes('team scheduling') ||
+  lowerMessage.includes('book with team') ||
+  lowerMessage.includes('team booking link') ||
+  lowerMessage.includes('round robin') ||
+  lowerMessage.includes('collective booking')
+)) {
+  setChatHistory(prev => [...prev, 
+    { role: 'user', content: userMessage, timestamp: new Date() },
+    { role: 'assistant', content: `I'd love to help with team scheduling! 🏢\n\nThis is a Team plan feature ($25/month).\n\n[Check out the Team plan](/billing)`, timestamp: new Date() }
+  ]);
+  setMessage('');
+  return;
+}
 
     if (!hasProFeature() && (lowerMessage.includes('send reminder') || lowerMessage.includes('send email') || lowerMessage.includes('email template'))) {
       setChatHistory(prev => [...prev, 
