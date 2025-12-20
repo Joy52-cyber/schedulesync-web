@@ -6045,7 +6045,6 @@ app.get('/api/single-use-links/recent', authenticateToken, async (req, res) => {
   }
 });
 // ============ BOOKING ROUTES ============
-
 app.get('/api/bookings', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -6053,7 +6052,9 @@ app.get('/api/bookings', authenticateToken, async (req, res) => {
        FROM bookings b
        LEFT JOIN teams t ON b.team_id = t.id 
        LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE t.owner_id = $1 OR tm.user_id = $1 
+       WHERE b.user_id = $1 
+          OR t.owner_id = $1 
+          OR tm.user_id = $1 
        ORDER BY b.start_time DESC`,
       [req.user.id]
     );
