@@ -10932,6 +10932,7 @@ const trackTemplateUsage = async (templateId, userId, action) => {
 // ================================================================================
 app.get('/api/user/usage', authenticateToken, async (req, res) => {
   try {
+       console.log('📊 /api/user/usage called for user:', req.user.id);
     // Get user data
     const userResult = await pool.query(
       `SELECT subscription_tier, ai_queries_used, ai_queries_limit, 
