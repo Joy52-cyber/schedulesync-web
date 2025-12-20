@@ -10958,12 +10958,13 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
     const eventTypesUsed = parseInt(eventTypesResult.rows[0].count) || 0;
     
     // Count actual bookings this month (more reliable than counter)
-const bookingsResult = await pool.query(
+    const bookingsResult = await pool.query(
   `SELECT COUNT(*) as count FROM bookings 
-   WHERE user_id = $1 
+   WHERE (user_id = $1 OR team_id IN (SELECT id FROM teams WHERE owner_id = $1))
    AND start_time >= date_trunc('month', CURRENT_DATE)`,
   [req.user.id]
 );
+
 const bookingsUsed = parseInt(bookingsResult.rows[0].count) || 0;
 
     // Default limits
@@ -11001,6 +11002,8 @@ const bookingsUsed = parseInt(bookingsResult.rows[0].count) || 0;
     res.status(500).json({ error: 'Failed to fetch usage' });
   }
 });
+
+
 // ============ SUBSCRIPTION MANAGEMENT ============
 // (Add this section after your existing payment endpoints)
 // Get current subscription
