@@ -7899,13 +7899,13 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
     );
     const tier = userResult.rows[0]?.subscription_tier || 'free';
     
-    // Total bookings for user's teams
+    // Total bookings for user (direct OR via teams)
     const totalBookingsResult = await pool.query(
       `SELECT COUNT(*) as count
        FROM bookings b
        LEFT JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE t.owner_id = $1 OR tm.user_id = $1`,
+       WHERE b.user_id = $1 OR t.owner_id = $1 OR tm.user_id = $1`,
       [userId]
     );
     
@@ -7915,7 +7915,7 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
        FROM bookings b
        LEFT JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+       WHERE (b.user_id = $1 OR t.owner_id = $1 OR tm.user_id = $1)
          AND b.start_time > NOW()
          AND b.status = 'confirmed'`,
       [userId]
@@ -7927,7 +7927,7 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
        FROM bookings b
        LEFT JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+       WHERE (b.user_id = $1 OR t.owner_id = $1 OR tm.user_id = $1)
          AND b.payment_status = 'paid'`,
       [userId]
     );
@@ -7951,7 +7951,7 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
        FROM bookings b
        LEFT JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
-       WHERE t.owner_id = $1 OR tm.user_id = $1
+       WHERE b.user_id = $1 OR t.owner_id = $1 OR tm.user_id = $1
        ORDER BY b.created_at DESC
        LIMIT 5`,
       [userId]
