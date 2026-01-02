@@ -81,23 +81,14 @@ export default function MyLinks() {
   };
 
   const loadUserProfile = async () => {
-  try {
-    const response = await api.get('/auth/me');
-    const userData = response.data.user || response.data;
-    
-    // Also fetch subscription tier from usage endpoint
     try {
-      const usageResponse = await api.get('/user/usage');
-      userData.subscription_tier = usageResponse.data.tier || 'free';
-    } catch (e) {
-      console.error('Failed to load usage:', e);
+      const response = await api.get('/auth/me');
+      const userData = response.data.user || response.data;
+      setUser(userData);
+    } catch (error) {
+      console.error('Failed to load profile:', error);
     }
-    
-    setUser(userData);
-  } catch (error) {
-    console.error('Failed to load profile:', error);
-  }
-};
+  };
 
   const loadBookingLink = async () => {
     try {
@@ -468,31 +459,69 @@ export default function MyLinks() {
                     
                     {/* Member Dropdown */}
                     {showMemberSelector && availableMembers.length > 0 && (
-                      <div className="mt-2 max-h-48 overflow-y-auto bg-white border border-purple-200 rounded-lg divide-y divide-purple-100">
-                        {availableTeams.map(team => (
-                          <div key={team.id}>
-                            <div className="px-3 py-2 bg-purple-50 text-xs font-bold text-purple-800">
-                              {team.name}
-                            </div>
-                            {availableMembers
-                              .filter(m => m.team_id === team.id)
-                              .map(member => {
+                      <div className="mt-2 max-h-64 overflow-y-auto bg-white border border-purple-200 rounded-lg divide-y divide-purple-100">
+                        {availableTeams.map(team => {
+                          const teamMembers = availableMembers.filter(m => m.team_id === team.id);
+                          const allTeamSelected = teamMembers.every(m => selectedMembers.some(sm => sm.id === m.id));
+                          const someTeamSelected = teamMembers.some(m => selectedMembers.some(sm => sm.id === m.id));
+                          
+                          const toggleTeamSelection = () => {
+                            if (allTeamSelected) {
+                              // Deselect all from this team
+                              setSelectedMembers(selectedMembers.filter(sm => !teamMembers.some(tm => tm.id === sm.id)));
+                            } else {
+                              // Select all from this team
+                              const newMembers = [...selectedMembers];
+                              teamMembers.forEach(tm => {
+                                if (!newMembers.some(m => m.id === tm.id)) {
+                                  newMembers.push(tm);
+                                }
+                              });
+                              setSelectedMembers(newMembers);
+                            }
+                          };
+                          
+                          return (
+                            <div key={team.id}>
+                              <div className="px-3 py-2 bg-purple-50 flex items-center justify-between">
+                                <span className="text-xs font-bold text-purple-800">{team.name}</span>
+                                <button
+                                  onClick={toggleTeamSelection}
+                                  className={`text-xs px-2 py-1 rounded transition-colors ${
+                                    allTeamSelected 
+                                      ? 'bg-purple-600 text-white' 
+                                      : someTeamSelected
+                                        ? 'bg-purple-200 text-purple-700'
+                                        : 'bg-purple-100 text-purple-600 hover:bg-purple-200'
+                                  }`}
+                                >
+                                  {allTeamSelected ? '✓ All' : 'Select All'}
+                                </button>
+                              </div>
+                              {teamMembers.map(member => {
                                 const isSelected = selectedMembers.some(m => m.id === member.id);
                                 return (
                                   <button
                                     key={member.id}
                                     onClick={() => toggleMemberSelection(member)}
-                                    className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-purple-50 ${
+                                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-3 hover:bg-purple-50 ${
                                       isSelected ? 'bg-purple-100' : ''
                                     }`}
                                   >
-                                    <span>{member.name}</span>
-                                    {isSelected && <Check className="h-4 w-4 text-purple-600" />}
+                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                      isSelected 
+                                        ? 'bg-purple-600 border-purple-600' 
+                                        : 'border-gray-300'
+                                    }`}>
+                                      {isSelected && <Check className="h-3 w-3 text-white" />}
+                                    </div>
+                                    <span className="flex-1">{member.name}</span>
                                   </button>
                                 );
                               })}
-                          </div>
-                        ))}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                     
