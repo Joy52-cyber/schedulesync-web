@@ -8255,7 +8255,11 @@ INTENT EXAMPLES:
 
 LINK REQUESTS:
 - "get my link" or "my booking page" → intent: "get_personal_link"
-- "create magic link for John" → intent: "get_magic_link", extracted: { link_name: "John" }
+- "create magic link" → intent: "get_magic_link", extracted: { link_name: "Quick Meeting" }
+- "create magic link for john@email.com" → intent: "get_magic_link", extracted: { link_name: "Meeting with John", attendee_email: "john@email.com", attendee_name: "John" }
+- "create magic link for John Smith" → intent: "get_magic_link", extracted: { link_name: "Meeting with John Smith", attendee_name: "John Smith" }
+- "create magic link assigned to Sarah" → intent: "get_magic_link", extracted: { link_name: "Quick Meeting", member_name: "Sarah" }
+- "create magic link for john@email.com with Marketing team" → intent: "get_magic_link", extracted: { link_name: "Meeting with John", attendee_email: "john@email.com", team_name: "Marketing" }
 - "get team links" or "show team pages" → intent: "get_team_links"
 - "get Sarah's link" → intent: "get_member_link", extracted: { member_name: "Sarah" }
 
@@ -8295,20 +8299,20 @@ Return JSON structure:
   "confidence": 0-100,
   "extracted": {
   "link_name": "custom name for magic link",
-  "team_name": "team name to schedule with",
-  "member_name": "member name for link lookup",
+  "attendee_email": "pre-fill attendee email for magic link",
+  "attendee_name": "pre-fill attendee name for magic link", 
+  "team_name": "team name to schedule with or assign magic link to",
+  "member_name": "member name for link lookup or magic link assignment",
   "event_type_name": "event type name to lookup",
   "status_filter": "confirmed" | "cancelled" | "rescheduled" | "all",
   "date_range": "today" | "this_week" | "this_month" | "all",
   "title": "meeting title",
-  "attendee_email": "single attendee email (use this for single person)",
-  "attendees": ["email1@example.com", "email2@example.com"] // Use this for multiple people
+  "attendees": ["email1@example.com", "email2@example.com"],
   "date": "YYYY-MM-DD",
   "time": "HH:MM in 24-hour format", 
   "duration_minutes": number,
   "notes": "string or null"
-
-  },
+},
   "missing_fields": [],
   "clarifying_question": "question if needed",
   "action": "create" | "update" | "list" | "get_link" | "suggest_slots" | "cancel" | "stats" | null,
@@ -8824,7 +8828,7 @@ if (parsedIntent.intent === 'get_personal_link') {
   }
 }
 
-       // ============ HANDLE GET/CREATE MAGIC LINK ============
+ // ============ HANDLE GET/CREATE MAGIC LINK ============
 if (parsedIntent.intent === 'get_magic_link') {
   try {
     // ✅ CHECK MAGIC LINK LIMIT FIRST
@@ -8851,13 +8855,51 @@ if (parsedIntent.intent === 'get_magic_link') {
         usage: usageData
       });
     }
-
+    
     const linkName = parsedIntent.extracted?.link_name || 'Quick Meeting';
+    const attendeeEmail = parsedIntent.extracted?.attendee_email || null;
+    const attendeeName = parsedIntent.extracted?.attendee_name || null;
+    const teamName = parsedIntent.extracted?.team_name || null;
+    const memberName = parsedIntent.extracted?.member_name || null;
     
     // Create magic link token
     const magicToken = crypto.randomBytes(16).toString('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
+    
+    // Find team if specified
+    let teamId = null;
+    let resolvedTeamName = null;
+    if (teamName) {
+      const teamResult = await pool.query(
+        `SELECT id, name FROM teams WHERE owner_id = $1 AND LOWER(name) LIKE LOWER($2)`,
+        [userId, `%${teamName}%`]
+      );
+      if (teamResult.rows.length > 0) {
+        teamId = teamResult.rows[0].id;
+        resolvedTeamName = teamResult.rows[0].name;
+      }
+    }
+    
+    // Find team member if specified
+    let assignedMemberId = null;
+    let resolvedMemberName = null;
+    if (memberName) {
+      const memberQuery = teamId 
+        ? `SELECT id, name FROM team_members WHERE team_id = $1 AND LOWER(name) LIKE LOWER($2)`
+        : `SELECT tm.id, tm.name FROM team_members tm 
+           JOIN teams t ON tm.team_id = t.id 
+           WHERE t.owner_id = $1 AND LOWER(tm.name) LIKE LOWER($2)`;
+      
+      const memberResult = await pool.query(
+        memberQuery,
+        teamId ? [teamId, `%${memberName}%`] : [userId, `%${memberName}%`]
+      );
+      if (memberResult.rows.length > 0) {
+        assignedMemberId = memberResult.rows[0].id;
+        resolvedMemberName = memberResult.rows[0].name;
+      }
+    }
     
     // Get or create default event type
     let eventTypeId;
@@ -8868,12 +8910,12 @@ if (parsedIntent.intent === 'get_magic_link') {
     
     if (eventTypeResult.rows.length === 0) {
       console.log('📝 No event types found, creating default event type for user:', userId);
-    const newEventType = await pool.query(
-  `INSERT INTO event_types (user_id, title, slug, duration, description, color)
-   VALUES ($1, 'Quick Meeting', 'quick-meeting', 30, 'Default meeting created for magic links', '#3B82F6')
-   RETURNING id`,
-  [userId]
-);
+      const newEventType = await pool.query(
+        `INSERT INTO event_types (user_id, title, slug, duration, description, color)
+         VALUES ($1, 'Quick Meeting', 'quick-meeting', 30, 'Default meeting created for magic links', '#3B82F6')
+         RETURNING id`,
+        [userId]
+      );
       eventTypeId = newEventType.rows[0].id;
       console.log('✅ Created default event type:', eventTypeId);
     } else {
@@ -8881,11 +8923,11 @@ if (parsedIntent.intent === 'get_magic_link') {
       console.log('✅ Using existing event type:', eventTypeId);
     }
     
-    // Insert into magic_links
+    // Insert into magic_links with new fields
     await pool.query(
-      `INSERT INTO magic_links (token, created_by_user_id, event_type_id, expires_at, is_active, is_used, created_at)
-       VALUES ($1, $2, $3, $4, true, false, NOW())`,
-      [magicToken, userId, eventTypeId, expiresAt]
+      `INSERT INTO magic_links (token, created_by_user_id, event_type_id, expires_at, is_active, is_used, created_at, attendee_email, attendee_name, team_id, assigned_member_id)
+       VALUES ($1, $2, $3, $4, true, false, NOW(), $5, $6, $7, $8)`,
+      [magicToken, userId, eventTypeId, expiresAt, attendeeEmail, attendeeName, teamId, assignedMemberId]
     );
     
     // ✅ INCREMENT MAGIC LINK USAGE
@@ -8898,15 +8940,36 @@ if (parsedIntent.intent === 'get_magic_link') {
     const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
     const magicUrl = `${baseUrl}/m/${magicToken}`;
     
+    // Build response message
+    let responseMessage = `✨ Magic link created!\n\n🔗 ${magicUrl}\n📅 Expires: ${expiresAt.toLocaleDateString()}\n🎯 Single-use: Yes`;
+    
+    if (attendeeEmail || attendeeName) {
+      responseMessage += `\n👤 For: ${attendeeName || ''} ${attendeeEmail ? `(${attendeeEmail})` : ''}`.trim();
+    }
+    if (resolvedTeamName) {
+      responseMessage += `\n🏢 Team: ${resolvedTeamName}`;
+    }
+    if (resolvedMemberName) {
+      responseMessage += `\n👥 Assigned to: ${resolvedMemberName}`;
+    }
+    
+    responseMessage += `\n\n📊 Magic links used: ${magicLinksUsed + 1}/${isUnlimited ? '∞' : magicLinksLimit}`;
+    
     return res.json({
       type: 'link',
-      message: `✨ Magic link created for "${linkName}"!\n\n🔗 ${magicUrl}\n📅 Expires: ${expiresAt.toLocaleDateString()}\n🎯 Single-use: Yes\n\n📊 Magic links used: ${magicLinksUsed + 1}/${isUnlimited ? '∞' : magicLinksLimit}`,
+      message: responseMessage,
       data: {
         url: magicUrl,
         token: magicToken,
         name: linkName,
         expires_at: expiresAt,
-        type: 'magic'
+        type: 'magic',
+        attendee_email: attendeeEmail,
+        attendee_name: attendeeName,
+        team_id: teamId,
+        team_name: resolvedTeamName,
+        assigned_member_id: assignedMemberId,
+        assigned_member_name: resolvedMemberName
       },
       usage: usageData
     });
@@ -8919,6 +8982,7 @@ if (parsedIntent.intent === 'get_magic_link') {
     });
   }
 }
+
       // ============ HANDLE GET TEAM LINKS ============
       if (parsedIntent.intent === 'get_team_links') {
         try {
@@ -12467,6 +12531,88 @@ app.get('/api/user/chatgpt-openapi-schema', (req, res) => {
   };
   
   res.json(schema);
+});
+
+// GET /api/magic-links - List user's magic links
+app.get('/api/magic-links', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT ml.*, 
+              t.name as team_name,
+              tm.name as assigned_member_name
+       FROM magic_links ml
+       LEFT JOIN teams t ON ml.team_id = t.id
+       LEFT JOIN team_members tm ON ml.assigned_member_id = tm.id
+       WHERE ml.created_by_user_id = $1
+       ORDER BY ml.created_at DESC
+       LIMIT 20`,
+      [req.user.id]
+    );
+    
+    res.json({ 
+      success: true,
+      links: result.rows.map(link => ({
+        ...link,
+        url: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/m/${link.token}`
+      }))
+    });
+  } catch (error) {
+    console.error('Get magic links error:', error);
+    res.status(500).json({ error: 'Failed to fetch magic links' });
+  }
+});
+
+// POST /api/magic-links - Create a magic link
+app.post('/api/magic-links', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name, attendee_email, attendee_name, team_id, assigned_member_id } = req.body;
+    
+    // Check limit
+    const limitResult = await pool.query(
+      'SELECT subscription_tier, magic_links_used, magic_links_limit FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    const userLimits = limitResult.rows[0];
+    const tier = userLimits?.subscription_tier || 'free';
+    const magicLinksUsed = userLimits?.magic_links_used || 0;
+    const magicLinksLimit = userLimits?.magic_links_limit || 3;
+    const isUnlimited = tier === 'pro' || tier === 'team' || magicLinksLimit >= 1000;
+    
+    if (!isUnlimited && magicLinksUsed >= magicLinksLimit) {
+      return res.status(403).json({ error: 'Magic link limit reached', upgrade_required: true });
+    }
+    
+    const magicToken = crypto.randomBytes(16).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+    
+    // Get event type
+    let eventTypeId = null;
+    const etResult = await pool.query('SELECT id FROM event_types WHERE user_id = $1 LIMIT 1', [userId]);
+    if (etResult.rows.length > 0) {
+      eventTypeId = etResult.rows[0].id;
+    }
+    
+    // Insert
+    await pool.query(
+      `INSERT INTO magic_links (token, created_by_user_id, event_type_id, expires_at, is_active, is_used, created_at, attendee_email, attendee_name, team_id, assigned_member_id)
+       VALUES ($1, $2, $3, $4, true, false, NOW(), $5, $6, $7, $8)`,
+      [magicToken, userId, eventTypeId, expiresAt, attendee_email || null, attendee_name || null, team_id || null, assigned_member_id || null]
+    );
+    
+    await pool.query('UPDATE users SET magic_links_used = COALESCE(magic_links_used, 0) + 1 WHERE id = $1', [userId]);
+    
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    res.json({
+      success: true,
+      link: { token: magicToken, url: `${baseUrl}/m/${magicToken}`, expires_at: expiresAt }
+    });
+  } catch (error) {
+    console.error('Create magic link error:', error);
+    res.status(500).json({ error: 'Failed to create magic link' });
+  }
 });
 
 // =============================================================================
