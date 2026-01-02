@@ -6467,23 +6467,30 @@ app.get('/api/book/:token', async (req, res) => {
         return res.status(404).json({ error: 'This link has expired or been used' });
       }
     }
-    
-    // ========== CHECK 1.5: Magic Link (32 chars) ==========
+    // ========== CHECK 2: Magic Link (32 chars) ==========
     if (token.length === 32) {
       console.log('✨ Checking magic link...');
       const magicResult = await pool.query(
         `SELECT ml.*, 
                 ml.attendee_email,
                 ml.attendee_name,
+                et.id as event_type_id,
+                et.title as event_title,
+                et.slug as event_slug,
+                et.duration as event_duration,
+                et.description as event_description,
+                et.color as event_color,
                 tm.id as member_id,
                 tm.name as member_name, 
                 tm.email as member_email,
                 tm.user_id,
+                tm.booking_token as member_booking_token,
                 t.name as team_name,
                 t.id as team_id,
                 u.name as creator_name,
                 u.email as creator_email
          FROM magic_links ml
+         LEFT JOIN event_types et ON ml.event_type_id = et.id
          LEFT JOIN teams t ON ml.team_id = t.id
          LEFT JOIN team_members tm ON ml.assigned_member_id = tm.id
          LEFT JOIN users u ON ml.created_by_user_id = u.id
@@ -6500,17 +6507,22 @@ app.get('/api/book/:token', async (req, res) => {
         
         // If no assigned member, get the creator's personal booking team member
         let memberData = null;
+        let teamId = link.team_id;
+        let teamName = link.team_name;
+        let bookingToken = link.member_booking_token;
+        
         if (link.member_id) {
           memberData = {
             id: link.member_id,
             name: link.member_name,
             email: link.member_email,
-            user_id: link.user_id
+            user_id: link.user_id,
+            default_duration: link.event_duration || 30
           };
         } else {
           // Get creator's personal booking member
           const creatorMember = await pool.query(
-            `SELECT tm.id, tm.name, tm.email, tm.user_id, t.id as team_id, t.name as team_name
+            `SELECT tm.id, tm.name, tm.email, tm.user_id, tm.booking_token, t.id as team_id, t.name as team_name
              FROM team_members tm
              JOIN teams t ON tm.team_id = t.id
              WHERE tm.user_id = $1 AND t.owner_id = $1
@@ -6525,27 +6537,48 @@ app.get('/api/book/:token', async (req, res) => {
               id: cm.id,
               name: cm.name,
               email: cm.email,
-              user_id: cm.user_id
+              user_id: cm.user_id,
+              default_duration: link.event_duration || 30
             };
-            link.team_id = cm.team_id;
-            link.team_name = cm.team_name;
+            teamId = cm.team_id;
+            teamName = cm.team_name;
+            bookingToken = cm.booking_token;
           }
         }
+        
+        // Build event type from magic link
+        const eventType = link.event_type_id ? {
+          id: link.event_type_id,
+          title: link.event_title || 'Quick Meeting',
+          slug: link.event_slug || 'meeting',
+          duration: link.event_duration || 30,
+          description: link.event_description || '',
+          color: link.event_color || '#8B5CF6'
+        } : {
+          id: null,
+          title: 'Quick Meeting',
+          slug: 'meeting',
+          duration: 30,
+          description: '',
+          color: '#8B5CF6'
+        };
         
         return res.json({
           data: {
             team: {
-              id: link.team_id,
-              name: link.team_name || `${link.creator_name}'s Bookings`
+              id: teamId,
+              name: teamName || `${link.creator_name}'s Bookings`
             },
             member: memberData || {
               id: null,
               name: link.creator_name,
               email: link.creator_email,
-              default_duration: 30,
+              default_duration: link.event_duration || 30,
               user_id: link.created_by_user_id
             },
-            eventTypes: [],
+            eventTypes: [eventType],
+            selectedEventType: eventType,
+            bookingToken: bookingToken,
             isDirectLink: true,
             skipEventTypes: true,
             isMagicLink: true,
@@ -6560,7 +6593,7 @@ app.get('/api/book/:token', async (req, res) => {
         return res.status(404).json({ error: 'This magic link has expired or been used' });
       }
     }
-
+   
     // ========== CHECK 2: Team Booking Token ==========
     const teamResult = await pool.query(
       `SELECT t.*, 
