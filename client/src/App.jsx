@@ -119,6 +119,7 @@ function InnerApp() {
               {/* Public Guest Routes */}
               <Route path="/book/:username/:eventSlug" element={<BookingPage />} />
               <Route path="/book/:token" element={<BookingPage />} />
+              <Route path="/m/:token" element={<BookingPage />} />
               <Route path="/book" element={<Book />} />
               <Route path="/manage/:token" element={<ManageBooking />} />
               <Route path="/payment/status" element={<PaymentStatus />} />
