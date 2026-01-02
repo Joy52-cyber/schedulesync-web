@@ -6279,14 +6279,14 @@ app.get('/api/bookings/:token', async (req, res) => {
       console.log('? Team token found:', team.name);
       
       const membersResult = await pool.query(
-        `SELECT tm.id, tm.name, tm.email, tm.booking_token, tm.user_id
-         FROM team_members tm
-         WHERE tm.team_id = $1 
-           AND (tm.is_active = true OR tm.is_active IS NULL)
-           AND (tm.external_booking_link IS NULL OR tm.external_booking_link = '')
-         ORDER BY tm.created_at ASC`,
-        [team.id]
-      );
+  `SELECT tm.id, COALESCE(tm.name, tm.email) as name, tm.email, tm.team_id, t.name as team_name
+   FROM team_members tm
+   JOIN teams t ON tm.team_id = t.id
+   WHERE tm.team_id = ANY($1)
+     AND (tm.is_active = true OR tm.is_active IS NULL)
+   ORDER BY t.name, COALESCE(tm.name, tm.email) ASC`,
+  [teamIds]
+);
       
       const eventTypesResult = await pool.query(
         `SELECT id, title, duration, description, is_active, color, slug
