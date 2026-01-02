@@ -6468,6 +6468,99 @@ app.get('/api/book/:token', async (req, res) => {
       }
     }
     
+    // ========== CHECK 1.5: Magic Link (32 chars) ==========
+    if (token.length === 32) {
+      console.log('✨ Checking magic link...');
+      const magicResult = await pool.query(
+        `SELECT ml.*, 
+                ml.attendee_email,
+                ml.attendee_name,
+                tm.id as member_id,
+                tm.name as member_name, 
+                tm.email as member_email,
+                tm.user_id,
+                t.name as team_name,
+                t.id as team_id,
+                u.name as creator_name,
+                u.email as creator_email
+         FROM magic_links ml
+         LEFT JOIN teams t ON ml.team_id = t.id
+         LEFT JOIN team_members tm ON ml.assigned_member_id = tm.id
+         LEFT JOIN users u ON ml.created_by_user_id = u.id
+         WHERE ml.token = $1
+           AND ml.is_used = false
+           AND ml.is_active = true
+           AND ml.expires_at > NOW()`,
+        [token]
+      );
+      
+      if (magicResult.rows.length > 0) {
+        const link = magicResult.rows[0];
+        console.log('✨ Magic link found, created by:', link.creator_name);
+        
+        // If no assigned member, get the creator's personal booking team member
+        let memberData = null;
+        if (link.member_id) {
+          memberData = {
+            id: link.member_id,
+            name: link.member_name,
+            email: link.member_email,
+            user_id: link.user_id
+          };
+        } else {
+          // Get creator's personal booking member
+          const creatorMember = await pool.query(
+            `SELECT tm.id, tm.name, tm.email, tm.user_id, t.id as team_id, t.name as team_name
+             FROM team_members tm
+             JOIN teams t ON tm.team_id = t.id
+             WHERE tm.user_id = $1 AND t.owner_id = $1
+             ORDER BY t.created_at ASC
+             LIMIT 1`,
+            [link.created_by_user_id]
+          );
+          
+          if (creatorMember.rows.length > 0) {
+            const cm = creatorMember.rows[0];
+            memberData = {
+              id: cm.id,
+              name: cm.name,
+              email: cm.email,
+              user_id: cm.user_id
+            };
+            link.team_id = cm.team_id;
+            link.team_name = cm.team_name;
+          }
+        }
+        
+        return res.json({
+          data: {
+            team: {
+              id: link.team_id,
+              name: link.team_name || `${link.creator_name}'s Bookings`
+            },
+            member: memberData || {
+              id: null,
+              name: link.creator_name,
+              email: link.creator_email,
+              default_duration: 30,
+              user_id: link.created_by_user_id
+            },
+            eventTypes: [],
+            isDirectLink: true,
+            skipEventTypes: true,
+            isMagicLink: true,
+            prefill: {
+              attendee_email: link.attendee_email,
+              attendee_name: link.attendee_name
+            }
+          }
+        });
+      } else {
+        console.log('❌ Magic link expired, used, or not found');
+        return res.status(404).json({ error: 'This magic link has expired or been used' });
+      }
+    }
+
     // ========== CHECK 2: Team Booking Token ==========
     const teamResult = await pool.query(
       `SELECT t.*, 
