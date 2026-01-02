@@ -2430,7 +2430,8 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT u.id, u.email, u.name, u.calendar_sync_enabled, u.timezone,
-              (SELECT tm.booking_token FROM team_members tm   -- <--- CHANGED to tm.booking_token
+              u.subscription_tier,
+              (SELECT tm.booking_token FROM team_members tm
                JOIN teams t ON tm.team_id = t.id 
                WHERE tm.user_id = u.id AND t.name LIKE '%Personal Bookings%' 
                LIMIT 1) as booking_token
@@ -2438,11 +2439,9 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
        WHERE u.id = $1`,
       [req.user.id]
     );
-
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-
     res.json({ user: result.rows[0] });
   } catch (error) {
     console.error('? Get Me error:', error);

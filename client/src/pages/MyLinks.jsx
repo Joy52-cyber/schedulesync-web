@@ -81,14 +81,23 @@ export default function MyLinks() {
   };
 
   const loadUserProfile = async () => {
+  try {
+    const response = await api.get('/auth/me');
+    const userData = response.data.user || response.data;
+    
+    // Also fetch subscription tier from usage endpoint
     try {
-      const response = await api.get('/auth/me');
-      const userData = response.data.user || response.data;
-      setUser(userData);
-    } catch (error) {
-      console.error('Failed to load profile:', error);
+      const usageResponse = await api.get('/user/usage');
+      userData.subscription_tier = usageResponse.data.tier || 'free';
+    } catch (e) {
+      console.error('Failed to load usage:', e);
     }
-  };
+    
+    setUser(userData);
+  } catch (error) {
+    console.error('Failed to load profile:', error);
+  }
+};
 
   const loadBookingLink = async () => {
     try {
