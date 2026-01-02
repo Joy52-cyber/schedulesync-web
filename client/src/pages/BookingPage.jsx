@@ -33,6 +33,7 @@ export default function BookingPage() {
   const [isDirectMemberLink, setIsDirectMemberLink] = useState(false);
   const [isReschedule, setIsReschedule] = useState(false);
   const [rescheduleToken, setRescheduleToken] = useState(null);
+  const [isMagicLink, setIsMagicLink] = useState(false);
 
   const [hostInfo, setHostInfo] = useState(null);
   const [teamInfo, setTeamInfo] = useState(null);
@@ -40,6 +41,9 @@ export default function BookingPage() {
   const [eventTypes, setEventTypes] = useState([]);
   const [selectedEventType, setSelectedEventType] = useState(null);
   const [error, setError] = useState('');
+  
+  // Booking token for slot picker (may differ from URL token for magic links)
+  const [bookingTokenForSlots, setBookingTokenForSlots] = useState(null);
   
   const [branding, setBranding] = useState({
     logo_url: null,
@@ -118,10 +122,11 @@ export default function BookingPage() {
           refreshToken: data.refreshToken,
         });
 
+        // Only update form if not already prefilled (magic links)
         setFormData((prev) => ({
           ...prev,
-          attendee_name: data.name || prev.attendee_name,
-          attendee_email: data.email || prev.attendee_email,
+          attendee_name: prev.attendee_name || data.name || '',
+          attendee_email: prev.attendee_email || data.email || '',
         }));
 
         const typeParam = searchParams.get('type');
@@ -186,6 +191,7 @@ export default function BookingPage() {
     try {
       setLoading(true);
       
+      // ========== PUBLIC EVENT TYPE BOOKING ==========
       if (isPublicEventType) {
         const response = await fetch(`/api/public/booking/${username}/${eventSlug}`);
         if (!response.ok) throw new Error('Event type not found');
@@ -221,11 +227,13 @@ export default function BookingPage() {
         return;
       }
       
+      // ========== TOKEN-BASED BOOKING (Regular, Single-Use, Magic Link) ==========
       const response = await bookings.getByToken(token);
       const payload = response.data?.data || response.data || {};
 
       if (!payload.team || !payload.member) throw new Error('Missing info');
 
+      // Check for external booking link redirect
       if (payload.member.external_booking_link && !isReschedule) {
         setRedirecting(true);
         setMemberInfo(payload.member);
@@ -236,6 +244,12 @@ export default function BookingPage() {
       setTeamInfo(payload.team);
       setMemberInfo(payload.member);
       
+      // Track if this is a magic link
+      if (payload.isMagicLink) {
+        setIsMagicLink(true);
+      }
+      
+      // Load branding
       if (payload.member?.user_id) {
         try {
           const brandingRes = await fetch(`/api/user/${payload.member.user_id}/branding`);
@@ -258,13 +272,40 @@ export default function BookingPage() {
       
       setIsDirectMemberLink(directMemberLink);
       
+      // ========== MAGIC LINK HANDLING ==========
+      // Pre-fill attendee info from magic link
+      if (payload.prefill) {
+        setFormData(prev => ({
+          ...prev,
+          attendee_name: payload.prefill.attendee_name || prev.attendee_name,
+          attendee_email: payload.prefill.attendee_email || prev.attendee_email,
+        }));
+      }
+      
+      // Use member's booking token for slots (magic links provide this)
+      if (payload.bookingToken) {
+        setBookingTokenForSlots(payload.bookingToken);
+      }
+      
+      // For magic links with event type, use it
+      if (payload.selectedEventType) {
+        setSelectedEventType(payload.selectedEventType);
+        setEventTypes(payload.eventTypes || [payload.selectedEventType]);
+      }
+      
       if (directMemberLink) {
-        setEventTypes([]);
-        setSelectedEventType(null);
-        setStep('calendar-choice');
+        // If magic link has event type, go straight to calendar choice
+        if (payload.selectedEventType) {
+          setStep('calendar-choice');
+        } else {
+          setEventTypes([]);
+          setSelectedEventType(null);
+          setStep('calendar-choice');
+        }
         return;
       }
       
+      // ========== REGULAR BOOKING FLOW ==========
       let allEventTypes = payload.eventTypes || [];
       if (allEventTypes.length === 0 && !directMemberLink) {
         const eventTypesRes = await eventTypesAPI.getAll();
@@ -418,6 +459,7 @@ export default function BookingPage() {
         return;
       }
       
+      // Token-based booking (includes magic links)
       const response = await bookings.create({
         token, 
         slot: selectedSlot, 
@@ -426,7 +468,8 @@ export default function BookingPage() {
         guest_timezone: guestTimezone,
         event_type_id: selectedEventType?.id,
         event_type_slug: selectedEventType?.slug,
-        reschedule_token: rescheduleToken, 
+        reschedule_token: rescheduleToken,
+        is_magic_link: isMagicLink,
       });
       
       const booking = response.data.booking;
@@ -461,7 +504,11 @@ export default function BookingPage() {
   const duration = selectedEventType?.duration || memberInfo?.default_duration || 30;
   const displayName = hostInfo?.name || memberInfo?.name || memberInfo?.user_name;
   const avatarLetter = displayName?.[0]?.toUpperCase() || 'U';
-  const bookingTokenForPicker = isPublicEventType ? `public:${username}:${eventSlug}` : token;
+  
+  // Use member's booking token for slots if available (magic links), otherwise URL token
+  const bookingTokenForPicker = isPublicEventType 
+    ? `public:${username}:${eventSlug}` 
+    : (bookingTokenForSlots || token);
 
   if (loading || redirecting) return <LoadingScreen redirecting={redirecting} memberName={displayName} branding={branding} />;
   if (isLinkUsed) return <ExpiredLinkScreen />;
@@ -483,10 +530,19 @@ export default function BookingPage() {
               </div>
             </div>
           )}
+          
+          {isMagicLink && (
+            <div className="mb-6 bg-purple-50 border border-purple-200 rounded-xl p-3 flex gap-3 items-start">
+              <Sparkles className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-purple-800 uppercase tracking-wide mb-1">Magic Link</p>
+                <p className="text-sm text-purple-700 leading-tight">This is a single-use booking link created just for you.</p>
+              </div>
+            </div>
+          )}
 
           <div className="flex-1 mt-8">
             <div className="mb-6">
-              {/* ✅ FIXED: Logo fills container completely, no white spacing */}
               {branding.logo_url ? (
                 <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg mb-4 bg-white border border-slate-200">
                   <img 
@@ -689,17 +745,37 @@ export default function BookingPage() {
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Your Name</label>
-                      <input type="text" required value={formData.attendee_name} onChange={(e) => setFormData({ ...formData, attendee_name: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all" placeholder="John Doe" />
+                      <input 
+                        type="text" 
+                        required 
+                        value={formData.attendee_name} 
+                        onChange={(e) => setFormData({ ...formData, attendee_name: e.target.value })} 
+                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all" 
+                        placeholder="John Doe" 
+                      />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-                      <input type="email" required value={formData.attendee_email} onChange={(e) => setFormData({ ...formData, attendee_email: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all" placeholder="john@example.com" />
+                      <input 
+                        type="email" 
+                        required 
+                        value={formData.attendee_email} 
+                        onChange={(e) => setFormData({ ...formData, attendee_email: e.target.value })} 
+                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all" 
+                        placeholder="john@example.com" 
+                      />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Additional Notes</label>
-                      <textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows="3" className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all resize-none" placeholder="Anything specific you want to discuss?" />
+                      <textarea 
+                        value={formData.notes} 
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })} 
+                        rows="3" 
+                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all resize-none" 
+                        placeholder="Anything specific you want to discuss?" 
+                      />
                     </div>
 
                     <div className="pt-4 border-t border-slate-200">
@@ -722,7 +798,14 @@ export default function BookingPage() {
                       )}
 
                       <div className="flex gap-2">
-                        <input type="email" value={newAttendeeEmail} onChange={(e) => setNewAttendeeEmail(e.target.value)} onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttendee(); } }} className="flex-1 px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all text-sm" placeholder="colleague@example.com" />
+                        <input 
+                          type="email" 
+                          value={newAttendeeEmail} 
+                          onChange={(e) => setNewAttendeeEmail(e.target.value)} 
+                          onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttendee(); } }} 
+                          className="flex-1 px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all text-sm" 
+                          placeholder="colleague@example.com" 
+                        />
                         <button type="button" onClick={handleAddAttendee} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium text-sm flex items-center gap-1">
                           <Plus className="h-4 w-4" />Add
                         </button>
@@ -730,8 +813,20 @@ export default function BookingPage() {
                       <p className="text-xs text-slate-500 mt-2">Additional attendees will receive calendar invites and meeting details</p>
                     </div>
 
-                    <button type="submit" disabled={submitting} className="w-full mt-4 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2" style={{ backgroundColor: branding.primary_color }}>
-                      {submitting ? (<><Loader2 className="h-5 w-5 animate-spin" />{isReschedule ? 'Confirming...' : 'Booking...'}</>) : (<>{isReschedule ? 'Confirm Reschedule' : 'Confirm Booking'}</>)}
+                    <button 
+                      type="submit" 
+                      disabled={submitting} 
+                      className="w-full mt-4 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2" 
+                      style={{ backgroundColor: branding.primary_color }}
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          {isReschedule ? 'Confirming...' : 'Booking...'}
+                        </>
+                      ) : (
+                        <>{isReschedule ? 'Confirm Reschedule' : 'Confirm Booking'}</>
+                      )}
                     </button>
                   </form>
                 </div>
