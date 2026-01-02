@@ -4666,6 +4666,10 @@ function getMatchColor(score) {
   if (score >= 60) return 'yellow';
   return 'gray';
 }
+
+
+
+
 // ============ ENHANCED SLOT GENERATION WITH ALL AVAILABILITY RULES ============
 app.post('/api/book/:token/slots-with-status', async (req, res) => {
   try {
@@ -4679,6 +4683,49 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     } = req.body;
 
     console.log('?? Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
+
+    // ========== CHECK: Magic Link Token (32 chars) - Convert to member token ==========
+    if (token.length === 32) {
+      console.log('✨ Checking if magic link token...');
+      const magicCheck = await pool.query(
+        `SELECT ml.*, tm.booking_token as member_booking_token
+         FROM magic_links ml
+         LEFT JOIN team_members tm ON ml.assigned_member_id = tm.id
+         LEFT JOIN users u ON ml.created_by_user_id = u.id
+         WHERE ml.token = $1
+           AND ml.is_used = false
+           AND ml.is_active = true
+           AND ml.expires_at > NOW()`,
+        [token]
+      );
+      
+      if (magicCheck.rows.length > 0) {
+        const magicLink = magicCheck.rows[0];
+        
+        // If magic link has assigned member, use their token
+        if (magicLink.member_booking_token) {
+          token = magicLink.member_booking_token;
+          console.log('✨ Magic link -> Using assigned member token:', token?.substring(0, 10) + '...');
+        } else {
+          // Get creator's personal booking member token
+          const creatorMember = await pool.query(
+            `SELECT tm.booking_token
+             FROM team_members tm
+             JOIN teams t ON tm.team_id = t.id
+             WHERE tm.user_id = $1 AND t.owner_id = $1
+             ORDER BY t.created_at ASC
+             LIMIT 1`,
+            [magicLink.created_by_user_id]
+          );
+          
+          if (creatorMember.rows.length > 0 && creatorMember.rows[0].booking_token) {
+            token = creatorMember.rows[0].booking_token;
+            console.log('✨ Magic link -> Using creator member token:', token?.substring(0, 10) + '...');
+          }
+        }
+      }
+    }
+
 
     // ?? DETECT PUBLIC BOOKING PSEUDO-TOKEN
 if (token && token.startsWith('public:')) {
@@ -6159,7 +6206,7 @@ app.get('/api/admin/fix-working-hours-data', authenticateToken, async (req, res)
 // Primary endpoint: /api/bookings/:token
 app.get('/api/bookings/:token', async (req, res) => {
   try {
-    const { token } = req.params;
+    let { token } = req.params;
     console.log('?? Looking up token:', token, 'Length:', token.length);
     
     // ========== CHECK 1: Single-Use Link (64 chars) ==========
