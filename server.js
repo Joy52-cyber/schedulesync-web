@@ -6629,16 +6629,15 @@ app.get('/api/book/:token', async (req, res) => {
             isDirectLink: true,
             skipEventTypes: true,
             isMagicLink: true,
-            prefill: {
+              prefill: {
               attendee_email: link.attendee_email,
               attendee_name: link.attendee_name
             }
           }
         });
-      } else {
-        console.log('❌ Magic link expired, used, or not found');
-        return res.status(404).json({ error: 'This magic link has expired or been used' });
       }
+      // If magic link not found, fall through to team token check
+      console.log('ℹ️ Not a magic link, checking team tokens...');
     }
    
     // ========== CHECK 2: Team Booking Token ==========
