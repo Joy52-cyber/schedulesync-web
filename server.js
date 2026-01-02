@@ -4176,7 +4176,7 @@ app.get('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
 
 app.post('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
   const { teamId } = req.params;
-  const { email, name, sendEmail = true } = req.body;
+  const { email, name, sendEmail = true, external_booking_link, external_booking_platform } = req.body;
   try {
     const teamCheck = await pool.query('SELECT * FROM teams WHERE id = $1 AND owner_id = $2', [teamId, req.user.id]);
     if (teamCheck.rows.length === 0) return res.status(403).json({ error: 'Not authorized' });
@@ -7019,7 +7019,8 @@ app.get('/api/magic-links/available-members', authenticateToken, async (req, res
       `SELECT DISTINCT t.id, t.name
        FROM teams t
        LEFT JOIN team_members tm ON t.id = tm.team_id
-       WHERE t.owner_id = $1 OR tm.user_id = $1
+       WHERE (t.owner_id = $1 OR tm.user_id = $1)
+         AND t.name NOT LIKE '%Personal Bookings%'
        ORDER BY t.name ASC`,
       [req.user.id]
     );
