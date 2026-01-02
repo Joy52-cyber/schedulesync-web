@@ -34,6 +34,8 @@ export default function BookingPage() {
   const [isReschedule, setIsReschedule] = useState(false);
   const [rescheduleToken, setRescheduleToken] = useState(null);
   const [isMagicLink, setIsMagicLink] = useState(false);
+  const [magicLinkData, setMagicLinkData] = useState(null);
+  const [participants, setParticipants] = useState([]);
 
   const [hostInfo, setHostInfo] = useState(null);
   const [teamInfo, setTeamInfo] = useState(null);
@@ -247,6 +249,12 @@ export default function BookingPage() {
       // Track if this is a magic link
       if (payload.isMagicLink) {
         setIsMagicLink(true);
+        if (payload.magicLinkData) {
+          setMagicLinkData(payload.magicLinkData);
+        }
+        if (payload.participants && payload.participants.length > 0) {
+          setParticipants(payload.participants);
+        }
       }
       
       // Load branding
@@ -470,6 +478,8 @@ export default function BookingPage() {
         event_type_slug: selectedEventType?.slug,
         reschedule_token: rescheduleToken,
         is_magic_link: isMagicLink,
+        magic_link_token: isMagicLink ? token : null,
+        magic_link_id: magicLinkData?.id || null,
       });
       
       const booking = response.data.booking;
@@ -535,9 +545,50 @@ export default function BookingPage() {
             <div className="mb-6 bg-purple-50 border border-purple-200 rounded-xl p-3 flex gap-3 items-start">
               <Sparkles className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-bold text-purple-800 uppercase tracking-wide mb-1">Magic Link</p>
-                <p className="text-sm text-purple-700 leading-tight">This is a single-use booking link created just for you.</p>
+                <p className="text-xs font-bold text-purple-800 uppercase tracking-wide mb-1">
+                  {magicLinkData?.name || 'Magic Link'}
+                </p>
+                <p className="text-sm text-purple-700 leading-tight">
+                  {magicLinkData?.scheduling_mode === 'collective' 
+                    ? 'Group meeting - all participants required'
+                    : 'Single-use booking link'}
+                </p>
               </div>
+            </div>
+          )}
+          
+          {/* Show all participants for multi-member magic links */}
+          {participants.length > 1 && (
+            <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+              <p className="text-xs font-bold text-indigo-800 uppercase tracking-wide mb-3">
+                <User className="h-3 w-3 inline mr-1" />
+                Meeting Participants
+              </p>
+              <div className="space-y-2">
+                {participants.map((participant, index) => (
+                  <div key={participant.id} className="flex items-center gap-2">
+                    <div 
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold"
+                      style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}
+                    >
+                      {participant.name?.[0]?.toUpperCase() || 'U'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-indigo-900 truncate">
+                        {participant.name}
+                        {participant.is_host && (
+                          <span className="ml-2 text-xs bg-indigo-200 text-indigo-700 px-1.5 py-0.5 rounded">Host</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {magicLinkData?.scheduling_mode === 'collective' && (
+                <p className="text-xs text-indigo-600 mt-3">
+                  All participants' calendars will be checked
+                </p>
+              )}
             </div>
           )}
 

@@ -4684,16 +4684,13 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
 
     console.log('?? Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
 
-    // ========== CHECK: Magic Link Token (32 chars) - Convert to member token ==========
+     // ========== CHECK: Magic Link Token (32 chars) ==========
     if (token.length === 32) {
-      console.log('✨ Checking if magic link token...');
+      console.log('✨ Checking if magic link token for slots...');
       const magicCheck = await pool.query(
-        `SELECT ml.*, tm.booking_token as member_booking_token
+        `SELECT ml.id, ml.scheduling_mode, ml.created_by_user_id
          FROM magic_links ml
-         LEFT JOIN team_members tm ON ml.assigned_member_id = tm.id
-         LEFT JOIN users u ON ml.created_by_user_id = u.id
          WHERE ml.token = $1
-           AND ml.is_used = false
            AND ml.is_active = true
            AND ml.expires_at > NOW()`,
         [token]
@@ -4702,12 +4699,22 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       if (magicCheck.rows.length > 0) {
         const magicLink = magicCheck.rows[0];
         
-        // If magic link has assigned member, use their token
-        if (magicLink.member_booking_token) {
-          token = magicLink.member_booking_token;
-          console.log('✨ Magic link -> Using assigned member token:', token?.substring(0, 10) + '...');
+        // Get all member booking tokens
+        const membersResult = await pool.query(
+          `SELECT tm.booking_token, tm.user_id, mlm.is_required
+           FROM magic_link_members mlm
+           JOIN team_members tm ON mlm.team_member_id = tm.id
+           WHERE mlm.magic_link_id = $1`,
+          [magicLink.id]
+        );
+        
+        if (membersResult.rows.length > 0) {
+          // Use first member's token for slot generation
+          // TODO: For collective mode, check all members' availability
+          token = membersResult.rows[0].booking_token;
+          console.log('✨ Magic link slots: Using member token, mode:', magicLink.scheduling_mode);
         } else {
-          // Get creator's personal booking member token
+          // Fall back to creator's token
           const creatorMember = await pool.query(
             `SELECT tm.booking_token
              FROM team_members tm
@@ -4718,14 +4725,13 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
             [magicLink.created_by_user_id]
           );
           
-          if (creatorMember.rows.length > 0 && creatorMember.rows[0].booking_token) {
+          if (creatorMember.rows.length > 0) {
             token = creatorMember.rows[0].booking_token;
-            console.log('✨ Magic link -> Using creator member token:', token?.substring(0, 10) + '...');
+            console.log('✨ Magic link slots: Using creator token');
           }
         }
       }
     }
-
 
     // ?? DETECT PUBLIC BOOKING PSEUDO-TOKEN
 if (token && token.startsWith('public:')) {
@@ -6460,6 +6466,8 @@ app.get('/api/book/user/:username', async (req, res) => {
   }
 });
 
+
+
 // Legacy endpoint: /api/book/:token (EXACT DUPLICATE)
 app.get('/api/book/:token', async (req, res) => {
   try {
@@ -6514,6 +6522,7 @@ app.get('/api/book/:token', async (req, res) => {
         return res.status(404).json({ error: 'This link has expired or been used' });
       }
     }
+    
     // ========== CHECK 2: Magic Link (32 chars) ==========
     if (token.length === 32) {
       console.log('✨ Checking magic link...');
@@ -6521,17 +6530,16 @@ app.get('/api/book/:token', async (req, res) => {
         `SELECT ml.*, 
                 ml.attendee_email,
                 ml.attendee_name,
+                ml.scheduling_mode,
+                ml.usage_limit,
+                ml.usage_count,
+                ml.link_name,
                 et.id as event_type_id,
                 et.title as event_title,
                 et.slug as event_slug,
                 et.duration as event_duration,
                 et.description as event_description,
                 et.color as event_color,
-                tm.id as member_id,
-                tm.name as member_name, 
-                tm.email as member_email,
-                tm.user_id,
-                tm.booking_token as member_booking_token,
                 t.name as team_name,
                 t.id as team_id,
                 u.name as creator_name,
@@ -6539,10 +6547,8 @@ app.get('/api/book/:token', async (req, res) => {
          FROM magic_links ml
          LEFT JOIN event_types et ON ml.event_type_id = et.id
          LEFT JOIN teams t ON ml.team_id = t.id
-         LEFT JOIN team_members tm ON ml.assigned_member_id = tm.id
          LEFT JOIN users u ON ml.created_by_user_id = u.id
          WHERE ml.token = $1
-           AND ml.is_used = false
            AND ml.is_active = true
            AND ml.expires_at > NOW()`,
         [token]
@@ -6550,24 +6556,37 @@ app.get('/api/book/:token', async (req, res) => {
       
       if (magicResult.rows.length > 0) {
         const link = magicResult.rows[0];
-        console.log('✨ Magic link found, created by:', link.creator_name);
         
-        // If no assigned member, get the creator's personal booking team member
-        let memberData = null;
+        // Check if exhausted
+        if (link.usage_limit && link.usage_count >= link.usage_limit) {
+          return res.status(410).json({ error: 'This link has reached its usage limit', code: 'LINK_EXHAUSTED' });
+        }
+        
+        // Check if single-use and already used
+        if (link.is_used && link.usage_limit === 1) {
+          return res.status(410).json({ error: 'This link has already been used', code: 'LINK_USED' });
+        }
+        
+        console.log('✨ Magic link found:', link.link_name || 'Unnamed', '| Mode:', link.scheduling_mode);
+        
+        // Fetch ALL members for this magic link
+        const membersResult = await pool.query(
+          `SELECT tm.id, tm.name, tm.email, tm.user_id, tm.booking_token, mlm.is_host, mlm.is_required
+           FROM magic_link_members mlm
+           JOIN team_members tm ON mlm.team_member_id = tm.id
+           WHERE mlm.magic_link_id = $1
+           ORDER BY mlm.display_order ASC`,
+          [link.id]
+        );
+        
+        let participants = membersResult.rows;
+        let primaryMember = participants.find(p => p.is_host) || participants[0];
+        let bookingToken = primaryMember?.booking_token;
         let teamId = link.team_id;
         let teamName = link.team_name;
-        let bookingToken = link.member_booking_token;
         
-        if (link.member_id) {
-          memberData = {
-            id: link.member_id,
-            name: link.member_name,
-            email: link.member_email,
-            user_id: link.user_id,
-            default_duration: link.event_duration || 30
-          };
-        } else {
-          // Get creator's personal booking member
+        // If no members, fall back to creator's personal booking
+        if (participants.length === 0) {
           const creatorMember = await pool.query(
             `SELECT tm.id, tm.name, tm.email, tm.user_id, tm.booking_token, t.id as team_id, t.name as team_name
              FROM team_members tm
@@ -6580,23 +6599,25 @@ app.get('/api/book/:token', async (req, res) => {
           
           if (creatorMember.rows.length > 0) {
             const cm = creatorMember.rows[0];
-            memberData = {
+            participants = [{
               id: cm.id,
               name: cm.name,
               email: cm.email,
               user_id: cm.user_id,
-              default_duration: link.event_duration || 30
-            };
+              is_host: true,
+              is_required: true
+            }];
+            primaryMember = participants[0];
+            bookingToken = cm.booking_token;
             teamId = cm.team_id;
             teamName = cm.team_name;
-            bookingToken = cm.booking_token;
           }
         }
         
-        // Build event type from magic link
+        // Build event type
         const eventType = link.event_type_id ? {
           id: link.event_type_id,
-          title: link.event_title || 'Quick Meeting',
+          title: link.event_title || 'Meeting',
           slug: link.event_slug || 'meeting',
           duration: link.event_duration || 30,
           description: link.event_description || '',
@@ -6616,27 +6637,49 @@ app.get('/api/book/:token', async (req, res) => {
               id: teamId,
               name: teamName || `${link.creator_name}'s Bookings`
             },
-            member: memberData || {
+            member: primaryMember ? {
+              id: primaryMember.id,
+              name: primaryMember.name,
+              email: primaryMember.email,
+              user_id: primaryMember.user_id,
+              default_duration: link.event_duration || 30
+            } : {
               id: null,
               name: link.creator_name,
               email: link.creator_email,
               default_duration: link.event_duration || 30,
               user_id: link.created_by_user_id
             },
+            participants: participants.map(p => ({
+              id: p.id,
+              name: p.name,
+              email: p.email,
+              user_id: p.user_id,
+              is_host: p.is_host,
+              is_required: p.is_required
+            })),
             eventTypes: [eventType],
             selectedEventType: eventType,
             bookingToken: bookingToken,
             isDirectLink: true,
             skipEventTypes: true,
             isMagicLink: true,
-              prefill: {
+            magicLinkData: {
+              id: link.id,
+              name: link.link_name,
+              scheduling_mode: link.scheduling_mode || 'collective',
+              usage_limit: link.usage_limit,
+              usage_count: link.usage_count,
+              expires_at: link.expires_at
+            },
+            prefill: {
               attendee_email: link.attendee_email,
               attendee_name: link.attendee_name
             }
           }
         });
       }
-      // If magic link not found, fall through to team token check
+      // Don't return 404 - fall through to team token check
       console.log('ℹ️ Not a magic link, checking team tokens...');
     }
    
@@ -6795,6 +6838,249 @@ app.get('/api/book/:token', async (req, res) => {
     return res.status(500).json({ error: 'Failed to load booking information' });
   }
 });
+
+// ============================================
+// NEW ENDPOINT 1: CREATE MAGIC LINK
+// ============================================
+// Add this endpoint to server.js
+
+app.post('/api/magic-links', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { 
+      name,
+      attendee_email,
+      attendee_name,
+      team_id,
+      member_ids,
+      scheduling_mode,
+      usage_limit,
+      expires_in_days
+    } = req.body;
+    
+    // Check user's limit
+    const limitResult = await pool.query(
+      'SELECT subscription_tier, magic_links_used, magic_links_limit FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    const userLimits = limitResult.rows[0];
+    const tier = userLimits?.subscription_tier || 'free';
+    const magicLinksUsed = userLimits?.magic_links_used || 0;
+    const magicLinksLimit = userLimits?.magic_links_limit || 3;
+    const isUnlimited = tier === 'pro' || tier === 'team' || magicLinksLimit >= 1000;
+    
+    if (!isUnlimited && magicLinksUsed >= magicLinksLimit) {
+      return res.status(403).json({ error: 'Magic link limit reached', upgrade_required: true });
+    }
+    
+    const magicToken = crypto.randomBytes(16).toString('hex');
+    const daysToExpire = expires_in_days || 7;
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + daysToExpire);
+    
+    // Get user's default event type
+    let eventTypeId = null;
+    const etResult = await pool.query(
+      'SELECT id FROM event_types WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1', 
+      [userId]
+    );
+    if (etResult.rows.length > 0) {
+      eventTypeId = etResult.rows[0].id;
+    }
+    
+    const memberIdsArray = Array.isArray(member_ids) ? member_ids : (member_ids ? [member_ids] : []);
+    const primaryMemberId = memberIdsArray.length > 0 ? memberIdsArray[0] : null;
+    
+    // Insert magic link
+    const insertResult = await pool.query(
+      `INSERT INTO magic_links (
+        token, created_by_user_id, event_type_id, expires_at, 
+        is_active, is_used, created_at,
+        attendee_email, attendee_name, team_id, assigned_member_id,
+        scheduling_mode, usage_limit, usage_count, link_name
+      ) VALUES ($1, $2, $3, $4, true, false, NOW(), $5, $6, $7, $8, $9, $10, 0, $11)
+      RETURNING id`,
+      [
+        magicToken, userId, eventTypeId, expiresAt,
+        attendee_email || null, attendee_name || null, team_id || null, primaryMemberId,
+        scheduling_mode || 'collective', usage_limit || 1, name || null
+      ]
+    );
+    
+    const magicLinkId = insertResult.rows[0].id;
+    
+    // Insert all members
+    if (memberIdsArray.length > 0) {
+      for (let i = 0; i < memberIdsArray.length; i++) {
+        await pool.query(
+          `INSERT INTO magic_link_members (magic_link_id, team_member_id, is_host, is_required, display_order)
+           VALUES ($1, $2, $3, true, $4)
+           ON CONFLICT (magic_link_id, team_member_id) DO NOTHING`,
+          [magicLinkId, memberIdsArray[i], i === 0, i]
+        );
+      }
+    }
+    
+    await pool.query(
+      'UPDATE users SET magic_links_used = COALESCE(magic_links_used, 0) + 1 WHERE id = $1', 
+      [userId]
+    );
+    
+    // Fetch member details for response
+    const membersResult = await pool.query(
+      `SELECT tm.id, tm.name, tm.email, mlm.is_host, mlm.is_required
+       FROM magic_link_members mlm
+       JOIN team_members tm ON mlm.team_member_id = tm.id
+       WHERE mlm.magic_link_id = $1
+       ORDER BY mlm.display_order ASC`,
+      [magicLinkId]
+    );
+    
+    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    
+    res.json({
+      success: true,
+      link: {
+        id: magicLinkId,
+        token: magicToken,
+        url: `${baseUrl}/m/${magicToken}`,
+        name: name || null,
+        scheduling_mode: scheduling_mode || 'collective',
+        usage_limit: usage_limit || 1,
+        expires_at: expiresAt,
+        members: membersResult.rows
+      }
+    });
+    
+  } catch (error) {
+    console.error('Create magic link error:', error);
+    res.status(500).json({ error: 'Failed to create magic link' });
+  }
+});
+
+
+// ============================================
+// NEW ENDPOINT 2: LIST MAGIC LINKS
+// ============================================
+
+app.get('/api/magic-links', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT ml.*, 
+              t.name as team_name,
+              et.title as event_type_title,
+              et.duration as event_type_duration
+       FROM magic_links ml
+       LEFT JOIN teams t ON ml.team_id = t.id
+       LEFT JOIN event_types et ON ml.event_type_id = et.id
+       WHERE ml.created_by_user_id = $1
+       ORDER BY ml.created_at DESC
+       LIMIT 50`,
+      [req.user.id]
+    );
+    
+    const linksWithMembers = await Promise.all(result.rows.map(async (link) => {
+      const membersResult = await pool.query(
+        `SELECT tm.id, tm.name, tm.email, mlm.is_host, mlm.is_required
+         FROM magic_link_members mlm
+         JOIN team_members tm ON mlm.team_member_id = tm.id
+         WHERE mlm.magic_link_id = $1
+         ORDER BY mlm.display_order ASC`,
+        [link.id]
+      );
+      
+      const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+      
+      return {
+        ...link,
+        url: `${baseUrl}/m/${link.token}`,
+        members: membersResult.rows,
+        is_expired: new Date(link.expires_at) < new Date(),
+        is_exhausted: link.usage_limit && link.usage_count >= link.usage_limit
+      };
+    }));
+    
+    res.json({ success: true, links: linksWithMembers });
+    
+  } catch (error) {
+    console.error('Get magic links error:', error);
+    res.status(500).json({ error: 'Failed to fetch magic links' });
+  }
+});
+
+
+// ============================================
+// NEW ENDPOINT 3: GET AVAILABLE MEMBERS
+// ============================================
+
+app.get('/api/magic-links/available-members', authenticateToken, async (req, res) => {
+  try {
+    const teamsResult = await pool.query(
+      `SELECT DISTINCT t.id, t.name
+       FROM teams t
+       LEFT JOIN team_members tm ON t.id = tm.team_id
+       WHERE t.owner_id = $1 OR tm.user_id = $1
+       ORDER BY t.name ASC`,
+      [req.user.id]
+    );
+    
+    const teamIds = teamsResult.rows.map(t => t.id);
+    
+    let membersResult = { rows: [] };
+    if (teamIds.length > 0) {
+      membersResult = await pool.query(
+        `SELECT tm.id, tm.name, tm.email, tm.team_id, t.name as team_name
+         FROM team_members tm
+         JOIN teams t ON tm.team_id = t.id
+         WHERE tm.team_id = ANY($1)
+           AND (tm.is_active = true OR tm.is_active IS NULL)
+         ORDER BY t.name, tm.name ASC`,
+        [teamIds]
+      );
+    }
+    
+    res.json({
+      success: true,
+      teams: teamsResult.rows,
+      members: membersResult.rows
+    });
+    
+  } catch (error) {
+    console.error('Get available members error:', error);
+    res.status(500).json({ error: 'Failed to fetch available members' });
+  }
+});
+
+
+// ============================================
+// NEW ENDPOINT 4: DELETE MAGIC LINK
+// ============================================
+
+app.delete('/api/magic-links/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const linkResult = await pool.query(
+      'SELECT id FROM magic_links WHERE id = $1 AND created_by_user_id = $2',
+      [id, req.user.id]
+    );
+    
+    if (linkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Magic link not found' });
+    }
+    
+    await pool.query('DELETE FROM magic_link_members WHERE magic_link_id = $1', [id]);
+    await pool.query('DELETE FROM magic_links WHERE id = $1', [id]);
+    
+    res.json({ success: true, message: 'Magic link deleted' });
+    
+  } catch (error) {
+    console.error('Delete magic link error:', error);
+    res.status(500).json({ error: 'Failed to delete magic link' });
+  }
+});
+
 
 // ========== POST: Create Booking ==========
 app.post('/api/bookings', async (req, res) => {
@@ -7064,6 +7350,19 @@ app.post('/api/bookings', async (req, res) => {
       await pool.query('UPDATE single_use_links SET used = true WHERE token = $1', [token]);
       console.log('? Single-use link marked as used');
     }
+
+    // ========== MARK MAGIC LINK AS USED ==========
+if (req.body.is_magic_link || token.length === 32) {
+  const magicLinkToken = req.body.magic_link_token || token;
+  await pool.query(
+    `UPDATE magic_links 
+     SET usage_count = usage_count + 1,
+         is_used = CASE WHEN usage_limit = 1 THEN true ELSE is_used END
+     WHERE token = $1`,
+    [magicLinkToken]
+  );
+  console.log('✨ Magic link usage updated');
+}
 
     // ========== NOTIFY ORGANIZER ==========
     if (member.user_id) {
