@@ -4673,7 +4673,7 @@ function getMatchColor(score) {
 // ============ ENHANCED SLOT GENERATION WITH ALL AVAILABILITY RULES ============
 app.post('/api/book/:token/slots-with-status', async (req, res) => {
   try {
-    const { token } = req.params;
+   let { token } = req.params;
     const { 
       guestAccessToken,
       guestRefreshToken,
