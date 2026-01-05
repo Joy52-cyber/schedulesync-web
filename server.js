@@ -6003,7 +6003,7 @@ console.log('?? Checking if team token...');
       });
     }
 
-    res.json({
+  
 
     res.json({
       slots: slotsByDate,
