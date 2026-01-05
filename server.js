@@ -10961,10 +10961,15 @@ async function sendTeamInvitationEmail({ to, inviterName, teamName, inviteUrl })
 
   try {
     await resend.emails.send({
-      from: process.env.EMAIL_FROM || 'ScheduleSync <notifications@resend.dev>',
+      from: 'ScheduleSync <hello@trucal.xyz>',  // ✅ Use same as your working emails
       to: to,
       subject: `You're invited to join ${teamName} on ScheduleSync!`,
-      html: html
+      html: html,
+      headers: {
+        'Content-Type': 'text/html; charset=UTF-8',
+        'Content-Transfer-Encoding': '8bit',
+        'MIME-Version': '1.0',
+      },
     });
     console.log(`📧 Team invitation sent to ${to}`);
     return true;

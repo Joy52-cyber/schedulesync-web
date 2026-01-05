@@ -57,25 +57,25 @@ export default function TeamMembers() {
     }
   };
 
-  const handleAddMember = async (e) => {
-    e.preventDefault();
+ const handleAddMember = async (e) => {
+  e.preventDefault();
 
-    if (!newMember.email) {
-      alert('Email is required');
-      return;
-    }
+  if (!newMember.email) {
+    alert('Email is required');
+    return;
+  }
 
-    try {
-      const response = await api.post(`/teams/${teamId}/members`, {
-        email: newMember.email,
-        name: newMember.name || null,
-        role: newMember.role,
-      });
+  try {
+    const response = await api.post(`/teams/${teamId}/members`, {
+      email: newMember.email,
+      name: newMember.name || null,
+      role: newMember.role,
+    });
 
-      setMembers((prev) => [...prev, response.data.member]);
-      setShowAddModal(false);
-      setNewMember({ email: '', name: '', role: 'member' });
-      alert('Member added successfully!');
+    // New endpoint creates invitation, not direct member
+    setShowAddModal(false);
+    setNewMember({ email: '', name: '', role: 'member' });
+    alert('✉️ Invitation sent to ' + newMember.email + '! They will appear as a member once they accept.');
     } catch (error) {
       console.error('Error adding member:', error);
       const errorMessage = error.response?.data?.error || 'Failed to add member';
