@@ -4176,45 +4176,109 @@ app.get('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
 
 app.post('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
   const { teamId } = req.params;
-  const { email, name, sendEmail = true, external_booking_link, external_booking_platform } = req.body;
+  const { email, name, role = 'member' } = req.body;
+  
   try {
-    const teamCheck = await pool.query('SELECT * FROM teams WHERE id = $1 AND owner_id = $2', [teamId, req.user.id]);
-    if (teamCheck.rows.length === 0) return res.status(403).json({ error: 'Not authorized' });
+    // Verify team ownership
+    const teamCheck = await pool.query(
+      'SELECT * FROM teams WHERE id = $1 AND owner_id = $2', 
+      [teamId, req.user.id]
+    );
+    
+    if (teamCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    
     const team = teamCheck.rows[0];
 
-    const existingMember = await pool.query('SELECT * FROM team_members WHERE team_id = $1 AND email = $2', [teamId, email]);
-    if (existingMember.rows.length > 0) return res.status(400).json({ error: 'Member already exists' });
-
-    let userId = null;
-    const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    if (userCheck.rows.length > 0) userId = userCheck.rows[0].id;
-
-    const bookingToken = crypto.randomBytes(16).toString('hex');
-
-    const result = await pool.query(
-      `INSERT INTO team_members (team_id, user_id, email, name, booking_token, invited_by, external_booking_link, external_booking_platform) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [teamId, userId, email, name || null, bookingToken, req.user.id, external_booking_link || null, external_booking_platform || 'calendly']
+    // Check if already a member
+    const existingMember = await pool.query(
+      'SELECT * FROM team_members WHERE team_id = $1 AND email = $2', 
+      [teamId, email]
     );
+    
+    if (existingMember.rows.length > 0) {
+      return res.status(400).json({ error: 'This person is already a team member' });
+    }
 
-    const member = result.rows[0];
-    const bookingUrl = `${process.env.FRONTEND_URL}/book/${bookingToken}`;
+    // Check for existing pending invitation
+    const existingInvite = await pool.query(
+      `SELECT * FROM team_invitations 
+       WHERE team_id = $1 AND email = $2 AND status = 'pending'`,
+      [teamId, email]
+    );
+    
+    if (existingInvite.rows.length > 0) {
+      return res.status(400).json({ 
+        error: 'An invitation is already pending for this email. You can resend it from the invitations list.',
+        invitation_id: existingInvite.rows[0].id
+      });
+    }
 
-    if (sendEmail && sendTeamInvitation) {
+    // Generate invitation token
+    const inviteToken = crypto.randomBytes(32).toString('hex');
+    
+    // Create invitation (NOT direct member)
+    const result = await pool.query(
+      `INSERT INTO team_invitations (
+        team_id, email, name, invited_by_user_id, token, role, status, expires_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW() + INTERVAL '7 days')
+      RETURNING *`,
+      [teamId, email.toLowerCase(), name || null, req.user.id, inviteToken, role]
+    );
+    
+    const invitation = result.rows[0];
+    
+    // Build invitation URL
+    const inviteUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/invite/${inviteToken}`;
+
+    // Send invitation email
+    if (typeof sendTeamInvitationEmail === 'function') {
       try {
-        await sendTeamInvitation(email, team.name, bookingUrl, req.user.name || req.user.email);
-        console.log(`? Invitation email sent to ${email}`);
+        await sendTeamInvitationEmail({
+          to: email,
+          inviterName: req.user.name || req.user.email,
+          teamName: team.name,
+          inviteUrl: inviteUrl,
+          expiresAt: invitation.expires_at
+        });
+        console.log(`📧 Team invitation sent to ${email}`);
       } catch (emailError) {
         console.error('Failed to send invitation email:', emailError);
       }
+    } else {
+      // Fallback to old email function if exists
+      if (typeof sendTeamInvitation === 'function') {
+        try {
+          await sendTeamInvitation(email, team.name, inviteUrl, req.user.name || req.user.email);
+          console.log(`📧 Team invitation sent to ${email} (legacy method)`);
+        } catch (emailError) {
+          console.error('Failed to send invitation email:', emailError);
+        }
+      }
     }
 
-    res.json({ member, bookingUrl, message: 'Member added successfully' });
+    res.json({ 
+      success: true,
+      invitation: {
+        id: invitation.id,
+        email: invitation.email,
+        name: invitation.name,
+        status: invitation.status,
+        expires_at: invitation.expires_at
+      },
+      invite_url: inviteUrl,
+      message: 'Invitation sent successfully'
+    });
+
   } catch (error) {
-    console.error('Error adding team member:', error);
-    res.status(500).json({ error: 'Failed to add team member' });
+    console.error('Error sending team invitation:', error);
+    res.status(500).json({ error: 'Failed to send invitation' });
   }
 });
+
+
+
 
 app.delete('/api/teams/:teamId/members/:memberId', authenticateToken, async (req, res) => {
   const { teamId, memberId } = req.params;
@@ -10850,6 +10914,66 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
     });
   }
 });
+
+// ============================================
+// TEAM INVITATION EMAIL FUNCTION
+// ============================================
+async function sendTeamInvitationEmail({ to, inviterName, teamName, inviteUrl }) {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">You're Invited! 🎉</h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0;">Join ${teamName} on ScheduleSync</p>
+      </div>
+      
+      <div style="padding: 40px 30px; background: #ffffff;">
+        <p style="color: #334155; font-size: 16px;">Hi there,</p>
+        <p style="color: #334155; font-size: 16px;">
+          <strong>${inviterName}</strong> has invited you to join their team on ScheduleSync.
+        </p>
+        
+        <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 20px; margin: 24px 0;">
+          <p style="font-size: 18px; font-weight: bold; color: #0369a1; margin: 0 0 8px 0;">🏢 ${teamName}</p>
+          <p style="color: #64748b; margin: 0; font-size: 14px;">Invited by ${inviterName}</p>
+        </div>
+        
+        <p style="color: #334155; font-size: 16px;">As a team member, you'll be able to:</p>
+        <ul style="color: #64748b;">
+          <li>Receive bookings from shared team links</li>
+          <li>Collaborate on team scheduling</li>
+          <li>Get your own personal booking page</li>
+        </ul>
+        
+        <div style="text-align: center; margin: 32px 0;">
+          <a href="${inviteUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #ffffff; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 16px;">
+            Accept Invitation →
+          </a>
+        </div>
+        
+        <p style="text-align: center; color: #94a3b8; font-size: 13px;">This invitation will expire in 7 days.</p>
+      </div>
+      
+      <div style="background: #f8fafc; padding: 20px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e2e8f0;">
+        <p style="margin: 0; color: #94a3b8; font-size: 12px;">Powered by ScheduleSync</p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'ScheduleSync <notifications@resend.dev>',
+      to: to,
+      subject: `You're invited to join ${teamName} on ScheduleSync!`,
+      html: html
+    });
+    console.log(`📧 Team invitation sent to ${to}`);
+    return true;
+  } catch (error) {
+    console.error(`📧 Failed to send invitation to ${to}:`, error);
+    throw error;
+  }
+}
+
 // ============ BOOKING LIMIT ENFORCEMENT SYSTEM ============
 
 // Add this function to your server.js

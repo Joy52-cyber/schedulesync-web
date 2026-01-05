@@ -22,6 +22,7 @@ import VerifyEmail from './pages/VerifyEmail';
 import OAuthCallback from './pages/OAuthCallback';
 import OnboardingWizard from './pages/OnboardingWizard';
 import AdminPanel from './pages/AdminPanel';
+import AcceptInvite from './pages/AcceptInvite';
 
 // Dashboard Pages
 import Dashboard from './pages/Dashboard';
@@ -151,6 +152,7 @@ function InnerApp() {
                 <Route path="/teams/:teamId/settings" element={<TeamSettings />} />
                 <Route path="/teams/:teamId/members" element={<TeamMembers />} />
                 <Route path="/teams/:teamId/members/:memberId/availability" element={<MemberAvailability />} />
+                <Route path="/invite/:token" element={<AcceptInvite />} />
 
                 {/* Settings */}
                 <Route path="/settings" element={<UserSettings />} />
@@ -159,6 +161,7 @@ function InnerApp() {
 
               {/* Username-based public booking page - MUST be before catch-all */}
               <Route path="/:username" element={<UserProfilePage />} />
+
 
               {/* Fallback */}
               <Route path="*" element={<Navigate to="/" replace />} />
