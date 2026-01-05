@@ -4747,7 +4747,10 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
 
     console.log('?? Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
 
-     // ========== CHECK: Magic Link Token (32 chars) ==========
+ // ========== CHECK: Magic Link Token (32 chars) ==========
+    let collectiveMembers = null;
+    let isCollectiveMode = false;
+    
     if (token.length === 32) {
       console.log('✨ Checking if magic link token for slots...');
       const magicCheck = await pool.query(
@@ -4762,21 +4765,34 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       if (magicCheck.rows.length > 0) {
         const magicLink = magicCheck.rows[0];
         
-        // Get all member booking tokens
+        // Get all member booking tokens WITH calendar credentials
         const membersResult = await pool.query(
-          `SELECT tm.booking_token, tm.user_id, mlm.is_required
+          `SELECT tm.id as member_id, tm.booking_token, tm.user_id, tm.name as member_name,
+                  mlm.is_required,
+                  u.google_access_token, u.google_refresh_token,
+                  u.microsoft_access_token, u.microsoft_refresh_token, u.provider
            FROM magic_link_members mlm
            JOIN team_members tm ON mlm.team_member_id = tm.id
-           WHERE mlm.magic_link_id = $1`,
+           LEFT JOIN users u ON tm.user_id = u.id
+           WHERE mlm.magic_link_id = $1
+           ORDER BY mlm.display_order ASC`,
           [magicLink.id]
         );
         
         if (membersResult.rows.length > 0) {
-          // Use first member's token for slot generation
-          // TODO: For collective mode, check all members' availability
+          // Check if collective mode with multiple members
+          if (membersResult.rows.length > 1 && magicLink.scheduling_mode === 'collective') {
+            console.log(`🔄 COLLECTIVE MODE: Will filter for ${membersResult.rows.length} members`);
+            isCollectiveMode = true;
+            collectiveMembers = membersResult.rows;
+          }
+          
+          // Use first member's token for initial slot generation
           token = membersResult.rows[0].booking_token;
           console.log('✨ Magic link slots: Using member token, mode:', magicLink.scheduling_mode);
         } else {
+
+
           // Fall back to creator's token
           const creatorMember = await pool.query(
             `SELECT tm.booking_token
@@ -5633,6 +5649,165 @@ console.log('?? Checking if team token...');
 
     console.log(`? Generated ${slots.length} slots across ${Object.keys(slotsByDate).length} days`);
     console.log(`? Available: ${slots.filter(s => s.status === 'available').length}`);
+
+    // ========== COLLECTIVE MODE: Filter for ALL members' availability ==========
+    if (isCollectiveMode && collectiveMembers && collectiveMembers.length > 1) {
+      console.log(`🔄 Filtering slots for collective mode (${collectiveMembers.length} members)...`);
+      
+      const availableSlots = slots.filter(s => s.status === 'available');
+      const filteredSlots = [];
+      
+      for (const slot of availableSlots) {
+        const slotStart = new Date(slot.start);
+        const slotEnd = new Date(slot.end);
+        let allMembersFree = true;
+        
+        // Check each additional member (skip first, already checked)
+        for (let i = 1; i < collectiveMembers.length; i++) {
+          const member = collectiveMembers[i];
+          
+          // Check Google Calendar
+          if (member.google_access_token) {
+            try {
+              const oauth2Client = new google.auth.OAuth2(
+                process.env.GOOGLE_CLIENT_ID,
+                process.env.GOOGLE_CLIENT_SECRET
+              );
+              oauth2Client.setCredentials({
+                access_token: member.google_access_token,
+                refresh_token: member.google_refresh_token
+              });
+              
+              const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+              const busyResponse = await calendar.freebusy.query({
+                requestBody: {
+                  timeMin: slotStart.toISOString(),
+                  timeMax: slotEnd.toISOString(),
+                  items: [{ id: 'primary' }]
+                }
+              });
+              
+              const busyTimes = busyResponse.data.calendars?.primary?.busy || [];
+              if (busyTimes.length > 0) {
+                allMembersFree = false;
+                break;
+              }
+            } catch (e) {
+              console.log(`  ⚠️ Google calendar check failed for ${member.member_name}:`, e.message);
+            }
+          }
+          
+          // Check Microsoft Calendar
+          if (allMembersFree && member.microsoft_access_token) {
+            try {
+              const msResponse = await fetch(
+                `https://graph.microsoft.com/v1.0/me/calendar/getSchedule`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${member.microsoft_access_token}`,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    schedules: [member.email || 'me'],
+                    startTime: { dateTime: slotStart.toISOString(), timeZone: 'UTC' },
+                    endTime: { dateTime: slotEnd.toISOString(), timeZone: 'UTC' }
+                  })
+                }
+              );
+              
+              if (msResponse.ok) {
+                const msData = await msResponse.json();
+                const busyItems = msData.value?.[0]?.scheduleItems || [];
+                if (busyItems.length > 0) {
+                  allMembersFree = false;
+                  break;
+                }
+              }
+            } catch (e) {
+              console.log(`  ⚠️ Microsoft calendar check failed for ${member.member_name}:`, e.message);
+            }
+          }
+          
+          // Check existing bookings for this member
+          if (allMembersFree) {
+            const bookingCheck = await pool.query(
+              `SELECT id FROM bookings 
+               WHERE member_id = $1 
+               AND status = 'confirmed'
+               AND start_time < $2 AND end_time > $3`,
+              [member.member_id, slotEnd.toISOString(), slotStart.toISOString()]
+            );
+            
+            if (bookingCheck.rows.length > 0) {
+              allMembersFree = false;
+            }
+          }
+        }
+        
+        if (allMembersFree) {
+          filteredSlots.push(slot);
+        }
+      }
+      
+      console.log(`✅ Collective filtering: ${availableSlots.length} → ${filteredSlots.length} slots`);
+      
+      // Rebuild slotsByDate with filtered slots
+      const filteredByDate = {};
+      filteredSlots.forEach(slot => {
+        const slotDate = new Date(slot.start);
+        const dateKey = new Intl.DateTimeFormat('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+          timeZone: timezone
+        }).format(slotDate);
+        
+        if (!filteredByDate[dateKey]) {
+          filteredByDate[dateKey] = [];
+        }
+        filteredByDate[dateKey].push(slot);
+      });
+      
+      // Also add unavailable slots back (for UI display)
+      slots.filter(s => s.status !== 'available').forEach(slot => {
+        const slotDate = new Date(slot.start);
+        const dateKey = new Intl.DateTimeFormat('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+          timeZone: timezone
+        }).format(slotDate);
+        
+        if (!filteredByDate[dateKey]) {
+          filteredByDate[dateKey] = [];
+        }
+        filteredByDate[dateKey].push(slot);
+      });
+      
+      return res.json({
+        slots: filteredByDate,
+        summary: {
+          totalSlots: filteredSlots.length + slots.filter(s => s.status !== 'available').length,
+          availableSlots: filteredSlots.length,
+          collectiveMode: true,
+          memberCount: collectiveMembers.length,
+          hasGuestCalendar: guestBusy.length > 0,
+          hasOrganizerCalendar: organizerBusy.length > 0,
+          settings: {
+            bufferTime,
+            leadTimeHours,
+            horizonDays,
+            dailyCap,
+            workingDays: Object.keys(workingHours).filter(day => workingHours[day].enabled)
+          }
+        }
+      });
+    }
+
+    res.json({
 
     res.json({
       slots: slotsByDate,
