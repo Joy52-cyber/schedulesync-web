@@ -7571,6 +7571,70 @@ try {
     // ========== LOOK UP TOKEN ==========
     let memberResult;
     
+    // CHECK 0: Magic Link (32 chars)
+    if (token.length === 32) {
+      console.log('✨ Checking if magic link for booking...');
+      const magicCheck = await pool.query(
+        `SELECT ml.*, t.name as team_name, t.booking_mode, t.owner_id, t.id as team_id
+         FROM magic_links ml
+         LEFT JOIN teams t ON ml.team_id = t.id
+         WHERE ml.token = $1
+           AND ml.is_active = true
+           AND ml.expires_at > NOW()`,
+        [token]
+      );
+      
+      if (magicCheck.rows.length > 0) {
+        const magicLink = magicCheck.rows[0];
+        console.log('✨ Magic link found for booking:', magicLink.link_name);
+        
+        // Get members from magic_link_members
+        const membersResult = await pool.query(
+          `SELECT tm.*, u.google_access_token, u.google_refresh_token,
+                  u.microsoft_access_token, u.microsoft_refresh_token,
+                  u.provider, u.email as member_email, u.name as member_name
+           FROM magic_link_members mlm
+           JOIN team_members tm ON mlm.team_member_id = tm.id
+           LEFT JOIN users u ON tm.user_id = u.id
+           WHERE mlm.magic_link_id = $1
+           ORDER BY mlm.display_order ASC`,
+          [magicLink.id]
+        );
+        
+        if (membersResult.rows.length > 0) {
+          const primaryMember = membersResult.rows[0];
+          memberResult = { 
+            rows: [{
+              ...primaryMember,
+              team_name: magicLink.team_name,
+              team_id: magicLink.team_id,
+              booking_mode: magicLink.scheduling_mode || 'collective',
+              owner_id: magicLink.owner_id
+            }]
+          };
+          console.log('✨ Using magic link member:', primaryMember.name || primaryMember.member_name);
+        } else {
+          // Fallback to creator
+          const creatorResult = await pool.query(
+            `SELECT tm.*, t.name as team_name, t.id as team_id, t.booking_mode, t.owner_id,
+                    u.google_access_token, u.google_refresh_token,
+                    u.microsoft_access_token, u.microsoft_refresh_token,
+                    u.provider, u.email as member_email, u.name as member_name
+             FROM team_members tm
+             JOIN teams t ON tm.team_id = t.id
+             LEFT JOIN users u ON tm.user_id = u.id
+             WHERE tm.user_id = $1 AND t.owner_id = $1
+             ORDER BY t.created_at ASC
+             LIMIT 1`,
+            [magicLink.created_by_user_id]
+          );
+          memberResult = creatorResult;
+          console.log('✨ Using magic link creator as fallback');
+        }
+      }
+    }
+   
+    
     // CHECK 1: Single-use link (64 chars)
     if (token.length === 64) {
       console.log('?? Looking up single-use link...');
