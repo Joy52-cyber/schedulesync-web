@@ -7519,7 +7519,8 @@ app.delete('/api/magic-links/:id', authenticateToken, async (req, res) => {
 
 // ========== POST: Create Booking ==========
 app.post('/api/bookings', async (req, res) => {
-  try {
+  console.log('🎯🎯🎯 HIT /api/bookings POST endpoint 🎯🎯🎯');
+try {
     const { 
       token, 
       slot, 
