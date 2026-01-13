@@ -1132,10 +1132,26 @@ await pool.query(`
       }'::jsonb
     `);
 
+    // Add routing columns to team_members
+    await pool.query(`
+      ALTER TABLE team_members
+      ADD COLUMN IF NOT EXISTS routing_priority INTEGER DEFAULT 5,
+      ADD COLUMN IF NOT EXISTS is_available BOOLEAN DEFAULT true,
+      ADD COLUMN IF NOT EXISTS skip_until TIMESTAMP DEFAULT NULL,
+      ADD COLUMN IF NOT EXISTS max_daily_bookings INTEGER DEFAULT NULL
+    `);
+
     // Add round-robin state tracking for teams
     await pool.query(`
       ALTER TABLE teams
       ADD COLUMN IF NOT EXISTS last_assigned_member_id INTEGER
+    `);
+
+    // Add autonomous mode settings to users
+    await pool.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS autonomous_mode VARCHAR(20) DEFAULT 'manual',
+      ADD COLUMN IF NOT EXISTS auto_confirm_rules JSONB DEFAULT '{}'
     `);
 
     console.log('? Database migrations completed');
@@ -1694,6 +1710,22 @@ app.post('/api/public/booking/create', async (req, res) => {
     // Generate manage token
     const manageToken = crypto.randomBytes(32).toString('hex');
 
+    // Check for auto-confirm based on autonomous mode
+    const autoConfirmResult = await shouldAutoConfirm(host.id, {
+      start_time: start_time,
+      duration: eventType.duration,
+      attendee_email: attendee_email
+    });
+
+    let bookingStatus = 'confirmed'; // Default
+    if (autoConfirmResult.mode === 'suggest') {
+      bookingStatus = 'pending'; // Requires host approval
+      console.log(`⏳ Booking pending approval: ${autoConfirmResult.reason}`);
+    } else if (autoConfirmResult.mode === 'auto' && !autoConfirmResult.autoConfirm) {
+      bookingStatus = 'pending'; // Didn't meet auto-confirm rules
+      console.log(`⏳ Booking pending (auto rules not met): ${autoConfirmResult.reason}`);
+    }
+
     // Create booking
     const bookingResult = await pool.query(
       `INSERT INTO bookings (
@@ -1708,7 +1740,7 @@ app.post('/api/public/booking/create', async (req, res) => {
         guest_timezone,
         status,
         title
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *`,
       [
         host.id,
@@ -1720,6 +1752,7 @@ app.post('/api/public/booking/create', async (req, res) => {
         notes || null,
         manageToken,
         guest_timezone || 'UTC',
+        bookingStatus,
         eventType.title
       ]
     );
@@ -4343,6 +4376,61 @@ app.put('/api/teams/:teamId/members/:memberId', authenticateToken, async (req, r
   } catch (error) {
     console.error('? Update member settings error:', error);
     res.status(500).json({ error: 'Failed to update team member settings' });
+  }
+});
+
+// PATCH /api/teams/:teamId/members/:memberId/routing - Update member routing settings
+app.patch('/api/teams/:teamId/members/:memberId/routing', authenticateToken, async (req, res) => {
+  try {
+    const { teamId, memberId } = req.params;
+    const { routing_priority, is_available, skip_until, max_daily_bookings } = req.body;
+
+    // Verify team ownership
+    const teamCheck = await pool.query(
+      'SELECT id FROM teams WHERE id = $1 AND owner_id = $2',
+      [teamId, req.user.id]
+    );
+    if (teamCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    const updates = [];
+    const values = [memberId, teamId];
+    let paramIndex = 3;
+
+    if (routing_priority !== undefined) {
+      updates.push(`routing_priority = $${paramIndex++}`);
+      values.push(routing_priority);
+    }
+    if (is_available !== undefined) {
+      updates.push(`is_available = $${paramIndex++}`);
+      values.push(is_available);
+    }
+    if (skip_until !== undefined) {
+      updates.push(`skip_until = $${paramIndex++}`);
+      values.push(skip_until);
+    }
+    if (max_daily_bookings !== undefined) {
+      updates.push(`max_daily_bookings = $${paramIndex++}`);
+      values.push(max_daily_bookings);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No updates provided' });
+    }
+
+    const result = await pool.query(`
+      UPDATE team_members
+      SET ${updates.join(', ')}, updated_at = NOW()
+      WHERE id = $1 AND team_id = $2
+      RETURNING *
+    `, values);
+
+    console.log(`📋 Updated routing for member ${memberId}: ${updates.join(', ')}`);
+    res.json({ member: result.rows[0] });
+  } catch (error) {
+    console.error('Update member routing error:', error);
+    res.status(500).json({ error: 'Failed to update routing settings' });
   }
 });
 
@@ -12717,6 +12805,104 @@ function parseEmailIntent(emailText) {
   return result;
 }
 
+// ============ AUTONOMOUS MODE ============
+
+// Check if a booking should be auto-confirmed based on user settings
+async function shouldAutoConfirm(userId, bookingData) {
+  try {
+    const user = await pool.query(
+      'SELECT autonomous_mode, auto_confirm_rules FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (user.rows.length === 0) return { autoConfirm: false, reason: 'User not found' };
+
+    const { autonomous_mode, auto_confirm_rules } = user.rows[0];
+    const rules = auto_confirm_rules || {};
+
+    // Manual mode - never auto-confirm
+    if (autonomous_mode === 'manual') {
+      return { autoConfirm: false, reason: 'Manual mode enabled', mode: autonomous_mode };
+    }
+
+    // Check rules
+    let shouldConfirm = autonomous_mode === 'auto'; // Default to true for auto mode
+    let reasons = [];
+
+    // Rule: Max duration
+    if (rules.max_duration && bookingData.duration > rules.max_duration) {
+      shouldConfirm = false;
+      reasons.push(`Duration ${bookingData.duration}min exceeds limit ${rules.max_duration}min`);
+    }
+
+    // Rule: Allowed hours
+    if (rules.allowed_hours_start !== undefined && rules.allowed_hours_end !== undefined) {
+      const bookingHour = new Date(bookingData.start_time).getHours();
+      if (bookingHour < rules.allowed_hours_start || bookingHour >= rules.allowed_hours_end) {
+        shouldConfirm = false;
+        reasons.push(`Time ${bookingHour}:00 outside allowed hours ${rules.allowed_hours_start}-${rules.allowed_hours_end}`);
+      }
+    }
+
+    // Rule: Blocked days
+    if (rules.blocked_days && rules.blocked_days.length > 0) {
+      const dayOfWeek = new Date(bookingData.start_time).getDay();
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      if (rules.blocked_days.includes(dayNames[dayOfWeek])) {
+        shouldConfirm = false;
+        reasons.push(`${dayNames[dayOfWeek]} is blocked`);
+      }
+    }
+
+    // Rule: Max daily bookings
+    if (rules.max_daily_bookings) {
+      const bookingDate = new Date(bookingData.start_time);
+      bookingDate.setHours(0, 0, 0, 0);
+      const nextDay = new Date(bookingDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      const dailyCount = await pool.query(`
+        SELECT COUNT(*) as count FROM bookings
+        WHERE user_id = $1 AND start_time >= $2 AND start_time < $3 AND status = 'confirmed'
+      `, [userId, bookingDate, nextDay]);
+
+      if (parseInt(dailyCount.rows[0].count) >= rules.max_daily_bookings) {
+        shouldConfirm = false;
+        reasons.push(`Daily limit of ${rules.max_daily_bookings} bookings reached`);
+      }
+    }
+
+    // Rule: VIP domains (always confirm)
+    if (rules.vip_domains && rules.vip_domains.length > 0 && bookingData.attendee_email) {
+      const emailDomain = bookingData.attendee_email.split('@')[1];
+      if (rules.vip_domains.includes(emailDomain)) {
+        shouldConfirm = true;
+        reasons = [`VIP domain: ${emailDomain}`];
+      }
+    }
+
+    // Rule: Blocked domains (never confirm)
+    if (rules.blocked_domains && rules.blocked_domains.length > 0 && bookingData.attendee_email) {
+      const emailDomain = bookingData.attendee_email.split('@')[1];
+      if (rules.blocked_domains.includes(emailDomain)) {
+        shouldConfirm = false;
+        reasons.push(`Blocked domain: ${emailDomain}`);
+      }
+    }
+
+    console.log(`🤖 Auto-confirm check for user ${userId}: ${shouldConfirm ? 'YES' : 'NO'} - ${reasons.join(', ') || 'Default rules'}`);
+
+    return {
+      autoConfirm: shouldConfirm,
+      reason: reasons.join('; ') || (shouldConfirm ? 'Meets all criteria' : 'Does not meet criteria'),
+      mode: autonomous_mode
+    };
+  } catch (error) {
+    console.error('Auto-confirm check error:', error);
+    return { autoConfirm: false, reason: 'Error checking rules', mode: 'manual' };
+  }
+}
+
 // GET /api/preferences - Get user's learned preferences
 app.get('/api/preferences', authenticateToken, async (req, res) => {
   try {
@@ -12980,6 +13166,83 @@ ${userName}`;
   } catch (error) {
     console.error('Generate reply error:', error);
     res.status(500).json({ error: 'Failed to generate reply' });
+  }
+});
+
+// ============ AUTONOMOUS MODE ENDPOINTS ============
+
+// GET /api/autonomous-settings - Get user's autonomous mode settings
+app.get('/api/autonomous-settings', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT autonomous_mode, auto_confirm_rules FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    res.json({
+      mode: result.rows[0]?.autonomous_mode || 'manual',
+      rules: result.rows[0]?.auto_confirm_rules || {}
+    });
+  } catch (error) {
+    console.error('Get autonomous settings error:', error);
+    res.status(500).json({ error: 'Failed to get settings' });
+  }
+});
+
+// PUT /api/autonomous-settings - Update autonomous mode settings
+app.put('/api/autonomous-settings', authenticateToken, async (req, res) => {
+  try {
+    const { mode, rules } = req.body;
+
+    // Validate mode
+    if (mode && !['manual', 'suggest', 'auto'].includes(mode)) {
+      return res.status(400).json({ error: 'Invalid mode. Use: manual, suggest, or auto' });
+    }
+
+    const updates = [];
+    const values = [req.user.id];
+    let paramIndex = 2;
+
+    if (mode !== undefined) {
+      updates.push(`autonomous_mode = $${paramIndex++}`);
+      values.push(mode);
+    }
+    if (rules !== undefined) {
+      updates.push(`auto_confirm_rules = $${paramIndex++}`);
+      values.push(JSON.stringify(rules));
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No updates provided' });
+    }
+
+    await pool.query(`
+      UPDATE users SET ${updates.join(', ')} WHERE id = $1
+    `, values);
+
+    console.log(`🤖 Updated autonomous settings for user ${req.user.id}: mode=${mode}`);
+    res.json({ success: true, mode, rules });
+  } catch (error) {
+    console.error('Update autonomous settings error:', error);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
+// POST /api/test-auto-confirm - Test if a booking would be auto-confirmed
+app.post('/api/test-auto-confirm', authenticateToken, async (req, res) => {
+  try {
+    const { start_time, duration, attendee_email } = req.body;
+
+    const result = await shouldAutoConfirm(req.user.id, {
+      start_time,
+      duration: duration || 30,
+      attendee_email
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Test auto-confirm error:', error);
+    res.status(500).json({ error: 'Failed to test' });
   }
 });
 
@@ -15870,14 +16133,13 @@ async function isMemberAvailable(memberId, startTime, endTime) {
   return conflicts.rows.length === 0;
 }
 
-// Get next round-robin member with availability check
+// Get next round-robin member with priority and skip rules
 async function getNextRoundRobinMember(teamId, startTime, endTime) {
-  // Use transaction to prevent race conditions
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // Lock the team row to prevent concurrent updates
+    // Lock the team row
     const teamResult = await client.query(
       'SELECT id, last_assigned_member_id FROM teams WHERE id = $1 FOR UPDATE',
       [teamId]
@@ -15889,15 +16151,17 @@ async function getNextRoundRobinMember(teamId, startTime, endTime) {
       return null;
     }
 
-    // Get all active team members in consistent order
-    const membersResult = await client.query(
-      `SELECT tm.id, tm.name, tm.user_id, u.email
-       FROM team_members tm
-       JOIN users u ON tm.user_id = u.id
-       WHERE tm.team_id = $1
-       ORDER BY tm.id ASC`,
-      [teamId]
-    );
+    // Get all active team members, respecting priority and skip rules
+    const membersResult = await client.query(`
+      SELECT tm.id, tm.name, tm.user_id, tm.routing_priority, tm.max_daily_bookings, u.email
+      FROM team_members tm
+      JOIN users u ON tm.user_id = u.id
+      WHERE tm.team_id = $1
+        AND (tm.is_active IS NULL OR tm.is_active = true)
+        AND tm.is_available = true
+        AND (tm.skip_until IS NULL OR tm.skip_until < NOW())
+      ORDER BY tm.routing_priority DESC, tm.id ASC
+    `, [teamId]);
     const members = membersResult.rows;
 
     if (members.length === 0) {
@@ -15905,54 +16169,80 @@ async function getNextRoundRobinMember(teamId, startTime, endTime) {
       return null;
     }
 
-    // Find starting point (after last assigned)
+    // Check daily booking limits
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Filter out members who hit their daily limit
+    const availableMembers = [];
+    for (const member of members) {
+      if (member.max_daily_bookings) {
+        const dailyCount = await client.query(`
+          SELECT COUNT(*) as count FROM bookings
+          WHERE member_id = $1 AND start_time >= $2 AND start_time < $3 AND status = 'confirmed'
+        `, [member.id, today, tomorrow]);
+
+        if (parseInt(dailyCount.rows[0].count) >= member.max_daily_bookings) {
+          console.log(`⏭️ ${member.name} hit daily limit (${member.max_daily_bookings}), skipping`);
+          continue;
+        }
+      }
+      availableMembers.push(member);
+    }
+
+    if (availableMembers.length === 0) {
+      console.log('⚠️ All members at daily capacity, using first available');
+      availableMembers.push(...members);
+    }
+
+    // Find starting point after last assigned
     const lastAssignedId = team.last_assigned_member_id;
-    const memberIds = members.map(m => m.id);
+    const memberIds = availableMembers.map(m => m.id);
     let startIndex = 0;
 
     if (lastAssignedId) {
       const lastIndex = memberIds.indexOf(lastAssignedId);
       if (lastIndex !== -1) {
-        startIndex = (lastIndex + 1) % members.length;
+        startIndex = (lastIndex + 1) % availableMembers.length;
       }
     }
 
-    // Rotate through members to find one who is available
+    // Find available member
     let assignedMember = null;
-    for (let i = 0; i < members.length; i++) {
-      const checkIndex = (startIndex + i) % members.length;
-      const candidate = members[checkIndex];
+    for (let i = 0; i < availableMembers.length; i++) {
+      const checkIndex = (startIndex + i) % availableMembers.length;
+      const candidate = availableMembers[checkIndex];
 
-      // Check availability for this time slot
-      const conflictCheck = await client.query(
-        `SELECT id FROM bookings
-         WHERE member_id = $1
-         AND status IN ('confirmed', 'pending')
-         AND start_time < $3 AND end_time > $2`,
-        [candidate.id, startTime, endTime]
-      );
+      // Check time slot availability
+      const conflictCheck = await client.query(`
+        SELECT id FROM bookings
+        WHERE member_id = $1
+        AND status IN ('confirmed', 'pending')
+        AND start_time < $3 AND end_time > $2
+      `, [candidate.id, startTime, endTime]);
 
       if (conflictCheck.rows.length === 0) {
         assignedMember = candidate;
         break;
       }
-      console.log(`⏭️ Round-robin: ${candidate.name} busy, trying next...`);
+      console.log(`⏭️ Round-robin: ${candidate.name} busy at this time, trying next...`);
     }
 
-    // If no one available, fall back to first in rotation (they'll get double-booked warning)
     if (!assignedMember) {
-      assignedMember = members[startIndex];
-      console.log(`⚠️ Round-robin: All members busy, assigning to ${assignedMember.name} anyway`);
+      assignedMember = availableMembers[startIndex];
+      console.log(`⚠️ All members busy, assigning to ${assignedMember.name} anyway`);
     }
 
-    // Update last assigned member
+    // Update last assigned
     await client.query(
       'UPDATE teams SET last_assigned_member_id = $1 WHERE id = $2',
       [assignedMember.id, teamId]
     );
 
     await client.query('COMMIT');
-    console.log(`✅ Round-robin: Assigned to ${assignedMember.name} (id: ${assignedMember.id})`);
+    console.log(`✅ Round-robin: Assigned to ${assignedMember.name} (priority: ${assignedMember.routing_priority || 5})`);
 
     return assignedMember;
   } catch (error) {

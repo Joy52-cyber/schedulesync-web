@@ -53,6 +53,7 @@ import MemberAvailability from './pages/MemberAvailability';
 // Settings
 import UserSettings from './pages/UserSettings';
 import CalendarSettings from './pages/CalendarSettings';
+import AutonomousSettings from './pages/AutonomousSettings';
 
 // Guest
 import BookingPage from './pages/BookingPage';
@@ -152,6 +153,7 @@ function InnerApp() {
                 <Route path="/templates" element={<EmailTemplates />} />
                 <Route path="/rules" element={<SchedulingRules />} />
                 <Route path="/email-assistant" element={<EmailAnalyzer />} />
+                <Route path="/autonomous" element={<AutonomousSettings />} />
                 <Route path="/my-links" element={<MyLinks />} />
                 <Route path="/billing" element={<BillingPage />} />
 

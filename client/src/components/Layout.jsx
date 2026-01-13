@@ -12,6 +12,7 @@ import {
   Link2,
   Zap,
   Mail,
+  Bot,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -35,6 +36,7 @@ export default function Layout() {
     { name: "Quick Links", path: "/my-links", icon: Link2, walkthrough: "my-links-nav" },
     { name: "Smart Rules", path: "/rules", icon: Zap, walkthrough: "rules-nav", badge: "PRO" },
     { name: "Email Assistant", path: "/email-assistant", icon: Mail, walkthrough: "email-nav", badge: "PRO" },
+    { name: "Autonomous Mode", path: "/autonomous", icon: Bot, walkthrough: "autonomous-nav", badge: "TEAM" },
     { name: "Teams", path: "/teams", icon: Users, walkthrough: "teams-nav" },
     { name: "Settings", path: "/settings", icon: Settings, walkthrough: "settings-nav" },
     // Admin Panel - only shown if isAdmin (handled in render)
