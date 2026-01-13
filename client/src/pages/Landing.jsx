@@ -61,46 +61,76 @@ export default function Landing() {
         '50 bookings/month',
         '2 event types',
         '10 AI queries/month',
-        '2 quick links/month',
+        '3 quick links/month',
         'Google & Outlook sync',
         'Email reminders',
-        'Custom booking URL',
       ],
       cta: 'Get Started Free',
       popular: false,
     },
     {
+      name: 'Starter',
+      price: '$8',
+      period: '/month',
+      description: 'For individuals who need more',
+      features: [
+        '200 bookings/month',
+        '5 event types',
+        '50 AI queries/month',
+        '10 quick links/month',
+        'Buffer times',
+        'Email templates',
+      ],
+      cta: 'Start Starter',
+      popular: false,
+    },
+    {
       name: 'Pro',
-      price: '$12',
+      price: '$15',
       period: '/month',
       description: 'For busy professionals',
       features: [
         'Unlimited bookings',
         'Unlimited event types',
-        'Unlimited AI queries',
+        '250 AI queries/month',
         'Unlimited quick links',
-        'Email templates',
+        'Smart Rules (AI)',
+        'Email Assistant (AI)',
         'Priority support',
-        'Custom branding',
       ],
       cta: 'Start Pro Trial',
       popular: true,
     },
     {
       name: 'Team',
-      price: '$25',
-      period: '/month',
+      price: '$20',
+      period: '/user/month',
       description: 'For growing teams',
       features: [
         'Everything in Pro',
-        'Unlimited teams',
+        '750 AI queries pooled',
         'Round-robin booking',
         'Collective availability',
-        'Team booking pages',
-        'Admin controls',
+        'Autonomous mode',
         'Up to 10 members',
       ],
       cta: 'Start Team Trial',
+      popular: false,
+    },
+    {
+      name: 'Enterprise',
+      price: 'Custom',
+      period: '',
+      description: 'For large organizations',
+      features: [
+        'Unlimited everything',
+        'Unlimited team size',
+        'SSO / SAML',
+        'Audit logs',
+        'Dedicated support',
+        'SLA guarantee',
+      ],
+      cta: 'Contact Sales',
       popular: false,
     },
   ];
@@ -336,7 +366,7 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 max-w-7xl mx-auto">
             {pricingTiers.map((tier, idx) => (
               <div 
                 key={idx} 
@@ -468,7 +498,7 @@ export default function Landing() {
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-900">Pro Power</h3>
-                  <p className="text-xs text-gray-600">$12/month</p>
+                  <p className="text-xs text-gray-600">$15/month</p>
                 </div>
               </div>
               <ul className="space-y-2 text-sm text-gray-700">

@@ -339,7 +339,7 @@ What would you like to do?`;
     if (!hasProFeature() && (lowerMessage.includes('send reminder') || lowerMessage.includes('send email') || lowerMessage.includes('email template'))) {
       setChatHistory(prev => [...prev, 
         { role: 'user', content: userMessage, timestamp: new Date() },
-        { role: 'assistant', content: `Great idea to send emails! 📧\n\nEmail features are part of Pro ($12/month).\n\n[Upgrade to Pro](/billing)`, timestamp: new Date() }
+        { role: 'assistant', content: `Great idea to send emails! 📧\n\nEmail features are part of Pro ($15/month).\n\n[Upgrade to Pro](/billing)`, timestamp: new Date() }
       ]);
       setMessage('');
       return;
@@ -600,7 +600,7 @@ What would you like to do?`;
                         {usage.ai_queries_used >= usage.ai_queries_limit ? `You've used all ${usage.ai_queries_limit} queries` : `${usage.ai_queries_limit - usage.ai_queries_used} queries left`}
                       </p>
                       {usage.ai_queries_used >= usage.ai_queries_limit ? (
-                        <button onClick={() => window.location.href = '/billing'} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 rounded-lg font-semibold text-sm">Get Pro – $12/mo</button>
+                        <button onClick={() => window.location.href = '/billing'} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 rounded-lg font-semibold text-sm">Get Pro – $15/mo</button>
                       ) : (
                         <p className="text-xs text-yellow-700">Go Pro for unlimited!</p>
                       )}

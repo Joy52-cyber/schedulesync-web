@@ -310,17 +310,17 @@ export default function BillingSettings() {
                 className="bg-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors flex items-center gap-2"
               >
                 <Zap className="h-4 w-4" />
-                Upgrade to Pro - $12/month
+                Upgrade to Pro - $15/month
               </button>
             )}
-            
+
             {currentTier === 'pro' && (
               <button
                 onClick={() => handleUpgrade('team')}
                 className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
               >
                 <Users className="h-4 w-4" />
-                Upgrade to Team - $25/month
+                Upgrade to Team - $20/user/month
               </button>
             )}
 
@@ -364,7 +364,7 @@ export default function BillingSettings() {
               <div className="border-2 border-purple-200 rounded-xl p-6 hover:border-purple-300 transition-colors">
                 <div className="text-center mb-6">
                   <h3 className="text-xl font-bold text-purple-600 mb-2">⚡ Pro Plan</h3>
-                  <div className="text-3xl font-bold text-gray-900 mb-2">$12<span className="text-lg text-gray-600">/month</span></div>
+                  <div className="text-3xl font-bold text-gray-900 mb-2">$15<span className="text-lg text-gray-600">/month</span></div>
                   <p className="text-gray-600">Perfect for busy professionals</p>
                 </div>
                 

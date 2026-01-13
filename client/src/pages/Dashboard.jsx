@@ -737,7 +737,7 @@ export default function Dashboard() {
                     </ul>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold">$12</div>
+                    <div className="text-2xl font-bold">$15</div>
                     <div className="text-sm text-purple-200">/month</div>
                   </div>
                 </div>

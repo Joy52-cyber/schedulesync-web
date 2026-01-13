@@ -147,11 +147,13 @@ const handleUpdateBilling = async () => {
     });
   };
 
-  // ✅ FIXED: Updated pricing to match our strategy
+  // Updated pricing to match PRD
   const getPlanPrice = (tier) => {
     switch(tier) {
-      case 'pro': return '$12';     // ✅ Changed from $15 to $12
-      case 'team': return '$25';    // ✅ Changed from $45 to $25
+      case 'starter': return '$8';
+      case 'pro': return '$15';
+      case 'team': return '$20';
+      case 'enterprise': return 'Custom';
       default: return '$0';
     }
   };

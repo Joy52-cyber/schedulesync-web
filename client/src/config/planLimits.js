@@ -4,7 +4,7 @@ export const PLAN_LIMITS = {
     ai_queries: 10,
     bookings_per_month: 50,
     event_types: 2,
-    quick_links: 2,
+    quick_links: 3,
     calendar_connections: 1,
     teams: false,
     buffer_times: false,

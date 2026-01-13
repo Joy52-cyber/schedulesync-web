@@ -21,8 +21,8 @@ export const TIER_DETAILS = {
   },
   [TIERS.PRO]: {
     name: 'Pro',
-    price: 12,
-    priceLabel: '$12/month',
+    price: 15,
+    priceLabel: '$15/month',
     description: 'For professionals who need more',
     color: 'blue',
     popular: true,

@@ -224,7 +224,7 @@ export default function EmailTemplates() {
               className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-xl hover:shadow-lg transition-all font-semibold text-lg flex items-center gap-2 mx-auto"
             >
               <Crown className="h-5 w-5" />
-              Upgrade to Pro - $12/month
+              Upgrade to Pro - $15/month
             </button>
             
             <p className="text-sm text-gray-500 mt-4">

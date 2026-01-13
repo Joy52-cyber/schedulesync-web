@@ -4,7 +4,7 @@ const PLAN_LIMITS = {
     ai_queries_limit: 10,
     bookings_limit: 50,
     event_types_limit: 2,
-    quick_links_limit: 2,
+    quick_links_limit: 3,
     magic_links_limit: 2,
     calendar_connections_limit: 1,
     teams_enabled: false,

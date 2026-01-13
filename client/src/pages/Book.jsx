@@ -538,7 +538,7 @@ if (bookingData?.member?.external_booking_link && !isReschedule) {
               🔒 Your information is secure and will never be shared
             </p>
             <p className="text-xs text-gray-500">
-              Powered by ScheduleSync
+              Powered by TruCal
             </p>
           </div>
         </div>

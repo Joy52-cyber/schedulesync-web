@@ -58,6 +58,7 @@ import AutonomousSettings from './pages/AutonomousSettings';
 
 // Guest
 import BookingPage from './pages/BookingPage';
+import QuickLinkBooking from './pages/QuickLinkBooking';
 import ManageBooking from './pages/ManageBooking';
 import PaymentStatus from './pages/PaymentStatus';
 import Book from './pages/Book';
@@ -135,7 +136,7 @@ function InnerApp() {
               {/* Public Guest Routes */}
               <Route path="/book/:username/:eventSlug" element={<BookingPage />} />
               <Route path="/book/:token" element={<BookingPage />} />
-              <Route path="/m/:token" element={<BookingPage />} />
+              <Route path="/m/:token" element={<QuickLinkBooking />} />
               <Route path="/book" element={<Book />} />
               <Route path="/manage/:token" element={<ManageBooking />} />
               <Route path="/payment/status" element={<PaymentStatus />} />

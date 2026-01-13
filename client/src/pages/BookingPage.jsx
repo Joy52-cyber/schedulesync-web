@@ -655,7 +655,7 @@ export default function BookingPage() {
           
           {!branding.hide_powered_by && (
             <div className="mt-auto pt-6 text-xs text-slate-300 font-medium">
-              Powered by ScheduleSync
+              Powered by TruCal
             </div>
           )}
         </div>

@@ -440,7 +440,7 @@ export default function AcceptInvite() {
         <div className="px-8 py-4 bg-gray-50 border-t border-gray-100 text-center">
           <p className="text-xs text-gray-500 flex items-center justify-center gap-1">
             <Calendar className="h-3 w-3" />
-            Powered by ScheduleSync
+            Powered by TruCal
           </p>
         </div>
       </div>

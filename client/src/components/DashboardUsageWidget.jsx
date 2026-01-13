@@ -249,7 +249,7 @@ const DashboardUsageWidget = () => {
                   Upgrade to Pro
                 </h4>
                 <p className="text-sm text-gray-600">
-                  Unlimited everything for just $12/month
+                  Unlimited everything for just $15/month
                 </p>
               </div>
               <button

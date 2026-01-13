@@ -17,7 +17,7 @@ const PLANS = [
       { text: '10 AI queries/month', included: true },
       { text: '50 bookings/month', included: true },
       { text: '2 event types', included: true },
-      { text: '2 quick links', included: true },
+      { text: '3 quick links', included: true },
       { text: '1 calendar connection', included: true },
       { text: 'Buffer times', included: false },
       { text: 'Email templates', included: false },

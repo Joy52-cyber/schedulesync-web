@@ -362,7 +362,7 @@ const BillingPage = () => {
               </div>
               <button onClick={() => setShowUpgradeModal(true)} className="w-full sm:w-auto px-6 py-3 bg-white text-purple-600 font-semibold rounded-lg hover:bg-gray-100 flex items-center justify-center gap-2">
                 <Crown className="h-5 w-5" />
-                Upgrade to Pro - $12/month
+                Upgrade to Pro - $15/month
               </button>
             </div>
           </div>

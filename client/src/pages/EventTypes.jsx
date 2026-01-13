@@ -193,7 +193,7 @@ export default function EventTypes() {
               onClick={() => showUpgradeModal('event_types')}
               className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
             >
-              Upgrade to Pro - $12/mo
+              Upgrade to Pro - $15/mo
             </button>
           </div>
         </div>

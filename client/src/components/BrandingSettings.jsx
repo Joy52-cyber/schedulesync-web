@@ -185,7 +185,7 @@ export default function BrandingSettings() {
           onClick={() => showUpgradeModal('branding')}
           className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
         >
-          Upgrade to Pro - $12/month
+          Upgrade to Pro - $15/month
         </button>
       </div>
     );
