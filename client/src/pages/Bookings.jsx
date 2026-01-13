@@ -92,17 +92,15 @@ export default function Bookings() {
 
   const handleCancelBooking = async (booking) => {
     if (!confirm(`Cancel booking with ${booking.attendee_name}?`)) return;
-    
+
     setCancellingId(booking.id);
     try {
-      await fetch(`/api/bookings/manage/${booking.manage_token}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Cancelled by organizer' })
-      });
-      
+      // Use the API utility instead of raw fetch for correct base URL
+      await bookings.cancelByToken(booking.manage_token, 'Cancelled by organizer');
+
       // Refresh bookings
       await loadBookings();
+      console.log('✅ Booking cancelled and list refreshed');
       setActionMenuOpen(null);
     } catch (error) {
       console.error('Error cancelling booking:', error);
