@@ -437,68 +437,7 @@ export default function Dashboard() {
             
             <LimitWarningBanner />
 
-            {/* Quick Stats - IMPROVED */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Today's Bookings */}
-              <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-all">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <Calendar className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <TrendingUp className="w-4 h-4 text-green-500" />
-                </div>
-                <div className="text-3xl font-bold text-gray-900 mb-1">{stats.todayBookings || stats.totalBookings}</div>
-                <div className="text-sm text-gray-600">Today's Bookings</div>
-                <div className="text-xs text-green-600 mt-1">Active today</div>
-              </div>
-
-              {/* AI Queries - PROMINENT */}
-              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-200 hover:shadow-lg transition-all">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-                    <Bot className="w-5 h-5 text-white" />
-                  </div>
-                  <Sparkles className="w-4 h-4 text-purple-600" />
-                </div>
-                <div className="text-3xl font-bold text-gray-900 mb-1">
-                  {Math.min(usage.ai_queries_used, usage.ai_queries_limit)}/{usage.ai_queries_limit}
-                </div>
-                <div className="text-sm text-gray-600">AI Queries</div>
-                <div className="text-xs text-purple-600 mt-1">
-                  {usage.ai_queries_limit - usage.ai_queries_used > 0 
-                    ? `${usage.ai_queries_limit - usage.ai_queries_used} left` 
-                    : 'Limit reached'}
-                </div>
-              </div>
-
-              {/* Upcoming */}
-              <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-all">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  </div>
-                  <Clock className="w-4 h-4 text-gray-400" />
-                </div>
-                <div className="text-3xl font-bold text-gray-900 mb-1">{stats.upcomingBookings}</div>
-                <div className="text-sm text-gray-600">Upcoming</div>
-                <div className="text-xs text-gray-500 mt-1">This week</div>
-              </div>
-
-              {/* Confirmation Rate */}
-              <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-all">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">
-                    <TrendingUp className="w-5 h-5 text-pink-600" />
-                  </div>
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                </div>
-                <div className="text-3xl font-bold text-gray-900 mb-1">{stats.confirmationRate}%</div>
-                <div className="text-sm text-gray-600">Confirmed</div>
-                <div className="text-xs text-green-600 mt-1">Great rate!</div>
-              </div>
-            </div>
-
-            {/* Two Column Layout - NEW */}
+            {/* Two Column Layout */}
             <div className="grid lg:grid-cols-3 gap-6">
               
               {/* Left Column (2/3) */}
@@ -515,7 +454,7 @@ export default function Dashboard() {
                       </span>
                     </div>
                     <button 
-                      onClick={() => navigate('/event-types/new')}
+                      onClick={() => navigate('/events/new')}
                       className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-all"
                     >
                       <Plus className="w-4 h-4" />
@@ -528,7 +467,7 @@ export default function Dashboard() {
                       <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                       <p className="text-gray-500 font-medium">No event types yet</p>
                       <button 
-                        onClick={() => navigate('/event-types/new')}
+                        onClick={() => navigate('/events/new')}
                         className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700"
                       >
                         Create Your First Event Type
@@ -540,7 +479,7 @@ export default function Dashboard() {
                         <div 
                           key={event.id}
                           className="group p-4 border-2 border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all cursor-pointer"
-                          onClick={() => navigate(`/event-types/${event.id}`)}
+                          onClick={() => navigate(`/events/${event.id}`)}
                         >
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center gap-3">
@@ -554,7 +493,7 @@ export default function Dashboard() {
                               className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 transition-opacity"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigate(`/event-types/${event.id}/edit`);
+                                navigate(`/events/${event.id}/edit`);
                               }}
                             >
                               <Settings className="w-4 h-4" />
@@ -580,7 +519,7 @@ export default function Dashboard() {
                       ))}
 
                       <div 
-                        onClick={() => navigate('/event-types')}
+                        onClick={() => navigate('/events')}
                         className="p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all cursor-pointer flex flex-col items-center justify-center text-center"
                       >
                         <ExternalLink className="w-6 h-6 text-gray-400 mb-2" />
