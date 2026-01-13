@@ -14,9 +14,7 @@ import {
   FileText,
   Bot,
   Eye,
-  Zap,
   Target,
-  BarChart3,
   Lightbulb,
   Wand2,
   Check,
@@ -42,7 +40,8 @@ const VARIABLES = [
   { key: 'meetingDate', label: 'Meeting Date' },
   { key: 'meetingTime', label: 'Meeting Time' },
   { key: 'meetingLink', label: 'Meeting Link' },
-  { key: 'bookingLink', label: 'Booking Link' },
+  { key: 'manageLink', label: 'Manage Booking Link' },
+  { key: 'bookingLink', label: 'Book Again Link' },
 ];
 
 // Tone options for AI generation
@@ -54,108 +53,75 @@ const TONE_OPTIONS = [
   { id: 'formal', label: 'Formal', emoji: '🎩' },
 ];
 
-// ✅ Default starter templates WITHOUT emojis in subject/body (emoji-safe for emails)
+// Default templates - one per auto-sent type (confirmation, reminder, cancellation, reschedule)
 const DEFAULT_TEMPLATES = [
   {
-    id: 'default_1',
-    name: 'Friendly Reminder',
-    type: 'reminder',
-    subject: 'Reminder: Our meeting is tomorrow',
-    body: `Hi {{guestName}},
-
-Just a friendly reminder that we're scheduled to meet tomorrow.
-
-Date: {{meetingDate}}
-Time: {{meetingTime}}
-Meeting link: {{meetingLink}}
-
-Looking forward to speaking with you.
-
-{{organizerName}}`,
-    is_default: true,
-    is_favorite: true,
-    usage_count: 23,
-    effectiveness: 87,
-  },
-  {
-    id: 'default_2',
-    name: 'Professional Reminder',
-    type: 'reminder',
-    subject: 'Reminder: Upcoming meeting on {{meetingDate}}',
-    body: `Dear {{guestName}},
-
-This is a reminder about your upcoming meeting.
-
-Date: {{meetingDate}}
-Time: {{meetingTime}}
-Meeting link: {{meetingLink}}
-
-Best regards,
-{{organizerName}}`,
-    is_default: true,
-    is_favorite: false,
-    usage_count: 15,
-    effectiveness: 82,
-  },
-  {
-    id: 'default_3',
-    name: 'Thank You Follow-up',
-    type: 'follow_up',
-    subject: 'Thank you for meeting with me',
-    body: `Hi {{guestName}},
-
-Thank you for taking the time to meet with me today. I really appreciated our conversation.
-
-If you need anything else, you can easily book another time here: {{bookingLink}}
-
-Talk soon,
-{{organizerName}}`,
-    is_default: true,
-    is_favorite: false,
-    usage_count: 31,
-    effectiveness: 91,
-  },
-  {
-    id: 'default_4',
+    id: 'default_confirmation',
     name: 'Meeting Confirmed',
     type: 'confirmation',
-    subject: 'Your meeting is confirmed',
+    subject: 'Your meeting is confirmed - {{meetingDate}}',
     body: `Hi {{guestName}},
 
-Your meeting has been confirmed.
+Your meeting has been confirmed!
 
 Date: {{meetingDate}}
 Time: {{meetingTime}}
-Meeting link: {{meetingLink}}
+Meeting Link: {{meetingLink}}
 
-If you need to make changes, you can update your booking at any time.
+To reschedule or cancel: {{manageLink}}
 
-See you soon,
+See you soon!
 {{organizerName}}`,
     is_default: true,
-    is_favorite: false,
-    usage_count: 45,
-    effectiveness: 94,
   },
   {
-    id: 'default_5',
-    name: 'Need to Reschedule',
-    type: 'reschedule',
-    subject: 'Can we reschedule our meeting?',
+    id: 'default_reminder',
+    name: 'Meeting Reminder',
+    type: 'reminder',
+    subject: 'Reminder: Meeting tomorrow with {{organizerName}}',
     body: `Hi {{guestName}},
 
-I'm sorry, but I need to reschedule our meeting on {{meetingDate}}.
+Friendly reminder about your upcoming meeting.
 
-Please pick a new time that works best for you using this link:
-{{bookingLink}}
+Date: {{meetingDate}}
+Time: {{meetingTime}}
+Meeting Link: {{meetingLink}}
 
-Apologies for any inconvenience this may cause.
+See you soon!
+{{organizerName}}`,
+    is_default: true,
+  },
+  {
+    id: 'default_cancellation',
+    name: 'Meeting Cancelled',
+    type: 'cancellation',
+    subject: 'Meeting cancelled - {{meetingDate}}',
+    body: `Hi {{guestName}},
+
+Your meeting on {{meetingDate}} at {{meetingTime}} has been cancelled.
+
+To book a new time: {{bookingLink}}
 
 {{organizerName}}`,
     is_default: true,
-    is_favorite: false,
-    usage_count: 8,
-    effectiveness: 78,
+  },
+  {
+    id: 'default_reschedule',
+    name: 'Meeting Rescheduled',
+    type: 'reschedule',
+    subject: 'Meeting rescheduled - {{meetingDate}}',
+    body: `Hi {{guestName}},
+
+Your meeting has been rescheduled.
+
+New Date: {{meetingDate}}
+New Time: {{meetingTime}}
+Meeting Link: {{meetingLink}}
+
+To make changes: {{manageLink}}
+
+{{organizerName}}`,
+    is_default: true,
   },
 ];
 
@@ -297,19 +263,10 @@ export default function EmailTemplates() {
   const loadSmartSuggestions = async () => {
     try {
       const timeOfDay = new Date().getHours();
-      const dayOfWeek = new Date().getDay();
-      
-      // Simple smart suggestion logic
+
+      // Simple smart suggestion logic based on time of day
       const suggestions = [];
-      
-      if (timeOfDay > 17 || dayOfWeek === 5) {
-        // Evening or Friday - suggest follow-up templates
-        suggestions.push({
-          template: DEFAULT_TEMPLATES.find(t => t.type === 'follow_up'),
-          reason: 'Popular for end-of-day follow-ups',
-        });
-      }
-      
+
       if (timeOfDay >= 9 && timeOfDay <= 11) {
         // Morning - suggest reminders
         suggestions.push({
@@ -317,20 +274,15 @@ export default function EmailTemplates() {
           reason: 'Perfect timing for meeting reminders',
         });
       }
-      
-      // Always include highest performing template
-      const bestTemplate = DEFAULT_TEMPLATES.reduce((best, current) => 
-        (current.effectiveness || 0) > (best.effectiveness || 0) ? current : best
-      );
-      
-      if (!suggestions.find(s => s.template?.id === bestTemplate.id)) {
-        suggestions.push({
-          template: bestTemplate,
-          reason: `${bestTemplate.effectiveness}% effectiveness rate`,
-        });
-      }
-      
-      setSmartSuggestions(suggestions.slice(0, 3));
+
+      // Always suggest confirmation template
+      suggestions.push({
+        template: DEFAULT_TEMPLATES.find(t => t.type === 'confirmation'),
+        reason: 'Most commonly used template',
+      });
+
+      // Filter out any undefined templates and limit to 2
+      setSmartSuggestions(suggestions.filter(s => s.template).slice(0, 2));
     } catch (error) {
       console.error('Failed to load smart suggestions:', error);
     }
@@ -383,13 +335,10 @@ export default function EmailTemplates() {
     return matchesSearch && matchesType;
   });
 
-  // Sort: favorites first, then by effectiveness, then by name
+  // Sort: favorites first, then by name
   const sortedTemplates = [...filteredTemplates].sort((a, b) => {
     if (a.is_favorite && !b.is_favorite) return -1;
     if (!a.is_favorite && b.is_favorite) return 1;
-    if (a.effectiveness && b.effectiveness) {
-      return b.effectiveness - a.effectiveness;
-    }
     return a.name.localeCompare(b.name);
   });
 
@@ -492,13 +441,6 @@ export default function EmailTemplates() {
     return TEMPLATE_TYPES.find((t) => t.id === type)?.emoji || '📧';
   };
 
-  const getEffectivenessColor = (effectiveness) => {
-    if (effectiveness >= 90) return 'text-green-600 bg-green-50';
-    if (effectiveness >= 80) return 'text-blue-600 bg-blue-50';
-    if (effectiveness >= 70) return 'text-yellow-600 bg-yellow-50';
-    return 'text-gray-600 bg-gray-50';
-  };
-
   const previewWithSampleData = (template) => {
     const sampleData = {
       guestName: 'John Smith',
@@ -507,7 +449,8 @@ export default function EmailTemplates() {
       meetingDate: 'Monday, Jan 20, 2025',
       meetingTime: '2:00 PM',
       meetingLink: 'https://meet.google.com/abc-xyz',
-      bookingLink: 'https://schedulesync.app/book/you',
+      manageLink: 'https://trucal.xyz/manage/abc123',
+      bookingLink: 'https://trucal.xyz/book/you',
     };
     
     let subject = template.subject;
@@ -706,27 +649,9 @@ export default function EmailTemplates() {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-500 truncate mb-1">
+                    <p className="text-sm text-gray-500 truncate">
                       {template.subject}
                     </p>
-                    
-                    {/* Analytics */}
-                    <div className="flex items-center gap-3 text-xs">
-                      {template.usage_count && (
-                        <span className="text-gray-600">
-                          📊 Used {template.usage_count} times
-                        </span>
-                      )}
-                      {template.effectiveness && (
-                        <span
-                          className={`px-2 py-0.5 rounded-full ${getEffectivenessColor(
-                            template.effectiveness
-                          )}`}
-                        >
-                          {template.effectiveness}% effective
-                        </span>
-                      )}
-                    </div>
                   </div>
 
                   {/* Actions */}

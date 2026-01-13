@@ -10,9 +10,6 @@ import {
   Clock,
   Settings,
   Link2,
-  Mail,
-  Sparkles
-
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -24,25 +21,21 @@ export default function Layout() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  // Case-insensitive admin check
+  // Admin check - use is_admin flag or fallback to email list
   const adminEmails = ['jaybersales95@gmail.com'];
   const userEmail = user?.email?.toLowerCase() || '';
-  const isAdmin = adminEmails.includes(userEmail);
+  const isAdmin = user?.is_admin || adminEmails.includes(userEmail);
 
   const navigation = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, walkthrough: "dashboard-nav" },
     { name: "Event Types", path: "/events", icon: Clock, walkthrough: "events-nav" },
-    { name: "Teams", path: "/teams", icon: Users, walkthrough: "teams-nav" },
     { name: "Bookings", path: "/bookings", icon: Calendar, walkthrough: "bookings-nav" },
-    { name: "My Link", path: "/my-links", icon: Link2, walkthrough: "my-links-nav" },
-    { name: "Email Templates", path: "/templates", icon: Mail, walkthrough: "email-nav", proBadge: true },
+    { name: "Quick Links", path: "/my-links", icon: Link2, walkthrough: "my-links-nav" },
+    { name: "Teams", path: "/teams", icon: Users, walkthrough: "teams-nav" },
     { name: "Settings", path: "/settings", icon: Settings, walkthrough: "settings-nav" },
+    // Admin Panel - only shown if isAdmin (handled in render)
+    ...(isAdmin ? [{ name: "Admin Panel", path: "/admin", icon: ShieldAlert, walkthrough: "admin-nav" }] : []),
   ];
-
-  // Add Admin Panel to navigation if user is admin
-  if (isAdmin) {
-    navigation.push({ name: "Admin Panel", path: "/admin", icon: ShieldAlert, walkthrough: "admin-nav" });
-  }
 
   const handleLogout = () => {
     logout();
@@ -98,11 +91,6 @@ export default function Layout() {
                   >
                     <Icon className="h-4 w-4 xl:h-5 xl:w-5" />
                     <span className="hidden xl:inline">{item.name}</span>
-                    {item.proBadge && (
-                      <span className="hidden xl:inline ml-1 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-semibold">
-                        PRO
-                      </span>
-                    )}
                   </Link>
                 );
               })}
@@ -187,11 +175,6 @@ export default function Layout() {
                   >
                     <Icon className="h-5 w-5 flex-shrink-0" />
                     <span className="text-sm">{item.name}</span>
-                    {item.proBadge && (
-                      <span className="ml-auto text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-semibold">
-                        PRO
-                      </span>
-                    )}
                   </Link>
                 );
               })}

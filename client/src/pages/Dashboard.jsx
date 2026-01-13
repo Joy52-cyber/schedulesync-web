@@ -17,9 +17,9 @@ import {
   BarChart3,
   Sparkles,
   Share2,
-  Video,
   Check,
   Mail,
+  Video,
 } from 'lucide-react';
 
 import api, {
@@ -49,7 +49,6 @@ export default function Dashboard() {
   const [recentBookings, setRecentBookings] = useState([]);
   const [eventTypes, setEventTypes] = useState([]);
   const [upcomingWeek, setUpcomingWeek] = useState([]);
-  const [nextMeeting, setNextMeeting] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timezone, setTimezone] = useState('');
   const [user, setUser] = useState(null);
@@ -124,24 +123,6 @@ export default function Dashboard() {
       });
       
       setUpcomingWeek(week);
-      
-      // Get next meeting
-      if (data.recentBookings && data.recentBookings.length > 0) {
-        const upcoming = data.recentBookings
-          .filter(b => new Date(b.start_time) > new Date() && b.status === 'confirmed')
-          .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))[0];
-        
-        if (upcoming) {
-          const minutesUntil = Math.ceil((new Date(upcoming.start_time) - new Date()) / (1000 * 60));
-          setNextMeeting({
-            title: `Meeting with ${upcoming.attendee_name}`,
-            time: minutesUntil,
-            startTime: upcoming.start_time,
-            link: upcoming.meet_link || null,
-            manageToken: upcoming.manage_token || null
-          });
-        }
-      }
     } catch (error) {
       console.error('Dashboard load error:', error);
       notify.error('Failed to load dashboard data');
@@ -460,49 +441,6 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Urgent Next Meeting Banner */}
-            {nextMeeting && nextMeeting.time <= 30 && (
-              <div className={`rounded-xl p-6 border-2 ${
-                nextMeeting.time <= 5
-                  ? 'bg-gradient-to-r from-red-500 to-pink-500 border-red-400 animate-pulse'
-                  : 'bg-gradient-to-r from-blue-500 to-cyan-500 border-blue-400'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center bg-white/20">
-                      <Video className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <span className="text-sm font-bold text-white/90">
-                        {nextMeeting.time <= 5 ? '🔴 STARTING NOW!' : '⏰ NEXT MEETING'}
-                      </span>
-                      <h3 className="text-xl font-bold text-white">{nextMeeting.title}</h3>
-                      <p className="text-sm text-white/80">
-                        {nextMeeting.time <= 5 ? 'Join immediately!' : `Starts in ${nextMeeting.time} minutes`}
-                      </p>
-                    </div>
-                  </div>
-                  {nextMeeting.link ? (
-                    <button
-                      onClick={() => window.open(nextMeeting.link, '_blank')}
-                      className="flex items-center gap-2 px-6 py-3 bg-white text-gray-900 rounded-lg font-bold hover:bg-gray-100 shadow-lg"
-                    >
-                      <Video className="w-5 h-5" />
-                      Join Now
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => navigate(nextMeeting.manageToken ? `/manage/${nextMeeting.manageToken}` : '/bookings')}
-                      className="flex items-center gap-2 px-6 py-3 bg-white/20 text-white rounded-lg font-bold hover:bg-white/30"
-                    >
-                      <Calendar className="w-5 h-5" />
-                      View Details
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
             {/* Two Column Layout */}
             <div className="grid lg:grid-cols-3 gap-6">
               
@@ -712,40 +650,6 @@ export default function Dashboard() {
                           </div>
                         </div>
                       ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Coming Up - When meeting is more than 30 min away */}
-                {nextMeeting && nextMeeting.time > 30 && (
-                  <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl p-6 border border-gray-200">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Clock className="w-4 h-4 text-gray-600" />
-                      <span className="text-sm font-semibold text-gray-600">COMING UP</span>
-                    </div>
-                    <h3 className="font-bold text-gray-900 mb-1">{nextMeeting.title}</h3>
-                    <p className="text-sm text-gray-600 mb-4">
-                      {nextMeeting.startTime 
-                        ? new Date(nextMeeting.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-                        : `In ${nextMeeting.time} min`}
-                    </p>
-                    <div className="flex gap-2">
-                      {nextMeeting.link && (
-                        <button
-                          onClick={() => window.open(nextMeeting.link, '_blank')}
-                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
-                        >
-                          <Video className="w-4 h-4" />
-                          Join
-                        </button>
-                      )}
-                      <button
-                        onClick={() => navigate(nextMeeting.manageToken ? `/manage/${nextMeeting.manageToken}` : '/bookings')}
-                        className={`${nextMeeting.link ? '' : 'flex-1'} flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200`}
-                      >
-                        <Calendar className="w-4 h-4" />
-                        Details
-                      </button>
                     </div>
                   </div>
                 )}

@@ -1,13 +1,13 @@
 ﻿import { useState, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useNotification } from '../contexts/NotificationContext';
-import { 
-  User, 
-  Mail, 
-  Globe, 
-  Calendar, 
-  Save, 
-  Check, 
+import {
+  User,
+  Mail,
+  Globe,
+  Calendar,
+  Save,
+  Check,
   Loader2,
   AlertCircle,
   CheckCircle,
@@ -27,7 +27,6 @@ import {
   Zap,
   X,
   Link2,
-  CreditCard,
   Palette,
 } from 'lucide-react';
 import api, { 
@@ -430,6 +429,17 @@ export default function UserSettings() {
               <Mail size={18} /> Notifications
             </button>
             <button
+              onClick={() => handleTabChange('templates')}
+              className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
+                activeTab === 'templates'
+                  ? 'bg-purple-50 text-purple-700'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Mail size={18} /> Templates
+              <span className="ml-auto text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-semibold">PRO</span>
+            </button>
+            <button
               onClick={() => handleTabChange('branding')}
               className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'branding'
@@ -440,14 +450,6 @@ export default function UserSettings() {
               <Palette size={18} /> Branding
               <span className="ml-auto text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-semibold">PRO</span>
             </button>
-            
-            <Link 
-              to="/billing" 
-              className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm font-medium transition-colors text-gray-600 hover:bg-gray-50 whitespace-nowrap"
-            >
-              <CreditCard size={18} className="text-gray-400" />
-              <span>Billing</span>
-            </Link>
           </nav>
         </div>
 
@@ -811,6 +813,23 @@ export default function UserSettings() {
                   <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   <p>Reminders will only be sent for future bookings that have a valid guest email and are not cancelled.</p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TEMPLATES TAB */}
+          {activeTab === 'templates' && (
+            <div className="p-4 sm:p-8">
+              <div className="text-center py-12">
+                <Mail className="h-12 w-12 text-purple-600 mx-auto mb-4" />
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Email Templates</h2>
+                <p className="text-gray-600 mb-6">Customize confirmation, reminder, and cancellation emails</p>
+                <button
+                  onClick={() => window.location.href = '/templates'}
+                  className="px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700"
+                >
+                  Manage Templates
+                </button>
               </div>
             </div>
           )}
