@@ -10289,12 +10289,14 @@ if (parsedIntent.intent === 'get_magic_link') {
       // ============ HANDLE GET TEAM LINKS ============
       if (parsedIntent.intent === 'get_team_links') {
         try {
+          // Get actual teams (excluding Personal Bookings)
           const teamsResult2 = await pool.query(
             `SELECT t.id, t.name, t.team_booking_token,
                     COUNT(tm.id) as member_count
              FROM teams t
              LEFT JOIN team_members tm ON t.id = tm.team_id
              WHERE t.owner_id = $1
+               AND t.name NOT LIKE '%Personal Bookings%'
              GROUP BY t.id
              ORDER BY t.name`,
             [userId]
@@ -10303,7 +10305,7 @@ if (parsedIntent.intent === 'get_magic_link') {
           if (teamsResult2.rows.length === 0) {
             return res.json({
               type: 'info',
-              message: 'No teams found. Create a team first to get booking links.',
+              message: 'No teams found. Create a team from the Teams page to get team booking links. For your personal booking link, ask "what is my booking link?"',
               usage: usageData
             });
           }
@@ -10312,10 +10314,9 @@ if (parsedIntent.intent === 'get_magic_link') {
 
           const teamLinks = teamsResult2.rows
             .map((team, index) => {
-              const isPersonal = team.name.toLowerCase().includes('personal');
-              const label = isPersonal ? '👤' : '👥';
-              return `${index + 1}. ${team.name} ${label}
-   👥 ${team.member_count} members`;
+              return `${index + 1}. ${team.name} 👥
+   ${team.member_count} member${team.member_count !== 1 ? 's' : ''}
+   🔗 ${baseUrl}/book/${team.team_booking_token}`;
             })
             .join('\n\n');
 
@@ -10323,7 +10324,9 @@ if (parsedIntent.intent === 'get_magic_link') {
             type: 'team_links',
             message: `Your Team Booking Links:
 
-${teamLinks}`,
+${teamLinks}
+
+💡 Tip: For your personal booking link, ask "what is my booking link?"`,
             data: {
               teams: teamsResult2.rows.map((team) => ({
                 id: team.id,
@@ -10970,11 +10973,12 @@ ${bookingsList}`,
         try {
           const teamName = parsedIntent.extracted?.team_name;
 
-          // Get all teams first
+          // Get all teams first (excluding Personal Bookings)
           const allTeamsResult = await pool.query(
-            `SELECT t.id, t.name 
-             FROM teams t 
-             WHERE t.owner_id = $1 
+            `SELECT t.id, t.name
+             FROM teams t
+             WHERE t.owner_id = $1
+               AND t.name NOT LIKE '%Personal Bookings%'
              ORDER BY t.name`,
             [userId]
           );
@@ -11005,11 +11009,13 @@ Say "Schedule with [team name]" to continue.`,
             });
           }
 
-          // Find the team
+          // Find the team (excluding Personal Bookings)
           const teamResult = await pool.query(
             `SELECT t.id, t.name, t.team_booking_token
              FROM teams t
-             WHERE t.owner_id = $1 AND LOWER(t.name) LIKE LOWER($2)
+             WHERE t.owner_id = $1
+               AND LOWER(t.name) LIKE LOWER($2)
+               AND t.name NOT LIKE '%Personal Bookings%'
              LIMIT 1`,
             [userId, `%${teamName}%`]
           );
@@ -13743,46 +13749,134 @@ app.post('/api/subscriptions/billing-portal', authenticateToken, async (req, res
     res.status(500).json({ error: 'Failed to create billing portal session' });
   }
 });
-// ✅ FIXED checkout endpoint - Replace in your server.js
-
+// Checkout endpoint with all pricing tiers
 app.post('/api/billing/create-checkout', authenticateToken, async (req, res) => {
   try {
     const { plan } = req.body;
     const userId = req.user.id;
-    
+
     console.log(`💳 Creating checkout session for user ${userId}, plan: ${plan}`);
-    
-    // Define plan details  
+
+    // Define plan details with limits from PRD
     const plans = {
-      pro: { price: 12, name: 'Pro Plan' },
-      team: { price: 25, name: 'Team Plan' }
+      starter: {
+        price: 8,
+        name: 'Starter Plan',
+        ai_queries_limit: 50,
+        bookings_limit: 200,
+        event_types_limit: 5,
+        magic_links_limit: 10,
+        quick_links_limit: 10
+      },
+      pro: {
+        price: 15,
+        name: 'Pro Plan',
+        ai_queries_limit: 250,
+        bookings_limit: 999999,
+        event_types_limit: 999999,
+        magic_links_limit: 999999,
+        quick_links_limit: 999999
+      },
+      team: {
+        price: 20,
+        name: 'Team Plan',
+        ai_queries_limit: 750,
+        bookings_limit: 999999,
+        event_types_limit: 999999,
+        magic_links_limit: 999999,
+        quick_links_limit: 999999
+      },
+      enterprise: {
+        price: 'custom',
+        name: 'Enterprise Plan',
+        ai_queries_limit: 999999,
+        bookings_limit: 999999,
+        event_types_limit: 999999,
+        magic_links_limit: 999999,
+        quick_links_limit: 999999
+      }
     };
-    
+
     const selectedPlan = plans[plan];
     if (!selectedPlan) {
       return res.status(400).json({ error: 'Invalid plan selected' });
     }
-    
-    // ✅ FIXED: Use 'tier' column (not 'subscription_tier') to match middleware
+
+    // For enterprise, redirect to contact sales
+    if (plan === 'enterprise') {
+      return res.json({
+        success: false,
+        contact_sales: true,
+        message: 'Please contact sales for Enterprise pricing'
+      });
+    }
+
+    // Map tiers to Stripe price IDs (when configured)
+    const STRIPE_PRICES = {
+      starter: process.env.STRIPE_STARTER_PRICE_ID,
+      pro: process.env.STRIPE_PRO_PRICE_ID,
+      team: process.env.STRIPE_TEAM_PRICE_ID
+    };
+
+    // If Stripe is configured with price IDs, create a real checkout session
+    if (stripe && STRIPE_PRICES[plan]) {
+      try {
+        const user = await pool.query('SELECT email, stripe_customer_id FROM users WHERE id = $1', [userId]);
+        const userEmail = user.rows[0]?.email;
+        const customerId = user.rows[0]?.stripe_customer_id;
+
+        const sessionParams = {
+          payment_method_types: ['card'],
+          line_items: [{
+            price: STRIPE_PRICES[plan],
+            quantity: 1
+          }],
+          mode: 'subscription',
+          success_url: `${process.env.CLIENT_URL || process.env.FRONTEND_URL}/settings?session_id={CHECKOUT_SESSION_ID}&upgraded=true`,
+          cancel_url: `${process.env.CLIENT_URL || process.env.FRONTEND_URL}/pricing`,
+          metadata: {
+            userId: userId.toString(),
+            tier: plan
+          }
+        };
+
+        if (customerId) {
+          sessionParams.customer = customerId;
+        } else {
+          sessionParams.customer_email = userEmail;
+        }
+
+        const session = await stripe.checkout.sessions.create(sessionParams);
+        return res.json({ url: session.url });
+      } catch (stripeError) {
+        console.log('Stripe checkout failed, falling back to dev mode:', stripeError.message);
+      }
+    }
+
+    // Dev mode: Immediate upgrade without Stripe
     await pool.query(
-      `UPDATE users 
-       SET tier = $1, 
+      `UPDATE users
+       SET tier = $1,
            subscription_tier = $1,
-           subscription_status = 'active', 
-           ai_queries_limit = 999999,
+           subscription_status = 'active',
+           ai_queries_limit = $2,
+           bookings_limit = $3,
+           event_types_limit = $4,
+           magic_links_limit = $5,
            ai_queries_used = 0
-       WHERE id = $2`,
-      [plan, userId]
+       WHERE id = $6`,
+      [plan, selectedPlan.ai_queries_limit, selectedPlan.bookings_limit,
+       selectedPlan.event_types_limit, selectedPlan.magic_links_limit, userId]
     );
-    
+
     console.log(`✅ User ${userId} upgraded to ${plan} plan`);
-    
+
     res.json({
       success: true,
-      checkout_url: `${process.env.CLIENT_URL || 'https://schedulesync-web-production.up.railway.app'}/billing?upgraded=true`,
+      checkout_url: `${process.env.CLIENT_URL || 'https://schedulesync-web-production.up.railway.app'}/settings?upgraded=true`,
       session_id: `sim_${Date.now()}`
     });
-    
+
   } catch (error) {
     console.error('❌ Checkout creation failed:', error);
     res.status(500).json({ error: 'Failed to create checkout session' });

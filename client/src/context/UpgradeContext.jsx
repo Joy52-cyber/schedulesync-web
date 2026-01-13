@@ -23,6 +23,8 @@ const defaultContextValue = {
   hasProFeature: () => false,
   hasTeamFeature: () => false,
   hasEnterpriseFeature: () => false,
+  handleUpgrade: () => {},
+  getRecommendedTier: () => 'pro',
   currentTier: 'free',
   usage: defaultUsage,
   loading: false,
@@ -149,18 +151,20 @@ export const UpgradeProvider = ({ children }) => {
 
   // Check if a feature requires upgrade based on tier
   const requiresUpgrade = useCallback((featureName) => {
-    switch (featureName) {
-      case 'branding':
-        return currentTier === 'free';
-      case 'templates':
-        return currentTier === 'free';
-      case 'teams':
-        return currentTier !== 'team';
-      case 'magic_links':
-        return currentTier === 'free';
-      default:
-        return false;
+    const starterFeatures = ['buffer_times', 'email_templates', 'templates'];
+    const proFeatures = ['branding', 'smart_rules', 'email_assistant', 'email'];
+    const teamFeatures = ['teams', 'autonomous', 'round_robin'];
+
+    if (starterFeatures.includes(featureName)) {
+      return !['starter', 'pro', 'team', 'enterprise'].includes(currentTier);
     }
+    if (proFeatures.includes(featureName)) {
+      return !['pro', 'team', 'enterprise'].includes(currentTier);
+    }
+    if (teamFeatures.includes(featureName)) {
+      return !['team', 'enterprise'].includes(currentTier);
+    }
+    return false;
   }, [currentTier]);
 
   // Check if a feature is at limit (or locked for tier)
@@ -175,11 +179,17 @@ export const UpgradeProvider = ({ children }) => {
       case 'magic_links':
         return usage.magic_links_limit < 1000 && usage.magic_links_used >= usage.magic_links_limit;
       case 'teams':
-        return currentTier !== 'team';
+      case 'autonomous':
+      case 'round_robin':
+        return !['team', 'enterprise'].includes(currentTier);
       case 'templates':
-        return currentTier === 'free';
+      case 'buffer_times':
+      case 'email_templates':
+        return !['starter', 'pro', 'team', 'enterprise'].includes(currentTier);
       case 'branding':
-        return currentTier === 'free';
+      case 'smart_rules':
+      case 'email_assistant':
+        return !['pro', 'team', 'enterprise'].includes(currentTier);
       default:
         return false;
     }
@@ -205,6 +215,63 @@ export const UpgradeProvider = ({ children }) => {
     return currentTier === 'enterprise';
   }, [currentTier]);
 
+  // Get recommended tier based on feature
+  const getRecommendedTier = useCallback((feature) => {
+    const featureTiers = {
+      'buffer_times': 'starter',
+      'email_templates': 'starter',
+      'smart_rules': 'pro',
+      'email_assistant': 'pro',
+      'email': 'pro',
+      'branding': 'pro',
+      'teams': 'team',
+      'autonomous': 'team',
+      'round_robin': 'team',
+      'ai_queries': currentTier === 'free' ? 'starter' : 'pro',
+      'bookings': currentTier === 'free' ? 'starter' : 'pro',
+      'event_types': currentTier === 'free' ? 'starter' : 'pro',
+      'magic_links': currentTier === 'free' ? 'starter' : 'pro',
+    };
+    return featureTiers[feature] || 'pro';
+  }, [currentTier]);
+
+  // Handle upgrade to a specific tier
+  const handleUpgrade = useCallback(async (tier) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        window.location.href = '/login?redirect=/pricing';
+        return;
+      }
+
+      const response = await fetch('/api/billing/create-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ plan: tier })
+      });
+
+      const data = await response.json();
+
+      if (data.url) {
+        // Stripe checkout URL
+        window.location.href = data.url;
+      } else if (data.checkout_url) {
+        // Success redirect
+        window.location.href = data.checkout_url;
+      } else if (data.success) {
+        // Immediate upgrade (dev mode)
+        fetchUsage();
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('Upgrade error:', error);
+      throw error;
+    }
+  }, []);
+
   const value = {
     showUpgradeModal,
     closeUpgradeModal,
@@ -214,6 +281,8 @@ export const UpgradeProvider = ({ children }) => {
     hasProFeature,
     hasTeamFeature,
     hasEnterpriseFeature,
+    handleUpgrade,
+    getRecommendedTier,
     currentTier,
     usage,
     loading,

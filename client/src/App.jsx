@@ -43,6 +43,7 @@ import EmailAnalyzer from './pages/EmailAnalyzer';
 import MyLinks from './pages/MyLinks';
 import BillingSettings from './pages/BillingSettings';
 import BillingPage from './pages/BillingPage';
+import Pricing from './pages/Pricing';
 
 // Team
 import Teams from './pages/Teams';
@@ -108,6 +109,7 @@ function InnerApp() {
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/about" element={<About />} />
+              <Route path="/pricing" element={<Pricing />} />
 
               {/* OAuth Callbacks */}
               <Route path="/oauth/callback" element={<LoginWrapper Component={OAuthCallback} />} />
