@@ -19,8 +19,10 @@ const defaultContextValue = {
   closeUpgradeModal: () => {},
   isAtLimit: () => false,
   requiresUpgrade: () => false,
+  hasStarterFeature: () => false,
   hasProFeature: () => false,
   hasTeamFeature: () => false,
+  hasEnterpriseFeature: () => false,
   currentTier: 'free',
   usage: defaultUsage,
   loading: false,
@@ -183,14 +185,24 @@ export const UpgradeProvider = ({ children }) => {
     }
   }, [usage, currentTier]);
 
-  // Check if user has access to Pro features (Pro or Team tier)
-  const hasProFeature = useCallback(() => {
-    return currentTier === 'pro' || currentTier === 'team';
+  // Check if user has access to Starter features (Starter, Pro, Team, or Enterprise)
+  const hasStarterFeature = useCallback(() => {
+    return ['starter', 'pro', 'team', 'enterprise'].includes(currentTier);
   }, [currentTier]);
 
-  // Check if user has access to Team features
+  // Check if user has access to Pro features (Pro, Team, or Enterprise)
+  const hasProFeature = useCallback(() => {
+    return ['pro', 'team', 'enterprise'].includes(currentTier);
+  }, [currentTier]);
+
+  // Check if user has access to Team features (Team or Enterprise)
   const hasTeamFeature = useCallback(() => {
-    return currentTier === 'team';
+    return ['team', 'enterprise'].includes(currentTier);
+  }, [currentTier]);
+
+  // Check if user has access to Enterprise features
+  const hasEnterpriseFeature = useCallback(() => {
+    return currentTier === 'enterprise';
   }, [currentTier]);
 
   const value = {
@@ -198,8 +210,10 @@ export const UpgradeProvider = ({ children }) => {
     closeUpgradeModal,
     isAtLimit,
     requiresUpgrade,
+    hasStarterFeature,
     hasProFeature,
     hasTeamFeature,
+    hasEnterpriseFeature,
     currentTier,
     usage,
     loading,

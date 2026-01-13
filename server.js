@@ -546,8 +546,8 @@ app.put('/api/user/branding', authenticateToken, async (req, res) => {
       [req.user.id]
     );
     const tier = userResult.rows[0]?.subscription_tier || 'free';
-    if (tier === 'free') {
-      return res.status(403).json({ error: 'Custom branding requires Pro or Team plan' });
+    if (!['pro', 'team', 'enterprise'].includes(tier)) {
+      return res.status(403).json({ error: 'Custom branding requires Pro plan or higher' });
     }
 
     const { brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by } = req.body;
@@ -581,10 +581,10 @@ app.post('/api/user/branding/logo', authenticateToken, logoUpload.single('logo')
       [req.user.id]
     );
     const tier = userResult.rows[0]?.subscription_tier || 'free';
-    
-    if (tier === 'free') {
+
+    if (!['pro', 'team', 'enterprise'].includes(tier)) {
       if (req.file) fs.unlinkSync(req.file.path);
-      return res.status(403).json({ error: 'Custom branding requires Pro or Team plan' });
+      return res.status(403).json({ error: 'Custom branding requires Pro plan or higher' });
     }
 
     if (!req.file) {
@@ -668,36 +668,39 @@ const checkUsageLimits = async (req, res, next) => {
     // Usage limits by tier
     const usageLimits = {
       free: { ai: 10, bookings: 50 },
-      pro: { ai: -1, bookings: -1 },      // -1 = unlimited
-      team: { ai: -1, bookings: -1 }
+      starter: { ai: 50, bookings: 200 },
+      pro: { ai: 250, bookings: -1 },     // -1 = unlimited
+      team: { ai: 750, bookings: -1 },
+      enterprise: { ai: -1, bookings: -1 }
     };
     
     const currentLimits = usageLimits[tier] || usageLimits.free;
-    const isUnlimited = tier === 'pro' || tier === 'team';
-    
+    const hasUnlimitedAI = tier === 'enterprise';
+    const hasUnlimitedBookings = ['pro', 'team', 'enterprise'].includes(tier);
+
     // Check what feature is being accessed
     const endpoint = req.route?.path || req.path;
-    
+
     // AI usage check
-    if (endpoint.includes('/ai/') && !isUnlimited) {
+    if (endpoint.includes('/ai/') && !hasUnlimitedAI) {
       const used = user.ai_queries_used || 0;
       const limit = user.ai_queries_limit || currentLimits.ai;
-      
-      if (used >= limit) {
-        return res.status(402).json({ 
+
+      if (limit > 0 && used >= limit) {
+        return res.status(402).json({
           error: 'AI limit reached',
           type: 'usage_limit_exceeded',
           feature: 'ai',
           usage: { used, limit },
           tier: tier,
           upgrade_required: true,
-          message: `You've used all ${limit} AI queries this month. Upgrade to Pro for unlimited AI assistance!`
+          message: `You've used all ${limit} AI queries this month. Upgrade for more AI assistance!`
         });
       }
     }
-    
+
     // Booking creation check
-    if ((endpoint.includes('/bookings') && req.method === 'POST') && !isUnlimited) {
+    if ((endpoint.includes('/bookings') && req.method === 'POST') && !hasUnlimitedBookings) {
       const bookingsUsed = user.monthly_bookings || 0;
       
       if (bookingsUsed >= currentLimits.bookings) {
@@ -7635,12 +7638,12 @@ app.post('/api/magic-links', authenticateToken, async (req, res) => {
     const tier = userLimits?.subscription_tier || 'free';
     const magicLinksUsed = userLimits?.magic_links_used || 0;
     const magicLinksLimit = userLimits?.magic_links_limit || 3;
-    const isUnlimited = tier === 'pro' || tier === 'team' || magicLinksLimit >= 1000;
-    
+    const isUnlimited = ['pro', 'team', 'enterprise'].includes(tier) || magicLinksLimit >= 1000;
+
     if (!isUnlimited && magicLinksUsed >= magicLinksLimit) {
       return res.status(403).json({ error: 'Magic link limit reached', upgrade_required: true });
     }
-    
+
     const magicToken = crypto.randomBytes(16).toString('hex');
 
     // Handle expiration - null means never expires
@@ -9232,9 +9235,9 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
       [userId]
     );
     
-    // Active teams - Only for Team tier, exclude personal booking teams
+    // Active teams - Only for Team or Enterprise tier, exclude personal booking teams
     let activeTeamsCount = 0;
-    if (tier === 'team') {
+    if (['team', 'enterprise'].includes(tier)) {
       const teamsResult = await pool.query(
         `SELECT COUNT(*) as count
          FROM teams
@@ -13487,8 +13490,8 @@ app.get('/api/user/usage', authenticateToken, async (req, res) => {
     
     const user = userResult.rows[0];
     const tier = user.subscription_tier || 'free';
-    const isUnlimited = tier === 'pro' || tier === 'team';
-    
+    const isUnlimited = ['pro', 'team', 'enterprise'].includes(tier);
+
     // Count event types
     const eventTypesResult = await pool.query(
       'SELECT COUNT(*) as count FROM event_types WHERE user_id = $1',
@@ -14998,12 +15001,12 @@ app.post('/api/magic-links', authenticateToken, async (req, res) => {
     const tier = userLimits?.subscription_tier || 'free';
     const magicLinksUsed = userLimits?.magic_links_used || 0;
     const magicLinksLimit = userLimits?.magic_links_limit || 3;
-    const isUnlimited = tier === 'pro' || tier === 'team' || magicLinksLimit >= 1000;
-    
+    const isUnlimited = ['pro', 'team', 'enterprise'].includes(tier) || magicLinksLimit >= 1000;
+
     if (!isUnlimited && magicLinksUsed >= magicLinksLimit) {
       return res.status(403).json({ error: 'Magic link limit reached', upgrade_required: true });
     }
-    
+
     const magicToken = crypto.randomBytes(16).toString('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);

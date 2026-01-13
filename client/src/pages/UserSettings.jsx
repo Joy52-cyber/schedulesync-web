@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useNotification } from '../contexts/NotificationContext';
 import {
   User,
@@ -42,6 +42,7 @@ import BrandingSettings from '../components/BrandingSettings';
 
 export default function UserSettings() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const notify = useNotification();
 
   const [loading, setLoading] = useState(true);
@@ -746,7 +747,7 @@ export default function UserSettings() {
                           </div>
                         </div>
                       </div>
-                      <button onClick={() => window.location.href = '/import/calendly'} className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-medium flex items-center justify-center gap-2 w-full sm:w-auto">
+                      <button onClick={() => navigate('/import/calendly')} className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-medium flex items-center justify-center gap-2 w-full sm:w-auto">
                         <Upload className="h-4 w-4" />Start Import
                       </button>
                     </div>
@@ -825,7 +826,7 @@ export default function UserSettings() {
                 <h2 className="text-xl font-bold text-gray-900 mb-2">Email Templates</h2>
                 <p className="text-gray-600 mb-6">Customize confirmation, reminder, and cancellation emails</p>
                 <button
-                  onClick={() => window.location.href = '/templates'}
+                  onClick={() => navigate('/templates')}
                   className="px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700"
                 >
                   Manage Templates
