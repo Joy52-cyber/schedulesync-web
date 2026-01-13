@@ -162,7 +162,7 @@ export default function MyLinks() {
         member_ids: selectedMembers.map(m => m.id),
         scheduling_mode: schedulingMode,
         usage_limit: usageLimit === 'unlimited' ? null : parseInt(usageLimit),
-        expires_in_days: parseInt(expiresInDays)
+        expires_in_days: expiresInDays === 'never' ? 'never' : parseInt(expiresInDays)
       };
       
       await api.post('/magic-links', payload);
@@ -208,26 +208,56 @@ export default function MyLinks() {
     }
   };
 
+  // Helper to format expiration status with color-coded badges
+  const formatExpiration = (expiresAt) => {
+    if (!expiresAt) return { text: 'Never expires', color: 'green' };
+    const now = new Date();
+    const expires = new Date(expiresAt);
+    const diffDays = Math.ceil((expires - now) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return { text: 'Expired', color: 'red' };
+    if (diffDays === 0) return { text: 'Expires today', color: 'orange' };
+    if (diffDays === 1) return { text: 'Expires tomorrow', color: 'orange' };
+    if (diffDays <= 3) return { text: `Expires in ${diffDays} days`, color: 'yellow' };
+    return { text: `Expires in ${diffDays} days`, color: 'gray' };
+  };
+
   const getMagicLinkStatus = (link) => {
     const now = new Date();
-    const expiresAt = new Date(link.expires_at);
-    
+
+    // Check if used/exhausted first
     if (link.is_used && link.usage_limit === 1) {
       return { label: 'Used', color: 'bg-gray-100 text-gray-600', icon: CheckCircle2 };
     }
-    if (link.is_exhausted) {
+    if (link.is_exhausted || (link.usage_limit && link.usage_count >= link.usage_limit)) {
       return { label: 'Exhausted', color: 'bg-gray-100 text-gray-600', icon: CheckCircle2 };
     }
-    if (link.is_expired || expiresAt < now) {
-      return { label: 'Expired', color: 'bg-red-100 text-red-600', icon: XCircle };
+
+    // Check expiration (handle null = never expires)
+    if (link.expires_at) {
+      const expiresAt = new Date(link.expires_at);
+      if (link.is_expired || expiresAt < now) {
+        return { label: 'Expired', color: 'bg-red-100 text-red-600', icon: XCircle };
+      }
     }
-    
-    const daysRemaining = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
+
+    // Active link - show expiration status
+    const expiration = formatExpiration(link.expires_at);
     const usageText = link.usage_limit ? `${link.usage_count}/${link.usage_limit}` : '∞';
-    return { 
-      label: `Active (${daysRemaining}d, ${usageText})`, 
-      color: 'bg-green-100 text-green-600', 
-      icon: Clock 
+
+    // Color based on expiration urgency
+    let statusColor = 'bg-green-100 text-green-600';
+    if (expiration.color === 'orange') {
+      statusColor = 'bg-orange-100 text-orange-600';
+    } else if (expiration.color === 'yellow') {
+      statusColor = 'bg-yellow-100 text-yellow-700';
+    }
+
+    return {
+      label: `Active (${usageText})`,
+      color: statusColor,
+      icon: Clock,
+      expiration: expiration
     };
   };
 
@@ -587,7 +617,7 @@ export default function MyLinks() {
                     <div>
                       <label className="block text-xs font-medium text-purple-700 mb-1">
                         <Calendar className="h-3 w-3 inline mr-1" />
-                        Expires In
+                        Link Expiration
                       </label>
                       <select
                         value={expiresInDays}
@@ -595,11 +625,15 @@ export default function MyLinks() {
                         className="w-full px-3 py-2 bg-white border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                       >
                         <option value="1">1 day</option>
-                        <option value="7">7 days</option>
+                        <option value="3">3 days</option>
+                        <option value="7">7 days (recommended)</option>
                         <option value="14">14 days</option>
                         <option value="30">30 days</option>
-                        <option value="90">90 days</option>
+                        <option value="never">Never expires</option>
                       </select>
+                      <p className="text-xs text-purple-500 mt-1">
+                        Link will automatically expire after this period
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -653,7 +687,10 @@ export default function MyLinks() {
               {magicLinks.map((link) => {
                 const status = getMagicLinkStatus(link);
                 const StatusIcon = status.icon;
-                const isActive = !link.is_used && !link.is_expired && !link.is_exhausted;
+                // Check if link is active: not used, not exhausted, and not expired
+                const isExpired = link.is_expired || (link.expires_at && new Date(link.expires_at) < new Date());
+                const isExhausted = link.is_exhausted || (link.usage_limit && link.usage_count >= link.usage_limit);
+                const isActive = !link.is_used && !isExpired && !isExhausted;
 
                 return (
                   <div
@@ -667,11 +704,23 @@ export default function MyLinks() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         {/* Link Name & Status */}
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center flex-wrap gap-2 mb-2">
                           <span className={`px-2 py-0.5 rounded-lg ${status.color} text-xs font-medium flex items-center gap-1`}>
                             <StatusIcon className="h-3 w-3" />
                             {status.label}
                           </span>
+                          {/* Expiration Badge */}
+                          {status.expiration && (
+                            <span className={`px-2 py-0.5 rounded-lg text-xs font-medium ${
+                              status.expiration.color === 'green' ? 'bg-green-100 text-green-700' :
+                              status.expiration.color === 'red' ? 'bg-red-100 text-red-600 line-through' :
+                              status.expiration.color === 'orange' ? 'bg-orange-100 text-orange-700' :
+                              status.expiration.color === 'yellow' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {status.expiration.text}
+                            </span>
+                          )}
                           {link.scheduling_mode && link.scheduling_mode !== 'collective' && (
                             <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium">
                               {link.scheduling_mode}
