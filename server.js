@@ -9174,11 +9174,54 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
       case 'charge.refunded':
         // Refund processed
         const refund = event.data.object;
-        console.log('?? Refund processed:', refund.id);
+        console.log('🔄 Refund processed:', refund.id);
         break;
 
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        const userId = session.metadata?.userId;
+        const tier = session.metadata?.tier;
+
+        if (userId && tier) {
+          await pool.query(
+            `UPDATE users SET subscription_tier = $1, stripe_customer_id = $2, updated_at = NOW() WHERE id = $3`,
+            [tier, session.customer, userId]
+          );
+          console.log(`✅ User ${userId} upgraded to ${tier} via Stripe checkout`);
+        }
+        break;
+      }
+
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object;
+        const customerId = subscription.customer;
+
+        // Find user by stripe_customer_id and update status
+        const status = subscription.status;
+        if (status === 'canceled' || status === 'unpaid') {
+          await pool.query(
+            `UPDATE users SET subscription_tier = 'free' WHERE stripe_customer_id = $1`,
+            [customerId]
+          );
+          console.log(`⚠️ Subscription ${status} for customer ${customerId}, downgraded to free`);
+        }
+        break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object;
+        const customerId = subscription.customer;
+
+        await pool.query(
+          `UPDATE users SET subscription_tier = 'free' WHERE stripe_customer_id = $1`,
+          [customerId]
+        );
+        console.log(`🗑️ Subscription deleted for customer ${customerId}, downgraded to free`);
+        break;
+      }
+
       default:
-        console.log('?? Unhandled event type:', event.type);
+        console.log('📌 Unhandled event type:', event.type);
     }
 
     res.json({ received: true });
@@ -13837,6 +13880,12 @@ app.post('/api/billing/create-checkout', authenticateToken, async (req, res) => 
           metadata: {
             userId: userId.toString(),
             tier: plan
+          },
+          subscription_data: {
+            metadata: {
+              userId: userId.toString(),
+              tier: plan
+            }
           }
         };
 
