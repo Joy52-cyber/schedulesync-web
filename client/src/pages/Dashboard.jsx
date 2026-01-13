@@ -24,6 +24,7 @@ import {
   Sparkles,
   Share2,
   Video,
+  Check,
 } from 'lucide-react';
 
 import api, {
@@ -54,11 +55,11 @@ export default function Dashboard() {
   const [eventTypes, setEventTypes] = useState([]);
   const [upcomingWeek, setUpcomingWeek] = useState([]);
   const [nextMeeting, setNextMeeting] = useState(null);
-  const [bookingTrends, setBookingTrends] = useState([3, 5, 8, 12, 18, 15, 10]);
   const [loading, setLoading] = useState(true);
   const [timezone, setTimezone] = useState('');
   const [user, setUser] = useState(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   
   const [limitStatus, setLimitStatus] = useState({
     tier: 'free',
@@ -141,7 +142,6 @@ export default function Dashboard() {
             title: `Meeting with ${upcoming.attendee_name}`,
             time: minutesUntil,
             startTime: upcoming.start_time,
-            // FIX: Use meet_link (database field name), not meeting_link
             link: upcoming.meet_link || null
           });
         }
@@ -152,16 +152,16 @@ export default function Dashboard() {
     }
   };
 
- const loadEventTypes = async () => {
-  try {
-    const response = await api.eventTypes.getAll();
-    const types = response.data.eventTypes || response.data || [];
-    setEventTypes(types.slice(0, 5)); // Show top 5
-  } catch (error) {
-    console.error('Event types load error:', error);
-    setEventTypes([]); // Set empty array on error
-  }
-};
+  const loadEventTypes = async () => {
+    try {
+      const response = await api.eventTypes.getAll();
+      const types = response.data.eventTypes || response.data || [];
+      setEventTypes(types.slice(0, 5));
+    } catch (error) {
+      console.error('Event types load error:', error);
+      setEventTypes([]);
+    }
+  };
 
   const loadUserTimezone = async () => {
     try {
@@ -198,10 +198,6 @@ export default function Dashboard() {
         usage: {
           ai_queries_used: usageResponse.data.ai_queries_used,
           ai_queries_limit: usageResponse.data.ai_queries_limit,
-          chatgpt_used: usageResponse.data.ai_queries_used,
-          chatgpt_limit: usageResponse.data.ai_queries_limit,
-          chatgpt_queries_used: usageResponse.data.ai_queries_used,
-          chatgpt_queries_limit: usageResponse.data.ai_queries_limit
         }
       }));
       
@@ -217,10 +213,6 @@ export default function Dashboard() {
       setLimitStatus(response.data);
     } catch (error) {
       console.error('Limit status load error:', error);
-      setLimitStatus(prev => ({
-        ...prev,
-        current_bookings: stats.totalBookings,
-      }));
     }
   };
 
@@ -231,6 +223,19 @@ export default function Dashboard() {
     } catch (error) {
       setChatgptConfigured(false);
     }
+  };
+
+  const handleShareCalendar = () => {
+    if (!user?.username) {
+      notify.error('Please set your username in Settings first');
+      navigate('/settings');
+      return;
+    }
+    const link = `${window.location.origin}/${user.username}`;
+    navigator.clipboard.writeText(link);
+    setCopiedLink(true);
+    notify.success('Calendar link copied!');
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const getTimezoneName = (tz) => {
@@ -274,8 +279,6 @@ export default function Dashboard() {
     green: 'bg-green-500',
     pink: 'bg-pink-500',
     orange: 'bg-orange-500',
-    red: 'bg-red-500',
-    yellow: 'bg-yellow-500',
   };
 
   const getEventColor = (index) => {
@@ -293,19 +296,16 @@ export default function Dashboard() {
         <div className="bg-gradient-to-r from-red-600 to-red-700 text-white p-4 rounded-xl mb-6 border-2 border-red-400 animate-pulse">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                ⛔ Account Limited - Immediate Action Required
-              </h3>
+              <h3 className="font-bold text-lg">⛔ Account Limited</h3>
               <p className="text-red-100">
-                You've used {current_bookings}/{limits.grace} bookings and exceeded your grace period. 
-                New bookings are blocked and AI scheduling is disabled.
+                You've exceeded your booking limit. New bookings are blocked.
               </p>
             </div>
             <button 
               onClick={() => navigate('/billing')}
-              className="bg-white text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-50 transition-colors"
+              className="bg-white text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-50"
             >
-              🚨 Upgrade Now
+              Upgrade Now
             </button>
           </div>
         </div>
@@ -317,19 +317,16 @@ export default function Dashboard() {
         <div className="bg-gradient-to-r from-orange-500 to-yellow-500 text-white p-4 rounded-xl mb-6 border-2 border-orange-400">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                ⚠️ Over Booking Limit - Grace Period Active
-              </h3>
+              <h3 className="font-bold text-lg">⚠️ Over Booking Limit</h3>
               <p className="text-orange-100">
-                You've exceeded your {limits.soft} booking limit ({current_bookings}/{limits.grace}). 
-                AI scheduling is now disabled. Only {limits.grace - current_bookings} bookings remaining before account suspension.
+                Grace period active. {limits.grace - current_bookings} bookings remaining.
               </p>
             </div>
             <button 
               onClick={() => navigate('/billing')}
-              className="bg-white text-orange-600 px-4 py-2 rounded-lg font-bold hover:bg-orange-50 transition-colors"
+              className="bg-white text-orange-600 px-4 py-2 rounded-lg font-bold"
             >
-              ⚡ Upgrade to Pro
+              Upgrade to Pro
             </button>
           </div>
         </div>
@@ -352,10 +349,10 @@ export default function Dashboard() {
 
   const currentTier = limitStatus?.tier || user?.subscription_tier || user?.tier || 'free';
   const usage = user?.usage || { ai_queries_used: 0, ai_queries_limit: 10 };
-  const bookingCount = limitStatus?.current_bookings || stats.totalBookings;
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30">
+      {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm">
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -366,17 +363,15 @@ export default function Dashboard() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
                 <p className="text-gray-500 text-sm">
-                  Welcome back{user?.name ? `, ${user.name}` : ''}! Here&apos;s what&apos;s happening today.
+                  Welcome back{user?.name ? `, ${user.name}` : ''}!
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               <WalkthroughButton onClick={startWalkthrough} />
 
-              {/* AI Scheduler Button */}
               <button
                 onClick={() => {
-                  // Trigger AI chat to open
                   const event = new CustomEvent('openAIChat');
                   window.dispatchEvent(event);
                 }}
@@ -390,7 +385,6 @@ export default function Dashboard() {
               </button>
 
               <button
-                data-walkthrough="availability-btn"
                 onClick={() => navigate('/availability')}
                 className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all font-semibold flex items-center gap-2 shadow-sm"
               >
@@ -398,28 +392,10 @@ export default function Dashboard() {
                 Availability
               </button>
 
-              {chatgptConfigured ? (
-                <button
-                  onClick={() => navigate('/settings?tab=integrations')}
-                  className="px-3 py-2 bg-purple-100 text-purple-700 rounded-xl hover:bg-purple-200 transition-all text-sm font-medium flex items-center gap-2"
-                >
-                  <Bot className="h-4 w-4" />
-                  ChatGPT ✓
-                </button>
-              ) : (
-                <button
-                  onClick={() => navigate('/settings?tab=integrations')}
-                  className="px-3 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-all text-sm font-medium flex items-center gap-2"
-                >
-                  <Settings className="h-4 w-4" />
-                  Setup ChatGPT
-                </button>
-              )}
-
               {(currentTier === 'pro' || currentTier === 'team') && (
                 <button
                   onClick={() => navigate('/billing')}
-                  className="px-3 py-2 bg-green-100 text-green-700 rounded-xl hover:bg-green-200 transition-all text-sm font-medium flex items-center gap-2"
+                  className="px-3 py-2 bg-green-100 text-green-700 rounded-xl text-sm font-medium flex items-center gap-2"
                 >
                   <CreditCard className="h-4 w-4" />
                   {currentTier === 'pro' ? 'Pro' : 'Team'} ✓
@@ -443,7 +419,49 @@ export default function Dashboard() {
             
             <LimitWarningBanner />
 
-            {/* Urgent Next Meeting Banner - Shows when meeting is within 30 minutes */}
+            {/* QUICK ACTIONS - NOW AT TOP */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <button 
+                onClick={handleShareCalendar}
+                className="flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all text-left"
+              >
+                <div className="w-12 h-12 bg-purple-600 rounded-xl flex items-center justify-center">
+                  {copiedLink ? <Check className="w-6 h-6 text-white" /> : <Share2 className="w-6 h-6 text-white" />}
+                </div>
+                <div>
+                  <div className="font-bold text-gray-900">{copiedLink ? 'Copied!' : 'Share Calendar'}</div>
+                  <div className="text-sm text-gray-500">Copy your booking link</div>
+                </div>
+              </button>
+
+              <button 
+                onClick={() => navigate('/my-links')}
+                className="flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-amber-300 hover:shadow-md transition-all text-left"
+              >
+                <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <div className="font-bold text-gray-900">Quick Link</div>
+                  <div className="text-sm text-gray-500">Create instant booking link</div>
+                </div>
+              </button>
+
+              <button 
+                onClick={() => navigate('/events/new')}
+                className="flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-green-300 hover:shadow-md transition-all text-left"
+              >
+                <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center">
+                  <Plus className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <div className="font-bold text-gray-900">New Event Type</div>
+                  <div className="text-sm text-gray-500">Create a booking type</div>
+                </div>
+              </button>
+            </div>
+
+            {/* Urgent Next Meeting Banner */}
             {nextMeeting && nextMeeting.time <= 30 && (
               <div className={`rounded-xl p-6 border-2 ${
                 nextMeeting.time <= 5
@@ -452,28 +470,23 @@ export default function Dashboard() {
               }`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                      nextMeeting.time <= 5 ? 'bg-white/20' : 'bg-white/20'
-                    }`}>
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center bg-white/20">
                       <Video className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-bold text-white/90">
-                          {nextMeeting.time <= 5 ? '🔴 STARTING NOW!' : '⏰ NEXT MEETING'}
-                        </span>
-                      </div>
+                      <span className="text-sm font-bold text-white/90">
+                        {nextMeeting.time <= 5 ? '🔴 STARTING NOW!' : '⏰ NEXT MEETING'}
+                      </span>
                       <h3 className="text-xl font-bold text-white">{nextMeeting.title}</h3>
                       <p className="text-sm text-white/80">
                         {nextMeeting.time <= 5 ? 'Join immediately!' : `Starts in ${nextMeeting.time} minutes`}
                       </p>
                     </div>
                   </div>
-                  {/* FIX: Check for truthy link value */}
                   {nextMeeting.link ? (
                     <button
                       onClick={() => window.open(nextMeeting.link, '_blank')}
-                      className="flex items-center gap-2 px-6 py-3 bg-white text-gray-900 rounded-lg font-bold hover:bg-gray-100 transition-all shadow-lg"
+                      className="flex items-center gap-2 px-6 py-3 bg-white text-gray-900 rounded-lg font-bold hover:bg-gray-100 shadow-lg"
                     >
                       <Video className="w-5 h-5" />
                       Join Now
@@ -481,7 +494,7 @@ export default function Dashboard() {
                   ) : (
                     <button
                       onClick={() => navigate('/bookings')}
-                      className="flex items-center gap-2 px-6 py-3 bg-white/20 text-white rounded-lg font-bold hover:bg-white/30 transition-all"
+                      className="flex items-center gap-2 px-6 py-3 bg-white/20 text-white rounded-lg font-bold hover:bg-white/30"
                     >
                       <Calendar className="w-5 h-5" />
                       View Details
@@ -508,11 +521,10 @@ export default function Dashboard() {
                       </span>
                     </div>
                     <button 
-                      onClick={() => navigate('/events/new')}
-                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-all"
+                      onClick={() => navigate('/events')}
+                      className="text-sm font-medium text-purple-600 hover:text-purple-700 flex items-center gap-1"
                     >
-                      <Plus className="w-4 h-4" />
-                      New Event
+                      View All <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
 
@@ -544,7 +556,7 @@ export default function Dashboard() {
                               </div>
                             </div>
                             <button 
-                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 transition-opacity"
+                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 navigate(`/events/${event.id}/edit`);
@@ -560,7 +572,11 @@ export default function Dashboard() {
                               className="text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const link = `${window.location.origin}/${user?.username || 'user'}/${event.slug || event.id}`;
+                                if (!user?.username) {
+                                  notify.error('Please set your username in Settings');
+                                  return;
+                                }
+                                const link = `${window.location.origin}/${user.username}/${event.slug || event.id}`;
                                 navigator.clipboard.writeText(link);
                                 notify.success('Link copied!');
                               }}
@@ -571,126 +587,96 @@ export default function Dashboard() {
                           </div>
                         </div>
                       ))}
-
-                      <div 
-                        onClick={() => navigate('/events')}
-                        className="p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all cursor-pointer flex flex-col items-center justify-center text-center"
-                      >
-                        <ExternalLink className="w-6 h-6 text-gray-400 mb-2" />
-                        <span className="text-sm font-medium text-gray-600">View All Event Types</span>
-                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* Booking Stats Summary */}
+                {/* MERGED: Bookings Section (Stats + List) */}
                 <div className="bg-white rounded-xl p-6 border border-gray-200">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
                       <BarChart3 className="w-5 h-5 text-gray-600" />
-                      <h2 className="text-lg font-bold text-gray-900">Booking Overview</h2>
+                      <h2 className="text-lg font-bold text-gray-900">Bookings</h2>
                     </div>
+                    <button
+                      onClick={() => navigate('/bookings')}
+                      className="text-sm font-medium text-purple-600 hover:text-purple-700 flex items-center gap-1"
+                    >
+                      View All <ChevronRight className="h-4 w-4" />
+                    </button>
                   </div>
 
-                  <div className="flex items-end justify-between h-32 gap-2 mb-6">
-                    {bookingTrends.map((height, idx) => (
-                      <div key={idx} className="flex-1 flex flex-col items-center gap-2">
-                        <div 
-                          className="w-full bg-gradient-to-t from-purple-600 to-pink-600 rounded-t-lg transition-all hover:opacity-80"
-                          style={{ height: `${(height / Math.max(...bookingTrends)) * 100}%` }}
-                        />
-                        <span className="text-xs text-gray-500">
-                          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][idx]}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200">
-                    <div>
-                      <div className="text-2xl font-bold text-gray-900">{stats.totalBookings}</div>
-                      <div className="text-sm text-gray-500">Total bookings</div>
+                  {/* Stats Row */}
+                  <div className="grid grid-cols-3 gap-4 mb-6 pb-6 border-b border-gray-200">
+                    <div className="text-center p-4 bg-gray-50 rounded-xl">
+                      <div className="text-3xl font-bold text-gray-900">{stats.totalBookings}</div>
+                      <div className="text-sm text-gray-500">Total</div>
                     </div>
-                    <div>
-                      <div className="text-2xl font-bold text-gray-900">{stats.upcomingBookings}</div>
+                    <div className="text-center p-4 bg-blue-50 rounded-xl">
+                      <div className="text-3xl font-bold text-blue-600">{stats.upcomingBookings}</div>
                       <div className="text-sm text-gray-500">Upcoming</div>
                     </div>
-                    <div>
-                      <div className="text-2xl font-bold text-gray-900">{stats.confirmationRate}%</div>
-                      <div className="text-sm text-gray-500">Confirmation rate</div>
+                    <div className="text-center p-4 bg-green-50 rounded-xl">
+                      <div className="text-3xl font-bold text-green-600">{stats.confirmationRate}%</div>
+                      <div className="text-sm text-gray-500">Confirmed</div>
                     </div>
                   </div>
-                </div>
 
-                {/* Recent Bookings */}
-                <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xl font-bold text-gray-900">Recent Bookings</h3>
-                      <button
-                        onClick={() => navigate('/bookings')}
-                        className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all font-semibold text-sm flex items-center gap-1"
-                      >
-                        View All <ChevronRight className="h-4 w-4" />
-                      </button>
+                  {/* Bookings List */}
+                  {recentBookings.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500 font-medium">No bookings yet</p>
+                      <p className="text-gray-400 text-sm mt-1">Share your booking link to get started</p>
                     </div>
-
-                    {recentBookings.length === 0 ? (
-                      <div className="text-center py-10">
-                        <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                        <p className="text-gray-500 font-medium">No bookings yet</p>
-                        <p className="text-gray-400 text-sm mt-1">Share your booking link to get started</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {recentBookings.slice(0, 5).map((booking) => (
-                          <div
-                            key={booking.id}
-                            className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-blue-300 transition-all cursor-pointer"
-                            onClick={() => navigate('/bookings')}
-                          >
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md">
-                                {booking.attendee_name?.charAt(0)?.toUpperCase() || 'G'}
+                  ) : (
+                    <div className="space-y-3">
+                      {recentBookings.slice(0, 5).map((booking) => (
+                        <div
+                          key={booking.id}
+                          className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-blue-300 transition-all cursor-pointer"
+                          onClick={() => navigate('/bookings')}
+                        >
+                          <div className="flex items-center gap-4 flex-1 min-w-0">
+                            <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md">
+                              {booking.attendee_name?.charAt(0)?.toUpperCase() || 'G'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="text-gray-900 font-bold truncate">{booking.attendee_name}</p>
+                                <span className={`text-xs font-semibold px-2 py-1 rounded-full border flex items-center gap-1 ${getStatusColor(booking.status)}`}>
+                                  {getStatusIcon(booking.status)} {booking.status}
+                                </span>
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <p className="text-gray-900 font-bold truncate">{booking.attendee_name}</p>
-                                  <span className={`text-xs font-semibold px-2 py-1 rounded-full border flex items-center gap-1 ${getStatusColor(booking.status)}`}>
-                                    {getStatusIcon(booking.status)} {booking.status}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2 text-gray-600 text-sm">
-                                  <span className="flex items-center gap-1">
-                                    <Calendar className="h-3 w-3" />
-                                    {new Date(booking.start_time).toLocaleDateString()}
-                                  </span>
-                                  <span className="text-gray-400">•</span>
-                                  <span>{new Date(booking.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
-                                  {/* Show join link if available and upcoming */}
-                                  {booking.meet_link && new Date(booking.start_time) > new Date() && (
-                                    <>
-                                      <span className="text-gray-400">•</span>
-                                      <a 
-                                        href={booking.meet_link}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                                      >
-                                        <Video className="h-3 w-3" />
-                                        Join
-                                      </a>
-                                    </>
-                                  )}
-                                </div>
+                              <div className="flex items-center gap-2 text-gray-600 text-sm">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {new Date(booking.start_time).toLocaleDateString()}
+                                </span>
+                                <span className="text-gray-400">•</span>
+                                <span>{new Date(booking.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
+                                {booking.meet_link && new Date(booking.start_time) > new Date() && (
+                                  <>
+                                    <span className="text-gray-400">•</span>
+                                    <a 
+                                      href={booking.meet_link}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                    >
+                                      <Video className="h-3 w-3" />
+                                      Join
+                                    </a>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -731,7 +717,7 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* Coming Up - Shows when meeting is more than 30 minutes away */}
+                {/* Coming Up - When meeting is more than 30 min away */}
                 {nextMeeting && nextMeeting.time > 30 && (
                   <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl p-6 border border-gray-200">
                     <div className="flex items-center gap-2 mb-3">
@@ -748,7 +734,7 @@ export default function Dashboard() {
                       {nextMeeting.link && (
                         <button
                           onClick={() => window.open(nextMeeting.link, '_blank')}
-                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all"
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
                         >
                           <Video className="w-4 h-4" />
                           Join
@@ -756,7 +742,7 @@ export default function Dashboard() {
                       )}
                       <button
                         onClick={() => navigate('/bookings')}
-                        className={`${nextMeeting.link ? '' : 'flex-1'} flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition-all`}
+                        className={`${nextMeeting.link ? '' : 'flex-1'} flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200`}
                       >
                         <Calendar className="w-4 h-4" />
                         Details
@@ -765,63 +751,9 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* Quick Actions */}
-                <div className="bg-white rounded-xl p-6 border border-gray-200">
-                  <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <Zap className="w-5 h-5" />
-                    Quick Actions
-                  </h2>
-
-                  <div className="space-y-3">
-                    {/* FIX: Changed route to /my-links and text to "Quick Link" */}
-                    <button 
-                      onClick={() => navigate('/my-links')}
-                      className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-lg hover:shadow-md transition-all text-left"
-                    >
-                      <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-500 rounded-lg flex items-center justify-center">
-                        <Sparkles className="w-4 h-4 text-white" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-900">Quick Link</div>
-                        <div className="text-xs text-gray-600">Instant booking links</div>
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => {
-                        const link = `${window.location.origin}/${user?.username || 'user'}`;
-                        navigator.clipboard.writeText(link);
-                        notify.success('Calendar link copied!');
-                      }}
-                      className="w-full flex items-center gap-3 p-3 bg-gray-50 border-2 border-gray-200 rounded-lg hover:shadow-md transition-all text-left"
-                    >
-                      <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
-                        <Share2 className="w-4 h-4 text-white" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-900">Share Calendar</div>
-                        <div className="text-xs text-gray-600">Copy booking link</div>
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => navigate('/events/new')}
-                      className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg hover:shadow-md transition-all text-left"
-                    >
-                      <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
-                        <Plus className="w-4 h-4 text-white" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-900">New Event Type</div>
-                        <div className="text-xs text-gray-600">Create booking type</div>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
                 {/* Timezone */}
                 <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
-                  <div className="flex items-center gap-3 mb-2">
+                  <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-50 rounded-lg">
                       <Globe className="h-4 w-4 text-blue-600" />
                     </div>
@@ -862,40 +794,27 @@ export default function Dashboard() {
                   <div>
                     <h3 className="font-bold text-xl mb-2 flex items-center gap-2">
                       <Star className="h-5 w-5" />
-                      🎯 Supercharge Your Scheduling
+                      Upgrade to Pro
                     </h3>
                     <p className="text-purple-100 mb-4">
-                      Unlimited AI assistance + unlimited bookings + advanced features for busy professionals
+                      Unlimited bookings, AI queries, and advanced features
                     </p>
-                    <ul className="text-sm text-purple-100 space-y-1 mb-4">
-                      <li className="flex items-center gap-2">
-                        <Zap className="h-3 w-3" />
-                        ✨ Unlimited AI queries (vs {usage.ai_queries_limit || 10}/month)
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3" />
-                        📅 Unlimited bookings (vs {limitStatus.limits?.soft || 50}/month)
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Mail className="h-3 w-3" />
-                        📧 Advanced email templates
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Settings className="h-3 w-3" />
-                        ⚡ Priority support
-                      </li>
+                    <ul className="text-sm text-purple-100 space-y-1">
+                      <li>✨ Unlimited AI queries</li>
+                      <li>📅 Unlimited bookings</li>
+                      <li>📧 Advanced email templates</li>
                     </ul>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold">$12</div>
-                    <div className="text-sm text-purple-200">per month</div>
+                    <div className="text-sm text-purple-200">/month</div>
                   </div>
                 </div>
                 <button 
                   onClick={() => navigate('/billing')}
-                  className="w-full bg-white text-purple-600 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors mt-4"
+                  className="w-full bg-white text-purple-600 py-3 rounded-lg font-semibold hover:bg-gray-100 mt-4"
                 >
-                  Upgrade to Pro - Only $12/month
+                  Upgrade Now
                 </button>
               </div>
             )}
