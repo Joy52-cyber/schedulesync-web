@@ -142,7 +142,8 @@ export default function Dashboard() {
             title: `Meeting with ${upcoming.attendee_name}`,
             time: minutesUntil,
             startTime: upcoming.start_time,
-            link: upcoming.meet_link || null
+            link: upcoming.meet_link || null,
+            manageToken: upcoming.manage_token || null
           });
         }
       }
@@ -493,7 +494,7 @@ export default function Dashboard() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => navigate('/bookings')}
+                      onClick={() => navigate(nextMeeting.manageToken ? `/manage/${nextMeeting.manageToken}` : '/bookings')}
                       className="flex items-center gap-2 px-6 py-3 bg-white/20 text-white rounded-lg font-bold hover:bg-white/30"
                     >
                       <Calendar className="w-5 h-5" />
@@ -741,7 +742,7 @@ export default function Dashboard() {
                         </button>
                       )}
                       <button
-                        onClick={() => navigate('/bookings')}
+                        onClick={() => navigate(nextMeeting.manageToken ? `/manage/${nextMeeting.manageToken}` : '/bookings')}
                         className={`${nextMeeting.link ? '' : 'flex-1'} flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200`}
                       >
                         <Calendar className="w-4 h-4" />

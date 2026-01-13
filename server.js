@@ -2403,29 +2403,23 @@ try {
     notes: notes || '',
   });
 
-  // 1. Primary attendee email
- await resend.emails.send({
-  from: 'ScheduleSync <bookings@trucal.xyz>',  // ? Change this
-  to: attendee_email,
-    subject: `Booking Confirmed with ${assignedMember.organizer_name}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #2563eb;">Your booking is confirmed!</h2>
-        <p>Hi ${attendee_name},</p>
-        <p>Your meeting with <strong>${assignedMember.organizer_name}</strong> has been scheduled.</p>
-        <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>?? When:</strong> ${new Date(slot.start).toLocaleString()}</p>
-          <p style="margin: 5px 0;"><strong>? Duration:</strong> ${duration} minutes</p>
-          ${notes ? `<p style="margin: 5px 0;"><strong>?? Notes:</strong> ${notes}</p>` : ''}
-          ${additional_attendees?.length > 0 ? `<p style="margin: 5px 0;"><strong>?? Others:</strong> ${additional_attendees.join(', ')}</p>` : ''}
-          ${meetLink ? `<p style="margin: 5px 0;"><strong>?? Meet:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ''}
-        </div>
-        <div style="margin: 30px 0;">
-          <a href="${manageUrl}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Manage Booking</a>
-        </div>
-      </div>
-    `,
-    attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+  // 1. Primary attendee email (using email templates)
+  const emailVars = buildEmailVariables(createdBookings[0], {
+    name: assignedMember.organizer_name,
+    email: assignedMember.email
+  }, {
+    attendeeName: attendee_name,
+    attendeeEmail: attendee_email,
+    duration: duration,
+    notes: notes || '',
+    additionalAttendees: additional_attendees?.join(', ') || '',
+    meetLink: meetLink || '',
+    manageLink: manageUrl
+  });
+
+  await sendTemplatedEmail(attendee_email, member.user_id, 'confirmation', emailVars, {
+    from: 'ScheduleSync <bookings@trucal.xyz>',
+    attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }]
   });
   console.log('? Email sent to primary attendee:', attendee_email);
 
@@ -14207,7 +14201,185 @@ function reminderEmailTemplate(booking, hoursBefore) {
   `;
 }
 
+// ============ EMAIL TEMPLATE HELPERS ============
 
+// Get user's preferred template for a type
+const getUserEmailTemplate = async (userId, templateType) => {
+  try {
+    // First try favorite/default template
+    let result = await pool.query(
+      `SELECT * FROM email_templates
+       WHERE user_id = $1 AND type = $2 AND (is_default = true OR is_active = true)
+       ORDER BY is_default DESC, updated_at DESC LIMIT 1`,
+      [userId, templateType]
+    );
+
+    if (result.rows[0]) return result.rows[0];
+
+    // Fall back to any template of this type
+    result = await pool.query(
+      `SELECT * FROM email_templates
+       WHERE user_id = $1 AND type = $2
+       ORDER BY updated_at DESC LIMIT 1`,
+      [userId, templateType]
+    );
+
+    return result.rows[0] || null;
+  } catch (error) {
+    console.error('Error fetching email template:', error);
+    return null;
+  }
+};
+
+// Replace {{variable}} placeholders with actual values
+const replaceTemplateVariables = (text, variables) => {
+  if (!text) return '';
+  let result = text;
+  Object.entries(variables).forEach(([key, value]) => {
+    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
+    result = result.replace(regex, value || '');
+  });
+  return result;
+};
+
+// Build variables object from booking data
+const buildEmailVariables = (booking, organizer, extras = {}) => {
+  const startTime = new Date(booking.start_time);
+  const endTime = new Date(booking.end_time);
+
+  return {
+    guestName: booking.attendee_name || 'Guest',
+    guest_name: booking.attendee_name || 'Guest',
+    attendee_name: booking.attendee_name || 'Guest',
+    guestEmail: booking.attendee_email || '',
+    guest_email: booking.attendee_email || '',
+    attendee_email: booking.attendee_email || '',
+    organizerName: organizer?.name || 'Your Host',
+    organizer_name: organizer?.name || 'Your Host',
+    host_name: organizer?.name || 'Your Host',
+    organizerEmail: organizer?.email || '',
+    organizer_email: organizer?.email || '',
+    meetingDate: startTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+    meeting_date: startTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+    date: startTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+    meetingTime: startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+    meeting_time: startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+    time: startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+    meetingLink: booking.meet_link || '',
+    meeting_link: booking.meet_link || '',
+    meet_link: booking.meet_link || '',
+    bookingLink: extras.bookingLink || '',
+    booking_link: extras.bookingLink || '',
+    manageLink: extras.manageLink || '',
+    manage_link: extras.manageLink || '',
+    eventName: booking.title || 'Meeting',
+    event_name: booking.title || 'Meeting',
+    title: booking.title || 'Meeting',
+    duration: booking.duration || 30,
+    notes: booking.notes || '',
+    ...extras
+  };
+};
+
+// Default templates when user has none
+const DEFAULT_EMAIL_TEMPLATES = {
+  confirmation: {
+    subject: 'Meeting Confirmed - {{meetingDate}}',
+    body: `Hi {{guestName}},
+
+Your meeting has been confirmed!
+
+Date: {{meetingDate}}
+Time: {{meetingTime}}
+Meeting Link: {{meetingLink}}
+
+If you need to reschedule or cancel:
+{{manageLink}}
+
+See you soon!
+{{organizerName}}`
+  },
+  reminder: {
+    subject: 'Reminder: Meeting tomorrow with {{organizerName}}',
+    body: `Hi {{guestName}},
+
+Friendly reminder about your upcoming meeting.
+
+Date: {{meetingDate}}
+Time: {{meetingTime}}
+Meeting Link: {{meetingLink}}
+
+See you soon!
+{{organizerName}}`
+  },
+  cancellation: {
+    subject: 'Meeting Cancelled - {{meetingDate}}',
+    body: `Hi {{guestName}},
+
+Your meeting on {{meetingDate}} at {{meetingTime}} has been cancelled.
+
+To book a new time: {{bookingLink}}
+
+{{organizerName}}`
+  }
+};
+
+// Send email using user's template or fallback to default
+const sendTemplatedEmail = async (to, userId, templateType, variables, options = {}) => {
+  try {
+    let subject, body;
+
+    // Try user's custom template first
+    const userTemplate = userId ? await getUserEmailTemplate(userId, templateType) : null;
+
+    if (userTemplate) {
+      subject = replaceTemplateVariables(userTemplate.subject, variables);
+      body = replaceTemplateVariables(userTemplate.body, variables);
+      console.log(`📧 Using custom template: ${userTemplate.name}`);
+    } else {
+      // Use default template
+      const defaultTpl = DEFAULT_EMAIL_TEMPLATES[templateType];
+      if (defaultTpl) {
+        subject = replaceTemplateVariables(defaultTpl.subject, variables);
+        body = replaceTemplateVariables(defaultTpl.body, variables);
+        console.log(`📧 Using default ${templateType} template`);
+      } else {
+        // Ultimate fallback
+        subject = options.fallbackSubject || 'ScheduleSync Notification';
+        body = options.fallbackBody || 'You have a notification from ScheduleSync.';
+      }
+    }
+
+    const emailPayload = {
+      from: options.from || 'ScheduleSync <notifications@trucal.xyz>',
+      to: to,
+      subject: subject,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="white-space: pre-wrap; line-height: 1.6; color: #333;">
+${body}
+          </div>
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #888;">
+            Sent via <a href="https://trucal.xyz" style="color: #6366f1;">ScheduleSync</a>
+          </div>
+        </div>
+      `,
+    };
+
+    // Support attachments (like ICS files)
+    if (options.attachments) {
+      emailPayload.attachments = options.attachments;
+    }
+
+    const result = await resend.emails.send(emailPayload);
+
+    console.log(`✅ Templated email sent to ${to}`);
+    return result;
+  } catch (error) {
+    console.error(`❌ Failed to send templated email to ${to}:`, error);
+    throw error;
+  }
+};
 
 // ============ REMINDER CHECKER ============
 
