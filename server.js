@@ -1949,8 +1949,79 @@ app.post('/api/bookings', async (req, res) => {
 
     // ========== STEP 2: LOOK UP TOKEN ==========
     let memberResult;
-    
-    if (token.length === 64) {
+
+    // Check for magic link token (32 chars)
+    if (token.length === 32) {
+      console.log('✨ Looking up magic link token...');
+      const magicLinkResult = await pool.query(
+        `SELECT ml.id as magic_link_id, ml.scheduling_mode, ml.created_by_user_id
+         FROM magic_links ml
+         WHERE ml.token = $1
+           AND ml.is_active = true
+           AND ml.expires_at > NOW()`,
+        [token]
+      );
+
+      if (magicLinkResult.rows.length > 0) {
+        const magicLink = magicLinkResult.rows[0];
+        console.log('✨ Magic link found, fetching member data...');
+
+        // Get the first member from magic_link_members with full member/team/user data
+        memberResult = await pool.query(
+          `SELECT tm.*,
+                  t.name as team_name,
+                  t.booking_mode,
+                  t.owner_id,
+                  t.id as team_id,
+                  u.google_access_token,
+                  u.google_refresh_token,
+                  u.microsoft_access_token,
+                  u.microsoft_refresh_token,
+                  u.provider,
+                  u.email as member_email,
+                  u.name as member_name,
+                  mlm.is_host,
+                  mlm.is_required
+           FROM magic_link_members mlm
+           JOIN team_members tm ON mlm.team_member_id = tm.id
+           JOIN teams t ON tm.team_id = t.id
+           LEFT JOIN users u ON tm.user_id = u.id
+           WHERE mlm.magic_link_id = $1
+           ORDER BY mlm.display_order ASC
+           LIMIT 1`,
+          [magicLink.magic_link_id]
+        );
+
+        if (memberResult.rows.length === 0) {
+          // Fall back to creator's member record if no magic_link_members
+          console.log('⚠️ No magic_link_members found, falling back to creator...');
+          memberResult = await pool.query(
+            `SELECT tm.*,
+                    t.name as team_name,
+                    t.booking_mode,
+                    t.owner_id,
+                    t.id as team_id,
+                    u.google_access_token,
+                    u.google_refresh_token,
+                    u.microsoft_access_token,
+                    u.microsoft_refresh_token,
+                    u.provider,
+                    u.email as member_email,
+                    u.name as member_name
+             FROM team_members tm
+             JOIN teams t ON tm.team_id = t.id
+             LEFT JOIN users u ON tm.user_id = u.id
+             WHERE tm.user_id = $1
+             ORDER BY t.created_at ASC
+             LIMIT 1`,
+            [magicLink.created_by_user_id]
+          );
+        }
+      } else {
+        // Magic link not found or expired - will fail at validation below
+        memberResult = { rows: [] };
+      }
+    } else if (token.length === 64) {
       console.log('?? Looking up single-use link...');
       memberResult = await pool.query(
         `SELECT tm.*, 
