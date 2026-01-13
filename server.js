@@ -5023,7 +5023,6 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
     } = req.body;
 
     console.log('📊 Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
-    console.log('🔍 DEBUG: Token length check:', { tokenLength: token?.length, is32: token?.length === 32 });
 
  // ========== CHECK: Magic Link Token (32 chars) ==========
     let collectiveMembers = null;
@@ -5039,12 +5038,6 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
            AND ml.expires_at > NOW()`,
         [token]
       );
-
-      console.log('🔍 DEBUG: magicCheck result:', {
-        found: magicCheck.rows.length > 0,
-        rowCount: magicCheck.rows.length,
-        data: magicCheck.rows[0] || null
-      });
 
       if (magicCheck.rows.length > 0) {
         const magicLink = magicCheck.rows[0];
@@ -5102,14 +5095,8 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
             console.log('✨ Magic link slots: Using creator token');
           }
         }
-      } else {
-        console.log('🔍 DEBUG: Magic link query returned no results - token may be expired or invalid');
       }
-    } else {
-      console.log('🔍 DEBUG: Token is NOT 32 chars, skipping magic link check');
     }
-
-    console.log('🔍 DEBUG: After magic link check - isCollectiveMode:', isCollectiveMode, 'collectiveMembers:', collectiveMembers?.length || 0);
 
     // 📌 DETECT PUBLIC BOOKING PSEUDO-TOKEN
 if (token && token.startsWith('public:')) {
@@ -5950,13 +5937,6 @@ console.log('?? Checking if team token...');
     console.log(`✅ Available: ${slots.filter(s => s.status === 'available').length}`);
 
     // ========== COLLECTIVE MODE: Filter for ALL members' availability ==========
-    console.log('🔍 DEBUG: Before collective filtering check:', {
-      isCollectiveMode,
-      hasCollectiveMembers: !!collectiveMembers,
-      memberCount: collectiveMembers?.length || 0,
-      willFilter: isCollectiveMode && collectiveMembers && collectiveMembers.length > 1
-    });
-
     if (isCollectiveMode && collectiveMembers && collectiveMembers.length > 1) {
       console.log(`🔄 Filtering slots for collective mode (${collectiveMembers.length} members)...`);
 
@@ -7719,9 +7699,7 @@ try {
 
    // ========== LOOK UP TOKEN ==========
     let memberResult;
-    
-    console.log('🔍 TOKEN DEBUG:', { tokenLength: token.length, isLength32: token.length === 32 });
-    
+
     // CHECK 0: Magic Link (32 chars)
     if (token.length === 32) {
       console.log('✨ Checking if magic link for booking...');

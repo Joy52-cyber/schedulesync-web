@@ -28,7 +28,7 @@ export default function Landing() {
     {
       icon: Zap,
       title: 'Instant Calendar Sync',
-      description: 'Connect Google, Outlook, or Apple Calendar in one click. Auto-detects your availability.',
+      description: 'Connect Google or Outlook Calendar in one click. Auto-detects your availability.',
       stat: '< 30 seconds',
       color: 'from-blue-500 to-cyan-500',
       demo: 'One-click OAuth connection'
@@ -48,30 +48,6 @@ export default function Landing() {
       stat: 'Team plan',
       color: 'from-orange-500 to-red-500',
       demo: 'Book with entire team instantly'
-    }
-  ];
-
-  const testimonials = [
-    {
-      quote: "ScheduleSync's AI assistant saves me 2 hours every week. I just tell it what I need and it books everything.",
-      author: "Sarah Chen",
-      role: "Sales Director",
-      company: "TechCorp",
-      avatar: "SC"
-    },
-    {
-      quote: "We switched from Calendly and saved $180/month while getting better features. The AI is game-changing.",
-      author: "Michael Rodriguez",
-      role: "Founder",
-      company: "StartupXYZ",
-      avatar: "MR"
-    },
-    {
-      quote: "Finally, a scheduling tool that works the way I think. No more copy-pasting links in every email.",
-      author: "Emily Watson",
-      role: "Consultant",
-      company: "Independent",
-      avatar: "EW"
     }
   ];
 
@@ -132,6 +108,25 @@ export default function Landing() {
   return (
     <div className="min-h-screen flex flex-col bg-white font-sans">
 
+      {/* Blob Animation Styles */}
+      <style>{`
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+      `}</style>
+
       {/* ================= HEADER ================= */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
@@ -178,11 +173,7 @@ export default function Landing() {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 backdrop-blur-sm border border-purple-200 text-sm font-medium text-purple-600 mb-8 shadow-sm">
             <Sparkles className="w-4 h-4 text-yellow-500" />
-            <span>Trusted by 10,000+ professionals</span>
-            <div className="flex items-center gap-1 ml-2 pl-2 border-l border-purple-200">
-              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-              <span className="font-bold">4.9/5</span>
-            </div>
+            <span>AI-Powered Scheduling Platform</span>
           </div>
 
           <h1 className="text-5xl md:text-7xl font-extrabold text-gray-900 mb-6 tracking-tight">
@@ -266,7 +257,7 @@ export default function Landing() {
               </div>
               <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
                 <div className="text-3xl font-bold text-pink-600">95%</div>
-                <div className="text-sm text-gray-600">Time saved</div>
+                <div className="text-sm text-gray-600">Less back-and-forth</div>
               </div>
               <div className="bg-white rounded-xl shadow-xl px-6 py-4 border border-gray-100">
                 <div className="text-3xl font-bold text-blue-600">0</div>
@@ -277,18 +268,17 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ================= TRUSTED BY ================= */}
+      {/* ================= COMPARE SECTION ================= */}
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
             <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-8">
-              Switching from these platforms daily
+              A smarter alternative to
             </p>
             <div className="flex flex-wrap items-center justify-center gap-12 opacity-60">
               <div className="text-2xl font-bold text-gray-400">Calendly</div>
               <div className="text-2xl font-bold text-gray-400">Cal.com</div>
               <div className="text-2xl font-bold text-gray-400">HubSpot</div>
-              <div className="text-2xl font-bold text-gray-400">Chili Piper</div>
               <div className="text-2xl font-bold text-gray-400">Acuity</div>
             </div>
           </div>
@@ -568,26 +558,26 @@ export default function Landing() {
                   <Shield className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900">Enterprise Ready</h3>
-                  <p className="text-xs text-gray-600">Built for scale</p>
+                  <h3 className="font-bold text-gray-900">Secure & Reliable</h3>
+                  <p className="text-xs text-gray-600">Your data is safe</p>
                 </div>
               </div>
               <ul className="space-y-2 text-sm text-gray-700">
                 <li className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-gray-600 flex-shrink-0 mt-0.5" />
-                  <span>99.9% uptime SLA</span>
+                  <span>SSL encryption</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-gray-600 flex-shrink-0 mt-0.5" />
-                  <span>SOC 2 compliant</span>
+                  <span>OAuth 2.0 auth</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-gray-600 flex-shrink-0 mt-0.5" />
-                  <span>24/7 support</span>
+                  <span>Regular backups</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-gray-600 flex-shrink-0 mt-0.5" />
-                  <span>GDPR compliant</span>
+                  <span>Email support</span>
                 </li>
               </ul>
             </div>
@@ -609,54 +599,14 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ================= TESTIMONIALS ================= */}
-      <section className="py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
-              Loved by busy professionals
-            </h2>
-            <p className="text-xl text-gray-600">
-              See what people are saying about ScheduleSync
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, idx) => (
-              <div key={idx} className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm">
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-                
-                <p className="text-gray-700 mb-6 leading-relaxed">
-                  "{testimonial.quote}"
-                </p>
-                
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center text-white font-bold">
-                    {testimonial.avatar}
-                  </div>
-                  <div>
-                    <div className="font-bold text-gray-900">{testimonial.author}</div>
-                    <div className="text-sm text-gray-600">{testimonial.role} @ {testimonial.company}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ================= FINAL CTA ================= */}
       <section className="py-24 bg-gradient-to-br from-purple-600 via-pink-600 to-purple-700 text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-4xl md:text-6xl font-extrabold mb-6">
-            Ready to save 10 hours a week?
+            Ready to schedule smarter?
           </h2>
           <p className="text-xl text-purple-100 mb-8 max-w-2xl mx-auto">
-            Join 10,000+ professionals who've ditched the back-and-forth emails.
+            Join professionals who've ditched the back-and-forth emails.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
@@ -713,38 +663,29 @@ export default function Landing() {
               <ul className="space-y-2 text-sm">
                 <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
                 <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">API</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Integrations</a></li>
+                <li><button onClick={() => navigate('/demo')} className="hover:text-white transition-colors text-left">Demo</button></li>
               </ul>
             </div>
             
             <div>
               <h3 className="font-bold text-white mb-4">Company</h3>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white transition-colors">About</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
+                <li><button onClick={() => navigate('/about')} className="hover:text-white transition-colors text-left">About</button></li>
+                <li><a href="mailto:support@trucal.xyz" className="hover:text-white transition-colors">Contact</a></li>
               </ul>
             </div>
             
             <div>
               <h3 className="font-bold text-white mb-4">Legal</h3>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white transition-colors">Privacy</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Terms</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Security</a></li>
+                <li><button onClick={() => navigate('/privacy')} className="hover:text-white transition-colors text-left">Privacy Policy</button></li>
+                <li><button onClick={() => navigate('/terms')} className="hover:text-white transition-colors text-left">Terms of Service</button></li>
               </ul>
             </div>
           </div>
           
           <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center text-sm">
             <p>&copy; {new Date().getFullYear()} ScheduleSync. All rights reserved.</p>
-            <div className="flex items-center gap-6 mt-4 md:mt-0">
-              <a href="#" className="hover:text-white transition-colors">Twitter</a>
-              <a href="#" className="hover:text-white transition-colors">LinkedIn</a>
-              <a href="#" className="hover:text-white transition-colors">GitHub</a>
-            </div>
           </div>
         </div>
       </footer>
