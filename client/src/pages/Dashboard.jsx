@@ -28,6 +28,7 @@ import api, {
   chatgptIntegration,
 } from '../utils/api';
 import AISchedulerChat from '../components/AISchedulerChat';
+import PreferencesInsights from '../components/PreferencesInsights';
 import { useNotification } from '../contexts/NotificationContext';
 import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal';
 import { useWalkthrough } from '../context/WalkthroughContext';
@@ -703,6 +704,9 @@ export default function Dashboard() {
                     </button>
                   </div>
                 </div>
+
+                {/* AI Preferences Insights */}
+                <PreferencesInsights />
 
               </div>
 

@@ -10,6 +10,7 @@ import {
   Clock,
   Settings,
   Link2,
+  Zap,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -31,6 +32,7 @@ export default function Layout() {
     { name: "Event Types", path: "/events", icon: Clock, walkthrough: "events-nav" },
     { name: "Bookings", path: "/bookings", icon: Calendar, walkthrough: "bookings-nav" },
     { name: "Quick Links", path: "/my-links", icon: Link2, walkthrough: "my-links-nav" },
+    { name: "Smart Rules", path: "/rules", icon: Zap, walkthrough: "rules-nav", badge: "PRO" },
     { name: "Teams", path: "/teams", icon: Users, walkthrough: "teams-nav" },
     { name: "Settings", path: "/settings", icon: Settings, walkthrough: "settings-nav" },
     // Admin Panel - only shown if isAdmin (handled in render)
@@ -91,6 +93,11 @@ export default function Layout() {
                   >
                     <Icon className="h-4 w-4 xl:h-5 xl:w-5" />
                     <span className="hidden xl:inline">{item.name}</span>
+                    {item.badge && (
+                      <span className="hidden xl:inline text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-semibold">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
@@ -174,7 +181,12 @@ export default function Layout() {
                     }`}
                   >
                     <Icon className="h-5 w-5 flex-shrink-0" />
-                    <span className="text-sm">{item.name}</span>
+                    <span className="text-sm flex-1">{item.name}</span>
+                    {item.badge && (
+                      <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-semibold">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

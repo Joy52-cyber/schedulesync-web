@@ -997,11 +997,73 @@ await pool.query(`
     `);
 
     await pool.query(`
-  ALTER TABLE bookings 
+  ALTER TABLE bookings
   ADD COLUMN IF NOT EXISTS manage_token VARCHAR(255) UNIQUE
 `);
 
-    console.log('? Database initialized successfully');
+    // Scheduling Rules table for Natural Language Logic Builder
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS scheduling_rules (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+        rule_text TEXT NOT NULL,
+        rule_type VARCHAR(50) NOT NULL,
+        conditions JSONB DEFAULT '{}',
+        actions JSONB DEFAULT '{}',
+        is_active BOOLEAN DEFAULT true,
+        priority INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_scheduling_rules_user ON scheduling_rules(user_id);
+      CREATE INDEX IF NOT EXISTS idx_scheduling_rules_team ON scheduling_rules(team_id);
+    `);
+
+    // User Preferences table for preference learning
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+        preferred_meeting_duration INTEGER DEFAULT 30,
+        preferred_buffer_minutes INTEGER DEFAULT 0,
+        preferred_days JSONB DEFAULT '["monday","tuesday","wednesday","thursday","friday"]',
+        preferred_hours_start INTEGER DEFAULT 9,
+        preferred_hours_end INTEGER DEFAULT 17,
+        avg_meetings_per_day NUMERIC(3,1) DEFAULT 0,
+        most_common_meeting_type VARCHAR(100),
+        busiest_day VARCHAR(20),
+        quietest_day VARCHAR(20),
+        last_analyzed_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Booking Patterns table for learning
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS booking_patterns (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        day_of_week INTEGER,
+        hour_of_day INTEGER,
+        duration INTEGER,
+        booking_count INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, day_of_week, hour_of_day, duration)
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_user_preferences_user ON user_preferences(user_id);
+      CREATE INDEX IF NOT EXISTS idx_booking_patterns_user ON booking_patterns(user_id);
+    `);
+
+    console.log('✅ Database initialized successfully');
   } catch (error) {
     console.error('? Error initializing database:', error);
   }
@@ -1650,6 +1712,9 @@ app.post('/api/public/booking/create', async (req, res) => {
     );
     console.log(`📊 Booking count incremented for host ${host.id}: ${bookingsUsed + 1}/${bookingsLimit}`);
 
+    // Record booking pattern for preference learning
+    await recordBookingPattern(host.id, { start_time: start_time, duration: eventType.duration });
+
     // Store additional attendees if provided
     if (additional_attendees && additional_attendees.length > 0) {
       for (const email of additional_attendees) {
@@ -2190,6 +2255,14 @@ app.post('/api/bookings', async (req, res) => {
     if (token.length === 64) {
       await pool.query('UPDATE single_use_links SET used = true WHERE token = $1', [token]);
       console.log('? Single-use link marked as used');
+    }
+
+    // Record booking pattern for preference learning (for each assigned member)
+    for (const assignedMember of assignedMembers) {
+      if (assignedMember.user_id) {
+        const duration = Math.round((new Date(slot.end) - new Date(slot.start)) / 60000);
+        await recordBookingPattern(assignedMember.user_id, { start_time: slot.start, duration });
+      }
     }
 
     // ? Notify organizer
@@ -7999,6 +8072,14 @@ try {
       console.log('? Single-use link marked as used');
     }
 
+    // Record booking pattern for preference learning (for each assigned member)
+    for (const assignedMember of assignedMembers) {
+      if (assignedMember.user_id) {
+        const duration = Math.round((new Date(slot.end) - new Date(slot.start)) / 60000);
+        await recordBookingPattern(assignedMember.user_id, { start_time: slot.start, duration });
+      }
+    }
+
     // ========== MARK MAGIC LINK AS USED ==========
 if (req.body.is_magic_link || token.length === 32) {
   const magicLinkToken = req.body.magic_link_token || token;
@@ -8795,6 +8876,12 @@ app.post('/api/payments/confirm-booking', async (req, res) => {
     );
 
     console.log('? Booking created with payment:', booking.id);
+
+    // Record booking pattern for preference learning
+    if (member.user_id) {
+      const duration = Math.round((new Date(slot.end) - new Date(slot.start)) / 60000);
+      await recordBookingPattern(member.user_id, { start_time: slot.start, duration });
+    }
 
     // Notify organizer
     if (member.user_id) {
@@ -12039,6 +12126,409 @@ app.patch('/api/email-templates/:id/favorite', authenticateToken, async (req, re
   } catch (error) {
     console.error('Toggle default error:', error);
     res.status(500).json({ error: 'Failed to toggle default' });
+  }
+});
+
+// ============ SCHEDULING RULES (Natural Language Logic Builder) ============
+
+// Parse natural language rule into structured format
+async function parseSchedulingRule(ruleText) {
+  const lowerText = ruleText.toLowerCase();
+
+  // Default structure
+  let parsed = {
+    type: 'custom',
+    conditions: {},
+    actions: {}
+  };
+
+  // Detect routing rules: "route X to Y", "assign X to Y"
+  if (lowerText.includes('route') || lowerText.includes('assign')) {
+    parsed.type = 'routing';
+
+    // Extract "to [name]" pattern
+    const toMatch = lowerText.match(/to\s+(\w+(?:\s+(?:and|&)\s+\w+)*)/i);
+    if (toMatch) {
+      parsed.actions.assign_to = toMatch[1].split(/\s+(?:and|&)\s+/);
+    }
+
+    // Extract meeting type if mentioned
+    if (lowerText.includes('demo')) parsed.conditions.event_type = 'demo';
+    if (lowerText.includes('sales')) parsed.conditions.event_type = 'sales';
+    if (lowerText.includes('support')) parsed.conditions.event_type = 'support';
+  }
+
+  // Detect buffer rules: "add X min buffer", "X minute gap"
+  else if (lowerText.includes('buffer') || lowerText.includes('gap') || lowerText.includes('break')) {
+    parsed.type = 'buffer';
+
+    const minMatch = lowerText.match(/(\d+)\s*(?:min|minute)/i);
+    if (minMatch) {
+      parsed.actions.buffer_minutes = parseInt(minMatch[1]);
+    }
+
+    if (lowerText.includes('before')) parsed.actions.buffer_position = 'before';
+    else if (lowerText.includes('after')) parsed.actions.buffer_position = 'after';
+    else parsed.actions.buffer_position = 'after'; // default
+  }
+
+  // Detect availability rules: "no meetings on X", "only available X"
+  else if (lowerText.includes('no meeting') || lowerText.includes('block') || lowerText.includes('only available')) {
+    parsed.type = 'availability';
+
+    // Days
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const blockedDays = days.filter(d => lowerText.includes(d));
+    if (blockedDays.length > 0) {
+      if (lowerText.includes('no meeting') || lowerText.includes('block')) {
+        parsed.actions.block_days = blockedDays;
+      } else {
+        parsed.actions.allow_days = blockedDays;
+      }
+    }
+
+    // Time ranges
+    const timeMatch = lowerText.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/gi);
+    if (timeMatch) {
+      parsed.conditions.time_range = timeMatch;
+    }
+  }
+
+  // Detect priority rules: "VIP", "priority", "important"
+  else if (lowerText.includes('vip') || lowerText.includes('priority') || lowerText.includes('important')) {
+    parsed.type = 'priority';
+    parsed.actions.priority_level = 'high';
+
+    // Extract email domain or contact pattern
+    const domainMatch = lowerText.match(/@([\w.-]+)/);
+    if (domainMatch) {
+      parsed.conditions.email_domain = domainMatch[1];
+    }
+  }
+
+  // Detect auto-response rules
+  else if (lowerText.includes('auto') || lowerText.includes('automatically')) {
+    parsed.type = 'auto_response';
+
+    if (lowerText.includes('confirm')) parsed.actions.auto_action = 'confirm';
+    if (lowerText.includes('decline') || lowerText.includes('reject')) parsed.actions.auto_action = 'decline';
+    if (lowerText.includes('reschedule')) parsed.actions.auto_action = 'suggest_reschedule';
+  }
+
+  return parsed;
+}
+
+// Function to apply scheduling rules during booking
+async function applySchedulingRules(userId, bookingData) {
+  try {
+    // Get active rules for this user, sorted by priority
+    const rulesResult = await pool.query(
+      `SELECT * FROM scheduling_rules
+       WHERE user_id = $1 AND is_active = true
+       ORDER BY priority DESC`,
+      [userId]
+    );
+
+    const rules = rulesResult.rows;
+    const appliedRules = [];
+    let modifiedData = { ...bookingData };
+
+    for (const rule of rules) {
+      const conditions = rule.conditions || {};
+      const actions = rule.actions || {};
+
+      // Check if rule conditions match
+      let conditionsMet = true;
+
+      // Check event type condition
+      if (conditions.event_type) {
+        const eventName = (bookingData.event_name || '').toLowerCase();
+        if (!eventName.includes(conditions.event_type)) {
+          conditionsMet = false;
+        }
+      }
+
+      // Check email domain condition
+      if (conditions.email_domain) {
+        const email = (bookingData.attendee_email || '').toLowerCase();
+        if (!email.endsWith('@' + conditions.email_domain)) {
+          conditionsMet = false;
+        }
+      }
+
+      // Check day condition
+      if (conditions.day_of_week !== undefined) {
+        const bookingDay = new Date(bookingData.start_time).getDay();
+        if (bookingDay !== conditions.day_of_week) {
+          conditionsMet = false;
+        }
+      }
+
+      if (!conditionsMet) continue;
+
+      // Apply actions
+      switch (rule.rule_type) {
+        case 'buffer':
+          if (actions.buffer_minutes) {
+            modifiedData.buffer_minutes = actions.buffer_minutes;
+            modifiedData.buffer_position = actions.buffer_position || 'after';
+            appliedRules.push({ rule: rule.rule_text, action: `Added ${actions.buffer_minutes}min buffer` });
+          }
+          break;
+
+        case 'routing':
+          if (actions.assign_to && actions.assign_to.length > 0) {
+            modifiedData.assigned_to = actions.assign_to;
+            appliedRules.push({ rule: rule.rule_text, action: `Routed to ${actions.assign_to.join(', ')}` });
+          }
+          break;
+
+        case 'priority':
+          if (actions.priority_level) {
+            modifiedData.priority = actions.priority_level;
+            appliedRules.push({ rule: rule.rule_text, action: `Set priority: ${actions.priority_level}` });
+          }
+          break;
+
+        case 'availability':
+          if (actions.block_days) {
+            const bookingDay = new Date(bookingData.start_time).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+            if (actions.block_days.includes(bookingDay)) {
+              modifiedData.blocked = true;
+              modifiedData.block_reason = rule.rule_text;
+              appliedRules.push({ rule: rule.rule_text, action: 'Blocked by availability rule' });
+            }
+          }
+          break;
+
+        case 'auto_response':
+          if (actions.auto_action) {
+            modifiedData.auto_action = actions.auto_action;
+            appliedRules.push({ rule: rule.rule_text, action: `Auto-action: ${actions.auto_action}` });
+          }
+          break;
+      }
+    }
+
+    return { modifiedData, appliedRules };
+  } catch (error) {
+    console.error('Apply scheduling rules error:', error);
+    return { modifiedData: bookingData, appliedRules: [] };
+  }
+}
+
+// ============ PREFERENCE LEARNING ============
+
+// Record booking pattern for preference learning
+async function recordBookingPattern(userId, booking) {
+  try {
+    const startTime = new Date(booking.start_time);
+    const dayOfWeek = startTime.getDay();
+    const hourOfDay = startTime.getHours();
+    const duration = booking.duration || 30;
+
+    await pool.query(`
+      INSERT INTO booking_patterns (user_id, day_of_week, hour_of_day, duration, booking_count)
+      VALUES ($1, $2, $3, $4, 1)
+      ON CONFLICT (user_id, day_of_week, hour_of_day, duration)
+      DO UPDATE SET
+        booking_count = booking_patterns.booking_count + 1,
+        updated_at = NOW()
+    `, [userId, dayOfWeek, hourOfDay, duration]);
+
+    console.log(`📊 Recorded booking pattern: user=${userId}, day=${dayOfWeek}, hour=${hourOfDay}`);
+  } catch (error) {
+    console.error('Record booking pattern error:', error);
+  }
+}
+
+// Analyze booking patterns and update user preferences
+async function analyzeUserPreferences(userId) {
+  try {
+    // Get all booking patterns for user
+    const patterns = await pool.query(`
+      SELECT day_of_week, hour_of_day, duration, booking_count
+      FROM booking_patterns
+      WHERE user_id = $1
+      ORDER BY booking_count DESC
+    `, [userId]);
+
+    if (patterns.rows.length === 0) {
+      return null;
+    }
+
+    // Calculate most common duration
+    const durationCounts = {};
+    patterns.rows.forEach(p => {
+      durationCounts[p.duration] = (durationCounts[p.duration] || 0) + p.booking_count;
+    });
+    const preferredDuration = Object.entries(durationCounts)
+      .sort((a, b) => b[1] - a[1])[0]?.[0] || 30;
+
+    // Calculate busiest/quietest day
+    const dayCounts = {};
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    patterns.rows.forEach(p => {
+      dayCounts[p.day_of_week] = (dayCounts[p.day_of_week] || 0) + p.booking_count;
+    });
+    const sortedDays = Object.entries(dayCounts).sort((a, b) => b[1] - a[1]);
+    const busiestDay = dayNames[sortedDays[0]?.[0]] || 'tuesday';
+    const quietestDay = dayNames[sortedDays[sortedDays.length - 1]?.[0]] || 'friday';
+
+    // Calculate preferred hours
+    const hourCounts = {};
+    patterns.rows.forEach(p => {
+      hourCounts[p.hour_of_day] = (hourCounts[p.hour_of_day] || 0) + p.booking_count;
+    });
+    const activeHours = Object.entries(hourCounts)
+      .filter(([_, count]) => count > 0)
+      .map(([hour, _]) => parseInt(hour))
+      .sort((a, b) => a - b);
+    const preferredStart = activeHours[0] || 9;
+    const preferredEnd = activeHours[activeHours.length - 1] + 1 || 17;
+
+    // Calculate avg meetings per day
+    const totalBookings = patterns.rows.reduce((sum, p) => sum + p.booking_count, 0);
+    const activeDays = Object.keys(dayCounts).length || 1;
+    const avgMeetingsPerDay = (totalBookings / activeDays / 4).toFixed(1);
+
+    // Upsert preferences
+    await pool.query(`
+      INSERT INTO user_preferences (user_id, preferred_meeting_duration, preferred_hours_start,
+        preferred_hours_end, busiest_day, quietest_day, avg_meetings_per_day, last_analyzed_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      ON CONFLICT (user_id)
+      DO UPDATE SET
+        preferred_meeting_duration = $2,
+        preferred_hours_start = $3,
+        preferred_hours_end = $4,
+        busiest_day = $5,
+        quietest_day = $6,
+        avg_meetings_per_day = $7,
+        last_analyzed_at = NOW(),
+        updated_at = NOW()
+    `, [userId, preferredDuration, preferredStart, preferredEnd, busiestDay, quietestDay, avgMeetingsPerDay]);
+
+    console.log(`🧠 Updated preferences for user ${userId}: duration=${preferredDuration}min, hours=${preferredStart}-${preferredEnd}`);
+
+    return {
+      preferred_meeting_duration: parseInt(preferredDuration),
+      preferred_hours_start: preferredStart,
+      preferred_hours_end: preferredEnd,
+      busiest_day: busiestDay,
+      quietest_day: quietestDay,
+      avg_meetings_per_day: parseFloat(avgMeetingsPerDay)
+    };
+  } catch (error) {
+    console.error('Analyze preferences error:', error);
+    return null;
+  }
+}
+
+// GET /api/preferences - Get user's learned preferences
+app.get('/api/preferences', authenticateToken, async (req, res) => {
+  try {
+    // First, analyze/update preferences
+    await analyzeUserPreferences(req.user.id);
+
+    // Then fetch the latest
+    const result = await pool.query(
+      'SELECT * FROM user_preferences WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    // Get pattern count for stats
+    const patternCount = await pool.query(
+      'SELECT COUNT(*) as count, SUM(booking_count) as total FROM booking_patterns WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    res.json({
+      preferences: result.rows[0] || null,
+      stats: {
+        patterns_tracked: parseInt(patternCount.rows[0]?.count || 0),
+        total_bookings_analyzed: parseInt(patternCount.rows[0]?.total || 0)
+      }
+    });
+  } catch (error) {
+    console.error('Get preferences error:', error);
+    res.status(500).json({ error: 'Failed to get preferences' });
+  }
+});
+
+// GET /api/scheduling-rules - List user's rules
+app.get('/api/scheduling-rules', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM scheduling_rules
+       WHERE user_id = $1
+       ORDER BY priority DESC, created_at DESC`,
+      [req.user.id]
+    );
+    res.json({ rules: result.rows });
+  } catch (error) {
+    console.error('Get rules error:', error);
+    res.status(500).json({ error: 'Failed to get rules' });
+  }
+});
+
+// POST /api/scheduling-rules - Create rule from natural language
+app.post('/api/scheduling-rules', authenticateToken, async (req, res) => {
+  try {
+    const { rule_text } = req.body;
+
+    if (!rule_text || rule_text.trim().length < 5) {
+      return res.status(400).json({ error: 'Please provide a rule description' });
+    }
+
+    // Parse the rule using AI to extract type, conditions, actions
+    const parsed = await parseSchedulingRule(rule_text);
+
+    const result = await pool.query(
+      `INSERT INTO scheduling_rules (user_id, rule_text, rule_type, conditions, actions)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [req.user.id, rule_text, parsed.type, JSON.stringify(parsed.conditions), JSON.stringify(parsed.actions)]
+    );
+
+    console.log(`📋 New scheduling rule created: "${rule_text}"`);
+    res.json({ rule: result.rows[0], parsed });
+  } catch (error) {
+    console.error('Create rule error:', error);
+    res.status(500).json({ error: 'Failed to create rule' });
+  }
+});
+
+// DELETE /api/scheduling-rules/:id
+app.delete('/api/scheduling-rules/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query(
+      'DELETE FROM scheduling_rules WHERE id = $1 AND user_id = $2',
+      [id, req.user.id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete rule error:', error);
+    res.status(500).json({ error: 'Failed to delete rule' });
+  }
+});
+
+// PATCH /api/scheduling-rules/:id/toggle - Toggle rule active/inactive
+app.patch('/api/scheduling-rules/:id/toggle', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `UPDATE scheduling_rules
+       SET is_active = NOT is_active, updated_at = NOW()
+       WHERE id = $1 AND user_id = $2
+       RETURNING *`,
+      [id, req.user.id]
+    );
+    res.json({ rule: result.rows[0] });
+  } catch (error) {
+    console.error('Toggle rule error:', error);
+    res.status(500).json({ error: 'Failed to toggle rule' });
   }
 });
 

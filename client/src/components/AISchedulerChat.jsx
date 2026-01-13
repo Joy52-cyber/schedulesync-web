@@ -191,7 +191,7 @@ What would you like to do?`;
   const handleQuickAction = (action) => {
     const actions = {
       'link': "What's my booking link?",
-      'magic': 'Create a magic link',
+      'quick': 'Create a quick link',
       'upcoming': 'Show my upcoming meetings',
       'timezone': 'Change my timezone',
       'teams': 'Show my team links'
@@ -624,9 +624,9 @@ What would you like to do?`;
                     <span className="text-sm font-medium">Timezone</span>
                   </button>
                   {hasProFeature() && (
-                    <button onClick={() => handleQuickAction('magic')} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left">
+                    <button onClick={() => handleQuickAction('quick')} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left">
                       <Sparkles className="h-4 w-4 text-pink-600" />
-                      <span className="text-sm font-medium">Magic Link</span>
+                      <span className="text-sm font-medium">Quick Link</span>
                     </button>
                   )}
                   {hasTeamFeature() && (
