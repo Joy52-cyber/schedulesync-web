@@ -2130,29 +2130,36 @@ app.post('/api/bookings', async (req, res) => {
 
     switch (bookingMode) {
       case 'individual':
-        assignedMembers = [{ 
-          id: member.id, 
-          name: member.name || member.member_name, 
-          user_id: member.user_id 
+        assignedMembers = [{
+          id: member.id,
+          name: member.name || member.member_name,
+          user_id: member.user_id
         }];
-        console.log('?? Individual mode: Assigning to', assignedMembers[0].name);
+        console.log('👤 Individual mode: Assigning to', assignedMembers[0].name);
         break;
 
       case 'round_robin':
-        const rrResult = await pool.query(
+        // Get ALL members with their booking counts for debugging
+        const rrAllMembers = await pool.query(
           `SELECT tm.id, tm.name, tm.user_id, COUNT(b.id) as booking_count
            FROM team_members tm
-           LEFT JOIN bookings b ON tm.id = b.member_id
+           LEFT JOIN bookings b ON tm.id = b.member_id AND b.status = 'confirmed'
            WHERE tm.team_id = $1
            GROUP BY tm.id, tm.name, tm.user_id
-           ORDER BY booking_count ASC, tm.id ASC
-           LIMIT 1`,
+           ORDER BY booking_count ASC, tm.id ASC`,
           [member.team_id]
         );
-        assignedMembers = rrResult.rows.length > 0 
-          ? [rrResult.rows[0]] 
+
+        console.log('🔄 Round-robin booking counts:', rrAllMembers.rows.map(m => ({
+          name: m.name,
+          bookings: parseInt(m.booking_count)
+        })));
+
+        const rrResult = rrAllMembers.rows.length > 0 ? rrAllMembers.rows[0] : null;
+        assignedMembers = rrResult
+          ? [rrResult]
           : [{ id: member.id, name: member.name || member.member_name, user_id: member.user_id }];
-        console.log('?? Round-robin: Assigning to', assignedMembers[0].name);
+        console.log('🔄 Round-robin: Assigning to', assignedMembers[0].name, `(${parseInt(rrResult?.booking_count || 0)} bookings)`);
         break;
 
       case 'first_available':
