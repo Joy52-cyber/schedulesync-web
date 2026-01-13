@@ -140,7 +140,9 @@ export default function Dashboard() {
           setNextMeeting({
             title: `Meeting with ${upcoming.attendee_name}`,
             time: minutesUntil,
-            link: upcoming.meeting_link || '#'
+            startTime: upcoming.start_time,
+            // FIX: Use meet_link (database field name), not meeting_link
+            link: upcoming.meet_link || null
           });
         }
       }
@@ -371,9 +373,13 @@ export default function Dashboard() {
             <div className="flex items-center gap-3 flex-wrap">
               <WalkthroughButton onClick={startWalkthrough} />
 
-              {/* AI Scheduler - MORE PROMINENT */}
+              {/* AI Scheduler Button */}
               <button
-                onClick={() => navigate('/ai-scheduler')}
+                onClick={() => {
+                  // Trigger AI chat to open
+                  const event = new CustomEvent('openAIChat');
+                  window.dispatchEvent(event);
+                }}
                 className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-lg transition-all font-semibold flex items-center gap-2"
               >
                 <Bot className="h-4 w-4" />
@@ -463,7 +469,8 @@ export default function Dashboard() {
                       </p>
                     </div>
                   </div>
-                  {nextMeeting.link && nextMeeting.link !== '#' ? (
+                  {/* FIX: Check for truthy link value */}
+                  {nextMeeting.link ? (
                     <button
                       onClick={() => window.open(nextMeeting.link, '_blank')}
                       className="flex items-center gap-2 px-6 py-3 bg-white text-gray-900 rounded-lg font-bold hover:bg-gray-100 transition-all shadow-lg"
@@ -490,7 +497,7 @@ export default function Dashboard() {
               {/* Left Column (2/3) */}
               <div className="lg:col-span-2 space-y-6">
                 
-                {/* Event Types Grid - NEW */}
+                {/* Event Types Grid */}
                 <div className="bg-white rounded-xl p-6 border border-gray-200">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
@@ -576,20 +583,13 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                {/* Analytics Preview - NEW */}
+                {/* Booking Stats Summary */}
                 <div className="bg-white rounded-xl p-6 border border-gray-200">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
                       <BarChart3 className="w-5 h-5 text-gray-600" />
-                      <h2 className="text-lg font-bold text-gray-900">Booking Trends</h2>
+                      <h2 className="text-lg font-bold text-gray-900">Booking Overview</h2>
                     </div>
-                    <button 
-                      onClick={() => navigate('/analytics')}
-                      className="text-sm font-medium text-purple-600 hover:text-purple-700 flex items-center gap-1"
-                    >
-                      View Full Report
-                      <ExternalLink className="w-4 h-4" />
-                    </button>
                   </div>
 
                   <div className="flex items-end justify-between h-32 gap-2 mb-6">
@@ -608,16 +608,16 @@ export default function Dashboard() {
 
                   <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200">
                     <div>
-                      <div className="text-2xl font-bold text-gray-900">{eventTypes[0]?.name || 'N/A'}</div>
-                      <div className="text-sm text-gray-500">Most popular</div>
+                      <div className="text-2xl font-bold text-gray-900">{stats.totalBookings}</div>
+                      <div className="text-sm text-gray-500">Total bookings</div>
                     </div>
                     <div>
-                      <div className="text-2xl font-bold text-gray-900">2-3pm</div>
-                      <div className="text-sm text-gray-500">Peak booking time</div>
+                      <div className="text-2xl font-bold text-gray-900">{stats.upcomingBookings}</div>
+                      <div className="text-sm text-gray-500">Upcoming</div>
                     </div>
                     <div>
-                      <div className="text-2xl font-bold text-gray-900">2.5h</div>
-                      <div className="text-sm text-gray-500">Avg response time</div>
+                      <div className="text-2xl font-bold text-gray-900">{stats.confirmationRate}%</div>
+                      <div className="text-sm text-gray-500">Confirmation rate</div>
                     </div>
                   </div>
                 </div>
@@ -667,6 +667,22 @@ export default function Dashboard() {
                                   </span>
                                   <span className="text-gray-400">•</span>
                                   <span>{new Date(booking.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
+                                  {/* Show join link if available and upcoming */}
+                                  {booking.meet_link && new Date(booking.start_time) > new Date() && (
+                                    <>
+                                      <span className="text-gray-400">•</span>
+                                      <a 
+                                        href={booking.meet_link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                      >
+                                        <Video className="h-3 w-3" />
+                                        Join
+                                      </a>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -679,10 +695,10 @@ export default function Dashboard() {
 
               </div>
 
-              {/* Right Column (1/3) - NEW */}
+              {/* Right Column (1/3) */}
               <div className="space-y-6">
                 
-                {/* This Week Calendar - NEW */}
+                {/* This Week Calendar */}
                 {upcomingWeek.length > 0 && (
                   <div className="bg-white rounded-xl p-6 border border-gray-200">
                     <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -724,19 +740,32 @@ export default function Dashboard() {
                     </div>
                     <h3 className="font-bold text-gray-900 mb-1">{nextMeeting.title}</h3>
                     <p className="text-sm text-gray-600 mb-4">
-                      {nextMeeting.startTime ? new Date(nextMeeting.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `In ${nextMeeting.time} min`}
+                      {nextMeeting.startTime 
+                        ? new Date(nextMeeting.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                        : `In ${nextMeeting.time} min`}
                     </p>
-                    <button
-                      onClick={() => navigate('/bookings')}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition-all"
-                    >
-                      <Calendar className="w-4 h-4" />
-                      View Details
-                    </button>
+                    <div className="flex gap-2">
+                      {nextMeeting.link && (
+                        <button
+                          onClick={() => window.open(nextMeeting.link, '_blank')}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all"
+                        >
+                          <Video className="w-4 h-4" />
+                          Join
+                        </button>
+                      )}
+                      <button
+                        onClick={() => navigate('/bookings')}
+                        className={`${nextMeeting.link ? '' : 'flex-1'} flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition-all`}
+                      >
+                        <Calendar className="w-4 h-4" />
+                        Details
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {/* Quick Actions - NEW */}
+                {/* Quick Actions */}
                 <div className="bg-white rounded-xl p-6 border border-gray-200">
                   <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <Zap className="w-5 h-5" />
@@ -744,16 +773,17 @@ export default function Dashboard() {
                   </h2>
 
                   <div className="space-y-3">
+                    {/* FIX: Changed route to /my-links and text to "Quick Link" */}
                     <button 
-                      onClick={() => navigate('/magic-links/new')}
+                      onClick={() => navigate('/my-links')}
                       className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-lg hover:shadow-md transition-all text-left"
                     >
                       <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-500 rounded-lg flex items-center justify-center">
                         <Sparkles className="w-4 h-4 text-white" />
                       </div>
                       <div>
-                        <div className="font-semibold text-gray-900">Single-Use Link</div>
-                        <div className="text-xs text-gray-600">For VIP bookings</div>
+                        <div className="font-semibold text-gray-900">Quick Link</div>
+                        <div className="text-xs text-gray-600">Instant booking links</div>
                       </div>
                     </button>
 
@@ -775,21 +805,21 @@ export default function Dashboard() {
                     </button>
 
                     <button 
-                      onClick={() => navigate('/ai-scheduler')}
+                      onClick={() => navigate('/events/new')}
                       className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg hover:shadow-md transition-all text-left"
                     >
                       <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
-                        <Bot className="w-4 h-4 text-white" />
+                        <Plus className="w-4 h-4 text-white" />
                       </div>
                       <div>
-                        <div className="font-semibold text-gray-900">AI Schedule</div>
-                        <div className="text-xs text-gray-600">Book with AI help</div>
+                        <div className="font-semibold text-gray-900">New Event Type</div>
+                        <div className="text-xs text-gray-600">Create booking type</div>
                       </div>
                     </button>
                   </div>
                 </div>
 
-                {/* Timezone - MOVED HERE */}
+                {/* Timezone */}
                 <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 bg-blue-50 rounded-lg">
@@ -825,7 +855,7 @@ export default function Dashboard() {
 
             </div>
 
-            {/* Upgrade Card - Keep but move to bottom */}
+            {/* Upgrade Card */}
             {currentTier === 'free' && !limitStatus.status?.inGracePeriod && !limitStatus.status?.overGraceLimit && eventTypes.length > 0 && (
               <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-2xl p-6 shadow-lg">
                 <div className="flex items-start justify-between">
