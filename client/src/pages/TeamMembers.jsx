@@ -14,6 +14,8 @@ import {
   Calendar,
   Settings,
   Copy,
+  BarChart3,
+  AlertTriangle,
 } from 'lucide-react';
 import api, { teams } from '../utils/api';
 import TeamMemberEditModal from '../components/TeamMemberEditModal';
@@ -34,9 +36,32 @@ export default function TeamMembers() {
     role: 'member',
   });
 
+  // Booking stats state
+  const [bookingStats, setBookingStats] = useState(null);
+  const [statsPeriod, setStatsPeriod] = useState('month');
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  // Fetch booking stats
+  const fetchBookingStats = async () => {
+    if (!teamId) return;
+    setStatsLoading(true);
+    try {
+      const response = await api.get(`/teams/${teamId}/booking-stats?period=${statsPeriod}`);
+      setBookingStats(response.data);
+    } catch (error) {
+      console.error('Failed to fetch booking stats:', error);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadTeamMembers();
   }, [teamId]);
+
+  useEffect(() => {
+    fetchBookingStats();
+  }, [teamId, statsPeriod]);
 
   const loadTeamMembers = async () => {
     try {
@@ -172,6 +197,93 @@ export default function TeamMembers() {
             </div>
           </div>
         </div>
+
+        {/* Load Balancing Stats */}
+        {bookingStats && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-blue-600" />
+                Booking Distribution
+              </h3>
+              <select
+                value={statsPeriod}
+                onChange={(e) => setStatsPeriod(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5"
+              >
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+                <option value="all">All Time</option>
+              </select>
+            </div>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-blue-50 rounded-lg p-3">
+                <p className="text-xs text-blue-600 font-medium">Total Bookings</p>
+                <p className="text-2xl font-bold text-blue-900">{bookingStats.summary.total_bookings}</p>
+              </div>
+              <div className="bg-green-50 rounded-lg p-3">
+                <p className="text-xs text-green-600 font-medium">Avg per Member</p>
+                <p className="text-2xl font-bold text-green-900">{bookingStats.summary.average_per_member}</p>
+              </div>
+              <div className="bg-purple-50 rounded-lg p-3">
+                <p className="text-xs text-purple-600 font-medium">Team Size</p>
+                <p className="text-2xl font-bold text-purple-900">{bookingStats.summary.total_members}</p>
+              </div>
+              <div className={`rounded-lg p-3 ${
+                bookingStats.summary.fairness_status === 'even' ? 'bg-green-50' :
+                bookingStats.summary.fairness_status === 'moderate' ? 'bg-yellow-50' : 'bg-red-50'
+              }`}>
+                <p className={`text-xs font-medium ${
+                  bookingStats.summary.fairness_status === 'even' ? 'text-green-600' :
+                  bookingStats.summary.fairness_status === 'moderate' ? 'text-yellow-600' : 'text-red-600'
+                }`}>Distribution</p>
+                <p className={`text-lg font-bold flex items-center gap-1 ${
+                  bookingStats.summary.fairness_status === 'even' ? 'text-green-900' :
+                  bookingStats.summary.fairness_status === 'moderate' ? 'text-yellow-900' : 'text-red-900'
+                }`}>
+                  {bookingStats.summary.fairness_status === 'even' ? (
+                    <><CheckCircle className="h-5 w-5" /> Even</>
+                  ) : bookingStats.summary.fairness_status === 'moderate' ? (
+                    <><AlertTriangle className="h-5 w-5" /> Moderate</>
+                  ) : (
+                    <><AlertTriangle className="h-5 w-5" /> Uneven</>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {/* Distribution Bars */}
+            <div className="space-y-3">
+              {bookingStats.members.map((member) => {
+                const maxBookings = Math.max(...bookingStats.members.map(m => parseInt(m.total_bookings) || 0), 1);
+                const percentage = ((parseInt(member.total_bookings) || 0) / maxBookings) * 100;
+
+                return (
+                  <div key={member.member_id} className="flex items-center gap-3">
+                    <div className="w-32 truncate text-sm font-medium text-gray-700">
+                      {member.member_name}
+                    </div>
+                    <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-blue-500 to-purple-500 h-full rounded-full flex items-center justify-end px-2 transition-all duration-500"
+                        style={{ width: `${Math.max(percentage, 5)}%` }}
+                      >
+                        <span className="text-xs font-bold text-white">
+                          {member.total_bookings}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-20 text-right text-xs text-gray-500">
+                      {Math.round(parseInt(member.total_minutes) / 60)}h booked
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Members grid */}
         {members.length === 0 ? (

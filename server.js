@@ -3885,6 +3885,110 @@ app.get('/api/teams/:id', authenticateToken, checkTeamAccess, async (req, res) =
   }
 });
 
+// GET /api/teams/:id/booking-stats - Get booking distribution stats
+app.get('/api/teams/:id/booking-stats', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { period = 'all' } = req.query; // 'week', 'month', 'all'
+
+    // Verify team access
+    const teamCheck = await pool.query(
+      'SELECT id FROM teams WHERE id = $1 AND owner_id = $2',
+      [id, req.user.id]
+    );
+    if (teamCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    // Build date filter
+    let dateFilter = '';
+    if (period === 'week') {
+      dateFilter = "AND b.start_time >= NOW() - INTERVAL '7 days'";
+    } else if (period === 'month') {
+      dateFilter = "AND b.start_time >= NOW() - INTERVAL '30 days'";
+    }
+
+    // Get booking stats per member
+    const stats = await pool.query(`
+      SELECT
+        tm.id as member_id,
+        tm.name as member_name,
+        u.email as member_email,
+        COUNT(b.id) as total_bookings,
+        COUNT(CASE WHEN b.status = 'confirmed' THEN 1 END) as confirmed_bookings,
+        COUNT(CASE WHEN b.status = 'cancelled' THEN 1 END) as cancelled_bookings,
+        COALESCE(SUM(CASE WHEN b.status = 'confirmed' THEN EXTRACT(EPOCH FROM (b.end_time - b.start_time))/60 END), 0) as total_minutes
+      FROM team_members tm
+      LEFT JOIN users u ON tm.user_id = u.id
+      LEFT JOIN bookings b ON tm.id = b.member_id ${dateFilter}
+      WHERE tm.team_id = $1
+      GROUP BY tm.id, tm.name, u.email
+      ORDER BY total_bookings DESC
+    `, [id]);
+
+    // Calculate distribution fairness
+    const bookingCounts = stats.rows.map(s => parseInt(s.total_bookings) || 0);
+    const total = bookingCounts.reduce((a, b) => a + b, 0);
+    const avg = total / (bookingCounts.length || 1);
+    const maxDeviation = Math.max(...bookingCounts.map(c => Math.abs(c - avg)), 0);
+    const fairnessScore = avg > 0 ? Math.max(0, 100 - (maxDeviation / avg * 100)) : 100;
+
+    res.json({
+      members: stats.rows,
+      summary: {
+        total_bookings: total,
+        total_members: stats.rows.length,
+        average_per_member: Math.round(avg * 10) / 10,
+        fairness_score: Math.round(fairnessScore),
+        fairness_status: fairnessScore >= 80 ? 'even' : fairnessScore >= 50 ? 'moderate' : 'uneven'
+      },
+      period
+    });
+  } catch (error) {
+    console.error('Team booking stats error:', error);
+    res.status(500).json({ error: 'Failed to get booking stats' });
+  }
+});
+
+// GET /api/teams/:id/availability-grid - Get all members' availability
+app.get('/api/teams/:id/availability-grid', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verify team access
+    const teamCheck = await pool.query(
+      'SELECT id, name, booking_mode FROM teams WHERE id = $1 AND owner_id = $2',
+      [id, req.user.id]
+    );
+    if (teamCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    // Get all members with their working hours
+    const members = await pool.query(`
+      SELECT
+        tm.id,
+        tm.name,
+        tm.working_hours,
+        tm.is_active,
+        u.email,
+        u.timezone
+      FROM team_members tm
+      LEFT JOIN users u ON tm.user_id = u.id
+      WHERE tm.team_id = $1
+      ORDER BY tm.name ASC
+    `, [id]);
+
+    res.json({
+      team: teamCheck.rows[0],
+      members: members.rows
+    });
+  } catch (error) {
+    console.error('Team availability grid error:', error);
+    res.status(500).json({ error: 'Failed to get availability grid' });
+  }
+});
+
 // Update team settings
 app.put('/api/teams/:id', authenticateToken, checkTeamAccess,  async (req, res) => {
   try {
@@ -11877,6 +11981,35 @@ app.put('/api/email-templates/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Update template error:', error);
     res.status(500).json({ error: 'Failed to update template' });
+  }
+});
+
+// Delete template
+app.delete('/api/email-templates/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    // Verify ownership before deleting
+    const check = await pool.query(
+      'SELECT id FROM email_templates WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    await pool.query(
+      'DELETE FROM email_templates WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+
+    console.log(`🗑️ Email template deleted: ${id}`);
+    res.json({ success: true, message: 'Template deleted' });
+  } catch (error) {
+    console.error('Delete template error:', error);
+    res.status(500).json({ error: 'Failed to delete template' });
   }
 });
 
