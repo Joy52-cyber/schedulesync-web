@@ -5952,103 +5952,140 @@ console.log('?? Checking if team token...');
 
     if (isCollectiveMode && collectiveMembers && collectiveMembers.length > 1) {
       console.log(`🔄 Filtering slots for collective mode (${collectiveMembers.length} members)...`);
-      
+
       const availableSlots = slots.filter(s => s.status === 'available');
-      const filteredSlots = [];
-      
-      for (const slot of availableSlots) {
-        const slotStart = new Date(slot.start);
-        const slotEnd = new Date(slot.end);
-        let allMembersFree = true;
-        
-        // Check each additional member (skip first, already checked)
-        for (let i = 1; i < collectiveMembers.length; i++) {
-          const member = collectiveMembers[i];
-          
-          // Check Google Calendar
-          if (member.google_access_token) {
-            try {
-              const oauth2Client = new google.auth.OAuth2(
-                process.env.GOOGLE_CLIENT_ID,
-                process.env.GOOGLE_CLIENT_SECRET
-              );
-              oauth2Client.setCredentials({
-                access_token: member.google_access_token,
-                refresh_token: member.google_refresh_token
-              });
-              
-              const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-              const busyResponse = await calendar.freebusy.query({
-                requestBody: {
-                  timeMin: slotStart.toISOString(),
-                  timeMax: slotEnd.toISOString(),
-                  items: [{ id: 'primary' }]
-                }
-              });
-              
-              const busyTimes = busyResponse.data.calendars?.primary?.busy || [];
-              if (busyTimes.length > 0) {
-                allMembersFree = false;
-                break;
-              }
-            } catch (e) {
-              console.log(`  ⚠️ Google calendar check failed for ${member.member_name}:`, e.message);
-            }
-          }
-          
-          // Check Microsoft Calendar
-          if (allMembersFree && member.microsoft_access_token) {
-            try {
-              const msResponse = await fetch(
-                `https://graph.microsoft.com/v1.0/me/calendar/getSchedule`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${member.microsoft_access_token}`,
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                    schedules: [member.email || 'me'],
-                    startTime: { dateTime: slotStart.toISOString(), timeZone: 'UTC' },
-                    endTime: { dateTime: slotEnd.toISOString(), timeZone: 'UTC' }
-                  })
-                }
-              );
-              
-              if (msResponse.ok) {
-                const msData = await msResponse.json();
-                const busyItems = msData.value?.[0]?.scheduleItems || [];
-                if (busyItems.length > 0) {
-                  allMembersFree = false;
-                  break;
-                }
-              }
-            } catch (e) {
-              console.log(`  ⚠️ Microsoft calendar check failed for ${member.member_name}:`, e.message);
-            }
-          }
-          
-          // Check existing bookings for this member
-          if (allMembersFree) {
-            const bookingCheck = await pool.query(
-              `SELECT id FROM bookings 
-               WHERE member_id = $1 
-               AND status = 'confirmed'
-               AND start_time < $2 AND end_time > $3`,
-              [member.member_id, slotEnd.toISOString(), slotStart.toISOString()]
+
+      // ========== STEP 1: Pre-fetch ALL busy times for each member (1 API call per member) ==========
+      const slotTimes = availableSlots.map(s => new Date(s.start));
+      const rangeStart = new Date(Math.min(...slotTimes));
+      const rangeEnd = new Date(Math.max(...availableSlots.map(s => new Date(s.end))));
+
+      console.log(`🔄 Fetching busy times for date range: ${rangeStart.toISOString()} to ${rangeEnd.toISOString()}`);
+
+      // Store busy times for each member: { memberId: [{start, end}, ...] }
+      const memberBusyTimes = {};
+
+      // Fetch busy times for each additional member (skip first, already checked in slot generation)
+      for (let i = 1; i < collectiveMembers.length; i++) {
+        const member = collectiveMembers[i];
+        memberBusyTimes[member.member_id] = [];
+
+        // Fetch Google Calendar busy times
+        if (member.google_access_token) {
+          try {
+            const oauth2Client = new google.auth.OAuth2(
+              process.env.GOOGLE_CLIENT_ID,
+              process.env.GOOGLE_CLIENT_SECRET
             );
-            
-            if (bookingCheck.rows.length > 0) {
-              allMembersFree = false;
+            oauth2Client.setCredentials({
+              access_token: member.google_access_token,
+              refresh_token: member.google_refresh_token
+            });
+
+            const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+            const busyResponse = await calendar.freebusy.query({
+              requestBody: {
+                timeMin: rangeStart.toISOString(),
+                timeMax: rangeEnd.toISOString(),
+                items: [{ id: 'primary' }]
+              }
+            });
+
+            const busyTimes = busyResponse.data.calendars?.primary?.busy || [];
+            memberBusyTimes[member.member_id].push(...busyTimes.map(b => ({
+              start: new Date(b.start),
+              end: new Date(b.end)
+            })));
+            console.log(`  ✅ Google: ${member.member_name} has ${busyTimes.length} busy periods`);
+          } catch (e) {
+            // Handle invalid/expired credentials gracefully
+            if (e.message?.includes('invalid_grant') || e.message?.includes('Token has been expired') || e.code === 401) {
+              console.log(`  ⚠️ Google credentials invalid for ${member.member_name} - skipping calendar check`);
+            } else {
+              console.log(`  ⚠️ Google calendar fetch failed for ${member.member_name}:`, e.message);
             }
+            // Continue without this member's Google calendar - don't fail the request
           }
         }
-        
-        if (allMembersFree) {
-          filteredSlots.push(slot);
+
+        // Fetch Microsoft Calendar busy times
+        if (member.microsoft_access_token) {
+          try {
+            const msResponse = await fetch(
+              `https://graph.microsoft.com/v1.0/me/calendar/calendarView?startDateTime=${rangeStart.toISOString()}&endDateTime=${rangeEnd.toISOString()}&$select=start,end,showAs`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${member.microsoft_access_token}`,
+                  'Prefer': 'outlook.timezone="UTC"'
+                }
+              }
+            );
+
+            if (msResponse.ok) {
+              const msData = await msResponse.json();
+              const busyEvents = (msData.value || []).filter(e => e.showAs !== 'free');
+              memberBusyTimes[member.member_id].push(...busyEvents.map(e => ({
+                start: new Date(e.start.dateTime + 'Z'),
+                end: new Date(e.end.dateTime + 'Z')
+              })));
+              console.log(`  ✅ Microsoft: ${member.member_name} has ${busyEvents.length} busy periods`);
+            } else if (msResponse.status === 401) {
+              console.log(`  ⚠️ Microsoft credentials invalid for ${member.member_name} - skipping calendar check`);
+            } else {
+              console.log(`  ⚠️ Microsoft calendar fetch failed for ${member.member_name}: ${msResponse.status}`);
+            }
+          } catch (e) {
+            console.log(`  ⚠️ Microsoft calendar fetch failed for ${member.member_name}:`, e.message);
+            // Continue without this member's Microsoft calendar
+          }
+        }
+
+        // Fetch existing bookings for this member
+        try {
+          const bookingsResult = await pool.query(
+            `SELECT start_time, end_time FROM bookings
+             WHERE member_id = $1
+             AND status = 'confirmed'
+             AND start_time < $2 AND end_time > $3`,
+            [member.member_id, rangeEnd.toISOString(), rangeStart.toISOString()]
+          );
+          memberBusyTimes[member.member_id].push(...bookingsResult.rows.map(b => ({
+            start: new Date(b.start_time),
+            end: new Date(b.end_time)
+          })));
+          if (bookingsResult.rows.length > 0) {
+            console.log(`  ✅ Bookings: ${member.member_name} has ${bookingsResult.rows.length} existing bookings`);
+          }
+        } catch (e) {
+          console.log(`  ⚠️ Bookings query failed for ${member.member_name}:`, e.message);
         }
       }
-      
+
+      // ========== STEP 2: Filter slots in memory (no additional API calls) ==========
+      console.log(`🔄 Filtering ${availableSlots.length} slots against pre-fetched busy times...`);
+
+      const filteredSlots = availableSlots.filter(slot => {
+        const slotStart = new Date(slot.start);
+        const slotEnd = new Date(slot.end);
+
+        // Check if ALL members are free during this slot
+        for (let i = 1; i < collectiveMembers.length; i++) {
+          const member = collectiveMembers[i];
+          const busyTimes = memberBusyTimes[member.member_id] || [];
+
+          // Check if slot overlaps with any busy time
+          const hasConflict = busyTimes.some(busy => {
+            return slotStart < busy.end && slotEnd > busy.start;
+          });
+
+          if (hasConflict) {
+            return false; // At least one member is busy
+          }
+        }
+
+        return true; // All members are free
+      });
+
       console.log(`✅ Collective filtering: ${availableSlots.length} → ${filteredSlots.length} slots`);
       
       // Rebuild slotsByDate with filtered slots
