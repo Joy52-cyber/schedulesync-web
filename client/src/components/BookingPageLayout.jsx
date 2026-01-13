@@ -33,15 +33,15 @@ export default function BookingPageLayout({ children, user, badge, branding }) {
 
           {/* Profile Section */}
           <div className="px-8 pb-8">
-            <div className="flex items-end gap-4 -mt-12 mb-6">
+            <div className="flex items-end gap-4 -mt-12 mb-6 relative z-10">
               {user?.avatar_url ? (
                 <img
                   src={user.avatar_url}
                   alt={user?.name}
-                  className="w-24 h-24 rounded-2xl border-4 border-white shadow-lg object-cover bg-white"
+                  className="w-24 h-24 rounded-2xl border-4 border-white shadow-lg object-cover bg-white relative z-10"
                 />
               ) : branding?.logo_url ? (
-                <div className="w-24 h-24 rounded-2xl border-4 border-white shadow-lg bg-white flex items-center justify-center">
+                <div className="w-24 h-24 rounded-2xl border-4 border-white shadow-lg bg-white flex items-center justify-center relative z-10">
                   <img
                     src={branding.logo_url}
                     alt="Logo"
@@ -50,7 +50,7 @@ export default function BookingPageLayout({ children, user, badge, branding }) {
                 </div>
               ) : (
                 <div
-                  className="w-24 h-24 rounded-2xl border-4 border-white shadow-lg flex items-center justify-center"
+                  className="w-24 h-24 rounded-2xl border-4 border-white shadow-lg flex items-center justify-center relative z-10"
                   style={gradientStyle}
                 >
                   <span className="text-3xl font-bold text-white">{getInitials(user?.name)}</span>
