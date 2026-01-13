@@ -5050,16 +5050,25 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         );
         
         if (membersResult.rows.length > 0) {
+          console.log('✨ Magic link members found:', {
+            count: membersResult.rows.length,
+            scheduling_mode: magicLink.scheduling_mode,
+            members: membersResult.rows.map(m => m.member_name)
+          });
+
           // Check if collective mode
           if (magicLink.scheduling_mode === 'collective') {
             console.log(`🔄 COLLECTIVE MODE: Will filter for ${membersResult.rows.length} members`);
             isCollectiveMode = true;
             collectiveMembers = membersResult.rows;
+            console.log('🔄 COLLECTIVE MODE SET:', { isCollectiveMode, memberCount: collectiveMembers.length });
+          } else {
+            console.log('📍 Non-collective mode:', magicLink.scheduling_mode);
           }
 
-          // Use first member's token for initial slot generation
+          // Use first member's token for initial slot generation (AFTER collective mode is set)
           token = membersResult.rows[0].booking_token;
-          console.log('✨ Magic link slots: Using member token, mode:', magicLink.scheduling_mode);
+          console.log('✨ Magic link slots: Token replaced, mode:', magicLink.scheduling_mode, 'isCollectiveMode:', isCollectiveMode);
         } else {
 
 
