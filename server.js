@@ -7589,7 +7589,7 @@ try {
         console.log('✨ Magic link found for booking:', magicLink.link_name);
         
         // Get members from magic_link_members
-        const membersResult = await pool.query(
+        const mlMembersResult = await pool.query(
           `SELECT tm.*, u.google_access_token, u.google_refresh_token,
                   u.microsoft_access_token, u.microsoft_refresh_token,
                   u.provider, u.email as member_email, u.name as member_name
@@ -7601,8 +7601,8 @@ try {
           [magicLink.id]
         );
         
-        if (membersResult.rows.length > 0) {
-          const primaryMember = membersResult.rows[0];
+        if (mlMembersResult.rows.length > 0) {
+          const primaryMember = mlMembersResult.rows[0];
           memberResult = { 
             rows: [{
               ...primaryMember,
@@ -7633,10 +7633,9 @@ try {
         }
       }
     }
-   
     
     // CHECK 1: Single-use link (64 chars)
-    if (token.length === 64) {
+    if (!memberResult && token.length === 64) {
       console.log('?? Looking up single-use link...');
       memberResult = await pool.query(
         `SELECT tm.*, 
@@ -7660,7 +7659,7 @@ try {
            AND sul.expires_at > NOW()`,
         [token]
       );
-    } else {
+    } else if (!memberResult) {
       // CHECK 2: Team token
       console.log('?? Checking if team token...');
       const teamCheck = await pool.query(
