@@ -34,7 +34,6 @@ import api, {
 import AISchedulerChat from '../components/AISchedulerChat';
 import { useNotification } from '../contexts/NotificationContext';
 import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal';
-import DashboardUsageWidget from '../components/DashboardUsageWidget';
 import { useWalkthrough } from '../context/WalkthroughContext';
 import { WalkthroughPrompt, WalkthroughButton } from '../components/Walkthrough';
 
@@ -437,9 +436,6 @@ export default function Dashboard() {
             )}
             
             <LimitWarningBanner />
-            
-            {/* Usage Widget - KEPT INTACT */}
-            <DashboardUsageWidget />
 
             {/* Quick Stats - IMPROVED */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
