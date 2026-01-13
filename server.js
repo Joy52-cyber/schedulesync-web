@@ -12589,6 +12589,134 @@ async function createRescheduleSuggestion(bookingId, userId, reason = 'conflict'
   }
 }
 
+// ============ EMAIL INTENT DETECTION ============
+
+// Parse email text to detect scheduling intent
+function parseEmailIntent(emailText) {
+  const lowerText = emailText.toLowerCase();
+
+  const result = {
+    has_scheduling_intent: false,
+    intent_type: null, // 'request_meeting', 'propose_time', 'confirm', 'reschedule', 'cancel'
+    extracted_data: {},
+    suggested_actions: []
+  };
+
+  // Detect meeting request intent
+  const meetingKeywords = [
+    'schedule a meeting', 'schedule a call', 'set up a meeting', 'set up a call',
+    'book a meeting', 'book a call', 'find a time', 'find time to meet',
+    'can we meet', 'can we talk', 'can we chat', 'can we connect',
+    'would you be available', 'are you available', 'are you free',
+    'let\'s meet', 'let\'s talk', 'let\'s chat', 'let\'s connect',
+    'want to meet', 'want to discuss', 'want to talk',
+    'schedule time', 'grab coffee', 'catch up', 'sync up',
+    'hop on a call', 'jump on a call', 'quick call', 'brief call'
+  ];
+
+  const rescheduleKeywords = [
+    'reschedule', 'move the meeting', 'change the time', 'postpone',
+    'push back', 'different time', 'another time', 'rain check'
+  ];
+
+  const cancelKeywords = [
+    'cancel the meeting', 'cancel our call', 'can\'t make it',
+    'won\'t be able to', 'need to cancel', 'have to cancel'
+  ];
+
+  const confirmKeywords = [
+    'confirm the meeting', 'confirmed for', 'see you then',
+    'looking forward to', 'that works', 'sounds good', 'i\'ll be there'
+  ];
+
+  const proposeTimeKeywords = [
+    'how about', 'what about', 'does .* work', 'would .* work',
+    'i\'m free on', 'i\'m available on', 'available at'
+  ];
+
+  // Check for each intent type
+  if (rescheduleKeywords.some(k => lowerText.includes(k))) {
+    result.has_scheduling_intent = true;
+    result.intent_type = 'reschedule';
+    result.suggested_actions = [
+      { action: 'send_availability', label: 'Send your availability' },
+      { action: 'create_quick_link', label: 'Create a quick link for them' }
+    ];
+  } else if (cancelKeywords.some(k => lowerText.includes(k))) {
+    result.has_scheduling_intent = true;
+    result.intent_type = 'cancel';
+    result.suggested_actions = [
+      { action: 'view_bookings', label: 'View your bookings to cancel' },
+      { action: 'send_reschedule', label: 'Offer to reschedule' }
+    ];
+  } else if (confirmKeywords.some(k => lowerText.includes(k))) {
+    result.has_scheduling_intent = true;
+    result.intent_type = 'confirm';
+    result.suggested_actions = [
+      { action: 'add_to_calendar', label: 'Add to calendar' }
+    ];
+  } else if (proposeTimeKeywords.some(k => new RegExp(k).test(lowerText))) {
+    result.has_scheduling_intent = true;
+    result.intent_type = 'propose_time';
+    result.suggested_actions = [
+      { action: 'check_availability', label: 'Check if you\'re free' },
+      { action: 'confirm_time', label: 'Confirm this time' },
+      { action: 'propose_alternative', label: 'Propose alternative' }
+    ];
+  } else if (meetingKeywords.some(k => lowerText.includes(k))) {
+    result.has_scheduling_intent = true;
+    result.intent_type = 'request_meeting';
+    result.suggested_actions = [
+      { action: 'create_quick_link', label: 'Send a booking link' },
+      { action: 'send_availability', label: 'Share your availability' },
+      { action: 'propose_time', label: 'Propose a specific time' }
+    ];
+  }
+
+  // Extract email addresses
+  const emailRegex = /[\w.-]+@[\w.-]+\.\w+/g;
+  const emails = emailText.match(emailRegex) || [];
+  if (emails.length > 0) {
+    result.extracted_data.emails = [...new Set(emails)];
+  }
+
+  // Extract names (basic: look for "From:" or greeting patterns)
+  const fromMatch = emailText.match(/From:\s*([^<\n]+)/i);
+  if (fromMatch) {
+    result.extracted_data.sender_name = fromMatch[1].trim();
+  }
+
+  // Extract potential dates/times
+  const datePatterns = [
+    /(\d{1,2}\/\d{1,2}\/\d{2,4})/g, // MM/DD/YYYY
+    /(\d{1,2}-\d{1,2}-\d{2,4})/g, // MM-DD-YYYY
+    /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/gi,
+    /(tomorrow|next week|this week)/gi,
+    /(\d{1,2}:\d{2}\s*(am|pm)?)/gi, // Time
+    /(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}/gi
+  ];
+
+  const foundDates = [];
+  datePatterns.forEach(pattern => {
+    const matches = emailText.match(pattern);
+    if (matches) foundDates.push(...matches);
+  });
+
+  if (foundDates.length > 0) {
+    result.extracted_data.mentioned_dates = [...new Set(foundDates)];
+  }
+
+  // Extract duration mentions
+  const durationMatch = lowerText.match(/(\d+)\s*(min|minute|hour)/i);
+  if (durationMatch) {
+    const value = parseInt(durationMatch[1]);
+    const unit = durationMatch[2].toLowerCase();
+    result.extracted_data.duration = unit.startsWith('hour') ? value * 60 : value;
+  }
+
+  return result;
+}
+
 // GET /api/preferences - Get user's learned preferences
 app.get('/api/preferences', authenticateToken, async (req, res) => {
   try {
@@ -12732,6 +12860,126 @@ app.post('/api/check-conflicts', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Check conflicts error:', error);
     res.status(500).json({ error: 'Failed to check conflicts' });
+  }
+});
+
+// ============ EMAIL INTENT DETECTION ENDPOINTS ============
+
+// POST /api/analyze-email - Analyze email text for scheduling intent
+app.post('/api/analyze-email', authenticateToken, async (req, res) => {
+  try {
+    const { email_text } = req.body;
+
+    if (!email_text || email_text.trim().length < 10) {
+      return res.status(400).json({ error: 'Please provide email text to analyze' });
+    }
+
+    const analysis = parseEmailIntent(email_text);
+
+    // If scheduling intent found, get user's booking link
+    if (analysis.has_scheduling_intent) {
+      const user = await pool.query(
+        'SELECT username FROM users WHERE id = $1',
+        [req.user.id]
+      );
+
+      if (user.rows[0]?.username) {
+        analysis.booking_link = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/${user.rows[0].username}`;
+      }
+
+      // Get user's next available slots
+      const slots = await findAlternativeSlots(req.user.id, 30, -1);
+      if (slots.length > 0) {
+        analysis.next_available = slots.slice(0, 3);
+      }
+    }
+
+    console.log(`📧 Email analyzed: intent=${analysis.intent_type || 'none'}`);
+    res.json(analysis);
+  } catch (error) {
+    console.error('Analyze email error:', error);
+    res.status(500).json({ error: 'Failed to analyze email' });
+  }
+});
+
+// POST /api/generate-reply - Generate a reply based on intent
+app.post('/api/generate-reply', authenticateToken, async (req, res) => {
+  try {
+    const { intent_type, sender_name, booking_link, selected_action } = req.body;
+
+    const user = await pool.query(
+      'SELECT name FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    const userName = user.rows[0]?.name || 'there';
+
+    let reply = '';
+
+    switch (selected_action) {
+      case 'create_quick_link':
+      case 'send_availability':
+        reply = `Hi ${sender_name || 'there'},
+
+Thanks for reaching out! I'd love to connect.
+
+Here's my booking link where you can pick a time that works best for you:
+${booking_link}
+
+Looking forward to our conversation!
+
+Best,
+${userName}`;
+        break;
+
+      case 'propose_time':
+        reply = `Hi ${sender_name || 'there'},
+
+Thanks for reaching out! How about we meet [DAY] at [TIME]?
+
+Let me know if that works, or feel free to pick another time here:
+${booking_link}
+
+Best,
+${userName}`;
+        break;
+
+      case 'confirm_time':
+        reply = `Hi ${sender_name || 'there'},
+
+That time works perfectly for me! I've added it to my calendar.
+
+Looking forward to speaking with you then.
+
+Best,
+${userName}`;
+        break;
+
+      case 'send_reschedule':
+        reply = `Hi ${sender_name || 'there'},
+
+No problem at all! Let's find another time that works better.
+
+You can pick a new time here: ${booking_link}
+
+Best,
+${userName}`;
+        break;
+
+      default:
+        reply = `Hi ${sender_name || 'there'},
+
+Thanks for your message!
+
+You can book a time with me here: ${booking_link}
+
+Best,
+${userName}`;
+    }
+
+    res.json({ reply });
+  } catch (error) {
+    console.error('Generate reply error:', error);
+    res.status(500).json({ error: 'Failed to generate reply' });
   }
 });
 

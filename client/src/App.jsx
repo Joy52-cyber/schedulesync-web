@@ -39,6 +39,7 @@ import Availability from './pages/Availability';
 import CalendlyMigration from './pages/CalendlyMigration';
 import EmailTemplates from './pages/EmailTemplates';
 import SchedulingRules from './pages/SchedulingRules';
+import EmailAnalyzer from './pages/EmailAnalyzer';
 import MyLinks from './pages/MyLinks';
 import BillingSettings from './pages/BillingSettings';
 import BillingPage from './pages/BillingPage';
@@ -150,6 +151,7 @@ function InnerApp() {
                 <Route path="/availability" element={<Availability />} />
                 <Route path="/templates" element={<EmailTemplates />} />
                 <Route path="/rules" element={<SchedulingRules />} />
+                <Route path="/email-assistant" element={<EmailAnalyzer />} />
                 <Route path="/my-links" element={<MyLinks />} />
                 <Route path="/billing" element={<BillingPage />} />
 
