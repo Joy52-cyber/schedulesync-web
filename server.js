@@ -1704,105 +1704,54 @@ app.post('/api/public/booking/create', async (req, res) => {
           notes: notes || '',
         });
 
-        // 1. PRIMARY ATTENDEE EMAIL
-        await resend.emails.send({
+        // 1. PRIMARY ATTENDEE EMAIL (using templates)
+        const emailVars = buildEmailVariables(booking, {
+          name: host.name,
+          email: host.email
+        }, {
+          guestName: attendee_name,
+          guestEmail: attendee_email,
+          duration: duration,
+          notes: notes || '',
+          additionalAttendees: additional_attendees?.join(', ') || '',
+          manageLink: manageUrl,
+          meetingLink: eventType.location || '',
+          eventTitle: eventType.title
+        });
+
+        await sendTemplatedEmail(attendee_email, host.id, 'confirmation', emailVars, {
           from: 'ScheduleSync <bookings@trucal.xyz>',
-          to: attendee_email,
-          subject: `? Booking Confirmed: ${eventType.title}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                <h1 style="color: white; margin: 0;">Booking Confirmed! ?</h1>
-              </div>
-              
-              <div style="padding: 30px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-                <p style="font-size: 16px; color: #374151;">Hi ${attendee_name},</p>
-                
-                <p style="font-size: 16px; color: #374151;">Your meeting with <strong>${host.name}</strong> is confirmed!</p>
-                
-                <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
-                  <h2 style="margin-top: 0; color: #1f2937;">${eventType.title}</h2>
-                  <p style="margin: 10px 0; color: #6b7280;">
-                    <strong>?? When:</strong> ${formattedDateTime}<br>
-                    <strong>?? Duration:</strong> ${duration} minutes<br>
-                    <strong>?? Timezone:</strong> ${guest_timezone || 'UTC'}<br>
-                    ${eventType.location ? `<strong>?? Location:</strong> ${eventType.location}<br>` : ''}
-                    ${additional_attendees?.length > 0 ? `<strong>?? Others:</strong> ${additional_attendees.join(', ')}<br>` : ''}
-                  </p>
-                  ${notes ? `<p style="margin-top: 15px; padding: 10px; background: #f3f4f6; border-radius: 4px;"><strong>Notes:</strong><br>${notes}</p>` : ''}
-                </div>
-                
-                <div style="text-align: center; margin: 30px 0;">
-                  <a href="${manageUrl}" style="display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">Manage Booking</a>
-                </div>
-                
-                <p style="font-size: 14px; color: #6b7280; text-align: center;">
-                  Need to reschedule or cancel? Use the link above.
-                </p>
-              </div>
-            </div>
-          `,
-          attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+          attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }]
         });
         console.log('? Email sent to primary attendee:', attendee_email);
 
-        // 2. ADDITIONAL ATTENDEES
+        // 2. ADDITIONAL ATTENDEES (using confirmation template)
         if (additional_attendees && Array.isArray(additional_attendees) && additional_attendees.length > 0) {
           console.log(`?? Sending to ${additional_attendees.length} additional attendees...`);
-          for (const email of additional_attendees) {
-            await resend.emails.send({
+          for (const additionalEmail of additional_attendees) {
+            const additionalVars = {
+              ...emailVars,
+              guestName: additionalEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+              invitedBy: `${attendee_name} (${attendee_email})`
+            };
+            await sendTemplatedEmail(additionalEmail, host.id, 'confirmation', additionalVars, {
               from: 'ScheduleSync <bookings@trucal.xyz>',
-              to: email,
-              subject: `Meeting Invitation: ${eventType.title}`,
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h2 style="color: #2563eb;">You're invited!</h2>
-                  <p><strong>${attendee_name}</strong> has invited you to a meeting with <strong>${host.name}</strong>.</p>
-                  <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <p style="margin: 5px 0;"><strong>?? When:</strong> ${formattedDateTime}</p>
-                    <p style="margin: 5px 0;"><strong>?? Duration:</strong> ${duration} minutes</p>
-                    <p style="margin: 5px 0;"><strong>?? Invited by:</strong> ${attendee_name} (${attendee_email})</p>
-                    ${notes ? `<p style="margin: 5px 0;"><strong>?? Notes:</strong> ${notes}</p>` : ''}
-                  </div>
-                </div>
-              `,
-              attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+              attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }]
             });
-            console.log(`? Email sent to: ${email}`);
+            console.log(`? Email sent to: ${additionalEmail}`);
           }
         }
 
-        // 3. HOST EMAIL
-        await resend.emails.send({
+        // 3. HOST EMAIL (using confirmation template with host view)
+        const hostVars = {
+          ...emailVars,
+          guestName: host.name,
+          attendeeName: attendee_name,
+          attendeeEmail: attendee_email
+        };
+        await sendTemplatedEmail(host.email, host.id, 'confirmation', hostVars, {
           from: 'ScheduleSync <bookings@trucal.xyz>',
-          to: host.email,
-          subject: `?? New Booking: ${eventType.title}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                <h1 style="color: white; margin: 0;">New Booking Received ??</h1>
-              </div>
-              
-              <div style="padding: 30px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-                <p style="font-size: 16px; color: #374151;">Hi ${host.name},</p>
-                
-                <p style="font-size: 16px; color: #374151;">You have a new booking!</p>
-                
-                <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981;">
-                  <h2 style="margin-top: 0; color: #1f2937;">${eventType.title}</h2>
-                  <p style="margin: 10px 0; color: #6b7280;">
-                    <strong>?? Guest:</strong> ${attendee_name}<br>
-                    <strong>?? Email:</strong> ${attendee_email}<br>
-                    ${additional_attendees?.length > 0 ? `<strong>?? Others:</strong> ${additional_attendees.join(', ')}<br>` : ''}
-                    <strong>?? When:</strong> ${formattedDateTime}<br>
-                    <strong>?? Duration:</strong> ${duration} minutes
-                  </p>
-                  ${notes ? `<p style="margin-top: 15px; padding: 10px; background: #f3f4f6; border-radius: 4px;"><strong>Guest Notes:</strong><br>${notes}</p>` : ''}
-                </div>
-              </div>
-            </div>
-          `,
-          attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+          attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }]
         });
         console.log('? Email sent to host:', host.email);
         console.log('? All confirmation emails sent');
@@ -2423,54 +2372,34 @@ try {
   });
   console.log('? Email sent to primary attendee:', attendee_email);
 
-  // 2. Additional attendees
+  // 2. Additional attendees (using confirmation template)
   if (additional_attendees && Array.isArray(additional_attendees) && additional_attendees.length > 0) {
     console.log(`?? Sending to ${additional_attendees.length} additional attendees...`);
-    for (const email of additional_attendees) {
-      await resend.emails.send({
-  from: 'ScheduleSync <bookings@trucal.xyz>',  // ? Change this
-  to: email,
-        subject: `Meeting Invitation with ${assignedMember.organizer_name}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2563eb;">You're invited!</h2>
-            <p><strong>${attendee_name}</strong> has invited you to a meeting with <strong>${assignedMember.organizer_name}</strong>.</p>
-            <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <p style="margin: 5px 0;"><strong>?? When:</strong> ${new Date(slot.start).toLocaleString()}</p>
-              <p style="margin: 5px 0;"><strong>? Duration:</strong> ${duration} minutes</p>
-              ${notes ? `<p style="margin: 5px 0;"><strong>?? Notes:</strong> ${notes}</p>` : ''}
-              <p style="margin: 5px 0;"><strong>?? Invited by:</strong> ${attendee_name} (${attendee_email})</p>
-              ${meetLink ? `<p style="margin: 5px 0;"><strong>?? Meet:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ''}
-            </div>
-          </div>
-        `,
-        attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+    for (const additionalEmail of additional_attendees) {
+      const additionalVars = {
+        ...emailVars,
+        guestName: additionalEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        invitedBy: `${attendee_name} (${attendee_email})`
+      };
+      await sendTemplatedEmail(additionalEmail, member.user_id, 'confirmation', additionalVars, {
+        from: 'ScheduleSync <bookings@trucal.xyz>',
+        attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }]
       });
-      console.log(`? Email sent to: ${email}`);
+      console.log(`? Email sent to: ${additionalEmail}`);
     }
   }
 
-  // 3. Organizer email
-  await resend.emails.send({
-  from: 'ScheduleSync <bookings@trucal.xyz>',  // ? Change this
-  to: assignedMember.email,
-    subject: `New Booking: ${attendee_name}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #2563eb;">New booking received!</h2>
-        <p>Hi ${assignedMember.organizer_name},</p>
-        <p>New booking from <strong>${attendee_name}</strong>.</p>
-        <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>?? Primary:</strong> ${attendee_name} (${attendee_email})</p>
-          ${additional_attendees?.length > 0 ? `<p style="margin: 5px 0;"><strong>?? Others:</strong> ${additional_attendees.join(', ')}</p>` : ''}
-          <p style="margin: 5px 0;"><strong>?? When:</strong> ${new Date(slot.start).toLocaleString()}</p>
-          <p style="margin: 5px 0;"><strong>? Duration:</strong> ${duration} minutes</p>
-          ${notes ? `<p style="margin: 5px 0;"><strong>?? Notes:</strong> ${notes}</p>` : ''}
-          ${meetLink ? `<p style="margin: 5px 0;"><strong>?? Meet:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ''}
-        </div>
-      </div>
-    `,
-    attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }],
+  // 3. Organizer email (using confirmation template with organizer view)
+  const organizerVars = {
+    ...emailVars,
+    guestName: assignedMember.organizer_name,
+    guestEmail: assignedMember.email,
+    attendeeName: attendee_name,
+    attendeeEmail: attendee_email
+  };
+  await sendTemplatedEmail(assignedMember.email, member.user_id, 'confirmation', organizerVars, {
+    from: 'ScheduleSync <bookings@trucal.xyz>',
+    attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }]
   });
   console.log('? Email sent to organizer:', assignedMember.email);
   console.log('? All confirmation emails sent');
@@ -8292,7 +8221,7 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
 
     console.log('? Booking rescheduled successfully');
 
-    // Send reschedule emails
+    // Send reschedule emails using templates
     try {
       const icsFile = generateICS({
         id: updatedBooking.id,
@@ -8306,38 +8235,31 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
         notes: booking.notes,
       });
 
+      const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${token}`;
+      const rescheduleVars = buildEmailVariables(updatedBooking, {
+        name: booking.member_name,
+        email: booking.member_email
+      }, {
+        guestName: booking.attendee_name,
+        guestEmail: booking.attendee_email,
+        previousDate: new Date(oldStartTime).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+        previousTime: new Date(oldStartTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+        meetingLink: booking.meet_link || '',
+        manageLink: manageUrl
+      });
+
       // Email to guest
-      await sendBookingEmail({
-        to: booking.attendee_email,
-        subject: '?? Booking Rescheduled - ScheduleSync',
-        html: emailTemplates.bookingReschedule(
-          {
-            ...updatedBooking,
-            organizer_name: booking.member_name,
-            team_name: booking.team_name,
-            booking_token: token,
-            meet_link: booking.meet_link, 
-          },
-          oldStartTime
-        ),
-        icsAttachment: icsFile,
+      await sendTemplatedEmail(booking.attendee_email, booking.member_user_id, 'reschedule', rescheduleVars, {
+        attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsFile).toString('base64') }]
       });
 
       // Email to organizer
       if (booking.member_email) {
-        await sendBookingEmail({
-          to: booking.member_email,
-          subject: '?? Booking Rescheduled by Guest - ScheduleSync',
-          html: emailTemplates.bookingReschedule(
-            {
-              ...updatedBooking,
-              organizer_name: booking.member_name,
-              team_name: booking.team_name,
-              booking_token: token,
-            },
-            oldStartTime
-          ),
-          icsAttachment: icsFile,
+        await sendTemplatedEmail(booking.member_email, booking.member_user_id, 'reschedule', {
+          ...rescheduleVars,
+          guestName: booking.member_name,
+        }, {
+          attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsFile).toString('base64') }]
         });
       }
 
@@ -8404,34 +8326,26 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
       await notifyBookingCancelled(booking, booking.member_user_id);
     }
 
-    // Send cancellation emails
+    // Send cancellation emails using templates
     try {
-      // Email to guest
-      await sendBookingEmail({
-        to: booking.attendee_email,
-        subject: '? Booking Cancelled - ScheduleSync',
-        html: emailTemplates.bookingCancellation(
-          {
-            ...booking,
-            booking_token: booking.member_booking_token, // For rebooking
-            meet_link: booking.meet_link,
-          },
-          reason
-        ),
+      const cancellationVars = buildEmailVariables(booking, {
+        name: booking.member_name,
+        email: booking.member_email
+      }, {
+        guestName: booking.attendee_name,
+        guestEmail: booking.attendee_email,
+        cancellationReason: reason ? `Reason: ${reason}` : '',
+        bookingLink: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/book/${booking.member_booking_token || ''}`
       });
+
+      // Email to guest
+      await sendTemplatedEmail(booking.attendee_email, booking.member_user_id, 'cancellation', cancellationVars);
 
       // Email to organizer
       if (booking.member_email) {
-        await sendBookingEmail({
-          to: booking.member_email,
-          subject: '? Booking Cancelled by Guest - ScheduleSync',
-          html: emailTemplates.bookingCancellation(
-            {
-              ...booking,
-              booking_token: booking.member_booking_token,
-            },
-            reason
-          ),
+        await sendTemplatedEmail(booking.member_email, booking.member_user_id, 'cancellation', {
+          ...cancellationVars,
+          guestName: booking.member_name, // Swap for organizer view
         });
       }
 
@@ -11410,40 +11324,29 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
       });
     }
     
-    // Send emails to successfully booked attendees
+    // Send emails to successfully booked attendees (using templates)
     const emailResults = [];
     for (const booking of bookings) {
       try {
-        const emailHtml = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #7C3AED;">?? Meeting Confirmed</h2>
-            <p>Hi ${booking.attendee_name || 'there'},</p>
-            <p>You've been invited to a meeting!</p>
-            
-            <div style="background: #F3F4F6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="margin-top: 0;">?? Meeting Details:</h3>
-              <p><strong>Title:</strong> ${title}</p>
-              <p><strong>Date & Time:</strong> ${new Date(start_time).toLocaleString()}</p>
-              <p><strong>Duration:</strong> ${duration || 30} minutes</p>
-              <p><strong>Attendees:</strong> ${uniqueAttendees.join(', ')}</p>
-              ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ''}
-            </div>
-            
-            <p>Looking forward to meeting with you!</p>
-            <p style="color: #666; font-size: 12px;">Powered by ScheduleSync AI</p>
-          </div>
-        `;
-
-        await resend.emails.send({
-          from: process.env.EMAIL_FROM || 'ScheduleSync <notifications@resend.dev>',
-          to: booking.attendee_email,
-          subject: `Meeting Invitation: ${title}`,
-          html: emailHtml
+        const aiEmailVars = buildEmailVariables(booking, {
+          name: 'AI Scheduler',
+          email: 'ai@schedulesync.com'
+        }, {
+          guestName: booking.attendee_name || 'there',
+          guestEmail: booking.attendee_email,
+          duration: duration || 30,
+          notes: notes || '',
+          additionalAttendees: uniqueAttendees.join(', '),
+          eventTitle: title
         });
-        
+
+        await sendTemplatedEmail(booking.attendee_email, userId, 'confirmation', aiEmailVars, {
+          from: process.env.EMAIL_FROM || 'ScheduleSync <notifications@resend.dev>'
+        });
+
         emailResults.push({ email: booking.attendee_email, sent: true });
         console.log(`?? Invitation sent to ${booking.attendee_email}`);
-        
+
       } catch (emailError) {
         emailResults.push({ email: booking.attendee_email, sent: false, error: emailError.message });
         console.error(`?? Email failed for ${booking.attendee_email}:`, emailError);
@@ -12882,105 +12785,51 @@ const formattedTime = startDate.toLocaleTimeString('en-US', {
 const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${manageToken}`;
 
     
-  // Send confirmation email to ALL GUESTS
+  // Send confirmation email to ALL GUESTS (using templates)
     for (const guestEmail of allAttendees) {
-      const guestName = guestEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-      
+      const derivedGuestName = guestEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
       try {
-        await resend.emails.send({
-          from: `${member.name} via ScheduleSync <notifications@${process.env.RESEND_DOMAIN || 'trucal.xyz'}>`,
-          to: guestEmail,
-          subject: `🎉 Meeting Confirmed: ${bookingTitle}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 24px;">🎉 Meeting Confirmed!</h1>
-              </div>
-              
-              <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
-                <p style="font-size: 16px; color: #333;">Hi ${guestName},</p>
-                
-                <p style="font-size: 16px; color: #555;">Your meeting with <strong>${member.name}</strong> has been confirmed!</p>
-                
-                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
-                  <p style="margin: 5px 0; color: #333;"><strong>📅 Date:</strong> ${formattedDate}</p>
-                  <p style="margin: 5px 0; color: #333;"><strong>🕐 Time:</strong> ${formattedTime}</p>
-                  <p style="margin: 5px 0; color: #333;"><strong>⏱️ Duration:</strong> ${duration} minutes</p>
-                  ${allAttendees.length > 1 ? `<p style="margin: 5px 0; color: #333;"><strong>👥 All Attendees:</strong> ${allAttendees.join(', ')}</p>` : ''}
-                </div>
-                
-                ${notes ? `
-                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                  <p style="margin: 0; color: #856404;"><strong>📝 Notes:</strong> ${notes}</p>
-                </div>
-                ` : ''}
-                
-                <div style="text-align: center; margin-top: 30px;">
-                  <a href="${manageUrl}" style="display: inline-block; background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Manage Booking</a>
-                </div>
-                
-                <p style="font-size: 14px; color: #888; margin-top: 30px; text-align: center;">
-                  Scheduled via ScheduleSync
-                </p>
-              </div>
-            </div>
-          `,
-          // ✅ ADD UTF-8 HEADERS:
-          headers: {
-            'Content-Type': 'text/html; charset=UTF-8',
-            'Content-Transfer-Encoding': '8bit',
-            'MIME-Version': '1.0',
-          },
+        const chatgptGuestVars = buildEmailVariables(booking, {
+          name: member.name,
+          email: member.email
+        }, {
+          guestName: derivedGuestName,
+          guestEmail: guestEmail,
+          duration: duration,
+          notes: notes || '',
+          additionalAttendees: allAttendees.length > 1 ? allAttendees.join(', ') : '',
+          manageLink: manageUrl,
+          eventTitle: bookingTitle
+        });
+
+        await sendTemplatedEmail(guestEmail, userId, 'confirmation', chatgptGuestVars, {
+          from: `${member.name} via ScheduleSync <notifications@${process.env.RESEND_DOMAIN || 'trucal.xyz'}>`
         });
         console.log('✅ Guest confirmation email sent to:', guestEmail);
       } catch (emailError) {
         console.error('❌ Failed to send guest email to', guestEmail, ':', emailError);
       }
     }
-    
 
-    // Send notification email to ORGANIZER
+
+    // Send notification email to ORGANIZER (using confirmation template with organizer view)
     try {
-      await resend.emails.send({
-        from: `ScheduleSync <notifications@${process.env.RESEND_DOMAIN || 'trucal.xyz'}>`,
-        to: member.email,
-        subject: `📅 New Booking: ${guestName} - ${bookingTitle}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">📅 New Booking via AI</h1>
-            </div>
-            
-            <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
-              <p style="font-size: 16px; color: #333;">Hi ${member.name},</p>
-              
-              <p style="font-size: 16px; color: #555;">You have a new booking created via your AI assistant.</p>
-              
-              <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #11998e;">
-               <p style="margin: 5px 0; color: #333;"><strong>👥 Guests:</strong> ${allAttendees.join(', ')}</p>
-              <p style="margin: 5px 0; color: #333;"><strong>📅 Date:</strong> ${formattedDate}</p>
-                <p style="margin: 5px 0; color: #333;"><strong>🕐 Time:</strong> ${formattedTime}</p>
-                <p style="margin: 5px 0; color: #333;"><strong>⏱️ Duration:</strong> ${duration} minutes</p>
-              </div>
-              
-              ${notes ? `
-              <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 0; color: #2e7d32;"><strong>📝 Notes:</strong> ${notes}</p>
-              </div>
-              ` : ''}
-              
-              <p style="font-size: 14px; color: #888; margin-top: 30px; text-align: center;">
-                Powered by ScheduleSync AI
-              </p>
-            </div>
-          </div>
-        `,
-        // ✅ ADD UTF-8 HEADERS:
-        headers: {
-          'Content-Type': 'text/html; charset=UTF-8',
-          'Content-Transfer-Encoding': '8bit',
-          'MIME-Version': '1.0',
-        },
+      const chatgptOrganizerVars = buildEmailVariables(booking, {
+        name: member.name,
+        email: member.email
+      }, {
+        guestName: member.name,
+        attendeeName: guestName,
+        attendeeEmail: attendee_email,
+        duration: duration,
+        notes: notes || '',
+        additionalAttendees: allAttendees.join(', '),
+        eventTitle: bookingTitle
+      });
+
+      await sendTemplatedEmail(member.email, userId, 'confirmation', chatgptOrganizerVars, {
+        from: `ScheduleSync <notifications@${process.env.RESEND_DOMAIN || 'trucal.xyz'}>`
       });
       console.log('✅ Organizer notification email sent to:', member.email);
     } catch (emailError) {
@@ -14318,7 +14167,23 @@ See you soon!
 
 Your meeting on {{meetingDate}} at {{meetingTime}} has been cancelled.
 
+{{cancellationReason}}
+
 To book a new time: {{bookingLink}}
+
+{{organizerName}}`
+  },
+  reschedule: {
+    subject: 'Meeting Rescheduled - {{meetingDate}}',
+    body: `Hi {{guestName}},
+
+Your meeting has been rescheduled.
+
+Previous time: {{previousDate}} at {{previousTime}}
+New time: {{meetingDate}} at {{meetingTime}}
+
+Meeting Link: {{meetingLink}}
+Manage booking: {{manageLink}}
 
 {{organizerName}}`
   }

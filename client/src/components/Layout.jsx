@@ -35,7 +35,7 @@ export default function Layout() {
     { name: "Teams", path: "/teams", icon: Users, walkthrough: "teams-nav" },
     { name: "Bookings", path: "/bookings", icon: Calendar, walkthrough: "bookings-nav" },
     { name: "My Link", path: "/my-links", icon: Link2, walkthrough: "my-links-nav" },
-    { name: "Email Templates", path: "/email-templates", icon: Mail, walkthrough: "email-nav" },
+    { name: "Email Templates", path: "/templates", icon: Mail, walkthrough: "email-nav", proBadge: true },
     { name: "Settings", path: "/settings", icon: Settings, walkthrough: "settings-nav" },
   ];
 
@@ -80,7 +80,7 @@ export default function Layout() {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
                 const isAdminLink = item.path === "/admin";
-                
+
                 return (
                   <Link
                     key={item.name}
@@ -88,8 +88,8 @@ export default function Layout() {
                     data-walkthrough={item.walkthrough}
                     className={`flex items-center gap-2 px-3 xl:px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
                       isActive
-                        ? isAdminLink 
-                          ? "bg-red-50 text-red-600" 
+                        ? isAdminLink
+                          ? "bg-red-50 text-red-600"
                           : "bg-blue-50 text-blue-600"
                         : isAdminLink
                           ? "text-red-600 hover:bg-red-50"
@@ -98,6 +98,11 @@ export default function Layout() {
                   >
                     <Icon className="h-4 w-4 xl:h-5 xl:w-5" />
                     <span className="hidden xl:inline">{item.name}</span>
+                    {item.proBadge && (
+                      <span className="hidden xl:inline ml-1 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-semibold">
+                        PRO
+                      </span>
+                    )}
                   </Link>
                 );
               })}
@@ -172,8 +177,8 @@ export default function Layout() {
                     onClick={() => setMobileMenuOpen(false)}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
                       isActive
-                        ? isAdminLink 
-                          ? "bg-red-50 text-red-600" 
+                        ? isAdminLink
+                          ? "bg-red-50 text-red-600"
                           : "bg-blue-50 text-blue-600"
                         : isAdminLink
                           ? "text-red-600 hover:bg-red-50"
@@ -182,6 +187,11 @@ export default function Layout() {
                   >
                     <Icon className="h-5 w-5 flex-shrink-0" />
                     <span className="text-sm">{item.name}</span>
+                    {item.proBadge && (
+                      <span className="ml-auto text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-semibold">
+                        PRO
+                      </span>
+                    )}
                   </Link>
                 );
               })}

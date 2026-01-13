@@ -147,7 +147,7 @@ function InnerApp() {
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/bookings" element={<Bookings />} />
                 <Route path="/availability" element={<Availability />} />
-                <Route path="/email-templates" element={<EmailTemplates />} />
+                <Route path="/templates" element={<EmailTemplates />} />
                 <Route path="/my-links" element={<MyLinks />} />
                 <Route path="/billing" element={<BillingPage />} />
 

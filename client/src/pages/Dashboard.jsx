@@ -2,7 +2,6 @@
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
-  Users,
   Clock,
   CheckCircle2,
   XCircle,
@@ -12,19 +11,15 @@ import {
   Loader2,
   Bot,
   Settings,
-  TrendingUp,
-  Zap,
-  Mail,
   Star,
-  CreditCard,
   Plus,
   Copy,
-  ExternalLink,
   BarChart3,
   Sparkles,
   Share2,
   Video,
   Check,
+  Mail,
 } from 'lucide-react';
 
 import api, {
@@ -36,7 +31,7 @@ import AISchedulerChat from '../components/AISchedulerChat';
 import { useNotification } from '../contexts/NotificationContext';
 import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal';
 import { useWalkthrough } from '../context/WalkthroughContext';
-import { WalkthroughPrompt, WalkthroughButton } from '../components/Walkthrough';
+import { WalkthroughPrompt } from '../components/Walkthrough';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -368,9 +363,7 @@ export default function Dashboard() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <WalkthroughButton onClick={startWalkthrough} />
-
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => {
                   const event = new CustomEvent('openAIChat');
@@ -381,7 +374,7 @@ export default function Dashboard() {
                 <Bot className="h-4 w-4" />
                 AI Scheduler
                 <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs">
-                  {usage.ai_queries_used}/{usage.ai_queries_limit}
+                  {usage.ai_queries_limit >= 999999 || usage.ai_queries_limit === null ? '∞' : `${usage.ai_queries_used}/${usage.ai_queries_limit}`}
                 </span>
               </button>
 
@@ -392,16 +385,6 @@ export default function Dashboard() {
                 <Clock className="h-4 w-4" />
                 Availability
               </button>
-
-              {(currentTier === 'pro' || currentTier === 'team') && (
-                <button
-                  onClick={() => navigate('/billing')}
-                  className="px-3 py-2 bg-green-100 text-green-700 rounded-xl text-sm font-medium flex items-center gap-2"
-                >
-                  <CreditCard className="h-4 w-4" />
-                  {currentTier === 'pro' ? 'Pro' : 'Team'} ✓
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -448,7 +431,7 @@ export default function Dashboard() {
                 </div>
               </button>
 
-              <button 
+              <button
                 onClick={() => navigate('/events/new')}
                 className="flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-green-300 hover:shadow-md transition-all text-left"
               >
@@ -460,6 +443,21 @@ export default function Dashboard() {
                   <div className="text-sm text-gray-500">Create a booking type</div>
                 </div>
               </button>
+
+              {currentTier !== 'free' && (
+                <button
+                  onClick={() => navigate('/templates')}
+                  className="flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all text-left"
+                >
+                  <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
+                    <Mail className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-gray-900">Email Templates</div>
+                    <div className="text-sm text-gray-500">Customize your emails</div>
+                  </div>
+                </button>
+              )}
             </div>
 
             {/* Urgent Next Meeting Banner */}
