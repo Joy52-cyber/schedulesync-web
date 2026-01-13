@@ -178,24 +178,24 @@ export default function MyLinks() {
       setShowAdvancedOptions(false);
       
       await loadMagicLinks();
-      notify.success('Magic link created! ✨');
+      notify.success('Quick link created! ✨');
     } catch (error) {
-      console.error('Generate magic link error:', error);
-      notify.error(error.response?.data?.error || 'Could not generate magic link');
+      console.error('Generate quick link error:', error);
+      notify.error(error.response?.data?.error || 'Could not generate quick link');
     } finally {
       setGeneratingMagicLink(false);
     }
   };
 
   const handleDeleteMagicLink = async (linkId) => {
-    if (!confirm('Are you sure you want to delete this magic link?')) return;
-    
+    if (!confirm('Are you sure you want to delete this quick link?')) return;
+
     try {
       await api.delete(`/magic-links/${linkId}`);
       await loadMagicLinks();
-      notify.success('Magic link deleted');
+      notify.success('Quick link deleted');
     } catch (error) {
-      notify.error('Could not delete magic link');
+      notify.error('Could not delete quick link');
     }
   };
 
@@ -348,19 +348,19 @@ export default function MyLinks() {
             )}
           </div>
 
-          {/* Magic Links */}
+          {/* Quick Links */}
           <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border border-purple-200 p-6 shadow-sm">
             <h2 className="text-xl font-bold text-purple-900 flex items-center gap-3 mb-2">
               <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
                 <Sparkles className="h-5 w-5 text-purple-600" />
               </div>
-              Magic Links
+              Quick Links
               {!hasProFeature() && (
                 <span className="ml-2 px-2 py-0.5 bg-purple-200 text-purple-700 text-xs font-bold rounded-full">PRO</span>
               )}
             </h2>
             <p className="text-purple-700 text-sm mb-4">
-              Create custom booking links with team members and expiration
+              Create instant booking links for specific meetings
             </p>
 
             <div className="space-y-4">
@@ -619,16 +619,16 @@ export default function MyLinks() {
                 ) : (
                   <>
                     <Sparkles className="h-5 w-5" />
-                    Create Magic Link
+                    Create Quick Link
                   </>
                 )}
               </button>
-              
+
               {!hasProFeature() && (
                 <div className="p-3 bg-purple-100/50 rounded-xl text-center">
                   <p className="text-sm text-purple-700">
                     <Sparkles className="h-4 w-4 inline mr-1" />
-                    Upgrade to Pro for unlimited magic links
+                    Upgrade to Pro for unlimited quick links
                   </p>
                 </div>
               )}
@@ -636,11 +636,11 @@ export default function MyLinks() {
           </div>
         </div>
 
-        {/* Recent Magic Links */}
+        {/* Recent Quick Links */}
         {magicLinks.length > 0 && (
           <div className="mt-8 bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-900">Recent Magic Links</h3>
+              <h3 className="text-xl font-bold text-gray-900">Recent Quick Links</h3>
               <button
                 onClick={loadMagicLinks}
                 className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
@@ -681,7 +681,7 @@ export default function MyLinks() {
                         
                         {/* Link Name */}
                         <p className="font-semibold text-gray-900 truncate">
-                          {link.link_name || `Magic Link ${link.token.substring(0, 8)}...`}
+                          {link.link_name || `Quick Link ${link.token.substring(0, 8)}...`}
                         </p>
                         
                         {/* Details Row */}
@@ -749,9 +749,9 @@ export default function MyLinks() {
         {magicLinks.length === 0 && (
           <div className="mt-8 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300 p-8 text-center">
             <Sparkles className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-            <h3 className="font-semibold text-gray-700 mb-1">No magic links yet</h3>
+            <h3 className="font-semibold text-gray-700 mb-1">No quick links yet</h3>
             <p className="text-sm text-gray-500">
-              Create your first magic link above for specific clients or team meetings
+              Create your first quick link above for specific clients or team meetings
             </p>
           </div>
         )}
