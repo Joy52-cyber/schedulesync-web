@@ -7197,13 +7197,15 @@ app.get('/api/book/:token', async (req, res) => {
             })),
             eventTypes: [eventType],
             selectedEventType: eventType,
-            bookingToken: bookingToken,
+            bookingToken: token,  // Use magic link token so slots endpoint can detect collective mode
+            memberBookingToken: bookingToken,  // Keep member token for fallback if needed
             isDirectLink: true,
             skipEventTypes: true,
             isMagicLink: true,
             magicLinkData: {
               id: link.id,
               name: link.link_name,
+              token: token,  // Also include in magicLinkData for clarity
               scheduling_mode: link.scheduling_mode || 'collective',
               usage_limit: link.usage_limit,
               usage_count: link.usage_count,
