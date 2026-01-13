@@ -530,11 +530,28 @@ What would you like to do?`;
 
   if (!isOpen) {
     return (
-      <button onClick={() => setIsOpen(true)} className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 h-14 w-14 sm:h-16 sm:w-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full shadow-2xl hover:shadow-3xl transition-all hover:scale-110 flex items-center justify-center group animate-bounce" style={{ animationDuration: '2s', zIndex: 99999 }}>
-        <Sparkles className="h-6 w-6 sm:h-8 sm:w-8 text-white group-hover:rotate-12 transition-transform" />
-        <div className="absolute -top-1 -right-1 h-4 w-4 sm:h-5 sm:w-5 bg-red-500 rounded-full border-2 border-white animate-pulse flex items-center justify-center">
-          <span className="text-white text-xs font-bold">AI</span>
+      <button
+        onClick={() => setIsOpen(true)}
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[99999] group"
+      >
+        {/* Mobile: Icon only */}
+        <div className="sm:hidden h-14 w-14 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-all">
+          <Sparkles className="h-7 w-7 text-white" />
         </div>
+
+        {/* Desktop: Icon + Text */}
+        <div className="hidden sm:flex items-center gap-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-5 py-3 rounded-full shadow-2xl hover:shadow-purple-500/30 hover:scale-105 transition-all">
+          <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+            <Sparkles className="h-5 w-5" />
+          </div>
+          <div className="text-left pr-2">
+            <p className="font-bold text-sm">AI Assistant</p>
+            <p className="text-xs text-purple-200">Ask me anything</p>
+          </div>
+        </div>
+
+        {/* Notification dot */}
+        <div className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full border-2 border-white animate-pulse" />
       </button>
     );
   }

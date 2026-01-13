@@ -100,19 +100,20 @@ export default function Dashboard() {
       const today = new Date();
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const week = [];
-      
+
       for (let i = 0; i < 7; i++) {
         const date = new Date(today);
         date.setDate(today.getDate() - today.getDay() + i);
-        
+
         week.push({
           day: days[i],
           date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           count: 0,
-          isToday: date.toDateString() === today.toDateString()
+          isToday: date.toDateString() === today.toDateString(),
+          dayOfWeek: i // 0=Sun, 6=Sat
         });
       }
-      
+
       // Count bookings per day
       (data.recentBookings || []).forEach(booking => {
         const bookingDate = new Date(booking.start_time);
@@ -121,8 +122,17 @@ export default function Dashboard() {
           week[dayIndex].count++;
         }
       });
-      
-      setUpcomingWeek(week);
+
+      // Filter to Mon-Fri by default, show weekends only if they have bookings
+      const filteredWeek = week.filter(day => {
+        const isWeekend = day.dayOfWeek === 0 || day.dayOfWeek === 6;
+        if (isWeekend) {
+          return day.count > 0; // Show weekends only if there are bookings
+        }
+        return true; // Always show Mon-Fri
+      });
+
+      setUpcomingWeek(filteredWeek);
     } catch (error) {
       console.error('Dashboard load error:', error);
       notify.error('Failed to load dashboard data');
@@ -568,7 +578,7 @@ export default function Dashboard() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {recentBookings.slice(0, 5).map((booking) => (
+                      {recentBookings.slice(0, 3).map((booking) => (
                         <div
                           key={booking.id}
                           className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-blue-300 transition-all cursor-pointer"
@@ -595,7 +605,7 @@ export default function Dashboard() {
                                 {booking.meet_link && new Date(booking.start_time) > new Date() && (
                                   <>
                                     <span className="text-gray-400">•</span>
-                                    <a 
+                                    <a
                                       href={booking.meet_link}
                                       target="_blank"
                                       rel="noopener noreferrer"
@@ -612,6 +622,14 @@ export default function Dashboard() {
                           </div>
                         </div>
                       ))}
+                      {recentBookings.length > 3 && (
+                        <button
+                          onClick={() => navigate('/bookings')}
+                          className="w-full text-center text-sm text-blue-600 hover:text-blue-700 font-medium py-2"
+                        >
+                          View all {recentBookings.length} bookings →
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
