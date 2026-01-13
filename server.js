@@ -811,6 +811,7 @@ async function initDB() {
         booking_mode VARCHAR(50) DEFAULT 'individual',
         allow_team_booking BOOLEAN DEFAULT false,
         team_booking_token VARCHAR(255) UNIQUE,
+        last_assigned_member_id INTEGER,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
@@ -1047,7 +1048,13 @@ await pool.query(`
         "sunday": {"enabled": false, "start": "09:00", "end": "17:00"}
       }'::jsonb
     `);
-    
+
+    // Add round-robin state tracking for teams
+    await pool.query(`
+      ALTER TABLE teams
+      ADD COLUMN IF NOT EXISTS last_assigned_member_id INTEGER
+    `);
+
     console.log('? Database migrations completed');
   } catch (error) {
     console.error('? Migration error:', error);
@@ -2088,27 +2095,15 @@ app.post('/api/bookings', async (req, res) => {
         break;
 
       case 'round_robin':
-        // Get ALL members with their booking counts for debugging
-        const rrAllMembers = await pool.query(
-          `SELECT tm.id, tm.name, tm.user_id, COUNT(b.id) as booking_count
-           FROM team_members tm
-           LEFT JOIN bookings b ON tm.id = b.member_id AND b.status = 'confirmed'
-           WHERE tm.team_id = $1
-           GROUP BY tm.id, tm.name, tm.user_id
-           ORDER BY booking_count ASC, tm.id ASC`,
-          [member.team_id]
-        );
-
-        console.log('🔄 Round-robin booking counts:', rrAllMembers.rows.map(m => ({
-          name: m.name,
-          bookings: parseInt(m.booking_count)
-        })));
-
-        const rrResult = rrAllMembers.rows.length > 0 ? rrAllMembers.rows[0] : null;
-        assignedMembers = rrResult
-          ? [rrResult]
-          : [{ id: member.id, name: member.name || member.member_name, user_id: member.user_id }];
-        console.log('🔄 Round-robin: Assigning to', assignedMembers[0].name, `(${parseInt(rrResult?.booking_count || 0)} bookings)`);
+        console.log('🔄 Using fair round-robin assignment');
+        const rrMember = await getNextRoundRobinMember(member.team_id, slot.start, slot.end);
+        if (rrMember) {
+          assignedMembers = [rrMember];
+          console.log(`✅ Round-robin assigned: ${rrMember.name}`);
+        } else {
+          console.log('❌ No team members available for round-robin');
+          return res.status(400).json({ error: 'No team members available' });
+        }
         break;
 
       case 'first_available':
@@ -7361,9 +7356,14 @@ app.post('/api/magic-links', authenticateToken, async (req, res) => {
     }
     
     const magicToken = crypto.randomBytes(16).toString('hex');
-    const daysToExpire = expires_in_days || 7;
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + daysToExpire);
+
+    // Handle expiration - null means never expires
+    let expiresAt = null;
+    if (expires_in_days && expires_in_days !== 'never') {
+      const daysToExpire = parseInt(expires_in_days) || 7;
+      expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + daysToExpire);
+    }
     
     // Get user's default event type
     let eventTypeId = null;
@@ -7798,20 +7798,15 @@ try {
         break;
 
       case 'round_robin':
-        const rrResult = await pool.query(
-          `SELECT tm.id, tm.name, tm.user_id, COUNT(b.id) as booking_count
-           FROM team_members tm
-           LEFT JOIN bookings b ON tm.id = b.member_id
-           WHERE tm.team_id = $1
-           GROUP BY tm.id, tm.name, tm.user_id
-           ORDER BY booking_count ASC, tm.id ASC
-           LIMIT 1`,
-          [member.team_id]
-        );
-        assignedMembers = rrResult.rows.length > 0 
-          ? [rrResult.rows[0]] 
-          : [{ id: member.id, name: member.name || member.member_name, user_id: member.user_id }];
-        console.log('?? Round-robin: Assigning to', assignedMembers[0].name);
+        console.log('🔄 Using fair round-robin assignment');
+        const rrMember2 = await getNextRoundRobinMember(member.team_id, slot.start, slot.end);
+        if (rrMember2) {
+          assignedMembers = [rrMember2];
+          console.log(`✅ Round-robin assigned: ${rrMember2.name}`);
+        } else {
+          console.log('❌ No team members available for round-robin');
+          return res.status(400).json({ error: 'No team members available' });
+        }
         break;
 
       case 'first_available':
@@ -14704,6 +14699,113 @@ app.put('/api/teams/:teamId/members/:memberId/availability', authenticateToken, 
 });
 
 
+// ============ ROUND-ROBIN HELPER FUNCTIONS ============
+
+// Check if a team member is available for a given time slot
+async function isMemberAvailable(memberId, startTime, endTime) {
+  const conflicts = await pool.query(
+    `SELECT id FROM bookings
+     WHERE member_id = $1
+     AND status IN ('confirmed', 'pending')
+     AND start_time < $3 AND end_time > $2`,
+    [memberId, startTime, endTime]
+  );
+  return conflicts.rows.length === 0;
+}
+
+// Get next round-robin member with availability check
+async function getNextRoundRobinMember(teamId, startTime, endTime) {
+  // Use transaction to prevent race conditions
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Lock the team row to prevent concurrent updates
+    const teamResult = await client.query(
+      'SELECT id, last_assigned_member_id FROM teams WHERE id = $1 FOR UPDATE',
+      [teamId]
+    );
+    const team = teamResult.rows[0];
+
+    if (!team) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    // Get all active team members in consistent order
+    const membersResult = await client.query(
+      `SELECT tm.id, tm.name, tm.user_id, u.email
+       FROM team_members tm
+       JOIN users u ON tm.user_id = u.id
+       WHERE tm.team_id = $1
+       ORDER BY tm.id ASC`,
+      [teamId]
+    );
+    const members = membersResult.rows;
+
+    if (members.length === 0) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    // Find starting point (after last assigned)
+    const lastAssignedId = team.last_assigned_member_id;
+    const memberIds = members.map(m => m.id);
+    let startIndex = 0;
+
+    if (lastAssignedId) {
+      const lastIndex = memberIds.indexOf(lastAssignedId);
+      if (lastIndex !== -1) {
+        startIndex = (lastIndex + 1) % members.length;
+      }
+    }
+
+    // Rotate through members to find one who is available
+    let assignedMember = null;
+    for (let i = 0; i < members.length; i++) {
+      const checkIndex = (startIndex + i) % members.length;
+      const candidate = members[checkIndex];
+
+      // Check availability for this time slot
+      const conflictCheck = await client.query(
+        `SELECT id FROM bookings
+         WHERE member_id = $1
+         AND status IN ('confirmed', 'pending')
+         AND start_time < $3 AND end_time > $2`,
+        [candidate.id, startTime, endTime]
+      );
+
+      if (conflictCheck.rows.length === 0) {
+        assignedMember = candidate;
+        break;
+      }
+      console.log(`⏭️ Round-robin: ${candidate.name} busy, trying next...`);
+    }
+
+    // If no one available, fall back to first in rotation (they'll get double-booked warning)
+    if (!assignedMember) {
+      assignedMember = members[startIndex];
+      console.log(`⚠️ Round-robin: All members busy, assigning to ${assignedMember.name} anyway`);
+    }
+
+    // Update last assigned member
+    await client.query(
+      'UPDATE teams SET last_assigned_member_id = $1 WHERE id = $2',
+      [assignedMember.id, teamId]
+    );
+
+    await client.query('COMMIT');
+    console.log(`✅ Round-robin: Assigned to ${assignedMember.name} (id: ${assignedMember.id})`);
+
+    return assignedMember;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Round-robin error:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
 // ============ ERROR HANDLING ============
 
