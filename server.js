@@ -5015,14 +5015,15 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
       timezone = 'America/New_York'
     } = req.body;
 
-    console.log('?? Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
+    console.log('📊 Generating slots for token:', token?.substring(0, 10) + '...', 'Duration:', duration, 'TZ:', timezone);
+    console.log('🔍 DEBUG: Token length check:', { tokenLength: token?.length, is32: token?.length === 32 });
 
  // ========== CHECK: Magic Link Token (32 chars) ==========
     let collectiveMembers = null;
     let isCollectiveMode = false;
-    
+
     if (token.length === 32) {
-      console.log('✨ Checking if magic link token for slots...');
+      console.log('✨ Checking if magic link token for slots... (token length is 32)');
       const magicCheck = await pool.query(
         `SELECT ml.id, ml.scheduling_mode, ml.created_by_user_id
          FROM magic_links ml
@@ -5031,10 +5032,16 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
            AND ml.expires_at > NOW()`,
         [token]
       );
-      
+
+      console.log('🔍 DEBUG: magicCheck result:', {
+        found: magicCheck.rows.length > 0,
+        rowCount: magicCheck.rows.length,
+        data: magicCheck.rows[0] || null
+      });
+
       if (magicCheck.rows.length > 0) {
         const magicLink = magicCheck.rows[0];
-        
+
         // Get all member booking tokens WITH calendar credentials
         const membersResult = await pool.query(
           `SELECT tm.id as member_id, tm.booking_token, tm.user_id, tm.name as member_name,
@@ -5088,10 +5095,16 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
             console.log('✨ Magic link slots: Using creator token');
           }
         }
+      } else {
+        console.log('🔍 DEBUG: Magic link query returned no results - token may be expired or invalid');
       }
+    } else {
+      console.log('🔍 DEBUG: Token is NOT 32 chars, skipping magic link check');
     }
 
-    // ?? DETECT PUBLIC BOOKING PSEUDO-TOKEN
+    console.log('🔍 DEBUG: After magic link check - isCollectiveMode:', isCollectiveMode, 'collectiveMembers:', collectiveMembers?.length || 0);
+
+    // 📌 DETECT PUBLIC BOOKING PSEUDO-TOKEN
 if (token && token.startsWith('public:')) {
   const parts = token.split(':');
   const username = parts[1];
@@ -5926,10 +5939,17 @@ console.log('?? Checking if team token...');
       slotsByDate[dateKey].push(slot);
     });
 
-    console.log(`? Generated ${slots.length} slots across ${Object.keys(slotsByDate).length} days`);
-    console.log(`? Available: ${slots.filter(s => s.status === 'available').length}`);
+    console.log(`✅ Generated ${slots.length} slots across ${Object.keys(slotsByDate).length} days`);
+    console.log(`✅ Available: ${slots.filter(s => s.status === 'available').length}`);
 
     // ========== COLLECTIVE MODE: Filter for ALL members' availability ==========
+    console.log('🔍 DEBUG: Before collective filtering check:', {
+      isCollectiveMode,
+      hasCollectiveMembers: !!collectiveMembers,
+      memberCount: collectiveMembers?.length || 0,
+      willFilter: isCollectiveMode && collectiveMembers && collectiveMembers.length > 1
+    });
+
     if (isCollectiveMode && collectiveMembers && collectiveMembers.length > 1) {
       console.log(`🔄 Filtering slots for collective mode (${collectiveMembers.length} members)...`);
       
