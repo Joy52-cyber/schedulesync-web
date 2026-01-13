@@ -7570,6 +7570,9 @@ try {
 
     // ========== LOOK UP TOKEN ==========
     let memberResult;
+
+     console.log('🔍 TOKEN DEBUG:', { tokenLength: token.length, isLength32: token.length === 32 });
+   
     
     // CHECK 0: Magic Link (32 chars)
     if (token.length === 32) {
