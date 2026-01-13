@@ -144,7 +144,7 @@ export default function EmailTemplates() {
   const [previewTemplate, setPreviewTemplate] = useState(null);
   
   // AI Generation
-  const [showGenerator, setShowGenerator] = useState(false);
+  const [editorMode, setEditorMode] = useState('manual'); // 'manual' or 'ai'
   const [generating, setGenerating] = useState(false);
   const [generatorForm, setGeneratorForm] = useState({
     description: '',
@@ -299,8 +299,8 @@ export default function EmailTemplates() {
     try {
       const response = await api.post('/ai/generate-template', generatorForm);
       const aiTemplate = response.data.template;
-      
-      // Open the generated template in editor
+
+      // Populate the editor with generated template
       setEditingTemplate({
         ...aiTemplate,
         id: null,
@@ -308,11 +308,11 @@ export default function EmailTemplates() {
         is_favorite: false,
         generated_by_ai: true,
       });
-      
-      setShowGenerator(false);
-      setShowEditor(true);
-      
-      // Reset form
+
+      // Switch to manual mode to show the populated fields
+      setEditorMode('manual');
+
+      // Reset the generator form
       setGeneratorForm({
         description: '',
         type: 'other',
@@ -361,7 +361,7 @@ export default function EmailTemplates() {
     }
   };
 
-  const openEditor = (template = null) => {
+  const openEditor = (template = null, mode = 'manual') => {
     if (template) {
       // Editing existing or duplicating default
       setEditingTemplate({
@@ -370,6 +370,7 @@ export default function EmailTemplates() {
         name: template.is_default ? `${template.name} (My Version)` : template.name,
         is_default: false,
       });
+      setEditorMode('manual'); // Always manual when editing existing
     } else {
       // New template
       setEditingTemplate({
@@ -380,6 +381,15 @@ export default function EmailTemplates() {
         body: '',
         is_favorite: false,
       });
+      setEditorMode(mode);
+      // Reset generator form when opening in AI mode
+      if (mode === 'ai') {
+        setGeneratorForm({
+          description: '',
+          type: 'other',
+          tone: 'professional but friendly',
+        });
+      }
     }
     setShowEditor(true);
   };
@@ -489,22 +499,13 @@ export default function EmailTemplates() {
               Your AI assistant uses these when sending emails
             </p>
           </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowGenerator(true)}
-              className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 flex items-center gap-2 font-semibold shadow-sm"
-            >
-              <Sparkles className="h-5 w-5" />
-              AI Generate
-            </button>
-            <button
-              onClick={() => openEditor()}
-              className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2 font-semibold shadow-sm"
-            >
-              <Plus className="h-5 w-5" />
-              New Template
-            </button>
-          </div>
+          <button
+            onClick={() => openEditor()}
+            className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2 font-semibold shadow-sm"
+          >
+            <Plus className="h-5 w-5" />
+            New Template
+          </button>
         </div>
 
         {/* AI Tips */}
@@ -606,7 +607,7 @@ export default function EmailTemplates() {
             <p className="text-gray-500 mb-4">No templates found</p>
             <div className="flex justify-center gap-3">
               <button
-                onClick={() => setShowGenerator(true)}
+                onClick={() => openEditor(null, 'ai')}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium"
               >
                 ✨ Generate with AI
@@ -704,119 +705,6 @@ export default function EmailTemplates() {
         )}
       </div>
 
-      {/* AI Generator Modal */}
-      {showGenerator && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl">
-            <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4 flex items-center justify-between text-white rounded-t-2xl">
-              <div className="flex items-center gap-3">
-                <Sparkles className="h-6 w-6" />
-                <h2 className="text-lg font-bold">AI Template Generator</h2>
-              </div>
-              <button
-                onClick={() => setShowGenerator(false)}
-                className="p-2 hover:bg-white/20 rounded-lg"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5">
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Describe your template *
-                </label>
-                <textarea
-                  value={generatorForm.description}
-                  onChange={(e) =>
-                    setGeneratorForm({
-                      ...generatorForm,
-                      description: e.target.value,
-                    })
-                  }
-                  placeholder="e.g., Professional follow-up for sales meetings with warm tone"
-                  rows={3}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 outline-none resize-none"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Be specific about purpose, tone, and style
-                </p>
-              </div>
-
-              {/* Type */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Template Type
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {TEMPLATE_TYPES.map((type) => (
-                    <button
-                      key={type.id}
-                      onClick={() =>
-                        setGeneratorForm({ ...generatorForm, type: type.id })
-                      }
-                      className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
-                        generatorForm.type === type.id
-                          ? 'border-purple-500 bg-purple-50 text-purple-700'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      {type.emoji} {type.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Tone */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Tone
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {TONE_OPTIONS.map((tone) => (
-                    <button
-                      key={tone.id}
-                      onClick={() =>
-                        setGeneratorForm({ ...generatorForm, tone: tone.id })
-                      }
-                      className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
-                        generatorForm.tone === tone.id
-                          ? 'border-purple-500 bg-purple-50 text-purple-700'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      {tone.emoji} {tone.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 border-t px-6 py-4 flex justify-end gap-3">
-              <button
-                onClick={() => setShowGenerator(false)}
-                className="px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={generateTemplate}
-                disabled={generating || !generatorForm.description.trim()}
-                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 flex items-center gap-2"
-              >
-                {generating ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                {generating ? 'Generating...' : 'Generate Template'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Editor Modal */}
       {showEditor && editingTemplate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -837,6 +725,34 @@ export default function EmailTemplates() {
             </div>
 
             <div className="p-6 space-y-5">
+              {/* Mode Toggle - Only show when creating new template */}
+              {!editingTemplate.id && !editingTemplate.generated_by_ai && (
+                <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl p-1 flex">
+                  <button
+                    onClick={() => setEditorMode('manual')}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 ${
+                      editorMode === 'manual'
+                        ? 'bg-white text-blue-700 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <Edit2 className="h-4 w-4" />
+                    Start from scratch
+                  </button>
+                  <button
+                    onClick={() => setEditorMode('ai')}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 ${
+                      editorMode === 'ai'
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Generate with AI
+                  </button>
+                </div>
+              )}
+
               {/* AI Generated Banner */}
               {editingTemplate.generated_by_ai && (
                 <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg p-3">
@@ -849,110 +765,204 @@ export default function EmailTemplates() {
                 </div>
               )}
 
-              {/* Name */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Template Name *
-                </label>
-                <input
-                  type="text"
-                  value={editingTemplate.name}
-                  onChange={(e) =>
-                    setEditingTemplate({
-                      ...editingTemplate,
-                      name: e.target.value,
-                    })
-                  }
-                  placeholder="e.g., Friendly Reminder"
-                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none"
-                />
-              </div>
-
-              {/* Type */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Type
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {TEMPLATE_TYPES.map((type) => (
-                    <button
-                      key={type.id}
-                      onClick={() =>
-                        setEditingTemplate({
-                          ...editingTemplate,
-                          type: type.id,
+              {/* AI Generation Form */}
+              {editorMode === 'ai' && !editingTemplate.id && !editingTemplate.generated_by_ai && (
+                <div className="space-y-5">
+                  {/* Description */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Describe your template *
+                    </label>
+                    <textarea
+                      value={generatorForm.description}
+                      onChange={(e) =>
+                        setGeneratorForm({
+                          ...generatorForm,
+                          description: e.target.value,
                         })
                       }
-                      className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
-                        editingTemplate.type === type.id
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      {type.emoji} {type.label}
-                    </button>
-                  ))}
+                      placeholder="e.g., Professional follow-up for sales meetings with warm tone"
+                      rows={3}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 outline-none resize-none"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Be specific about purpose, tone, and style
+                    </p>
+                  </div>
+
+                  {/* Type */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Template Type
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {TEMPLATE_TYPES.map((type) => (
+                        <button
+                          key={type.id}
+                          onClick={() =>
+                            setGeneratorForm({ ...generatorForm, type: type.id })
+                          }
+                          className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                            generatorForm.type === type.id
+                              ? 'border-purple-500 bg-purple-50 text-purple-700'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          {type.emoji} {type.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Tone */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Tone
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {TONE_OPTIONS.map((tone) => (
+                        <button
+                          key={tone.id}
+                          onClick={() =>
+                            setGeneratorForm({ ...generatorForm, tone: tone.id })
+                          }
+                          className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                            generatorForm.tone === tone.id
+                              ? 'border-purple-500 bg-purple-50 text-purple-700'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          {tone.emoji} {tone.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Generate Button */}
+                  <button
+                    onClick={generateTemplate}
+                    disabled={generating || !generatorForm.description.trim()}
+                    className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {generating ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-5 w-5" />
+                    )}
+                    {generating ? 'Generating...' : 'Generate Template'}
+                  </button>
                 </div>
-              </div>
+              )}
 
-              {/* Subject */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email Subject *
-                </label>
-                <input
-                  type="text"
-                  value={editingTemplate.subject}
-                  onChange={(e) =>
-                    setEditingTemplate({
-                      ...editingTemplate,
-                      subject: e.target.value,
-                    })
-                  }
-                  placeholder="e.g., Reminder about our meeting tomorrow"
-                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none"
-                />
-              </div>
+              {/* Manual Form Fields - Show when in manual mode OR when editing */}
+              {(editorMode === 'manual' || editingTemplate.id || editingTemplate.generated_by_ai) && (
+                <>
+                  {/* Name */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Template Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={editingTemplate.name}
+                      onChange={(e) =>
+                        setEditingTemplate({
+                          ...editingTemplate,
+                          name: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., Friendly Reminder"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none"
+                    />
+                  </div>
 
-              {/* Body */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email Body *
-                </label>
-                <textarea
-                  id="template-body"
-                  value={editingTemplate.body}
-                  onChange={(e) =>
-                    setEditingTemplate({
-                      ...editingTemplate,
-                      body: e.target.value,
-                    })
-                  }
-                  rows={8}
-                  placeholder="Write your email here..."
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none resize-none"
-                />
-              </div>
+                  {/* Type */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Type
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {TEMPLATE_TYPES.map((type) => (
+                        <button
+                          key={type.id}
+                          onClick={() =>
+                            setEditingTemplate({
+                              ...editingTemplate,
+                              type: type.id,
+                            })
+                          }
+                          className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                            editingTemplate.type === type.id
+                              ? 'border-blue-500 bg-blue-50 text-blue-700'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          {type.emoji} {type.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              {/* Variables */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                  <Lightbulb className="h-4 w-4" />
-                  Insert Variables (click to add)
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {VARIABLES.map((v) => (
-                    <button
-                      key={v.key}
-                      onClick={() => insertVariable(v.key)}
-                      className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm hover:bg-blue-50 hover:border-blue-300 transition-all"
-                    >
-                      <span className="font-mono text-blue-600">{`{{${v.key}}}`}</span>
-                      <span className="text-gray-400 ml-1">({v.label})</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+                  {/* Subject */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Email Subject *
+                    </label>
+                    <input
+                      type="text"
+                      value={editingTemplate.subject}
+                      onChange={(e) =>
+                        setEditingTemplate({
+                          ...editingTemplate,
+                          subject: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., Reminder about our meeting tomorrow"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none"
+                    />
+                  </div>
+
+                  {/* Body */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Email Body *
+                    </label>
+                    <textarea
+                      id="template-body"
+                      value={editingTemplate.body}
+                      onChange={(e) =>
+                        setEditingTemplate({
+                          ...editingTemplate,
+                          body: e.target.value,
+                        })
+                      }
+                      rows={8}
+                      placeholder="Write your email here..."
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none resize-none"
+                    />
+                  </div>
+
+                  {/* Variables */}
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4" />
+                      Insert Variables (click to add)
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {VARIABLES.map((v) => (
+                        <button
+                          key={v.key}
+                          onClick={() => insertVariable(v.key)}
+                          className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm hover:bg-blue-50 hover:border-blue-300 transition-all"
+                        >
+                          <span className="font-mono text-blue-600">{`{{${v.key}}}`}</span>
+                          <span className="text-gray-400 ml-1">({v.label})</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex justify-end gap-3">
@@ -962,18 +972,21 @@ export default function EmailTemplates() {
               >
                 Cancel
               </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-              >
-                {saving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-                {saving ? 'Saving...' : 'Save Template'}
-              </button>
+              {/* Only show Save button when in manual mode or editing existing template */}
+              {(editorMode === 'manual' || editingTemplate.id || editingTemplate.generated_by_ai) && (
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  {saving ? 'Saving...' : 'Save Template'}
+                </button>
+              )}
             </div>
           </div>
         </div>

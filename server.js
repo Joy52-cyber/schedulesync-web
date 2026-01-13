@@ -11990,22 +11990,29 @@ app.delete('/api/email-templates/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
 
+    console.log(`🗑️ DELETE template request: id=${id}, userId=${userId}`);
+
     // Verify ownership before deleting
     const check = await pool.query(
-      'SELECT id FROM email_templates WHERE id = $1 AND user_id = $2',
-      [id, userId]
+      'SELECT id, user_id FROM email_templates WHERE id = $1',
+      [id]
     );
 
+    console.log(`🗑️ Template check result:`, check.rows[0] || 'NOT FOUND');
+
     if (check.rows.length === 0) {
+      console.log(`🗑️ Template ${id} not found in database`);
       return res.status(404).json({ error: 'Template not found' });
     }
 
-    await pool.query(
-      'DELETE FROM email_templates WHERE id = $1 AND user_id = $2',
-      [id, userId]
-    );
+    if (check.rows[0].user_id !== userId) {
+      console.log(`🗑️ Template ${id} belongs to user ${check.rows[0].user_id}, not ${userId}`);
+      return res.status(403).json({ error: 'Not authorized to delete this template' });
+    }
 
-    console.log(`🗑️ Email template deleted: ${id}`);
+    await pool.query('DELETE FROM email_templates WHERE id = $1', [id]);
+
+    console.log(`✅ Email template deleted: ${id}`);
     res.json({ success: true, message: 'Template deleted' });
   } catch (error) {
     console.error('Delete template error:', error);
