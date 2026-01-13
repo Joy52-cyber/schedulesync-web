@@ -1,12 +1,12 @@
 ﻿import { useState, useRef, useEffect } from 'react';
 import { useUpgrade } from '../context/UpgradeContext';
-import { 
-  Sparkles, 
-  Send, 
-  X, 
+import {
+  Sparkles,
+  Send,
+  X,
   Minus,
   Maximize2,
-  Loader2, 
+  Loader2,
   Calendar,
   Clock,
   Mail,
@@ -16,10 +16,11 @@ import {
   Trash2,
   RotateCcw,
   Zap,
-  Copy, 
-  Check, 
+  Copy,
+  Check,
   Link,
-  Globe
+  Globe,
+  Users
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -71,50 +72,16 @@ export default function AISchedulerChat() {
 
   const getGreetingMessage = () => {
     const hour = new Date().getHours();
-    let timeGreeting = "Hi there";
+    let timeGreeting = "Hi";
     if (hour < 12) timeGreeting = "Good morning";
     else if (hour < 17) timeGreeting = "Good afternoon";
     else timeGreeting = "Good evening";
 
-    let greeting = `${timeGreeting}! 👋
+    return `${timeGreeting}! 👋 I'm your scheduling assistant.
 
-I'm your scheduling assistant, here to make booking meetings a breeze.
+I can help you book meetings, share your links, check your schedule, and more.
 
-Here's what I can do:
-
-📅 **Bookings**
-• Book meetings – just tell me who and when!
-• Show your upcoming or past bookings
-• Add someone to an existing meeting
-
-🔗 **Links**
-• Share your booking link
-• Create one-time magic links (Pro)
-
-🌍 **Settings**
-• Change your timezone`;
-
-    if (hasTeamFeature()) {
-      greeting += `
-
-🏢 **Teams**
-• Schedule with your teams
-• Get team booking links`;
-    }
-
-    if (hasProFeature()) {
-      greeting += `
-
-📧 **Emails**
-• Send meeting reminders
-• Draft follow-up emails`;
-    }
-
-    greeting += `
-
-What can I help you with?`;
-
-    return greeting;
+What would you like to do?`;
   };
 
   const createGreeting = () => ({
@@ -219,6 +186,17 @@ What can I help you with?`;
     navigator.clipboard.writeText(url);
     setCopiedUrl(url);
     setTimeout(() => setCopiedUrl(null), 2000);
+  };
+
+  const handleQuickAction = (action) => {
+    const actions = {
+      'link': "What's my booking link?",
+      'magic': 'Create a magic link',
+      'upcoming': 'Show my upcoming meetings',
+      'timezone': 'Change my timezone',
+      'teams': 'Show my team links'
+    };
+    setMessage(actions[action] || '');
   };
 
   useEffect(() => {
@@ -550,10 +528,6 @@ What can I help you with?`;
     return <p className="text-xs sm:text-sm whitespace-pre-wrap break-words">{content}</p>;
   };
 
-  const suggestions = ["What's my booking link?", "Show my upcoming meetings", "Change my timezone"];
-  if (hasProFeature()) suggestions.push("Create a magic link");
-  if (hasTeamFeature()) suggestions.push("Show my team links");
-
   if (!isOpen) {
     return (
       <button onClick={() => setIsOpen(true)} className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 h-14 w-14 sm:h-16 sm:w-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full shadow-2xl hover:shadow-3xl transition-all hover:scale-110 flex items-center justify-center group animate-bounce" style={{ animationDuration: '2s', zIndex: 99999 }}>
@@ -619,17 +593,35 @@ What can I help you with?`;
               )}
 
               {chatHistory.length <= 1 && (isUnlimited || usage.ai_queries_used < usage.ai_queries_limit) && (
-                <div className="text-center py-4">
-                  <p className="text-sm text-gray-500 mb-3">Try asking:</p>
-                  <div className="grid grid-cols-1 gap-2">
-                    {suggestions.map((suggestion, i) => (
-                      <button key={i} onClick={() => setMessage(suggestion)} className="text-left text-sm p-3 bg-white rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors">"{suggestion}"</button>
-                    ))}
-                  </div>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <button onClick={() => handleQuickAction('link')} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left">
+                    <Link className="h-4 w-4 text-purple-600" />
+                    <span className="text-sm font-medium">My Link</span>
+                  </button>
+                  <button onClick={() => handleQuickAction('upcoming')} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left">
+                    <Calendar className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium">Upcoming</span>
+                  </button>
+                  <button onClick={() => handleQuickAction('timezone')} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left">
+                    <Globe className="h-4 w-4 text-green-600" />
+                    <span className="text-sm font-medium">Timezone</span>
+                  </button>
+                  {hasProFeature() && (
+                    <button onClick={() => handleQuickAction('magic')} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left">
+                      <Sparkles className="h-4 w-4 text-pink-600" />
+                      <span className="text-sm font-medium">Magic Link</span>
+                    </button>
+                  )}
+                  {hasTeamFeature() && (
+                    <button onClick={() => handleQuickAction('teams')} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left">
+                      <Users className="h-4 w-4 text-orange-600" />
+                      <span className="text-sm font-medium">Team Links</span>
+                    </button>
+                  )}
                 </div>
               )}
 
-              {chatHistory.length > 1 && (
+              {chatHistory.length > 2 && (
                 <div className="flex justify-center mb-4 gap-2 p-2 bg-gray-100 rounded-lg">
                   <button onClick={handleClearChat} className="text-xs text-red-600 bg-red-50 hover:bg-red-100 flex items-center gap-1 px-3 py-2 rounded-lg border border-red-200"><Trash2 className="h-3 w-3" /> Clear</button>
                   <button onClick={handleClearChat} className="text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 flex items-center gap-1 px-3 py-2 rounded-lg border border-blue-200"><RotateCcw className="h-3 w-3" /> Start Over</button>
