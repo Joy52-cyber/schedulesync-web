@@ -13,6 +13,11 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  MoreVertical,
+  Copy,
+  ExternalLink,
+  Ban,
+  RefreshCw,
 } from 'lucide-react';
 import { bookings } from '../utils/api';
 
@@ -25,23 +30,25 @@ export default function Bookings() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [actionMenuOpen, setActionMenuOpen] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
 
   // Load bookings on mount
   useEffect(() => {
-    const loadBookings = async () => {
-      try {
-        // ✅ FIX: Changed .getAll() to .list() to match api.js
-        const response = await bookings.list();
-        setBookingsList(response.data.bookings || []);
-      } catch (error) {
-        console.error('Error loading bookings:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadBookings();
   }, []);
+
+  const loadBookings = async () => {
+    try {
+      const response = await bookings.list();
+      setBookingsList(response.data.bookings || []);
+    } catch (error) {
+      console.error('Error loading bookings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Apply filters whenever list / search / status changes
   useEffect(() => {
@@ -81,6 +88,39 @@ export default function Bookings() {
         {status?.charAt(0).toUpperCase() + status?.slice(1)}
       </span>
     );
+  };
+
+  const handleCancelBooking = async (booking) => {
+    if (!confirm(`Cancel booking with ${booking.attendee_name}?`)) return;
+    
+    setCancellingId(booking.id);
+    try {
+      await fetch(`/api/bookings/manage/${booking.manage_token}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Cancelled by organizer' })
+      });
+      
+      // Refresh bookings
+      await loadBookings();
+      setActionMenuOpen(null);
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      alert('Failed to cancel booking');
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  const handleCopyManageLink = (booking) => {
+    const link = `${window.location.origin}/manage/${booking.manage_token}`;
+    navigator.clipboard.writeText(link);
+    setCopiedId(booking.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const isPastBooking = (booking) => {
+    return new Date(booking.start_time) < new Date();
   };
 
   if (loading) {
@@ -147,7 +187,9 @@ export default function Bookings() {
             {filteredBookings.map((booking) => (
               <div
                 key={booking.id}
-                className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all border-2 border-gray-100 overflow-hidden"
+                className={`bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all border-2 border-gray-100 overflow-hidden ${
+                  isPastBooking(booking) ? 'opacity-75' : ''
+                }`}
               >
                 <div className="p-6">
                   {/* Top row */}
@@ -166,12 +208,81 @@ export default function Bookings() {
 
                     <div className="flex items-center gap-2 self-start sm:self-auto">
                       {getStatusBadge(booking.status)}
-                      <button
-                        onClick={() => setSelectedBooking(booking)}
-                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                      >
-                        <Eye className="h-5 w-5 text-gray-600" />
-                      </button>
+                      
+                      {/* Actions dropdown */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setActionMenuOpen(actionMenuOpen === booking.id ? null : booking.id)}
+                          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                          <MoreVertical className="h-5 w-5 text-gray-600" />
+                        </button>
+                        
+                        {actionMenuOpen === booking.id && (
+                          <>
+                            <div 
+                              className="fixed inset-0 z-10" 
+                              onClick={() => setActionMenuOpen(null)}
+                            />
+                            <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-20">
+                              <button
+                                onClick={() => {
+                                  setSelectedBooking(booking);
+                                  setActionMenuOpen(null);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <Eye className="h-4 w-4" />
+                                View Details
+                              </button>
+                              
+                              {booking.manage_token && (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      handleCopyManageLink(booking);
+                                      setActionMenuOpen(null);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                                  >
+                                    <Copy className="h-4 w-4" />
+                                    {copiedId === booking.id ? 'Copied!' : 'Copy Manage Link'}
+                                  </button>
+                                  
+                                  <a
+                                    href={`/manage/${booking.manage_token}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                                    onClick={() => setActionMenuOpen(null)}
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                    Open Manage Page
+                                  </a>
+                                </>
+                              )}
+                              
+                              {booking.status === 'confirmed' && !isPastBooking(booking) && (
+                                <>
+                                  <hr className="my-2" />
+                                  <button
+                                    onClick={() => handleCancelBooking(booking)}
+                                    disabled={cancellingId === booking.id}
+                                    className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
+                                  >
+                                    {cancellingId === booking.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Ban className="h-4 w-4" />
+                                    )}
+                                    Cancel Booking
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -217,7 +328,15 @@ export default function Bookings() {
                   {/* Notes */}
                   {booking.notes && (
                     <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-600 italic">{booking.notes}</p>
+                      <p className="text-sm text-gray-600 italic line-clamp-2">{booking.notes}</p>
+                    </div>
+                  )}
+                  
+                  {/* Past booking indicator */}
+                  {isPastBooking(booking) && booking.status === 'confirmed' && (
+                    <div className="mt-4 text-xs text-gray-400 flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      This booking has passed
                     </div>
                   )}
                 </div>
@@ -303,13 +422,43 @@ export default function Bookings() {
                 </div>
               )}
 
-              <div className="pt-4">
-                <button
-                  onClick={() => navigate(`/manage/${selectedBooking.booking_token}`)}
-                  className="w-full bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-semibold"
-                >
-                  Manage Booking
-                </button>
+              {/* Action buttons */}
+              <div className="pt-4 space-y-3">
+                {selectedBooking.manage_token && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleCopyManageLink(selectedBooking)}
+                      className="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-xl hover:bg-gray-200 font-semibold flex items-center justify-center gap-2"
+                    >
+                      <Copy className="h-4 w-4" />
+                      {copiedId === selectedBooking.id ? 'Copied!' : 'Copy Link'}
+                    </button>
+                    <a
+                      href={`/manage/${selectedBooking.manage_token}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-semibold flex items-center justify-center gap-2"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Manage
+                    </a>
+                  </div>
+                )}
+                
+                {selectedBooking.status === 'confirmed' && !isPastBooking(selectedBooking) && (
+                  <button
+                    onClick={() => handleCancelBooking(selectedBooking)}
+                    disabled={cancellingId === selectedBooking.id}
+                    className="w-full bg-red-50 text-red-600 px-6 py-3 rounded-xl hover:bg-red-100 font-semibold flex items-center justify-center gap-2"
+                  >
+                    {cancellingId === selectedBooking.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Ban className="h-4 w-4" />
+                    )}
+                    Cancel Booking
+                  </button>
+                )}
               </div>
             </div>
           </div>
