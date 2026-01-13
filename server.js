@@ -7568,11 +7568,10 @@ try {
       });
     }
 
-    // ========== LOOK UP TOKEN ==========
+   // ========== LOOK UP TOKEN ==========
     let memberResult;
-
-     console.log('🔍 TOKEN DEBUG:', { tokenLength: token.length, isLength32: token.length === 32 });
-   
+    
+    console.log('🔍 TOKEN DEBUG:', { tokenLength: token.length, isLength32: token.length === 32 });
     
     // CHECK 0: Magic Link (32 chars)
     if (token.length === 32) {
@@ -7591,7 +7590,6 @@ try {
         const magicLink = magicCheck.rows[0];
         console.log('✨ Magic link found for booking:', magicLink.link_name);
         
-        // Get members from magic_link_members
         const mlMembersResult = await pool.query(
           `SELECT tm.*, u.google_access_token, u.google_refresh_token,
                   u.microsoft_access_token, u.microsoft_refresh_token,
@@ -7617,7 +7615,6 @@ try {
           };
           console.log('✨ Using magic link member:', primaryMember.name || primaryMember.member_name);
         } else {
-          // Fallback to creator
           const creatorResult = await pool.query(
             `SELECT tm.*, t.name as team_name, t.id as team_id, t.booking_mode, t.owner_id,
                     u.google_access_token, u.google_refresh_token,
@@ -7639,7 +7636,7 @@ try {
     
     // CHECK 1: Single-use link (64 chars)
     if (!memberResult && token.length === 64) {
-      console.log('?? Looking up single-use link...');
+    console.log('?? Looking up single-use link...');
       memberResult = await pool.query(
         `SELECT tm.*, 
                 t.name as team_name, 
