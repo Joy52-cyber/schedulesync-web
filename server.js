@@ -1949,6 +1949,7 @@ app.post('/api/bookings', async (req, res) => {
 
     // ========== STEP 2: LOOK UP TOKEN ==========
     let memberResult;
+    let magicLinkSchedulingMode = null;
 
     // Check for magic link token (32 chars)
     if (token.length === 32) {
@@ -1964,7 +1965,8 @@ app.post('/api/bookings', async (req, res) => {
 
       if (magicLinkResult.rows.length > 0) {
         const magicLink = magicLinkResult.rows[0];
-        console.log('✨ Magic link found, fetching member data...');
+        magicLinkSchedulingMode = magicLink.scheduling_mode;
+        console.log('✨ Magic link found, fetching member data, mode:', magicLinkSchedulingMode);
 
         // Get the first member from magic_link_members with full member/team/user data
         memberResult = await pool.query(
@@ -2108,21 +2110,22 @@ app.post('/api/bookings', async (req, res) => {
     }
 
     if (memberResult.rows.length === 0) {
-      console.log('? Invalid or expired booking token');
+      console.log('❌ Invalid or expired booking token');
       return res.status(404).json({ error: 'Invalid booking token' });
     }
 
     const member = memberResult.rows[0];
-    const bookingMode = member.booking_mode || 'individual';
+    const bookingMode = magicLinkSchedulingMode || member.booking_mode || 'individual';
 
-    console.log('? Token found:', {
+    console.log('✅ Token found:', {
       memberName: member.name || member.member_name,
       teamName: member.team_name,
-      mode: bookingMode
+      mode: bookingMode,
+      source: magicLinkSchedulingMode ? 'magic_link' : 'team'
     });
 
 
-    // ? STEP 3: Determine assigned members based on booking mode
+    // ✅ STEP 3: Determine assigned members based on booking mode
     let assignedMembers = [];
 
     switch (bookingMode) {
@@ -5047,13 +5050,13 @@ app.post('/api/book/:token/slots-with-status', async (req, res) => {
         );
         
         if (membersResult.rows.length > 0) {
-          // Check if collective mode with multiple members
-          if (membersResult.rows.length > 1 && magicLink.scheduling_mode === 'collective') {
+          // Check if collective mode
+          if (magicLink.scheduling_mode === 'collective') {
             console.log(`🔄 COLLECTIVE MODE: Will filter for ${membersResult.rows.length} members`);
             isCollectiveMode = true;
             collectiveMembers = membersResult.rows;
           }
-          
+
           // Use first member's token for initial slot generation
           token = membersResult.rows[0].booking_token;
           console.log('✨ Magic link slots: Using member token, mode:', magicLink.scheduling_mode);
