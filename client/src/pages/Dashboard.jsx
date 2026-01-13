@@ -29,6 +29,7 @@ import api, {
 } from '../utils/api';
 import AISchedulerChat from '../components/AISchedulerChat';
 import PreferencesInsights from '../components/PreferencesInsights';
+import RescheduleSuggestions from '../components/RescheduleSuggestions';
 import { useNotification } from '../contexts/NotificationContext';
 import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal';
 import { useWalkthrough } from '../context/WalkthroughContext';
@@ -450,6 +451,11 @@ export default function Dashboard() {
                   </div>
                 </button>
               )}
+            </div>
+
+            {/* Reschedule Suggestions */}
+            <div className="mt-6">
+              <RescheduleSuggestions />
             </div>
 
             {/* Two Column Layout */}

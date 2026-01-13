@@ -1063,6 +1063,27 @@ await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_booking_patterns_user ON booking_patterns(user_id);
     `);
 
+    // Reschedule Suggestions table for Auto-Rescheduling Agent
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS reschedule_suggestions (
+        id SERIAL PRIMARY KEY,
+        booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        reason VARCHAR(100),
+        original_time TIMESTAMP,
+        suggested_times JSONB DEFAULT '[]',
+        status VARCHAR(50) DEFAULT 'pending',
+        auto_generated BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        expires_at TIMESTAMP DEFAULT NOW() + INTERVAL '24 hours'
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_reschedule_user ON reschedule_suggestions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_reschedule_booking ON reschedule_suggestions(booking_id);
+    `);
+
     console.log('✅ Database initialized successfully');
   } catch (error) {
     console.error('? Error initializing database:', error);
@@ -12425,6 +12446,149 @@ async function analyzeUserPreferences(userId) {
   }
 }
 
+// ============ AUTO-RESCHEDULING AGENT FUNCTIONS ============
+
+// Detect scheduling conflicts for a user
+async function detectConflicts(userId) {
+  try {
+    const conflicts = await pool.query(`
+      SELECT
+        b1.id as booking1_id,
+        b1.title as booking1_title,
+        b1.start_time as booking1_start,
+        b1.end_time as booking1_end,
+        b2.id as booking2_id,
+        b2.title as booking2_title,
+        b2.start_time as booking2_start,
+        b2.end_time as booking2_end
+      FROM bookings b1
+      JOIN bookings b2 ON b1.user_id = b2.user_id
+        AND b1.id < b2.id
+        AND b1.start_time < b2.end_time
+        AND b1.end_time > b2.start_time
+      WHERE b1.user_id = $1
+        AND b1.status = 'confirmed'
+        AND b2.status = 'confirmed'
+        AND b1.start_time > NOW()
+      ORDER BY b1.start_time
+    `, [userId]);
+
+    console.log(`🔍 Found ${conflicts.rows.length} conflicts for user ${userId}`);
+    return conflicts.rows;
+  } catch (error) {
+    console.error('Detect conflicts error:', error);
+    return [];
+  }
+}
+
+// Find available slots for rescheduling
+async function findAlternativeSlots(userId, duration, excludeBookingId, preferredDate = null) {
+  try {
+    // Get user's existing bookings for the next 7 days
+    const startDate = preferredDate || new Date();
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 7);
+
+    const bookings = await pool.query(`
+      SELECT start_time, end_time FROM bookings
+      WHERE user_id = $1
+        AND status = 'confirmed'
+        AND id != $2
+        AND start_time >= $3
+        AND start_time <= $4
+      ORDER BY start_time
+    `, [userId, excludeBookingId, startDate, endDate]);
+
+    // Get user preferences for working hours
+    const prefs = await pool.query(
+      'SELECT preferred_hours_start, preferred_hours_end, preferred_days FROM user_preferences WHERE user_id = $1',
+      [userId]
+    );
+    const userPrefs = prefs.rows[0] || { preferred_hours_start: 9, preferred_hours_end: 17 };
+
+    // Generate available slots
+    const slots = [];
+    const currentDate = new Date(startDate);
+    currentDate.setHours(userPrefs.preferred_hours_start, 0, 0, 0);
+
+    while (currentDate < endDate && slots.length < 5) {
+      const dayOfWeek = currentDate.getDay();
+
+      // Skip weekends
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        const slotStart = new Date(currentDate);
+        const slotEnd = new Date(currentDate);
+        slotEnd.setMinutes(slotEnd.getMinutes() + duration);
+
+        // Check if slot conflicts with existing bookings
+        const hasConflict = bookings.rows.some(b => {
+          const bStart = new Date(b.start_time);
+          const bEnd = new Date(b.end_time);
+          return slotStart < bEnd && slotEnd > bStart;
+        });
+
+        if (!hasConflict && slotStart > new Date()) {
+          slots.push({
+            start: slotStart.toISOString(),
+            end: slotEnd.toISOString()
+          });
+        }
+      }
+
+      // Move to next hour
+      currentDate.setHours(currentDate.getHours() + 1);
+
+      // If past working hours, move to next day
+      if (currentDate.getHours() >= userPrefs.preferred_hours_end) {
+        currentDate.setDate(currentDate.getDate() + 1);
+        currentDate.setHours(userPrefs.preferred_hours_start, 0, 0, 0);
+      }
+    }
+
+    return slots;
+  } catch (error) {
+    console.error('Find alternative slots error:', error);
+    return [];
+  }
+}
+
+// Create a reschedule suggestion for a booking
+async function createRescheduleSuggestion(bookingId, userId, reason = 'conflict') {
+  try {
+    // Get the booking details
+    const booking = await pool.query(
+      'SELECT * FROM bookings WHERE id = $1',
+      [bookingId]
+    );
+
+    if (booking.rows.length === 0) return null;
+
+    const b = booking.rows[0];
+
+    // Find alternative slots
+    const alternatives = await findAlternativeSlots(userId, b.duration || 30, bookingId, new Date(b.start_time));
+
+    if (alternatives.length === 0) {
+      console.log(`⚠️ No alternative slots found for booking ${bookingId}`);
+      return null;
+    }
+
+    // Create suggestion
+    const result = await pool.query(`
+      INSERT INTO reschedule_suggestions (booking_id, user_id, reason, original_time, suggested_times)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [bookingId, userId, reason, b.start_time, JSON.stringify(alternatives)]);
+
+    console.log(`💡 Created reschedule suggestion for booking ${bookingId} with ${alternatives.length} alternatives`);
+
+    return result.rows[0];
+  } catch (error) {
+    console.error('Create reschedule suggestion error:', error);
+    return null;
+  }
+}
+
 // GET /api/preferences - Get user's learned preferences
 app.get('/api/preferences', authenticateToken, async (req, res) => {
   try {
@@ -12453,6 +12617,121 @@ app.get('/api/preferences', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Get preferences error:', error);
     res.status(500).json({ error: 'Failed to get preferences' });
+  }
+});
+
+// ============ AUTO-RESCHEDULING AGENT ENDPOINTS ============
+
+// GET /api/reschedule-suggestions - Get pending suggestions
+app.get('/api/reschedule-suggestions', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT rs.*, b.title, b.attendee_name, b.attendee_email
+      FROM reschedule_suggestions rs
+      JOIN bookings b ON rs.booking_id = b.id
+      WHERE rs.user_id = $1
+        AND rs.status = 'pending'
+        AND rs.expires_at > NOW()
+      ORDER BY rs.created_at DESC
+    `, [req.user.id]);
+
+    res.json({ suggestions: result.rows });
+  } catch (error) {
+    console.error('Get suggestions error:', error);
+    res.status(500).json({ error: 'Failed to get suggestions' });
+  }
+});
+
+// POST /api/reschedule-suggestions/:id/accept - Accept a suggestion
+app.post('/api/reschedule-suggestions/:id/accept', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { selected_time } = req.body; // ISO string of chosen slot
+
+    // Get the suggestion
+    const suggestion = await pool.query(
+      'SELECT * FROM reschedule_suggestions WHERE id = $1 AND user_id = $2',
+      [id, req.user.id]
+    );
+
+    if (suggestion.rows.length === 0) {
+      return res.status(404).json({ error: 'Suggestion not found' });
+    }
+
+    const s = suggestion.rows[0];
+    const newStart = new Date(selected_time);
+    const booking = await pool.query('SELECT * FROM bookings WHERE id = $1', [s.booking_id]);
+    const b = booking.rows[0];
+    const duration = b.duration || 30;
+    const newEnd = new Date(newStart);
+    newEnd.setMinutes(newEnd.getMinutes() + duration);
+
+    // Update the booking
+    await pool.query(`
+      UPDATE bookings
+      SET start_time = $1, end_time = $2, updated_at = NOW()
+      WHERE id = $3
+    `, [newStart, newEnd, s.booking_id]);
+
+    // Mark suggestion as accepted
+    await pool.query(
+      'UPDATE reschedule_suggestions SET status = $1 WHERE id = $2',
+      ['accepted', id]
+    );
+
+    console.log(`✅ Reschedule accepted: booking ${s.booking_id} moved to ${newStart}`);
+
+    // TODO: Send email notification to attendee
+
+    res.json({ success: true, new_time: newStart });
+  } catch (error) {
+    console.error('Accept suggestion error:', error);
+    res.status(500).json({ error: 'Failed to accept suggestion' });
+  }
+});
+
+// POST /api/reschedule-suggestions/:id/decline - Decline a suggestion
+app.post('/api/reschedule-suggestions/:id/decline', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await pool.query(
+      'UPDATE reschedule_suggestions SET status = $1 WHERE id = $2 AND user_id = $3',
+      ['declined', id, req.user.id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Decline suggestion error:', error);
+    res.status(500).json({ error: 'Failed to decline suggestion' });
+  }
+});
+
+// POST /api/check-conflicts - Manually trigger conflict check
+app.post('/api/check-conflicts', authenticateToken, async (req, res) => {
+  try {
+    const conflicts = await detectConflicts(req.user.id);
+
+    // Create suggestions for each conflict
+    const suggestions = [];
+    for (const conflict of conflicts) {
+      // Suggest rescheduling the later booking
+      const suggestion = await createRescheduleSuggestion(
+        conflict.booking2_id,
+        req.user.id,
+        'conflict'
+      );
+      if (suggestion) suggestions.push(suggestion);
+    }
+
+    res.json({
+      conflicts_found: conflicts.length,
+      suggestions_created: suggestions.length,
+      suggestions
+    });
+  } catch (error) {
+    console.error('Check conflicts error:', error);
+    res.status(500).json({ error: 'Failed to check conflicts' });
   }
 });
 
