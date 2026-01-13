@@ -11,7 +11,7 @@ const defaultUsage = {
   event_types_used: 0,
   event_types_limit: 2,
   magic_links_used: 0,
-  magic_links_limit: 3
+  magic_links_limit: 2
 };
 
 const defaultContextValue = {
@@ -119,7 +119,7 @@ export const UpgradeProvider = ({ children }) => {
           event_types_used: data.event_types_used || 0,
           event_types_limit: data.event_types_limit || 2,
           magic_links_used: data.magic_links_used || 0,
-          magic_links_limit: data.magic_links_limit || 3
+          magic_links_limit: data.magic_links_limit || 2
         };
         
         // Save to localStorage for persistence

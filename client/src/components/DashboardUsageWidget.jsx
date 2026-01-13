@@ -80,10 +80,10 @@ const DashboardUsageWidget = () => {
     },
     {
       key: 'magic_links',
-      label: 'Magic Links',
+      label: 'Quick Links',
       icon: Link,
       used: usage.magic_links_used || 0,
-      limit: usage.magic_links_limit || 3,
+      limit: usage.magic_links_limit || 2,
       color: 'indigo'
     }
   ];

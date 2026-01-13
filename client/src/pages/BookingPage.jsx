@@ -546,7 +546,7 @@ export default function BookingPage() {
               <Sparkles className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-xs font-bold text-purple-800 uppercase tracking-wide mb-1">
-                  {magicLinkData?.name || 'Magic Link'}
+                  {magicLinkData?.name || 'Quick Link'}
                 </p>
                 <p className="text-sm text-purple-700 leading-tight">
                   {magicLinkData?.scheduling_mode === 'collective' 

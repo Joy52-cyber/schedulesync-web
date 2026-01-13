@@ -107,8 +107,8 @@ const UpgradeModal = () => {
       color: 'pink'
     },
     magic_links: {
-      title: 'Magic Link Limit Reached',
-      description: `You've used ${usage?.magic_links_used || 0}/${usage?.magic_links_limit || 3} magic links this month.`,
+      title: 'Quick Link Limit Reached',
+      description: `You've used ${usage?.magic_links_used || 0}/${usage?.magic_links_limit || 2} quick links this month.`,
       icon: Link,
       color: 'indigo'
     },

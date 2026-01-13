@@ -10,7 +10,7 @@ const PLAN_LIMITS = {
     ai_queries_limit: 10,
     bookings_limit: 50,
     event_types_limit: 2,
-    magic_links_limit: 3,
+    magic_links_limit: 2,
     calendar_connections_limit: 1,
     teams_enabled: false,
     buffer_times_enabled: false,
@@ -262,7 +262,7 @@ const checkMagicLinkLimit = async (req, res, next) => {
     const user = result.rows[0];
     const tier = user.subscription_tier || 'free';
     const used = user.magic_links_used || 0;
-    const limit = user.magic_links_limit || PLAN_LIMITS[tier]?.magic_links_limit || 3;
+    const limit = user.magic_links_limit || PLAN_LIMITS[tier]?.magic_links_limit || 2;
     
     // Skip check for unlimited users
     if (isUnlimited(limit)) {
@@ -271,10 +271,10 @@ const checkMagicLinkLimit = async (req, res, next) => {
     }
     
     if (used >= limit) {
-      console.log(`🚫 Magic link limit reached for user ${userId}: ${used}/${limit}`);
+      console.log(`🚫 Quick link limit reached for user ${userId}: ${used}/${limit}`);
       return res.status(429).json({
-        error: 'Magic link limit reached',
-        message: `You've used ${used}/${limit} magic links this month. Upgrade to Pro for unlimited.`,
+        error: 'Quick link limit reached',
+        message: `You've used ${used}/${limit} quick links this month. Upgrade to Pro for unlimited.`,
         upgrade_required: true,
         feature: 'magic_links',
         usage: { magic_links_used: used, magic_links_limit: limit },
@@ -531,9 +531,9 @@ const checkFeatureAccess = async (req, res) => {
         unlimited: isUnlimited(user.event_types_limit)
       },
       magic_links: {
-        enabled: isUnlimited(user.magic_links_limit) || (user.magic_links_used || 0) < (user.magic_links_limit || 3),
+        enabled: isUnlimited(user.magic_links_limit) || (user.magic_links_used || 0) < (user.magic_links_limit || 2),
         used: user.magic_links_used || 0,
-        limit: isUnlimited(user.magic_links_limit) ? 'unlimited' : (user.magic_links_limit || 3),
+        limit: isUnlimited(user.magic_links_limit) ? 'unlimited' : (user.magic_links_limit || 2),
         unlimited: isUnlimited(user.magic_links_limit)
       },
       teams: {

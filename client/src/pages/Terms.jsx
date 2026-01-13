@@ -66,9 +66,11 @@ export default function Terms() {
               ScheduleSync offers the following plans:
             </p>
             <ul className="list-disc pl-6 text-gray-600 mb-6 space-y-2">
-              <li><strong>Free:</strong> 50 bookings/month, 10 AI queries/month, 3 magic links/month</li>
-              <li><strong>Pro ($12/month):</strong> Unlimited bookings, AI queries, and magic links</li>
-              <li><strong>Team ($25/month):</strong> All Pro features plus team scheduling for up to 10 members</li>
+              <li><strong>Free:</strong> 50 bookings/month, 10 AI queries/month, 2 quick links/month</li>
+              <li><strong>Starter ($8/month):</strong> 200 bookings/month, 50 AI queries/month, 10 quick links/month</li>
+              <li><strong>Pro ($15/month):</strong> Unlimited bookings, 250 AI queries, unlimited quick links</li>
+              <li><strong>Team ($20/user/month):</strong> All Pro features plus team scheduling for up to 10 members</li>
+              <li><strong>Enterprise:</strong> Custom pricing for large organizations with SSO and dedicated support</li>
             </ul>
             <p className="text-gray-600 mb-6">
               Paid subscriptions are billed monthly. You may cancel at any time, and your subscription will remain active until the end of the billing period.

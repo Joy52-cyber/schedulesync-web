@@ -61,7 +61,7 @@ export default function Landing() {
         '50 bookings/month',
         '2 event types',
         '10 AI queries/month',
-        '3 magic links/month',
+        '2 quick links/month',
         'Google & Outlook sync',
         'Email reminders',
         'Custom booking URL',
@@ -78,7 +78,7 @@ export default function Landing() {
         'Unlimited bookings',
         'Unlimited event types',
         'Unlimited AI queries',
-        'Unlimited magic links',
+        'Unlimited quick links',
         'Email templates',
         'Priority support',
         'Custom branding',
@@ -495,7 +495,7 @@ export default function Landing() {
               </ul>
             </div>
 
-            {/* Magic Links - UNIQUE FEATURE */}
+            {/* Quick Links - UNIQUE FEATURE */}
             <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 border-2 border-amber-200 relative">
               <div className="absolute -top-3 right-4 px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold rounded-full">
                 ✨ UNIQUE
@@ -505,7 +505,7 @@ export default function Landing() {
                   <Sparkles className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900">Magic Links</h3>
+                  <h3 className="font-bold text-gray-900">Quick Links</h3>
                   <p className="text-xs text-gray-600">Instant one-time booking</p>
                 </div>
               </div>
@@ -514,7 +514,7 @@ export default function Landing() {
               </p>
               <div className="bg-white rounded-lg p-3 border border-amber-200">
                 <p className="text-xs text-amber-700 font-medium">
-                  🎁 Free: 3/month<br/>
+                  🎁 Free: 2/month<br/>
                   💎 Pro: Unlimited
                 </p>
               </div>

@@ -166,7 +166,7 @@ export const FEATURES = {
 
   magic_links: {
     key: 'magic_links',
-    label: 'Single-Use Magic Links',
+    label: 'Quick Links',
     description: 'Create one-time booking links for specific guests',
     category: 'Links',
     tiers: {
