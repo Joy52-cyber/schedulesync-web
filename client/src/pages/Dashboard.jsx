@@ -18,7 +18,6 @@ import {
   Sparkles,
   Share2,
   Check,
-  Mail,
   Video,
 } from 'lucide-react';
 
@@ -223,7 +222,7 @@ export default function Dashboard() {
     const link = `${window.location.origin}/${user.username}`;
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
-    notify.success('Calendar link copied!');
+    notify.success('Booking link copied!');
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
@@ -398,7 +397,7 @@ export default function Dashboard() {
 
             {/* QUICK ACTIONS - NOW AT TOP */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <button 
+              <button
                 onClick={handleShareCalendar}
                 className="flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all text-left"
               >
@@ -406,8 +405,8 @@ export default function Dashboard() {
                   {copiedLink ? <Check className="w-6 h-6 text-white" /> : <Share2 className="w-6 h-6 text-white" />}
                 </div>
                 <div>
-                  <div className="font-bold text-gray-900">{copiedLink ? 'Copied!' : 'Share Calendar'}</div>
-                  <div className="text-sm text-gray-500">Copy your booking link</div>
+                  <div className="font-bold text-gray-900">{copiedLink ? 'Copied!' : 'Your Booking Page'}</div>
+                  <div className="text-sm text-gray-500">Share with anyone</div>
                 </div>
               </button>
 
@@ -437,20 +436,6 @@ export default function Dashboard() {
                 </div>
               </button>
 
-              {currentTier !== 'free' && (
-                <button
-                  onClick={() => navigate('/templates')}
-                  className="flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all text-left"
-                >
-                  <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-                    <Mail className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-gray-900">Email Templates</div>
-                    <div className="text-sm text-gray-500">Customize your emails</div>
-                  </div>
-                </button>
-              )}
             </div>
 
             {/* Reschedule Suggestions */}

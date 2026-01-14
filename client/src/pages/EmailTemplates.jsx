@@ -486,22 +486,22 @@ export default function EmailTemplates() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="max-w-5xl mx-auto px-4 py-8">
+      <div className="max-w-5xl mx-auto px-4 py-6 sm:py-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <Mail className="h-8 w-8 text-blue-600" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2 sm:gap-3">
+              <Mail className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
               Email Templates
             </h1>
-            <p className="text-gray-600 mt-1 flex items-center gap-2">
+            <p className="text-sm sm:text-base text-gray-600 mt-1 flex items-center gap-2">
               <Bot className="h-4 w-4" />
               Your AI assistant uses these when sending emails
             </p>
           </div>
           <button
             onClick={() => openEditor()}
-            className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2 font-semibold shadow-sm"
+            className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 font-semibold shadow-sm"
           >
             <Plus className="h-5 w-5" />
             New Template
@@ -509,10 +509,10 @@ export default function EmailTemplates() {
         </div>
 
         {/* AI Tips */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-6">
           {/* Smart Suggestions */}
           {smartSuggestions.length > 0 && (
-            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl p-4">
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl p-3 sm:p-4">
               <div className="flex items-start gap-3">
                 <div className="p-2 bg-green-100 rounded-lg">
                   <Target className="h-5 w-5 text-green-600" />
@@ -552,7 +552,7 @@ export default function EmailTemplates() {
           )}
 
           {/* AI Integration Info */}
-          <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-2xl p-4">
+          <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-2xl p-3 sm:p-4">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-purple-100 rounded-lg">
                 <Sparkles className="h-5 w-5 text-purple-600" />
@@ -627,15 +627,15 @@ export default function EmailTemplates() {
                 key={template.id}
                 className="bg-white rounded-xl border-2 border-gray-100 hover:border-blue-200 transition-all overflow-hidden"
               >
-                <div className="flex items-center gap-4 p-4">
+                <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4">
                   {/* Emoji & Name */}
-                  <div className="text-2xl">
+                  <div className="text-xl sm:text-2xl flex-shrink-0">
                     {getTypeEmoji(template.type)}
                   </div>
-                  
+
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-gray-900 truncate">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h3 className="font-semibold text-gray-900 truncate text-sm sm:text-base">
                         {template.name}
                       </h3>
                       {template.is_default && (
@@ -650,13 +650,13 @@ export default function EmailTemplates() {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-500 truncate">
+                    <p className="text-xs sm:text-sm text-gray-500 truncate">
                       {template.subject}
                     </p>
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0 sm:gap-1 flex-shrink-0">
                     <button
                       onClick={() => toggleFavorite(template.id)}
                       className="p-2 hover:bg-gray-100 rounded-lg"

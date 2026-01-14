@@ -156,43 +156,43 @@ export default function SchedulingRules() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <Zap className="h-8 w-8 text-purple-600" />
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2 sm:gap-3">
+            <Zap className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600" />
             Smart Rules
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-sm sm:text-base text-gray-600 mt-1">
             Create scheduling rules in plain English
           </p>
         </div>
 
         {/* Create Rule */}
-        <div className="bg-white rounded-2xl border-2 border-purple-200 p-6 mb-8">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Sparkles className="h-6 w-6 text-white" />
+        <div className="bg-white rounded-2xl border-2 border-purple-200 p-4 sm:p-6 mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
             </div>
             <div className="flex-1">
-              <h2 className="text-lg font-bold text-gray-900 mb-2">Create a new rule</h2>
-              <p className="text-sm text-gray-500 mb-4">
+              <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-2">Create a new rule</h2>
+              <p className="text-xs sm:text-sm text-gray-500 mb-4">
                 Describe what you want in plain English
               </p>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   type="text"
                   value={newRuleText}
                   onChange={(e) => setNewRuleText(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && createRule()}
                   placeholder='e.g., "Add 15 min buffer after meetings"'
-                  className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 outline-none"
+                  className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 outline-none text-sm sm:text-base"
                 />
                 <button
                   onClick={createRule}
                   disabled={creating || !newRuleText.trim()}
-                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold disabled:opacity-50 flex items-center gap-2"
+                  className="w-full sm:w-auto px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {creating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
                   Add Rule
@@ -244,12 +244,12 @@ export default function SchedulingRules() {
               return (
                 <div
                   key={rule.id}
-                  className={`bg-white rounded-xl border-2 p-4 transition-all ${
+                  className={`bg-white rounded-xl border-2 p-3 sm:p-4 transition-all ${
                     rule.is_active ? 'border-gray-200' : 'border-gray-100 opacity-60'
                   }`}
                 >
-                  <div className="flex items-start gap-4">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
                       typeInfo.color === 'blue' ? 'bg-blue-100' :
                       typeInfo.color === 'green' ? 'bg-green-100' :
                       typeInfo.color === 'purple' ? 'bg-purple-100' :
@@ -268,10 +268,10 @@ export default function SchedulingRules() {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-gray-900 text-sm sm:text-base break-words">
                         "{rule.rule_text}"
                       </p>
-                      <div className="flex items-center gap-3 mt-1">
+                      <div className="flex items-center gap-2 sm:gap-3 mt-1">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
                           typeInfo.color === 'blue' ? 'bg-blue-100 text-blue-700' :
                           typeInfo.color === 'green' ? 'bg-green-100 text-green-700' :
@@ -288,7 +288,7 @@ export default function SchedulingRules() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 sm:flex-shrink-0">
                       <button
                         onClick={() => toggleRule(rule.id)}
                         className={`p-2 rounded-lg transition-colors ${
@@ -320,10 +320,10 @@ export default function SchedulingRules() {
         )}
 
         {/* Info Box */}
-        <div className="mt-8 bg-blue-50 rounded-xl border border-blue-200 p-4">
+        <div className="mt-6 sm:mt-8 bg-blue-50 rounded-xl border border-blue-200 p-3 sm:p-4">
           <div className="flex gap-3">
             <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-800">
+            <div className="text-xs sm:text-sm text-blue-800">
               <p className="font-semibold mb-1">How rules work</p>
               <ul className="space-y-1 text-blue-700">
                 <li>* Rules are applied automatically when someone books with you</li>

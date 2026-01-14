@@ -613,7 +613,7 @@ What would you like to do?`;
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <button onClick={() => handleQuickAction('link')} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left">
                     <Link className="h-4 w-4 text-purple-600" />
-                    <span className="text-sm font-medium">My Link</span>
+                    <span className="text-sm font-medium">Booking Link</span>
                   </button>
                   <button onClick={() => handleQuickAction('upcoming')} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left">
                     <Calendar className="h-4 w-4 text-blue-600" />

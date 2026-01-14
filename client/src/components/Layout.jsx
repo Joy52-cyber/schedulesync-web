@@ -46,7 +46,7 @@ export default function Layout() {
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, walkthrough: "dashboard-nav" },
     { name: "Event Types", path: "/events", icon: Clock, walkthrough: "events-nav" },
     { name: "Bookings", path: "/bookings", icon: Calendar, walkthrough: "bookings-nav" },
-    { name: "Quick Links", path: "/my-links", icon: Link2, walkthrough: "my-links-nav" },
+    { name: "Booking Links", path: "/my-links", icon: Link2, walkthrough: "my-links-nav" },
     { name: "Teams", path: "/teams", icon: Users, walkthrough: "teams-nav" },
     { name: "Settings", path: "/settings", icon: Settings, walkthrough: "settings-nav" },
   ];

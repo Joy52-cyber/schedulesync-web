@@ -267,7 +267,7 @@ export default function MyLinks() {
               <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
                 <Link2 className="h-5 w-5 text-blue-600" />
               </div>
-              My Profile Link
+              Your Booking Page
             </h2>
             <p className="text-blue-700 text-sm mb-4">
               Your permanent booking page - share it anywhere

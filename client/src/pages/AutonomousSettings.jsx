@@ -194,22 +194,22 @@ export default function AutonomousSettings() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-purple-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <Bot className="h-8 w-8 text-purple-600" />
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2 sm:gap-3">
+            <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600" />
             Autonomous Mode
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-sm sm:text-base text-gray-600 mt-1">
             Let AI handle your scheduling based on your rules
           </p>
         </div>
 
         {/* Mode Selector */}
-        <div className="bg-white rounded-2xl border-2 border-gray-200 p-6 mb-6">
-          <h2 className="font-bold text-gray-900 mb-4">Scheduling Mode</h2>
-          <div className="grid gap-3">
+        <div className="bg-white rounded-2xl border-2 border-gray-200 p-4 sm:p-6 mb-6">
+          <h2 className="font-bold text-gray-900 mb-4 text-sm sm:text-base">Scheduling Mode</h2>
+          <div className="grid gap-2 sm:gap-3">
             {MODES.map((m) => {
               const Icon = m.icon;
               const isSelected = mode === m.id;
@@ -217,27 +217,27 @@ export default function AutonomousSettings() {
                 <button
                   key={m.id}
                   onClick={() => setMode(m.id)}
-                  className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left ${
+                  className={`flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl border-2 transition-all text-left ${
                     isSelected
                       ? `border-${m.color}-500 bg-${m.color}-50`
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
                     isSelected ? `bg-${m.color}-500` : 'bg-gray-100'
                   }`}>
-                    <Icon className={`h-6 w-6 ${isSelected ? 'text-white' : 'text-gray-500'}`} />
+                    <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${isSelected ? 'text-white' : 'text-gray-500'}`} />
                   </div>
-                  <div className="flex-1">
-                    <p className={`font-semibold ${isSelected ? `text-${m.color}-900` : 'text-gray-900'}`}>
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-semibold text-sm sm:text-base ${isSelected ? `text-${m.color}-900` : 'text-gray-900'}`}>
                       {m.name}
                     </p>
-                    <p className={`text-sm ${isSelected ? `text-${m.color}-700` : 'text-gray-500'}`}>
+                    <p className={`text-xs sm:text-sm ${isSelected ? `text-${m.color}-700` : 'text-gray-500'}`}>
                       {m.description}
                     </p>
                   </div>
                   {isSelected && (
-                    <Check className={`h-6 w-6 text-${m.color}-600`} />
+                    <Check className={`h-5 w-5 sm:h-6 sm:w-6 text-${m.color}-600 flex-shrink-0`} />
                   )}
                 </button>
               );
@@ -247,8 +247,8 @@ export default function AutonomousSettings() {
 
         {/* Rules - Only show for suggest/auto modes */}
         {mode !== 'manual' && (
-          <div className="bg-white rounded-2xl border-2 border-purple-200 p-6 mb-6">
-            <h2 className="font-bold text-gray-900 mb-6 flex items-center gap-2">
+          <div className="bg-white rounded-2xl border-2 border-purple-200 p-4 sm:p-6 mb-6">
+            <h2 className="font-bold text-gray-900 mb-4 sm:mb-6 flex items-center gap-2 text-sm sm:text-base">
               <Zap className="h-5 w-5 text-purple-600" />
               Auto-Confirm Rules
             </h2>
@@ -283,21 +283,21 @@ export default function AutonomousSettings() {
                   <Clock className="h-4 w-4 inline mr-1" />
                   Allowed Hours
                 </label>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                   <select
                     value={rules.allowed_hours_start}
                     onChange={(e) => setRules({ ...rules, allowed_hours_start: parseInt(e.target.value) })}
-                    className="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-xl"
+                    className="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-xl text-sm"
                   >
                     {[...Array(24)].map((_, i) => (
                       <option key={i} value={i}>{i}:00</option>
                     ))}
                   </select>
-                  <span className="text-gray-500">to</span>
+                  <span className="text-gray-500 text-center">to</span>
                   <select
                     value={rules.allowed_hours_end}
                     onChange={(e) => setRules({ ...rules, allowed_hours_end: parseInt(e.target.value) })}
-                    className="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-xl"
+                    className="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-xl text-sm"
                   >
                     {[...Array(24)].map((_, i) => (
                       <option key={i} value={i}>{i}:00</option>
@@ -350,19 +350,20 @@ export default function AutonomousSettings() {
                   <Mail className="h-4 w-4 inline mr-1" />
                   VIP Domains (always auto-confirm)
                 </label>
-                <div className="flex gap-2 mb-2">
+                <div className="flex flex-col sm:flex-row gap-2 mb-2">
                   <input
                     type="text"
                     value={newVipDomain}
                     onChange={(e) => setNewVipDomain(e.target.value)}
                     placeholder="e.g., google.com"
-                    className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-xl"
+                    className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-xl text-sm"
                   />
                   <button
                     onClick={addVipDomain}
-                    className="px-4 py-2 bg-green-100 text-green-700 rounded-xl hover:bg-green-200"
+                    className="w-full sm:w-auto px-4 py-2 bg-green-100 text-green-700 rounded-xl hover:bg-green-200 flex items-center justify-center"
                   >
                     <Plus className="h-5 w-5" />
+                    <span className="sm:hidden ml-2">Add Domain</span>
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -383,19 +384,20 @@ export default function AutonomousSettings() {
                   <Mail className="h-4 w-4 inline mr-1" />
                   Blocked Domains (always require approval)
                 </label>
-                <div className="flex gap-2 mb-2">
+                <div className="flex flex-col sm:flex-row gap-2 mb-2">
                   <input
                     type="text"
                     value={newBlockedDomain}
                     onChange={(e) => setNewBlockedDomain(e.target.value)}
                     placeholder="e.g., spam.com"
-                    className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-xl"
+                    className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-xl text-sm"
                   />
                   <button
                     onClick={addBlockedDomain}
-                    className="px-4 py-2 bg-red-100 text-red-700 rounded-xl hover:bg-red-200"
+                    className="w-full sm:w-auto px-4 py-2 bg-red-100 text-red-700 rounded-xl hover:bg-red-200 flex items-center justify-center"
                   >
                     <Plus className="h-5 w-5" />
+                    <span className="sm:hidden ml-2">Add Domain</span>
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -415,8 +417,8 @@ export default function AutonomousSettings() {
 
         {/* Test Section */}
         {mode !== 'manual' && (
-          <div className="bg-white rounded-2xl border-2 border-gray-200 p-6 mb-6">
-            <h2 className="font-bold text-gray-900 mb-4">Test Your Rules</h2>
+          <div className="bg-white rounded-2xl border-2 border-gray-200 p-4 sm:p-6 mb-6">
+            <h2 className="font-bold text-gray-900 mb-4 text-sm sm:text-base">Test Your Rules</h2>
             <button
               onClick={testAutoConfirm}
               className="px-4 py-2 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 font-medium"
@@ -438,10 +440,10 @@ export default function AutonomousSettings() {
         )}
 
         {/* Info Box */}
-        <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 mb-6">
+        <div className="bg-blue-50 rounded-xl border border-blue-200 p-3 sm:p-4 mb-6">
           <div className="flex gap-3">
             <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-800">
+            <div className="text-xs sm:text-sm text-blue-800">
               <p className="font-semibold mb-1">How it works</p>
               <ul className="space-y-1 text-blue-700">
                 <li>• <strong>Manual:</strong> All bookings require your confirmation</li>

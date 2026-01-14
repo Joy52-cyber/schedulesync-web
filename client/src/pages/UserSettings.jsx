@@ -29,13 +29,14 @@ import {
   Link2,
   Palette,
 } from 'lucide-react';
-import api, { 
-  auth, 
-  timezone as timezoneApi, 
-  reminders as remindersApi, 
+import api, {
+  auth,
+  timezone as timezoneApi,
+  reminders as remindersApi,
   calendar as calendarApi,
   chatgptIntegration,
 } from '../utils/api';
+import { useUpgrade } from '../context/UpgradeContext';
 
 import BrandingSettings from '../components/BrandingSettings';
 
@@ -44,6 +45,7 @@ export default function UserSettings() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const notify = useNotification();
+  const { hasProFeature, hasTeamFeature } = useUpgrade();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -66,6 +68,16 @@ export default function UserSettings() {
     sendToGuest: true,
   });
   const [remindersLoading, setRemindersLoading] = useState(false);
+
+  // 📧 Email notification preferences
+  const [emailPreferences, setEmailPreferences] = useState({
+    send_confirmations: true,
+    send_reminders: true,
+    send_cancellations: true,
+    send_reschedule: true,
+    reminder_hours: 24,
+  });
+  const [emailPrefsLoading, setEmailPrefsLoading] = useState(false);
 
   // 📅 Calendar connections
   const [calendarStatus, setCalendarStatus] = useState({
@@ -134,6 +146,7 @@ export default function UserSettings() {
       }
 
       await loadCalendarStatus();
+      await loadEmailPreferences();
 
       if (activeTab === 'integrations') {
         await loadChatGptToken();
@@ -142,6 +155,27 @@ export default function UserSettings() {
       console.error('Error loading settings:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadEmailPreferences = async () => {
+    try {
+      setEmailPrefsLoading(true);
+      const response = await api.get('/settings/email-preferences');
+      if (response.data) {
+        setEmailPreferences({
+          send_confirmations: response.data.send_confirmations ?? true,
+          send_reminders: response.data.send_reminders ?? true,
+          send_cancellations: response.data.send_cancellations ?? true,
+          send_reschedule: response.data.send_reschedule ?? true,
+          reminder_hours: response.data.reminder_hours ?? 24,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading email preferences:', error);
+      // Use defaults if not found
+    } finally {
+      setEmailPrefsLoading(false);
     }
   };
 
@@ -318,11 +352,15 @@ export default function UserSettings() {
         });
       }
 
+      // Save email notification preferences
+      await api.put('/settings/email-preferences', emailPreferences);
+
       setSaved(true);
+      notify.success('Settings saved successfully!');
       setTimeout(() => setSaved(false), 2000);
     } catch (error) {
       console.error('Error saving:', error);
-      alert('Failed to save settings');
+      notify.error('Failed to save settings');
     } finally {
       setSaving(false);
     }
@@ -438,7 +476,9 @@ export default function UserSettings() {
               }`}
             >
               <Mail size={18} /> Templates
-              <span className="ml-auto text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-semibold">PRO</span>
+              {!hasProFeature() && (
+                <span className="ml-auto text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-semibold">PRO</span>
+              )}
             </button>
             <button
               onClick={() => handleTabChange('branding')}
@@ -449,7 +489,9 @@ export default function UserSettings() {
               }`}
             >
               <Palette size={18} /> Branding
-              <span className="ml-auto text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-semibold">PRO</span>
+              {!hasProFeature() && (
+                <span className="ml-auto text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-semibold">PRO</span>
+              )}
             </button>
           </nav>
         </div>
@@ -760,60 +802,138 @@ export default function UserSettings() {
           {/* NOTIFICATIONS TAB */}
           {activeTab === 'notifications' && (
             <div className="p-4 sm:p-8 max-w-xl space-y-8">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Email reminders</h2>
-                  <p className="text-sm text-gray-500 mt-1">Control reminder emails sent before each meeting.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setReminderSettings((prev) => ({ ...prev, enabled: !prev.enabled }))}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${reminderSettings.enabled ? 'bg-blue-600' : 'bg-gray-300'}`}
-                >
-                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${reminderSettings.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
-                </button>
-              </div>
-
-              {remindersLoading && (
+              {(remindersLoading || emailPrefsLoading) && (
                 <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <Loader2 className="h-4 w-4 animate-spin" />Loading reminder settings…
+                  <Loader2 className="h-4 w-4 animate-spin" />Loading notification settings…
                 </div>
               )}
 
-              <div className={`space-y-6 mt-4 ${!reminderSettings.enabled ? 'opacity-60 pointer-events-none' : ''}`}>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">When should we send the reminder?</label>
-                  <select
-                    value={reminderSettings.hoursBefore}
-                    onChange={(e) => setReminderSettings((prev) => ({ ...prev, hoursBefore: Number(e.target.value) }))}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
-                  >
-                    <option value={1}>1 hour before</option>
-                    <option value={3}>3 hours before</option>
-                    <option value={6}>6 hours before</option>
-                    <option value={24}>24 hours before</option>
-                  </select>
-                  <p className="mt-1 text-xs text-gray-400">Applies to all upcoming meetings booked through your personal link.</p>
-                </div>
+              {/* Email Notification Types */}
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Email Notifications</h2>
+                <p className="text-sm text-gray-500 mb-6">Choose which emails you want to receive for your bookings.</p>
 
-                <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-gray-700">Who should receive reminders?</h3>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <input type="checkbox" checked={reminderSettings.sendToHost} onChange={(e) => setReminderSettings((prev) => ({ ...prev, sendToHost: e.target.checked }))} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                      <span>Send to me (host)</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <input type="checkbox" checked={reminderSettings.sendToGuest} onChange={(e) => setReminderSettings((prev) => ({ ...prev, sendToGuest: e.target.checked }))} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                      <span>Send to guest</span>
-                    </label>
+                <div className="space-y-4">
+                  {/* Confirmation Emails */}
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Booking Confirmations</h3>
+                        <p className="text-xs text-gray-500">Email sent when someone books a meeting with you</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEmailPreferences((prev) => ({ ...prev, send_confirmations: !prev.send_confirmations }))}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${emailPreferences.send_confirmations ? 'bg-green-600' : 'bg-gray-300'}`}
+                    >
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${emailPreferences.send_confirmations ? 'translate-x-5' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  {/* Reminder Emails */}
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <Clock className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Meeting Reminders</h3>
+                        <p className="text-xs text-gray-500">Email sent before an upcoming meeting</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEmailPreferences((prev) => ({ ...prev, send_reminders: !prev.send_reminders }))}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${emailPreferences.send_reminders ? 'bg-blue-600' : 'bg-gray-300'}`}
+                    >
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${emailPreferences.send_reminders ? 'translate-x-5' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  {/* Cancellation Emails */}
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                        <X className="h-5 w-5 text-red-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Cancellation Notices</h3>
+                        <p className="text-xs text-gray-500">Email sent when a booking is cancelled</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEmailPreferences((prev) => ({ ...prev, send_cancellations: !prev.send_cancellations }))}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${emailPreferences.send_cancellations ? 'bg-red-600' : 'bg-gray-300'}`}
+                    >
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${emailPreferences.send_cancellations ? 'translate-x-5' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  {/* Reschedule Emails */}
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <RefreshCw className="h-5 w-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Reschedule Notices</h3>
+                        <p className="text-xs text-gray-500">Email sent when a booking is rescheduled</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEmailPreferences((prev) => ({ ...prev, send_reschedule: !prev.send_reschedule }))}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${emailPreferences.send_reschedule ? 'bg-purple-600' : 'bg-gray-300'}`}
+                    >
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${emailPreferences.send_reschedule ? 'translate-x-5' : 'translate-x-1'}`} />
+                    </button>
                   </div>
                 </div>
+              </div>
 
-                <div className="rounded-lg border border-blue-50 bg-blue-50/50 px-4 py-3 text-xs text-blue-800 flex gap-2">
-                  <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <p>Reminders will only be sent for future bookings that have a valid guest email and are not cancelled.</p>
+              {/* Reminder Timing */}
+              <div className={`pt-6 border-t border-gray-200 ${!emailPreferences.send_reminders ? 'opacity-50 pointer-events-none' : ''}`}>
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Reminder Timing</h3>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">When should reminders be sent?</label>
+                    <select
+                      value={emailPreferences.reminder_hours}
+                      onChange={(e) => setEmailPreferences((prev) => ({ ...prev, reminder_hours: Number(e.target.value) }))}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
+                    >
+                      <option value={1}>1 hour before</option>
+                      <option value={2}>2 hours before</option>
+                      <option value={24}>24 hours before</option>
+                      <option value={48}>48 hours before</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold text-gray-700">Who should receive reminders?</h4>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                        <input type="checkbox" checked={reminderSettings.sendToHost} onChange={(e) => setReminderSettings((prev) => ({ ...prev, sendToHost: e.target.checked }))} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                        <span>Send to me (host)</span>
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                        <input type="checkbox" checked={reminderSettings.sendToGuest} onChange={(e) => setReminderSettings((prev) => ({ ...prev, sendToGuest: e.target.checked }))} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                        <span>Send to guest</span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
+              </div>
+
+              <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-4 py-3 text-xs text-blue-800 flex gap-2">
+                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <p>Email notifications only apply to future bookings. You can also customize email content in the Templates section.</p>
               </div>
             </div>
           )}

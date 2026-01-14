@@ -70,8 +70,8 @@ export default function Navbar() {
     { path: '/availability', label: 'Availability', icon: Clock },
     { path: '/teams', label: 'Teams', icon: Users },
     { path: '/bookings', label: 'Bookings', icon: Calendar },
-    { path: '/my-links', label: 'My Links', icon: Link2 },
-    { path: '/email-templates', label: 'Templates', icon: Mail },
+    { path: '/my-links', label: 'Booking Links', icon: Link2 },
+    { path: '/templates', label: 'Templates', icon: Mail },
     { path: '/settings', label: 'Settings', icon: Settings },
   ];
 
@@ -120,7 +120,7 @@ export default function Navbar() {
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-blue-600 transition-all"
               >
                 <Link2 className="h-4 w-4" />
-                My Links
+                Booking Links
               </button>
 
               {/* Links Dropdown */}
@@ -253,7 +253,7 @@ export default function Navbar() {
                   className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium"
                 >
                   {copied === 'permanent' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  Copy My Link
+                  Copy Link
                 </button>
               )}
             </div>

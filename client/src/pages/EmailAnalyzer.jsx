@@ -135,20 +135,20 @@ export default function EmailAnalyzer() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <Mail className="h-8 w-8 text-blue-600" />
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2 sm:gap-3">
+            <Mail className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
             Email Assistant
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-sm sm:text-base text-gray-600 mt-1">
             Paste an email to detect scheduling intent and generate a reply
           </p>
         </div>
 
         {/* Input Section */}
-        <div className="bg-white rounded-2xl border-2 border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-2xl border-2 border-gray-200 p-4 sm:p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <MessageSquare className="h-5 w-5 text-gray-400" />
             <h2 className="font-semibold text-gray-900">Paste Email Content</h2>
@@ -186,28 +186,28 @@ John"
         {analysis && (
           <div className="space-y-6">
             {/* Intent Card */}
-            <div className={`bg-white rounded-2xl border-2 p-6 ${
+            <div className={`bg-white rounded-2xl border-2 p-4 sm:p-6 ${
               analysis.has_scheduling_intent ? 'border-green-200' : 'border-gray-200'
             }`}>
-              <div className="flex items-start gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+              <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
+                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
                   analysis.has_scheduling_intent
                     ? `bg-${intentInfo?.color || 'blue'}-100`
                     : 'bg-gray-100'
                 }`}>
-                  <IntentIcon className={`h-6 w-6 ${
+                  <IntentIcon className={`h-5 w-5 sm:h-6 sm:w-6 ${
                     analysis.has_scheduling_intent
                       ? `text-${intentInfo?.color || 'blue'}-600`
                       : 'text-gray-400'
                   }`} />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-gray-900 text-lg">
+                  <h3 className="font-bold text-gray-900 text-base sm:text-lg">
                     {analysis.has_scheduling_intent
                       ? `${intentInfo?.label || 'Scheduling'} Detected`
                       : 'No Scheduling Intent Detected'}
                   </h3>
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-xs sm:text-sm text-gray-600 mt-1">
                     {analysis.has_scheduling_intent
                       ? 'This email contains a scheduling-related request.'
                       : 'This email doesn\'t appear to be about scheduling a meeting.'}
@@ -251,12 +251,12 @@ John"
 
             {/* Suggested Actions */}
             {analysis.has_scheduling_intent && analysis.suggested_actions?.length > 0 && (
-              <div className="bg-white rounded-2xl border-2 border-purple-200 p-6">
-                <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <div className="bg-white rounded-2xl border-2 border-purple-200 p-4 sm:p-6">
+                <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-sm sm:text-base">
                   <Sparkles className="h-5 w-5 text-purple-600" />
                   Suggested Actions
                 </h3>
-                <div className="grid gap-3">
+                <div className="grid gap-2 sm:gap-3">
                   {analysis.suggested_actions.map((action, i) => (
                     <button
                       key={i}
@@ -292,9 +292,9 @@ John"
 
             {/* Generated Reply */}
             {reply && (
-              <div className="bg-white rounded-2xl border-2 border-green-200 p-6">
+              <div className="bg-white rounded-2xl border-2 border-green-200 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                  <h3 className="font-bold text-gray-900 flex items-center gap-2 text-sm sm:text-base">
                     <Send className="h-5 w-5 text-green-600" />
                     Generated Reply
                   </h3>

@@ -1259,12 +1259,35 @@ async function migratePublicBookings() {
   }
 }
 
+// Email preferences migration
+async function migrateEmailPreferences() {
+  try {
+    console.log('?? Adding email_preferences column to users table...');
+
+    await pool.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS email_preferences JSONB DEFAULT '{
+        "send_confirmations": true,
+        "send_reminders": true,
+        "send_cancellations": true,
+        "send_reschedule": true,
+        "reminder_hours": 24
+      }'::jsonb
+    `);
+
+    console.log('? Email preferences migration completed');
+  } catch (error) {
+    console.error('? Email preferences migration failed:', error);
+  }
+}
+
 // Migration chain
 initDB()
   .then(() => migrateDatabase())
   .then(() => migrateEventTypesColumns())
   .then(() => migrateUsernameColumn())
   .then(() => migratePublicBookings())
+  .then(() => migrateEmailPreferences())
   .then(() => {
     console.log('? All migrations completed successfully');
   })
@@ -2601,6 +2624,66 @@ app.put('/api/user/timezone', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('? Update timezone error:', error);
     res.status(500).json({ error: 'Failed to update timezone' });
+  }
+});
+
+// ============ EMAIL PREFERENCES ENDPOINTS ============
+
+// GET email preferences
+app.get('/api/settings/email-preferences', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT email_preferences FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Return preferences or defaults
+    const preferences = result.rows[0].email_preferences || {
+      send_confirmations: true,
+      send_reminders: true,
+      send_cancellations: true,
+      send_reschedule: true,
+      reminder_hours: 24
+    };
+
+    res.json(preferences);
+  } catch (error) {
+    console.error('? Get email preferences error:', error);
+    res.status(500).json({ error: 'Failed to fetch email preferences' });
+  }
+});
+
+// UPDATE email preferences
+app.put('/api/settings/email-preferences', authenticateToken, async (req, res) => {
+  try {
+    const { send_confirmations, send_reminders, send_cancellations, send_reschedule, reminder_hours } = req.body;
+
+    // Validate reminder_hours
+    const validReminderHours = [1, 2, 24, 48];
+    const sanitizedReminderHours = validReminderHours.includes(reminder_hours) ? reminder_hours : 24;
+
+    const preferences = {
+      send_confirmations: send_confirmations !== false,
+      send_reminders: send_reminders !== false,
+      send_cancellations: send_cancellations !== false,
+      send_reschedule: send_reschedule !== false,
+      reminder_hours: sanitizedReminderHours
+    };
+
+    await pool.query(
+      'UPDATE users SET email_preferences = $1 WHERE id = $2',
+      [JSON.stringify(preferences), req.user.id]
+    );
+
+    console.log(`? Email preferences updated for user ${req.user.id}:`, preferences);
+    res.json({ success: true, preferences });
+  } catch (error) {
+    console.error('? Update email preferences error:', error);
+    res.status(500).json({ error: 'Failed to update email preferences' });
   }
 });
 
@@ -15958,6 +16041,32 @@ const DEFAULT_EMAIL_TEMPLATES = {
 // Send email using user's template or fallback to default
 const sendTemplatedEmail = async (to, userId, templateType, variables, options = {}) => {
   try {
+    // Check user's email preferences before sending
+    if (userId && !options.skipPreferenceCheck) {
+      const prefsResult = await pool.query(
+        'SELECT email_preferences FROM users WHERE id = $1',
+        [userId]
+      );
+
+      if (prefsResult.rows.length > 0 && prefsResult.rows[0].email_preferences) {
+        const prefs = prefsResult.rows[0].email_preferences;
+
+        // Map template types to preference fields
+        const prefMap = {
+          'confirmation': 'send_confirmations',
+          'reminder': 'send_reminders',
+          'cancellation': 'send_cancellations',
+          'reschedule': 'send_reschedule'
+        };
+
+        const prefKey = prefMap[templateType];
+        if (prefKey && prefs[prefKey] === false) {
+          console.log(`📧 Skipping ${templateType} email to ${to} - disabled in user preferences`);
+          return { skipped: true, reason: 'disabled_by_preference' };
+        }
+      }
+    }
+
     let subject, body;
 
     // Try user's custom template first
@@ -16023,7 +16132,7 @@ async function checkAndSendReminders() {
   console.log('? Running reminder check at', now.toISOString());
 
   try {
-    // Include manage_token and user_id in the SELECT query
+    // Include manage_token, user_id, and user email preferences
     const query = `
       SELECT
         b.id,
@@ -16046,11 +16155,13 @@ async function checkAndSendReminders() {
         trs.enabled,
         trs.hours_before,
         trs.send_to_host,
-        trs.send_to_guest
+        trs.send_to_guest,
+        u.email_preferences
       FROM bookings b
       JOIN team_members tm ON b.member_id = tm.id
       JOIN teams t ON tm.team_id = t.id
       LEFT JOIN team_reminder_settings trs ON trs.team_id = t.id
+      LEFT JOIN users u ON tm.user_id = u.id
       WHERE b.status = 'confirmed'
         AND b.start_time > NOW()
         AND COALESCE(b.reminder_sent, FALSE) = FALSE
@@ -16068,7 +16179,9 @@ async function checkAndSendReminders() {
       const diffMs = startTime.getTime() - now.getTime();
       const diffHours = diffMs / (1000 * 60 * 60);
 
-      const hoursBefore = row.hours_before ?? 24;
+      // Prefer user's email_preferences.reminder_hours, then team setting, then default
+      const userReminderHours = row.email_preferences?.reminder_hours;
+      const hoursBefore = userReminderHours ?? row.hours_before ?? 24;
 
       if (diffHours <= hoursBefore && diffHours > 0) {
         console.log(

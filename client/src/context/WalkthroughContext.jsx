@@ -102,7 +102,7 @@ const MOBILE_STEPS = [
   {
     id: 'menu',
     title: 'Open the Menu ☰',
-    description: 'Tap the menu icon in the top-left to access all features: Event Types, My Links, Teams, Email Templates, and Settings.',
+    description: 'Tap the menu icon in the top-left to access all features: Event Types, Booking Links, Teams, Email Templates, and Settings.',
     target: '[data-walkthrough="mobile-menu"]',
     icon: 'Sparkles',
     position: 'bottom'
@@ -110,7 +110,7 @@ const MOBILE_STEPS = [
   {
     id: 'features',
     title: 'Key Features 📋',
-    description: '• Event Types - Create different meeting types\n• My Links - Get your booking link to share\n• Settings - Connect Google/Outlook calendar\n• Teams - Set up team scheduling (Team plan)',
+    description: '• Event Types - Create different meeting types\n• Booking Links - Get your booking link to share\n• Settings - Connect Google/Outlook calendar\n• Teams - Set up team scheduling (Team plan)',
     target: null,
     icon: 'CheckCircle',
     position: 'center'
