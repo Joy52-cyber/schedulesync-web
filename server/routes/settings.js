@@ -31,7 +31,7 @@ router.put('/timezone', authenticateToken, async (req, res) => {
 router.get('/profile', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, name, email, username, timezone FROM users WHERE id = $1',
+      'SELECT id, name, email, username, timezone, bio, profile_photo FROM users WHERE id = $1',
       [req.user.id]
     );
     if (result.rows.length === 0) {
@@ -44,10 +44,10 @@ router.get('/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// PUT /api/user/profile - Update user profile (name, username)
+// PUT /api/user/profile - Update user profile (name, username, bio)
 router.put('/profile', authenticateToken, async (req, res) => {
   try {
-    const { name, username } = req.body;
+    const { name, username, bio } = req.body;
     const updates = [];
     const values = [req.user.id];
     let paramIndex = 2;
@@ -77,6 +77,13 @@ router.put('/profile', authenticateToken, async (req, res) => {
       values.push(usernameClean);
     }
 
+    if (bio !== undefined) {
+      // Limit bio to 500 characters
+      const bioClean = bio.trim().slice(0, 500);
+      updates.push(`bio = $${paramIndex++}`);
+      values.push(bioClean);
+    }
+
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No updates provided' });
     }
@@ -88,11 +95,11 @@ router.put('/profile', authenticateToken, async (req, res) => {
 
     // Return updated profile
     const result = await pool.query(
-      'SELECT id, name, email, username, timezone FROM users WHERE id = $1',
+      'SELECT id, name, email, username, timezone, bio, profile_photo FROM users WHERE id = $1',
       [req.user.id]
     );
 
-    console.log(`Profile updated for user ${req.user.id}:`, { name, username });
+    console.log(`Profile updated for user ${req.user.id}:`, { name, username, bio: bio ? 'updated' : 'unchanged' });
     res.json({ success: true, user: result.rows[0] });
   } catch (error) {
     console.error('Update profile error:', error);

@@ -21,16 +21,39 @@ router.get('/', authenticateToken, async (req, res) => {
 // POST /api/event-types - Create event type
 router.post('/', authenticateToken, checkEventTypeLimit, async (req, res) => {
   try {
-    const { title, duration, description, color, slug } = req.body;
+    const {
+      title, duration, description, color, slug,
+      custom_questions, pre_meeting_instructions, confirmation_message,
+      buffer_before, buffer_after, min_notice_hours, max_days_ahead,
+      location, location_type, max_bookings_per_day, require_approval
+    } = req.body;
 
     // Auto-generate slug if not provided: "My Meeting" -> "my-meeting"
     const finalSlug = slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
     const result = await pool.query(
-      `INSERT INTO event_types (user_id, title, slug, duration, description, color)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO event_types (
+        user_id, title, slug, duration, description, color,
+        custom_questions, pre_meeting_instructions, confirmation_message,
+        buffer_before, buffer_after, min_notice_hours, max_days_ahead,
+        location, location_type, max_bookings_per_day, require_approval
+      )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING *`,
-      [req.user.id, title, finalSlug, duration || 30, description, color || 'blue']
+      [
+        req.user.id, title, finalSlug, duration || 30, description, color || 'blue',
+        JSON.stringify(custom_questions || []),
+        pre_meeting_instructions || '',
+        confirmation_message || '',
+        buffer_before || 0,
+        buffer_after || 0,
+        min_notice_hours || 1,
+        max_days_ahead || 60,
+        location || '',
+        location_type || 'google_meet',
+        max_bookings_per_day || null,
+        require_approval || false
+      ]
     );
 
     // Return usage info so frontend can update
@@ -60,7 +83,12 @@ router.post('/', authenticateToken, checkEventTypeLimit, async (req, res) => {
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, duration, description, color, slug, is_active } = req.body;
+    const {
+      title, duration, description, color, slug, is_active,
+      custom_questions, pre_meeting_instructions, confirmation_message,
+      buffer_before, buffer_after, min_notice_hours, max_days_ahead,
+      location, location_type, max_bookings_per_day, require_approval
+    } = req.body;
 
     const result = await pool.query(
       `UPDATE event_types
@@ -69,10 +97,35 @@ router.put('/:id', authenticateToken, async (req, res) => {
            duration = COALESCE($3, duration),
            description = COALESCE($4, description),
            color = COALESCE($5, color),
-           is_active = COALESCE($6, is_active)
-       WHERE id = $7 AND user_id = $8
+           is_active = COALESCE($6, is_active),
+           custom_questions = COALESCE($7, custom_questions),
+           pre_meeting_instructions = COALESCE($8, pre_meeting_instructions),
+           confirmation_message = COALESCE($9, confirmation_message),
+           buffer_before = COALESCE($10, buffer_before),
+           buffer_after = COALESCE($11, buffer_after),
+           min_notice_hours = COALESCE($12, min_notice_hours),
+           max_days_ahead = COALESCE($13, max_days_ahead),
+           location = COALESCE($14, location),
+           location_type = COALESCE($15, location_type),
+           max_bookings_per_day = $16,
+           require_approval = COALESCE($17, require_approval)
+       WHERE id = $18 AND user_id = $19
        RETURNING *`,
-      [title, slug, duration, description, color, is_active, id, req.user.id]
+      [
+        title, slug, duration, description, color, is_active,
+        custom_questions !== undefined ? JSON.stringify(custom_questions) : null,
+        pre_meeting_instructions,
+        confirmation_message,
+        buffer_before,
+        buffer_after,
+        min_notice_hours,
+        max_days_ahead,
+        location,
+        location_type,
+        max_bookings_per_day,  // Allow setting to null
+        require_approval,
+        id, req.user.id
+      ]
     );
 
     if (result.rows.length === 0) {

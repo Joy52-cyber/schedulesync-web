@@ -62,6 +62,7 @@ export default function BookingPage() {
     attendee_name: '',
     attendee_email: '',
     notes: '',
+    custom_answers: {},
   });
   
   const [additionalAttendees, setAdditionalAttendees] = useState([]);
@@ -434,6 +435,7 @@ export default function BookingPage() {
             notes: formData.notes,
             additional_attendees: additionalAttendees,
             guest_timezone: guestTimezone,
+            custom_answers: formData.custom_answers,
           }),
         });
         
@@ -461,6 +463,7 @@ export default function BookingPage() {
           meet_link: booking.meet_link,
           manage_token: booking.manage_token,
           is_reschedule: false,
+          confirmation_message: selectedEventType.confirmation_message,
         };
         
         navigate(`/booking-confirmation?data=${encodeURIComponent(JSON.stringify(bookingData))}`);
@@ -469,11 +472,12 @@ export default function BookingPage() {
       
       // Token-based booking (includes magic links)
       const response = await bookings.create({
-        token, 
-        slot: selectedSlot, 
+        token,
+        slot: selectedSlot,
         ...formData,
         additional_attendees: additionalAttendees,
         guest_timezone: guestTimezone,
+        custom_answers: formData.custom_answers,
         event_type_id: selectedEventType?.id,
         event_type_slug: selectedEventType?.slug,
         reschedule_token: rescheduleToken,
@@ -500,6 +504,7 @@ export default function BookingPage() {
         booking_token: booking?.booking_token || token,
         manage_token: booking?.manage_token,
         is_reschedule: isReschedule,
+        confirmation_message: selectedEventType?.confirmation_message,
       };
       navigate(`/booking-confirmation?data=${encodeURIComponent(JSON.stringify(bookingData))}`);
       
@@ -616,6 +621,13 @@ export default function BookingPage() {
               <p className="text-slate-400 text-sm mt-1">{teamInfo?.name}</p>
             </div>
 
+            {/* Host Bio */}
+            {hostInfo?.bio && (
+              <div className="mb-6">
+                <p className="text-sm text-slate-600 leading-relaxed">{hostInfo.bio}</p>
+              </div>
+            )}
+
             {selectedEventType ? (
               <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-500">
                 <div className="h-px bg-slate-200 w-full" />
@@ -636,6 +648,12 @@ export default function BookingPage() {
                 </div>
                 {selectedEventType.description && (
                   <p className="text-sm text-slate-500 leading-relaxed">{selectedEventType.description}</p>
+                )}
+                {selectedEventType.pre_meeting_instructions && (
+                  <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <p className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-1">Before the Meeting</p>
+                    <p className="text-sm text-amber-700 leading-relaxed">{selectedEventType.pre_meeting_instructions}</p>
+                  </div>
                 )}
               </div>
             ) : (
@@ -820,14 +838,69 @@ export default function BookingPage() {
 
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Additional Notes</label>
-                      <textarea 
-                        value={formData.notes} 
-                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })} 
-                        rows="3" 
-                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all resize-none" 
-                        placeholder="Anything specific you want to discuss?" 
+                      <textarea
+                        value={formData.notes}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                        rows="3"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all resize-none"
+                        placeholder="Anything specific you want to discuss?"
                       />
                     </div>
+
+                    {/* Custom Questions */}
+                    {selectedEventType?.custom_questions?.length > 0 && (
+                      <div className="pt-4 border-t border-slate-200 space-y-4">
+                        <p className="text-sm font-medium text-slate-700">Additional Questions</p>
+                        {selectedEventType.custom_questions.map((q) => (
+                          <div key={q.id}>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                              {q.label}
+                              {q.required && <span className="text-red-500 ml-1">*</span>}
+                            </label>
+                            {q.type === 'textarea' ? (
+                              <textarea
+                                value={formData.custom_answers[q.id] || ''}
+                                onChange={(e) => setFormData({
+                                  ...formData,
+                                  custom_answers: { ...formData.custom_answers, [q.id]: e.target.value }
+                                })}
+                                required={q.required}
+                                rows="3"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all resize-none"
+                                placeholder={q.placeholder || ''}
+                              />
+                            ) : q.type === 'select' ? (
+                              <select
+                                value={formData.custom_answers[q.id] || ''}
+                                onChange={(e) => setFormData({
+                                  ...formData,
+                                  custom_answers: { ...formData.custom_answers, [q.id]: e.target.value }
+                                })}
+                                required={q.required}
+                                className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all bg-white"
+                              >
+                                <option value="">Select an option</option>
+                                {q.options?.map((opt, i) => (
+                                  <option key={i} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type={q.type === 'email' ? 'email' : q.type === 'phone' ? 'tel' : 'text'}
+                                value={formData.custom_answers[q.id] || ''}
+                                onChange={(e) => setFormData({
+                                  ...formData,
+                                  custom_answers: { ...formData.custom_answers, [q.id]: e.target.value }
+                                })}
+                                required={q.required}
+                                className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all"
+                                placeholder={q.placeholder || ''}
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     <div className="pt-4 border-t border-slate-200">
                       <label className="block text-sm font-medium text-slate-700 mb-3">Invite Others to This Meeting</label>

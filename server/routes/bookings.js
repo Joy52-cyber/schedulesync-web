@@ -52,7 +52,10 @@ router.get('/book/:token', async (req, res) => {
 router.post('/', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { attendee_name, attendee_email, start_time, end_time, user_id, team_id, title, notes, duration } = req.body;
+    const {
+      attendee_name, attendee_email, start_time, end_time, user_id, team_id, title, notes, duration,
+      additional_attendees, guest_timezone, custom_answers
+    } = req.body;
 
     // Apply scheduling rules
     const bookingData = {
@@ -65,7 +68,10 @@ router.post('/', async (req, res) => {
       title: title || 'Meeting',
       notes: notes || '',
       duration: duration || 30,
-      status: 'confirmed'
+      status: 'confirmed',
+      additional_guests: additional_attendees || [],
+      guest_timezone: guest_timezone || 'UTC',
+      custom_answers: custom_answers || {}
     };
 
     const ruleResults = await applySchedulingRules(client, user_id, bookingData);
@@ -90,8 +96,8 @@ router.post('/', async (req, res) => {
     }
 
     const result = await client.query(
-      `INSERT INTO bookings (attendee_name, attendee_email, start_time, end_time, user_id, team_id, status, title, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO bookings (attendee_name, attendee_email, start_time, end_time, user_id, team_id, status, title, notes, additional_guests, guest_timezone, custom_answers)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         finalData.attendee_name,
@@ -102,7 +108,10 @@ router.post('/', async (req, res) => {
         finalData.team_id,
         finalData.status,
         finalData.title,
-        finalData.notes
+        finalData.notes,
+        JSON.stringify(finalData.additional_guests || []),
+        finalData.guest_timezone || 'UTC',
+        JSON.stringify(finalData.custom_answers || {})
       ]
     );
 

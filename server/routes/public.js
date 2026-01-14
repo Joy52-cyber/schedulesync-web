@@ -15,7 +15,7 @@ router.get('/user/:username', async (req, res) => {
 
     // Find user by username or email prefix
     const userResult = await pool.query(
-      `SELECT id, name, email, username,
+      `SELECT id, name, email, username, bio, profile_photo, timezone,
               brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by
        FROM users
        WHERE LOWER(username) = LOWER($1)
@@ -31,9 +31,11 @@ router.get('/user/:username', async (req, res) => {
 
     const user = userResult.rows[0];
 
-    // Get user's active event types
+    // Get user's active event types with all booking-related fields
     const eventTypes = await pool.query(
-      `SELECT id, title as name, slug, duration, description, color, is_active
+      `SELECT id, title as name, slug, duration, description, color, is_active,
+              custom_questions, pre_meeting_instructions, confirmation_message,
+              buffer_before, buffer_after, min_notice_hours, max_days_ahead
        FROM event_types
        WHERE user_id = $1 AND is_active = true
        ORDER BY title`,
@@ -45,6 +47,9 @@ router.get('/user/:username', async (req, res) => {
         name: user.name,
         email: user.email,
         username: user.username || user.email.split('@')[0],
+        bio: user.bio,
+        profile_photo: user.profile_photo,
+        timezone: user.timezone || 'America/New_York'
       },
       eventTypes: eventTypes.rows,
       branding: {
@@ -160,7 +165,8 @@ router.get('/available-slots', async (req, res) => {
 
     // Find event type
     const eventResult = await pool.query(
-      `SELECT id, duration, buffer_before, buffer_after, max_bookings_per_day, slot_interval
+      `SELECT id, duration, buffer_before, buffer_after, max_bookings_per_day, slot_interval,
+              min_notice_hours, max_days_ahead
        FROM event_types
        WHERE user_id = $1
          AND LOWER(slug) = LOWER($2)
@@ -177,8 +183,30 @@ router.get('/available-slots', async (req, res) => {
     const bufferBefore = eventType.buffer_before || 0;
     const bufferAfter = eventType.buffer_after || 0;
     const slotInterval = eventType.slot_interval || Math.min(duration, 60);
+    const minNoticeHours = eventType.min_notice_hours || 1;
+    const maxDaysAhead = eventType.max_days_ahead || 60;
 
-    console.log('Event type found:', { duration, bufferBefore, bufferAfter, slotInterval });
+    console.log('Event type found:', { duration, bufferBefore, bufferAfter, slotInterval, minNoticeHours, maxDaysAhead });
+
+    // Calculate earliest allowed booking time based on min_notice_hours
+    const now = new Date();
+    const earliestAllowedTime = new Date(now.getTime() + minNoticeHours * 60 * 60 * 1000);
+
+    // Check if requested date is within max_days_ahead
+    const requestedDate = new Date(date);
+    const maxAllowedDate = new Date(now);
+    maxAllowedDate.setDate(maxAllowedDate.getDate() + maxDaysAhead);
+    maxAllowedDate.setHours(23, 59, 59, 999);
+
+    if (requestedDate > maxAllowedDate) {
+      return res.json({
+        success: true,
+        slots: [],
+        date: date,
+        timezone: timezone,
+        message: `Bookings are only available up to ${maxDaysAhead} days in advance`
+      });
+    }
 
     // Get host's calendar events
     let calendarEvents = [];
@@ -316,7 +344,8 @@ router.get('/available-slots', async (req, res) => {
           }
         }
 
-        if (!hasConflict) {
+        // Check if slot respects min_notice_hours
+        if (!hasConflict && slotStart >= earliestAllowedTime) {
           slots.push({
             start: slotStart.toISOString(),
             end: slotEnd.toISOString()
@@ -352,7 +381,8 @@ router.post('/booking/create', async (req, res) => {
       attendee_email,
       notes,
       additional_attendees,
-      guest_timezone
+      guest_timezone,
+      custom_answers
     } = req.body;
 
     console.log('Creating public event type booking:', { username, event_slug, attendee_email });
@@ -465,8 +495,10 @@ router.post('/booking/create', async (req, res) => {
         manage_token,
         guest_timezone,
         status,
-        title
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        title,
+        additional_guests,
+        custom_answers
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *`,
       [
         host.id,
@@ -479,7 +511,9 @@ router.post('/booking/create', async (req, res) => {
         manageToken,
         guest_timezone || 'UTC',
         bookingStatus,
-        eventType.title
+        eventType.title,
+        JSON.stringify(additional_attendees || []),
+        JSON.stringify(custom_answers || {})
       ]
     );
 

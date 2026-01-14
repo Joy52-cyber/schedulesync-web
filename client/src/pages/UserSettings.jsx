@@ -57,6 +57,7 @@ export default function UserSettings() {
     email: '',
     username: '',
     timezone: 'America/New_York',
+    bio: '',
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
@@ -116,11 +117,21 @@ export default function UserSettings() {
       const userRes = await auth.me();
       const userData = userRes.data.user || userRes.data;
 
+      // Also fetch full profile which includes bio
+      let bio = '';
+      try {
+        const profileRes = await api.get('/user/profile');
+        bio = profileRes.data?.user?.bio || '';
+      } catch (err) {
+        console.log('Could not load profile bio:', err.message);
+      }
+
       setProfile({
         name: userData.name || '',
         email: userData.email || '',
         username: userData.username || userData.email?.split('@')[0] || '',
         timezone: userData.timezone || 'America/New_York',
+        bio: bio,
       });
 
       // Teams API may return 403 for free users - handle gracefully
@@ -352,10 +363,11 @@ export default function UserSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Save profile (name, username)
+      // Save profile (name, username, bio)
       await api.put('/user/profile', {
         name: profile.name,
         username: profile.username,
+        bio: profile.bio,
       });
 
       await timezoneApi.update(profile.timezone);
@@ -575,6 +587,20 @@ export default function UserSettings() {
                       <option value="Australia/Sydney">Sydney</option>
                     </select>
                   </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Bio</label>
+                  <textarea
+                    value={profile.bio}
+                    onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                    placeholder="Tell guests a little about yourself..."
+                    rows={4}
+                    maxLength={500}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    {profile.bio?.length || 0}/500 characters. This will appear on your public booking page.
+                  </p>
                 </div>
               </div>
             </div>

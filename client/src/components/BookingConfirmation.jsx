@@ -182,6 +182,21 @@ ${bookingData.notes ? `\nNotes: ${bookingData.notes}` : ''}
           <p className="text-xl text-gray-600">Your meeting has been confirmed</p>
         </div>
 
+        {/* Custom Confirmation Message from Host */}
+        {bookingData.confirmation_message && (
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl p-6 mb-6 animate-fadeInUp" style={{animationDelay: '0.05s'}}>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Sparkles className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-green-800 uppercase tracking-wide mb-2">Message from {bookingData.organizer_name || 'your host'}</p>
+                <p className="text-green-700 leading-relaxed">{bookingData.confirmation_message}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Google Meet Link - Featured */}
 {bookingData.meet_link && (
   <div className="bg-gradient-to-br from-purple-500 to-blue-500 rounded-3xl shadow-2xl p-8 mb-6 text-white animate-fadeInUp" style={{animationDelay: '0.05s'}}>

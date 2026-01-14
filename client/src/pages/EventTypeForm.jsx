@@ -17,8 +17,11 @@ import {
   Globe,
   Zap,
   AlertCircle,
+  MessageSquare,
+  CalendarClock,
 } from 'lucide-react';
 import { events } from '../utils/api';
+import CustomQuestionsEditor from '../components/CustomQuestionsEditor';
 
 const colors = [
   { name: 'blue', bg: 'bg-blue-500' },
@@ -73,6 +76,11 @@ export default function EventTypeForm() {
     require_approval: false,
     price: 0,
     currency: 'USD',
+    custom_questions: [],
+    pre_meeting_instructions: '',
+    confirmation_message: '',
+    min_notice_hours: 1,
+    max_days_ahead: 60,
   });
 
   useEffect(() => {
@@ -101,9 +109,15 @@ export default function EventTypeForm() {
       require_approval: event.require_approval || false,
       price: event.price || 0,
       currency: event.currency || 'USD',
+      custom_questions: event.custom_questions || [],
+      pre_meeting_instructions: event.pre_meeting_instructions || '',
+      confirmation_message: event.confirmation_message || '',
+      min_notice_hours: event.min_notice_hours ?? 1,
+      max_days_ahead: event.max_days_ahead ?? 60,
     });
 
-    if (event.buffer_before || event.buffer_after || event.max_bookings_per_day || event.require_approval) {
+    if (event.buffer_before || event.buffer_after || event.max_bookings_per_day || event.require_approval ||
+        event.min_notice_hours > 1 || event.max_days_ahead !== 60) {
       setShowAdvanced(true);
     }
   };
@@ -183,6 +197,11 @@ export default function EventTypeForm() {
         buffer_after: parseInt(formData.buffer_after) || 0,
         max_bookings_per_day: formData.max_bookings_per_day ? parseInt(formData.max_bookings_per_day) : null,
         price: parseFloat(formData.price) || 0,
+        custom_questions: formData.custom_questions || [],
+        pre_meeting_instructions: formData.pre_meeting_instructions?.trim() || '',
+        confirmation_message: formData.confirmation_message?.trim() || '',
+        min_notice_hours: parseInt(formData.min_notice_hours) || 1,
+        max_days_ahead: parseInt(formData.max_days_ahead) || 60,
       };
 
       if (isEditing) {
@@ -492,6 +511,47 @@ export default function EventTypeForm() {
               </div>
             </div>
 
+            {/* Scheduling Window */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+              {/* Minimum Notice */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Minimum Notice</label>
+                <select
+                  value={formData.min_notice_hours}
+                  onChange={(e) => setFormData({ ...formData, min_notice_hours: parseInt(e.target.value) })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value={1}>1 hour</option>
+                  <option value={2}>2 hours</option>
+                  <option value={4}>4 hours</option>
+                  <option value={12}>12 hours</option>
+                  <option value={24}>24 hours (1 day)</option>
+                  <option value={48}>48 hours (2 days)</option>
+                  <option value={72}>72 hours (3 days)</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1.5">How far in advance guests must book.</p>
+              </div>
+
+              {/* Max Days Ahead */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Scheduling Window</label>
+                <select
+                  value={formData.max_days_ahead}
+                  onChange={(e) => setFormData({ ...formData, max_days_ahead: parseInt(e.target.value) })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value={7}>1 week</option>
+                  <option value={14}>2 weeks</option>
+                  <option value={30}>1 month</option>
+                  <option value={60}>2 months</option>
+                  <option value={90}>3 months</option>
+                  <option value={180}>6 months</option>
+                  <option value={365}>1 year</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1.5">How far into the future guests can book.</p>
+              </div>
+            </div>
+
             {/* Info Box */}
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3 mt-5">
               <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -504,6 +564,50 @@ export default function EventTypeForm() {
             </div>
           </div>
         )}
+
+        {/* Custom Questions */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <CustomQuestionsEditor
+            questions={formData.custom_questions}
+            onChange={(questions) => setFormData({ ...formData, custom_questions: questions })}
+          />
+        </div>
+
+        {/* Pre-Meeting Instructions & Confirmation Message */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-green-600 flex-shrink-0" />
+            Guest Communication
+          </h2>
+
+          <div className="space-y-5">
+            {/* Pre-Meeting Instructions */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Pre-Meeting Instructions</label>
+              <textarea
+                value={formData.pre_meeting_instructions}
+                onChange={(e) => setFormData({ ...formData, pre_meeting_instructions: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                rows={3}
+                placeholder="Instructions guests should follow before the meeting (e.g., 'Please prepare a brief summary of your project')"
+              />
+              <p className="text-xs text-gray-500 mt-1.5">Shown on the booking page before they confirm.</p>
+            </div>
+
+            {/* Confirmation Message */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Confirmation Message</label>
+              <textarea
+                value={formData.confirmation_message}
+                onChange={(e) => setFormData({ ...formData, confirmation_message: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                rows={3}
+                placeholder="Custom message shown after booking (e.g., 'Looking forward to our call! I'll send the agenda 24 hours before.')"
+              />
+              <p className="text-xs text-gray-500 mt-1.5">Displayed on the confirmation page after booking.</p>
+            </div>
+          </div>
+        </div>
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4">
