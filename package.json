@@ -6,9 +6,9 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server/src/index.js",
-    "start:legacy": "node server.js",
+    "start:legacy": "node server.legacy.js",
     "dev": "nodemon server/src/index.js",
-    "dev:legacy": "nodemon server.js",
+    "dev:legacy": "nodemon server.legacy.js",
     "build": "npm run build:client",
     "build:client": "cd client && npm install && npm run build && cd .. && node ./scripts/copy-dist.js",
     "postinstall": "cd client && npm install"
