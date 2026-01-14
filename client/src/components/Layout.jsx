@@ -16,19 +16,38 @@ import {
   Sparkles,
   ChevronDown,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { NotificationBell } from "../contexts/NotificationContext";
 import { useUpgrade } from "../context/UpgradeContext";
 import AISchedulerChat from "./AISchedulerChat";
+import ThemeToggle from "./ThemeToggle";
+import OnboardingWalkthrough from "./OnboardingWalkthrough";
+import api from "../utils/api";
 
 export default function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [aiExpanded, setAiExpanded] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { hasProFeature, hasTeamFeature } = useUpgrade();
+
+  // Check for new user onboarding
+  useEffect(() => {
+    const completed = localStorage.getItem('onboarding_completed');
+    const skipped = localStorage.getItem('onboarding_skipped');
+
+    if (!completed && !skipped) {
+      // Check if user has any event types set up
+      api.get('/event-types').then(res => {
+        if (res.data.length === 0) {
+          setShowOnboarding(true);
+        }
+      }).catch(() => {});
+    }
+  }, []);
 
   // Admin check - use is_admin flag or fallback to email list
   const adminEmails = ['jaybersales95@gmail.com'];
@@ -96,18 +115,18 @@ export default function Layout() {
         className={`flex items-center gap-2 ${compact ? 'px-3 py-2' : 'px-3 xl:px-4 py-2'} rounded-lg font-medium transition-colors text-sm ${
           isActive
             ? isAdminLink
-              ? "bg-red-50 text-red-600"
-              : "bg-blue-50 text-blue-600"
+              ? "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+              : "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
             : isAdminLink
-              ? "text-red-600 hover:bg-red-50"
-              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              ? "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+              : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white"
         }`}
       >
         <Icon className={compact ? "h-4 w-4" : "h-4 w-4 xl:h-5 xl:w-5"} />
         <span className={compact ? "flex-1" : "hidden xl:inline"}>{item.name}</span>
         {showBadge && (
           <span className={`${compact ? '' : 'hidden xl:inline'} text-xs ${
-            item.requiredTier === 'team' ? 'bg-pink-100 text-pink-700' : 'bg-purple-100 text-purple-700'
+            item.requiredTier === 'team' ? 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
           } px-1.5 py-0.5 rounded font-semibold`}>
             {item.requiredTier === 'team' ? 'TEAM' : 'PRO'}
           </span>
@@ -130,18 +149,18 @@ export default function Layout() {
         className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
           isActive
             ? isAdminLink
-              ? "bg-red-50 text-red-600"
-              : "bg-blue-50 text-blue-600"
+              ? "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+              : "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
             : isAdminLink
-              ? "text-red-600 hover:bg-red-50"
-              : "text-gray-600 hover:bg-gray-50"
+              ? "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+              : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
         }`}
       >
         <Icon className="h-5 w-5 flex-shrink-0" />
         <span className="text-sm flex-1">{item.name}</span>
         {showBadge && (
           <span className={`text-xs ${
-            item.requiredTier === 'team' ? 'bg-pink-100 text-pink-700' : 'bg-purple-100 text-purple-700'
+            item.requiredTier === 'team' ? 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
           } px-1.5 py-0.5 rounded font-semibold`}>
             {item.requiredTier === 'team' ? 'TEAM' : 'PRO'}
           </span>
@@ -151,15 +170,23 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+      {/* Onboarding Walkthrough for new users */}
+      {showOnboarding && (
+        <OnboardingWalkthrough
+          onComplete={() => setShowOnboarding(false)}
+          onSkip={() => setShowOnboarding(false)}
+        />
+      )}
+
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 shadow-sm transition-colors">
         <div className="mx-auto px-3 sm:px-4 lg:px-6">
           <div className="flex justify-between items-center h-14 sm:h-16">
             {/* Logo */}
             <div className="flex items-center gap-2 sm:gap-3">
               <Link to="/" className="flex items-center gap-2 sm:gap-3">
-                <span className="text-base sm:text-lg font-bold tracking-tight text-gray-900">
+                <span className="text-base sm:text-lg font-bold tracking-tight text-gray-900 dark:text-white">
                   ScheduleSync
                 </span>
               </Link>
@@ -178,8 +205,8 @@ export default function Layout() {
                   onClick={() => setAiExpanded(!aiExpanded)}
                   className={`flex items-center gap-2 px-3 xl:px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
                     isAiFeatureActive
-                      ? "bg-purple-50 text-purple-600"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      ? "bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+                      : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white"
                   }`}
                 >
                   <Sparkles className="h-4 w-4 xl:h-5 xl:w-5" />
@@ -196,9 +223,9 @@ export default function Layout() {
                       onClick={() => setAiExpanded(false)}
                     />
                     {/* Menu */}
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-20">
-                      <div className="px-3 py-2 border-b border-gray-100">
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">AI-Powered Features</p>
+                    <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-2 z-20">
+                      <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">AI-Powered Features</p>
                       </div>
                       {aiFeatures.map((item) => (
                         <NavLink
@@ -220,17 +247,20 @@ export default function Layout() {
             </nav>
 
             {/* Right side */}
-            <div className="flex items-center gap-3 sm:gap-4">
-              {/* Notification Bell with proper spacing */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Theme Toggle */}
+              <ThemeToggle />
+
+              {/* Notification Bell */}
               <div className="flex-shrink-0">
                 <NotificationBell />
               </div>
 
               <div className="hidden sm:block text-right">
-                <p className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-[150px]">
+                <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white truncate max-w-[150px]">
                   {user?.name || "User"}
                 </p>
-                <p className="text-[10px] sm:text-xs text-gray-500 truncate max-w-[150px]">
+                <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate max-w-[150px]">
                   {user?.email}
                 </p>
               </div>
@@ -243,7 +273,7 @@ export default function Layout() {
 
               <button
                 onClick={handleLogout}
-                className="hidden lg:flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium text-sm"
+                className="hidden lg:flex items-center gap-2 px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium text-sm"
               >
                 <LogOut className="h-4 w-4" />
                 <span className="hidden xl:inline">Logout</span>
@@ -252,12 +282,12 @@ export default function Layout() {
               {/* Mobile menu toggle */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 {mobileMenuOpen ? (
-                  <X className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600" />
+                  <X className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600 dark:text-gray-300" />
                 ) : (
-                  <Menu className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600" />
+                  <Menu className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600 dark:text-gray-300" />
                 )}
               </button>
             </div>
@@ -266,13 +296,13 @@ export default function Layout() {
 
         {/* Mobile menu */}
         {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-gray-200 bg-white shadow-2xl">
+          <div className="lg:hidden border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl">
             <div className="px-3 sm:px-4 py-3 space-y-1">
-              <div className="sm:hidden px-4 py-3 bg-gray-50 rounded-lg mb-2">
-                <p className="text-sm font-semibold text-gray-900 truncate">
+              <div className="sm:hidden px-4 py-3 bg-gray-50 dark:bg-gray-700 rounded-lg mb-2">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                   {user?.name || "User"}
                 </p>
-                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
               </div>
 
               {/* Main Nav Items */}
@@ -285,10 +315,10 @@ export default function Layout() {
               ))}
 
               {/* AI Tools Section */}
-              <div className="pt-2 mt-2 border-t border-gray-100">
+              <div className="pt-2 mt-2 border-t border-gray-100 dark:border-gray-700">
                 <button
                   onClick={() => setAiExpanded(!aiExpanded)}
-                  className="flex items-center justify-between w-full px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                  className="flex items-center justify-between w-full px-4 py-3 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 >
                   <span className="flex items-center gap-3">
                     <Sparkles className="h-5 w-5 text-purple-500" />
@@ -298,7 +328,7 @@ export default function Layout() {
                 </button>
 
                 {aiExpanded && (
-                  <div className="ml-4 mt-1 space-y-1 border-l-2 border-purple-100 pl-4">
+                  <div className="ml-4 mt-1 space-y-1 border-l-2 border-purple-100 dark:border-purple-800 pl-4">
                     {aiFeatures.map((item) => (
                       <MobileNavLink
                         key={item.path}
@@ -324,7 +354,7 @@ export default function Layout() {
                   setMobileMenuOpen(false);
                   handleLogout();
                 }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium mt-2"
+                className="w-full flex items-center gap-3 px-4 py-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium mt-2"
               >
                 <LogOut className="h-5 w-5 flex-shrink-0" />
                 <span className="text-sm">Logout</span>

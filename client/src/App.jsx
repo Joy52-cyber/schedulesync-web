@@ -1,11 +1,15 @@
-﻿// client/src/App.jsx
+// client/src/App.jsx
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { SubscriptionProvider } from './hooks/useSubscription';
 import { UpgradeProvider } from './context/UpgradeContext';
 import { WalkthroughProvider } from './context/WalkthroughContext';
+import { ThemeProvider } from './context/ThemeContext';
 import UpgradeModal from './components/UpgradeModal';
+
+// Styles
+import './styles/animations.css';
 
 // Layouts
 import Layout from './components/Layout';
@@ -200,9 +204,11 @@ function InnerApp() {
 // ======================
 function App() {
   return (
-    <Router>
-      <InnerApp />
-    </Router>
+    <ThemeProvider>
+      <Router>
+        <InnerApp />
+      </Router>
+    </ThemeProvider>
   );
 }
 
