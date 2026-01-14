@@ -6,7 +6,7 @@ import {
   Ban, ChevronRight, RefreshCw, CheckCircle,
   AlertTriangle, Plus, X
 } from 'lucide-react';
-import { bookings, oauth, eventTypes as eventTypesAPI } from '../utils/api';
+import { bookings, oauth, eventTypes as eventTypesAPI, STATIC_BASE_URL } from '../utils/api';
 import SmartSlotPicker from '../components/SmartSlotPicker';
 
 const FadeIn = ({ children, className = "" }) => (
@@ -519,6 +519,13 @@ export default function BookingPage() {
   const duration = selectedEventType?.duration || memberInfo?.default_duration || 30;
   const displayName = hostInfo?.name || memberInfo?.name || memberInfo?.user_name;
   const avatarLetter = displayName?.[0]?.toUpperCase() || 'U';
+
+  // Get full URL for logo (handles relative paths)
+  const getLogoUrl = (logoUrl) => {
+    if (!logoUrl) return null;
+    if (logoUrl.startsWith('http')) return logoUrl;
+    return `${STATIC_BASE_URL}${logoUrl}`;
+  };
   
   // Use member's booking token for slots if available (magic links), otherwise URL token
   const bookingTokenForPicker = isPublicEventType 
@@ -601,9 +608,9 @@ export default function BookingPage() {
             <div className="mb-6">
               {branding.logo_url ? (
                 <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg mb-4 bg-white border border-slate-200">
-                  <img 
-                    src={branding.logo_url} 
-                    alt="Logo" 
+                  <img
+                    src={getLogoUrl(branding.logo_url)}
+                    alt="Logo"
                     className="w-full h-full object-contain"
                     onError={(e) => { e.target.parentElement.style.display = 'none'; }}
                   />

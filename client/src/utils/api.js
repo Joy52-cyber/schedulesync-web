@@ -13,7 +13,11 @@ const API_BASE = rawBaseUrl.endsWith('/api')
   ? rawBaseUrl
   : `${rawBaseUrl}/api`;
 
-console.log('?? Final API Base URL:', API_BASE);
+// Export base URL without /api for static assets (logos, uploads)
+export const STATIC_BASE_URL = rawBaseUrl.replace(/\/api$/, '');
+
+console.log('🔗 Final API Base URL:', API_BASE);
+console.log('🔗 Static Base URL:', STATIC_BASE_URL);
 
 // Create axios instance
 export const api = axios.create({
