@@ -35,10 +35,7 @@ export default function MyLinks() {
   const { showUpgradeModal } = useUpgrade();
 
   const [user, setUser] = useState(null);
-  const [bookingLink, setBookingLink] = useState('');
-  const [bookingToken, setBookingToken] = useState('');
   const [copied, setCopied] = useState('');
-  const [generatingLink, setGeneratingLink] = useState(false);
   
   // Magic Links
   const [magicLinks, setMagicLinks] = useState([]);
@@ -69,7 +66,6 @@ export default function MyLinks() {
     try {
       await Promise.all([
         loadUserProfile(),
-        loadBookingLink(),
         loadMagicLinks(),
         loadAvailableMembers()
       ]);
@@ -90,18 +86,6 @@ export default function MyLinks() {
     }
   };
 
-  const loadBookingLink = async () => {
-    try {
-      const response = await api.get('/my-booking-link');
-      if (response.data.bookingUrl) {
-        setBookingLink(response.data.bookingUrl);
-        setBookingToken(response.data.bookingToken);
-      }
-    } catch (error) {
-      console.error('Failed to load booking link:', error);
-    }
-  };
-
   const loadMagicLinks = async () => {
     try {
       const response = await api.get('/magic-links');
@@ -118,23 +102,6 @@ export default function MyLinks() {
       setAvailableMembers(response.data.members || []);
     } catch (error) {
       console.error('Load available members error:', error);
-    }
-  };
-
-  const handleCreateLink = async () => {
-    setGeneratingLink(true);
-    try {
-      const response = await api.get('/my-booking-link');
-      if (response.data.bookingUrl) {
-        setBookingLink(response.data.bookingUrl);
-        setBookingToken(response.data.bookingToken);
-        notify.success('Booking link ready! 🎉');
-      }
-    } catch (error) {
-      console.error('Generate link error:', error);
-      notify.error('Could not generate booking link');
-    } finally {
-      setGeneratingLink(false);
     }
   };
 
@@ -288,36 +255,36 @@ export default function MyLinks() {
         
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Links</h1>
-          <p className="text-gray-600">Manage your booking links and share them with clients</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Booking Links</h1>
+          <p className="text-gray-600">Share your profile link or create quick links for specific meetings</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
-          {/* Permanent Booking Link */}
+          {/* Permanent Profile Link */}
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 p-6 shadow-sm">
             <h2 className="text-xl font-bold text-blue-900 flex items-center gap-3 mb-2">
               <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
                 <Link2 className="h-5 w-5 text-blue-600" />
               </div>
-              My Booking Link
+              My Profile Link
             </h2>
             <p className="text-blue-700 text-sm mb-4">
-              Share this link anywhere - email signatures, social media, websites
+              Your permanent booking page - share it anywhere
             </p>
-            
-            {bookingLink ? (
+
+            {user?.username ? (
               <div className="space-y-4">
                 <div className="bg-white border border-blue-200 rounded-xl p-4">
                   <p className="text-xs text-gray-500 mb-1">Your personal booking page</p>
                   <p className="font-mono text-sm text-blue-700 break-all">
-                    {bookingLink}
+                    {`${window.location.origin}/${user.username}`}
                   </p>
                 </div>
-                
+
                 <div className="flex gap-3">
                   <button
-                    onClick={() => handleCopyLink(bookingLink, 'permanent')}
+                    onClick={() => handleCopyLink(`${window.location.origin}/${user.username}`, 'permanent')}
                     className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-sm ${
                       copied === 'permanent'
                         ? 'bg-green-600 text-white'
@@ -337,14 +304,14 @@ export default function MyLinks() {
                     )}
                   </button>
                   <button
-                    onClick={() => window.open(bookingLink, '_blank')}
+                    onClick={() => window.open(`/${user.username}`, '_blank')}
                     className="px-4 py-3 bg-white text-blue-600 border border-blue-300 rounded-xl hover:bg-blue-50 transition-colors"
                     title="Preview booking page"
                   >
                     <ExternalLink className="h-5 w-5" />
                   </button>
                 </div>
-                
+
                 <div className="flex items-center gap-2 text-sm text-blue-600">
                   <CheckCircle2 className="h-4 w-4" />
                   <span>Unlimited uses, never expires</span>
@@ -354,24 +321,14 @@ export default function MyLinks() {
               <div className="space-y-4">
                 <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
                   <p className="text-sm text-orange-800 mb-3">
-                    You don't have a personal booking link yet. Create one to start accepting bookings!
+                    Set up your username in Settings to get your personal booking link.
                   </p>
                   <button
-                    onClick={handleCreateLink}
-                    disabled={generatingLink}
-                    className="w-full px-6 py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    onClick={() => navigate('/settings')}
+                    className="w-full px-6 py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2"
                   >
-                    {generatingLink ? (
-                      <>
-                        <Loader2 className="animate-spin h-5 w-5" />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-5 w-5" />
-                        Create My Booking Link
-                      </>
-                    )}
+                    <Settings2 className="h-5 w-5" />
+                    Go to Settings
                   </button>
                 </div>
               </div>
