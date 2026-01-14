@@ -103,6 +103,48 @@ router.get('/autonomous', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/user/usage - Get user's current AI usage
+router.get('/usage', authenticateToken, async (req, res) => {
+  try {
+    const user = await pool.query(
+      'SELECT subscription_tier FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    const tier = user.rows[0]?.subscription_tier || 'free';
+
+    const planLimits = {
+      free: { ai_queries: 10 },
+      starter: { ai_queries: 50 },
+      pro: { ai_queries: 250 },
+      team: { ai_queries: 750 },
+      enterprise: { ai_queries: Infinity }
+    };
+
+    // Get current month's AI usage
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const usage = await pool.query(`
+      SELECT COUNT(*) as ai_used
+      FROM ai_queries
+      WHERE user_id = $1 AND created_at >= $2
+    `, [req.user.id, startOfMonth]);
+
+    const aiUsed = parseInt(usage.rows[0]?.ai_used) || 0;
+    const aiLimit = planLimits[tier]?.ai_queries || 10;
+
+    res.json({
+      ai_queries_used: aiUsed,
+      ai_queries_limit: aiLimit === Infinity ? -1 : aiLimit,
+      tier
+    });
+  } catch (error) {
+    console.error('Get usage error:', error);
+    res.status(500).json({ error: 'Failed to get usage' });
+  }
+});
+
 // GET /api/user/limits - Get user's plan limits and usage
 router.get('/limits', authenticateToken, async (req, res) => {
   try {
