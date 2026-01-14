@@ -9906,6 +9906,8 @@ AVAILABLE INTENTS:
 - "send_email" - Send an email using templates
 - "update_pending" - Update pending booking
 - "cancel_booking" - Cancel a booking
+- "create_rule" - Create a new scheduling rule
+- "list_rules" - List user's scheduling rules
 - "clarify" - Need more information
 
 INTENT EXAMPLES:
@@ -9950,14 +9952,23 @@ CANCEL/UPDATE:
 - "cancel my meeting with John" → intent: "cancel_booking", extracted: { attendee_email: "john@example.com" }
 - "move my 2pm meeting to 3pm" → intent: "update_pending", extracted: { time: "15:00" }
 
+SCHEDULING RULES:
+- "create a rule: no meetings on Friday" → intent: "create_rule", extracted: { rule_text: "no meetings on Friday" }
+- "add 15 min buffer after meetings" → intent: "create_rule", extracted: { rule_text: "add 15 min buffer after meetings" }
+- "block bookings before 9am" → intent: "create_rule", extracted: { rule_text: "block before 9am" }
+- "auto-approve bookings from @company.com" → intent: "create_rule", extracted: { rule_text: "auto-approve from @company.com" }
+- "show my rules" or "list my rules" → intent: "list_rules"
+- "what are my scheduling rules" → intent: "list_rules"
+- "help me create a smart rule" → intent: "create_rule"
+
 Return JSON structure:
 {
-  "intent": "create_meeting" | "show_bookings" | "show_confirmed_bookings" | "show_cancelled_bookings" | "show_rescheduled_bookings" | "booking_stats" | "find_time" | "get_event_types" | "get_event_type" | "get_personal_link" | "get_magic_link" | "get_team_links" | "get_member_link" | "schedule_team_meeting" | "send_email" | "update_pending" | "cancel_booking" | "clarify",
+  "intent": "create_meeting" | "show_bookings" | "show_confirmed_bookings" | "show_cancelled_bookings" | "show_rescheduled_bookings" | "booking_stats" | "find_time" | "get_event_types" | "get_event_type" | "get_personal_link" | "get_magic_link" | "get_team_links" | "get_member_link" | "schedule_team_meeting" | "send_email" | "update_pending" | "cancel_booking" | "create_rule" | "list_rules" | "clarify",
   "confidence": 0-100,
   "extracted": {
   "link_name": "custom name for magic link",
   "attendee_email": "pre-fill attendee email for magic link",
-  "attendee_name": "pre-fill attendee name for magic link", 
+  "attendee_name": "pre-fill attendee name for magic link",
   "team_name": "team name to schedule with or assign magic link to",
   "member_name": "member name for link lookup or magic link assignment",
   "event_type_name": "event type name to lookup",
@@ -9966,9 +9977,10 @@ Return JSON structure:
   "title": "meeting title",
   "attendees": ["email1@example.com", "email2@example.com"],
   "date": "YYYY-MM-DD",
-  "time": "HH:MM in 24-hour format", 
+  "time": "HH:MM in 24-hour format",
   "duration_minutes": number,
-  "notes": "string or null"
+  "notes": "string or null",
+  "rule_text": "natural language rule description for create_rule intent"
 },
   "missing_fields": [],
   "clarifying_question": "question if needed",
@@ -11240,74 +11252,58 @@ ${bookingsList}`,
         }
       }
 
-      // ============ HANDLE BOOKING STATS ============
+      // ============ HANDLE BOOKING STATS (ENHANCED) ============
       if (parsedIntent.intent === 'booking_stats') {
         try {
-          const month = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
-          const monthStart = `${month}-01`;
-          const nextMonth = new Date();
-          nextMonth.setMonth(nextMonth.getMonth() + 1);
-          const monthEnd = `${nextMonth.toISOString().slice(0, 7)}-01`;
-
+          // Get comprehensive stats including today, this week, last week
           const statsResult = await pool.query(
-            `SELECT 
-               COUNT(*) FILTER (WHERE status = 'confirmed') as confirmed,
+            `SELECT
+               COUNT(*) FILTER (WHERE status != 'cancelled') as total_bookings,
+               COUNT(*) FILTER (WHERE start_time >= CURRENT_DATE AND start_time < CURRENT_DATE + INTERVAL '1 day' AND status = 'confirmed') as today,
+               COUNT(*) FILTER (WHERE start_time >= CURRENT_DATE AND start_time < CURRENT_DATE + INTERVAL '7 days' AND status = 'confirmed') as this_week,
+               COUNT(*) FILTER (WHERE start_time >= CURRENT_DATE - INTERVAL '7 days' AND start_time < CURRENT_DATE AND status = 'confirmed') as last_week,
+               COUNT(*) FILTER (WHERE start_time >= date_trunc('month', CURRENT_DATE) AND status = 'confirmed') as this_month,
                COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled,
-               COUNT(*) FILTER (WHERE status = 'pending') as pending,
-               COUNT(*) as total,
-               COUNT(*) FILTER (WHERE start_time >= NOW() AND status = 'confirmed') as upcoming
+               COUNT(*) FILTER (WHERE start_time > NOW() AND status = 'confirmed') as upcoming,
+               COUNT(*) FILTER (WHERE status = 'pending') as pending
              FROM bookings b
              LEFT JOIN teams t ON b.team_id = t.id
              LEFT JOIN team_members tm ON b.member_id = tm.id
-             WHERE (t.owner_id = $1 OR tm.user_id = $1)
-               AND b.created_at >= $2 AND b.created_at < $3`,
-            [userId, monthStart, monthEnd]
-          );
-
-          // All-time stats
-          const allTimeResult = await pool.query(
-            `SELECT 
-               COUNT(*) FILTER (WHERE status = 'confirmed') as confirmed,
-               COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled,
-               COUNT(*) as total
-             FROM bookings b
-             LEFT JOIN teams t ON b.team_id = t.id
-             LEFT JOIN team_members tm ON b.member_id = tm.id
-             WHERE t.owner_id = $1 OR tm.user_id = $1`,
+             WHERE (t.owner_id = $1 OR tm.user_id = $1 OR b.user_id = $1 OR b.host_user_id = $1)`,
             [userId]
           );
 
-          const thisMonth = statsResult.rows[0];
-          const allTime = allTimeResult.rows[0];
+          const s = statsResult.rows[0];
 
-          const completionRate =
-            allTime.total > 0
-              ? Math.round((allTime.confirmed / allTime.total) * 100)
-              : 0;
-
-          const monthName = new Date().toLocaleString('default', {
-            month: 'long'
-          });
+          const completionRate = s.total_bookings > 0
+            ? Math.round(((parseInt(s.total_bookings) - parseInt(s.cancelled)) / parseInt(s.total_bookings)) * 100)
+            : 100;
 
           return res.json({
             type: 'stats',
-            message: `Booking Statistics
+            message: `📊 **Your Booking Stats**
 
-📅 This Month (${monthName}):
-   ✅ Confirmed: ${thisMonth.confirmed}
-   ❌ Cancelled: ${thisMonth.cancelled}
-   ⏳ Pending: ${thisMonth.pending}
-   📊 Total: ${thisMonth.total}
-   📆 Upcoming: ${thisMonth.upcoming}
+**Today:** ${s.today} meeting${s.today != 1 ? 's' : ''}
+**This week:** ${s.this_week} meeting${s.this_week != 1 ? 's' : ''}
+**Upcoming:** ${s.upcoming} scheduled
 
-📈 All Time:
-   ✅ Confirmed: ${allTime.confirmed}
-   ❌ Cancelled: ${allTime.cancelled}
-   📊 Total: ${allTime.total}
-   🎯 Completion Rate: ${completionRate}%`,
+**History:**
+• Last 7 days: ${s.last_week} meetings
+• This month: ${s.this_month} meetings
+• Total bookings: ${s.total_bookings}
+• Cancelled: ${s.cancelled}
+• Completion rate: ${completionRate}%
+
+Need help with anything else?`,
             data: {
-              this_month: thisMonth,
-              all_time: allTime,
+              today: parseInt(s.today),
+              this_week: parseInt(s.this_week),
+              last_week: parseInt(s.last_week),
+              this_month: parseInt(s.this_month),
+              upcoming: parseInt(s.upcoming),
+              total: parseInt(s.total_bookings),
+              cancelled: parseInt(s.cancelled),
+              pending: parseInt(s.pending),
               completion_rate: completionRate
             },
             usage: usageData
@@ -11317,6 +11313,190 @@ ${bookingsList}`,
           return res.json({
             type: 'error',
             message: 'Failed to get booking statistics.',
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE CREATE RULE INTENT ============
+      if (parsedIntent.intent === 'create_rule') {
+        try {
+          const ruleText = parsedIntent.extracted?.rule_text || cleanMessage;
+
+          // Clean up the rule text
+          let cleanRuleText = ruleText
+            .replace(/^(please |can you |could you |help me )/i, '')
+            .replace(/^(create a rule:? |add a rule:? |make a rule:? |new rule:? )/i, '')
+            .trim();
+
+          // If no clear rule text, provide help
+          if (cleanRuleText.length < 5 || cleanRuleText.toLowerCase().includes('help') || cleanRuleText.toLowerCase().includes('smart rule')) {
+            return res.json({
+              type: 'rule_help',
+              message: `I can create scheduling rules for you! 📋
+
+Try saying:
+• "No meetings on Friday"
+• "Add 15 min buffer after meetings"
+• "Block mornings before 10am"
+• "Auto-approve bookings from @company.com"
+• "Block bookings from spam.com"
+
+What rule would you like to create?`,
+              usage: usageData
+            });
+          }
+
+          // Parse rule intent from the text
+          let triggerType = 'all';
+          let triggerValue = '';
+          let actionType = 'add_note';
+          let actionValue = 'Rule applied';
+          let ruleName = cleanRuleText.substring(0, 50);
+
+          // Detect blocking patterns
+          if (/no meetings? on (monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i.test(cleanRuleText)) {
+            const dayMatch = cleanRuleText.match(/no meetings? on (monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i);
+            triggerType = 'day_of_week';
+            triggerValue = dayMatch[1].toLowerCase();
+            actionType = 'block';
+            actionValue = 'true';
+            ruleName = `No meetings on ${dayMatch[1]}`;
+          }
+          // Detect buffer patterns
+          else if (/add (\d+) ?min(ute)?s? buffer/i.test(cleanRuleText)) {
+            const bufferMatch = cleanRuleText.match(/add (\d+) ?min/i);
+            triggerType = 'all';
+            triggerValue = 'all';
+            actionType = 'add_buffer';
+            actionValue = bufferMatch[1];
+            ruleName = `Add ${bufferMatch[1]} min buffer`;
+          }
+          // Detect time blocking patterns
+          else if (/block.*(before|after) (\d{1,2})(am|pm)?/i.test(cleanRuleText)) {
+            const timeMatch = cleanRuleText.match(/block.*(before|after) (\d{1,2})(am|pm)?/i);
+            let hour = parseInt(timeMatch[2]);
+            if (timeMatch[3]?.toLowerCase() === 'pm' && hour !== 12) hour += 12;
+            if (timeMatch[3]?.toLowerCase() === 'am' && hour === 12) hour = 0;
+            triggerType = timeMatch[1].toLowerCase() === 'before' ? 'time_before' : 'time_after';
+            triggerValue = hour.toString();
+            actionType = 'block';
+            actionValue = 'true';
+            ruleName = `Block ${timeMatch[1]} ${timeMatch[2]}${timeMatch[3] || ''}`;
+          }
+          // Detect domain patterns
+          else if (/@[\w.-]+\.\w+/.test(cleanRuleText)) {
+            const domainMatch = cleanRuleText.match(/@([\w.-]+\.\w+)/);
+            triggerType = 'domain';
+            triggerValue = domainMatch[1];
+            if (/auto[- ]?approve/i.test(cleanRuleText)) {
+              actionType = 'auto_approve';
+              actionValue = 'true';
+              ruleName = `Auto-approve from ${domainMatch[1]}`;
+            } else if (/block/i.test(cleanRuleText)) {
+              actionType = 'block';
+              actionValue = 'true';
+              ruleName = `Block from ${domainMatch[1]}`;
+            }
+          }
+          // Detect keyword patterns
+          else if (/block.*(from|containing|with) ["']?(\w+)["']?/i.test(cleanRuleText)) {
+            const keywordMatch = cleanRuleText.match(/block.*(from|containing|with) ["']?(\w+)["']?/i);
+            triggerType = 'keyword';
+            triggerValue = keywordMatch[2];
+            actionType = 'block';
+            actionValue = 'true';
+            ruleName = `Block "${keywordMatch[2]}"`;
+          }
+
+          // Insert the rule
+          const result = await pool.query(
+            `INSERT INTO scheduling_rules (user_id, name, trigger_type, trigger_value, action_type, action_value, is_active, priority, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, true, 1, NOW())
+             RETURNING id, name`,
+            [userId, ruleName, triggerType, triggerValue, actionType, actionValue]
+          );
+
+          const rule = result.rows[0];
+          console.log('✅ Created scheduling rule:', rule.name);
+
+          const typeEmoji = {
+            'block': '🚫',
+            'auto_approve': '✅',
+            'add_buffer': '⏱️',
+            'set_duration': '⏰',
+            'add_note': '📝'
+          };
+
+          return res.json({
+            type: 'rule_created',
+            message: `✅ **Rule Created!**
+
+${typeEmoji[actionType] || '📋'} **"${ruleName}"**
+
+**Trigger:** ${triggerType} = "${triggerValue}"
+**Action:** ${actionType}
+**Status:** Active
+
+This rule will now apply to all new bookings. You can manage your rules in the Smart Rules page.`,
+            data: { rule_id: rule.id, rule_name: rule.name },
+            usage: usageData
+          });
+        } catch (error) {
+          console.error('Create rule error:', error);
+          return res.json({
+            type: 'error',
+            message: 'Failed to create the rule. Please try again.',
+            usage: usageData
+          });
+        }
+      }
+
+      // ============ HANDLE LIST RULES INTENT ============
+      if (parsedIntent.intent === 'list_rules' || parsedIntent.intent === 'show_rules') {
+        try {
+          const rulesResult = await pool.query(
+            `SELECT id, name, trigger_type, trigger_value, action_type, action_value, is_active
+             FROM scheduling_rules
+             WHERE user_id = $1
+             ORDER BY is_active DESC, created_at DESC
+             LIMIT 10`,
+            [userId]
+          );
+
+          if (rulesResult.rows.length === 0) {
+            return res.json({
+              type: 'info',
+              message: `You don't have any scheduling rules yet.
+
+Try creating one! For example:
+• "Create a rule: no meetings on Friday"
+• "Block bookings before 9am"
+• "Auto-approve bookings from @mycompany.com"`,
+              usage: usageData
+            });
+          }
+
+          const rulesList = rulesResult.rows.map((r, i) => {
+            const status = r.is_active ? '✅' : '⏸️';
+            return `${i + 1}. ${status} **${r.name}**\n   └ ${r.trigger_type}: "${r.trigger_value}" → ${r.action_type}`;
+          }).join('\n\n');
+
+          return res.json({
+            type: 'rules_list',
+            message: `📋 **Your Scheduling Rules** (${rulesResult.rows.length})
+
+${rulesList}
+
+Want to create a new rule? Just tell me what you need!`,
+            data: { rules: rulesResult.rows },
+            usage: usageData
+          });
+        } catch (error) {
+          console.error('List rules error:', error);
+          return res.json({
+            type: 'error',
+            message: 'Failed to get your rules.',
             usage: usageData
           });
         }

@@ -83,11 +83,20 @@ export default function AISchedulerChat() {
 
     if (path === '/dashboard' || path === '/') {
       return [
+        { action: 'today', label: "Today's meetings", icon: Calendar, color: 'blue' },
+        { action: 'analytics', label: 'Quick stats', icon: FileText, color: 'green' },
         { action: 'link', label: 'Booking Link', icon: Link, color: 'purple' },
-        { action: 'upcoming', label: 'Upcoming', icon: Calendar, color: 'blue' },
-        { action: 'timezone', label: 'Timezone', icon: Globe, color: 'green' },
         ...(hasProFeature() ? [{ action: 'quick', label: 'Quick Link', icon: Sparkles, color: 'pink' }] : []),
         ...(hasTeamFeature() ? [{ action: 'teams', label: 'Team Links', icon: Users, color: 'orange' }] : [])
+      ];
+    }
+
+    if (path === '/bookings') {
+      return [
+        { action: 'upcoming', label: 'Upcoming', icon: Calendar, color: 'blue' },
+        { action: 'reschedule', label: 'Reschedule', icon: Clock, color: 'green' },
+        { action: 'analytics', label: 'Stats', icon: FileText, color: 'purple' },
+        { action: 'link', label: 'My link', icon: Link, color: 'pink' }
       ];
     }
 
@@ -95,7 +104,16 @@ export default function AISchedulerChat() {
       return [
         { action: 'link', label: 'Copy my link', icon: Link, color: 'purple' },
         ...(hasProFeature() ? [{ action: 'quick', label: 'Create Quick Link', icon: Sparkles, color: 'pink' }] : []),
-        { action: 'share', label: 'Share tips', icon: Send, color: 'blue' }
+        { action: 'share', label: 'Share tips', icon: Send, color: 'blue' },
+        { action: 'event_types', label: 'Event types', icon: Calendar, color: 'green' }
+      ];
+    }
+
+    if (path === '/event-types') {
+      return [
+        { action: 'event_types', label: 'List events', icon: Calendar, color: 'blue' },
+        { action: 'create_event', label: 'Create new', icon: Sparkles, color: 'purple' },
+        { action: 'link', label: 'My link', icon: Link, color: 'green' }
       ];
     }
 
@@ -117,8 +135,18 @@ export default function AISchedulerChat() {
 
     if (path === '/rules' || path === '/smart-rules') {
       return [
+        { action: 'list_rules', label: 'My rules', icon: FileText, color: 'blue' },
         { action: 'create_rule', label: 'Create rule', icon: Sparkles, color: 'purple' },
-        { action: 'rules_help', label: 'How rules work', icon: FileText, color: 'blue' }
+        { action: 'block_friday', label: 'Block Friday', icon: Calendar, color: 'pink' },
+        { action: 'add_buffer', label: 'Add buffer', icon: Clock, color: 'green' }
+      ];
+    }
+
+    if (path === '/templates') {
+      return [
+        { action: 'list_templates', label: 'My templates', icon: Mail, color: 'blue' },
+        { action: 'create_template', label: 'Create template', icon: Sparkles, color: 'purple' },
+        { action: 'link', label: 'My link', icon: Link, color: 'green' }
       ];
     }
 
@@ -132,7 +160,8 @@ export default function AISchedulerChat() {
     if (path === '/teams' || path.startsWith('/team')) {
       return [
         { action: 'teams', label: 'Team Links', icon: Users, color: 'orange' },
-        { action: 'team_help', label: 'Team features', icon: FileText, color: 'blue' }
+        { action: 'team_stats', label: 'Team stats', icon: FileText, color: 'blue' },
+        { action: 'team_help', label: 'Team features', icon: Sparkles, color: 'purple' }
       ];
     }
 
@@ -145,23 +174,44 @@ export default function AISchedulerChat() {
 
     // Default suggestions
     return [
-      { action: 'link', label: 'Booking Link', icon: Link, color: 'purple' },
-      { action: 'upcoming', label: 'Upcoming', icon: Calendar, color: 'blue' },
-      { action: 'timezone', label: 'Timezone', icon: Globe, color: 'green' }
+      { action: 'book', label: 'Book meeting', icon: Calendar, color: 'blue' },
+      { action: 'upcoming', label: 'Upcoming', icon: Calendar, color: 'green' },
+      { action: 'analytics', label: 'Stats', icon: FileText, color: 'purple' },
+      { action: 'link', label: 'My link', icon: Link, color: 'pink' }
     ];
+  };
+
+  const getPageName = (path) => {
+    if (path.includes('/dashboard') || path === '/') return 'Dashboard';
+    if (path.includes('/bookings')) return 'Bookings';
+    if (path.includes('/event-types')) return 'Event Types';
+    if (path.includes('/teams')) return 'Teams';
+    if (path.includes('/rules') || path.includes('/smart-rules')) return 'Smart Rules';
+    if (path.includes('/my-links') || path.includes('/links')) return 'Booking Links';
+    if (path.includes('/templates')) return 'Templates';
+    if (path.includes('/settings')) return 'Settings';
+    if (path.includes('/billing')) return 'Billing';
+    if (path.includes('/email-analyzer')) return 'Email Analyzer';
+    return null;
   };
 
   const getGreetingMessage = (name = '') => {
     const hour = new Date().getHours();
     let timeGreeting = "Hi";
-    if (hour < 12) timeGreeting = "Good morning";
-    else if (hour < 17) timeGreeting = "Good afternoon";
-    else timeGreeting = "Good evening";
+    if (hour >= 5 && hour < 12) timeGreeting = "Good morning";
+    else if (hour >= 12 && hour < 17) timeGreeting = "Good afternoon";
+    else if (hour >= 17 && hour < 22) timeGreeting = "Good evening";
 
     const firstName = name ? name.split(' ')[0] : '';
     const greeting = firstName ? `${timeGreeting}, ${firstName}` : timeGreeting;
 
-    return `${greeting}! 👋 I'm your scheduling assistant.
+    const pageName = getPageName(location.pathname);
+    let contextHint = '';
+    if (pageName) {
+      contextHint = `\n\nI see you're on the ${pageName} page. `;
+    }
+
+    return `${greeting}! 👋 I'm your scheduling assistant.${contextHint}
 
 I can help you book meetings, share your links, check your schedule, and more.
 
@@ -294,17 +344,27 @@ What would you like to do?`;
       'link': "What's my booking link?",
       'quick': 'Create a quick link',
       'upcoming': 'Show my upcoming meetings',
+      'today': "What meetings do I have today?",
       'timezone': 'Change my timezone',
       'teams': 'Show my team links',
       'share': 'How should I share my booking link?',
       'book': 'Help me book a meeting',
       'availability': 'What is my current availability?',
       'create_rule': 'Help me create a smart rule',
+      'list_rules': 'Show my active rules',
+      'block_friday': 'Create a rule: no meetings on Friday',
+      'add_buffer': 'Create a rule: add 15 min buffer after meetings',
       'rules_help': 'How do smart rules work?',
       'email_help': 'How does the email analyzer work?',
       'team_help': 'What can I do with teams?',
+      'team_stats': 'Show team booking distribution',
       'plan_info': 'Compare the different plans',
-      'analytics': 'Show my booking analytics'
+      'analytics': 'Show my booking stats',
+      'reschedule': 'Help me reschedule a meeting',
+      'event_types': 'What event types do I have?',
+      'create_event': 'Help me create a new event type',
+      'list_templates': 'Show my email templates',
+      'create_template': 'Help me create a new email template'
     };
     setMessage(actions[action] || '');
   };
