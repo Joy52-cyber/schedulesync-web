@@ -69,6 +69,7 @@ app.use('/api/magic-links', quickLinksRoutes);
 app.use('/api/single-use-links', quickLinksRoutes);  // Single-use links share quickLinks router
 app.use('/api/email-templates', templatesRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/subscriptions', billingRoutes);  // Subscriptions share billing router
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/user', settingsRoutes);  // User settings share settings router
