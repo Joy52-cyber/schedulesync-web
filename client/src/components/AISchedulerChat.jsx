@@ -284,6 +284,68 @@ const MeetingListCard = ({ data }) => {
   );
 };
 
+// Calendar Preview Card - Shows week availability at a glance
+const CalendarPreviewCard = ({ data }) => {
+  const availability = data?.availability || [];
+
+  if (!availability.length) return null;
+
+  const getStatusColor = (day) => {
+    if (day.isWeekend) return 'bg-gray-100 text-gray-400';
+    if (day.bookingCount === 0) return 'bg-green-100 text-green-700 border-green-300';
+    if (day.bookingCount >= 5) return 'bg-red-100 text-red-700 border-red-300';
+    return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+  };
+
+  return (
+    <div className="mt-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+      <div className="flex items-center gap-2 mb-3">
+        <CalendarDays className="h-5 w-5 text-blue-600" />
+        <span className="font-semibold text-gray-800">Week Availability</span>
+      </div>
+
+      {/* Calendar Grid */}
+      <div className="grid grid-cols-7 gap-1 mb-3">
+        {availability.map((day, i) => (
+          <div key={i} className="text-center">
+            <span className="text-xs text-gray-500 block mb-1">{day.dayName}</span>
+            <div className={`w-8 h-8 mx-auto rounded-lg flex items-center justify-center text-sm font-medium border ${getStatusColor(day)}`}>
+              {new Date(day.date).getDate()}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Legend */}
+      <div className="flex justify-center gap-4 text-xs text-gray-600 pt-2 border-t border-blue-200">
+        <span className="flex items-center gap-1">✅ Free</span>
+        <span className="flex items-center gap-1">🟡 Busy</span>
+        <span className="flex items-center gap-1">🔴 Full</span>
+      </div>
+
+      {/* Available slots for today */}
+      {data?.slots?.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-blue-200">
+          <p className="text-xs font-medium text-gray-700 mb-2">Available slots:</p>
+          <div className="flex flex-wrap gap-1">
+            {data.slots.slice(0, 6).map((slot, i) => {
+              const start = new Date(slot.start);
+              return (
+                <span key={i} className="text-xs px-2 py-1 bg-white rounded-full border border-gray-200">
+                  {start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                </span>
+              );
+            })}
+            {data.slots.length > 6 && (
+              <span className="text-xs px-2 py-1 text-gray-500">+{data.slots.length - 6} more</span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ResponseCard = ({ type, data }) => {
   switch (type) {
     case 'booking_summary':
@@ -296,6 +358,11 @@ const ResponseCard = ({ type, data }) => {
     case 'bookings':
     case 'upcoming':
       return <MeetingListCard data={data} />;
+    case 'availability':
+    case 'calendar':
+    case 'available':
+    case 'no_slots':
+      return <CalendarPreviewCard data={data} />;
     default:
       return null;
   }
@@ -1188,6 +1255,11 @@ export default function AISchedulerChat() {
         }
         if (aiMessage.toLowerCase().includes('stat') || aiMessage.toLowerCase().includes('total')) {
           if (responseData.data?.stats) responseType = 'analytics';
+        }
+        // Detect availability responses
+        if (aiMessage.toLowerCase().includes('availability') || aiMessage.toLowerCase().includes('available slots') ||
+            aiMessage.toLowerCase().includes('week at a glance')) {
+          if (responseData.data?.availability || responseData.data?.slots) responseType = 'availability';
         }
       }
 
