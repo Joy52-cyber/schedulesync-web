@@ -11732,51 +11732,64 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
 // TEAM INVITATION EMAIL FUNCTION
 // ============================================
 async function sendTeamInvitationEmail({ to, inviterName, teamName, inviteUrl }) {
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">You're Invited! 🎉</h1>
-        <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0;">Join ${teamName} on ScheduleSync</p>
-      </div>
-      
-      <div style="padding: 40px 30px; background: #ffffff;">
-        <p style="color: #334155; font-size: 16px;">Hi there,</p>
-        <p style="color: #334155; font-size: 16px;">
-          <strong>${inviterName}</strong> has invited you to join their team on ScheduleSync.
-        </p>
-        
-        <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 20px; margin: 24px 0;">
-          <p style="font-size: 18px; font-weight: bold; color: #0369a1; margin: 0 0 8px 0;">🏢 ${teamName}</p>
-          <p style="color: #64748b; margin: 0; font-size: 14px;">Invited by ${inviterName}</p>
-        </div>
-        
-        <p style="color: #334155; font-size: 16px;">As a team member, you'll be able to:</p>
-        <ul style="color: #64748b;">
-          <li>Receive bookings from shared team links</li>
-          <li>Collaborate on team scheduling</li>
-          <li>Get your own personal booking page</li>
-        </ul>
-        
-        <div style="text-align: center; margin: 32px 0;">
-          <a href="${inviteUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #ffffff; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 16px;">
-            Accept Invitation →
-          </a>
-        </div>
-        
-        <p style="text-align: center; color: #94a3b8; font-size: 13px;">This invitation will expire in 7 days.</p>
-      </div>
-      
-      <div style="background: #f8fafc; padding: 20px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e2e8f0;">
-        <p style="margin: 0; color: #94a3b8; font-size: 12px;">Powered by ScheduleSync</p>
-      </div>
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%); border-radius: 16px 16px 0 0; padding: 32px; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700;">You're Invited! 🎉</h1>
     </div>
-  `;
+    <div style="background: white; border-radius: 0 0 16px 16px; padding: 32px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+        Hi there,
+      </p>
+      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+        <strong>${inviterName}</strong> has invited you to join the <strong>${teamName}</strong> team on TruCal.
+      </p>
+
+      <div style="background: #f3e8ff; border-radius: 12px; padding: 24px; margin: 24px 0; text-align: center;">
+        <p style="color: #7c3aed; font-size: 14px; margin: 0 0 8px 0;">Team</p>
+        <p style="color: #5b21b6; font-size: 24px; font-weight: 700; margin: 0;">${teamName}</p>
+      </div>
+
+      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
+        As a team member, you'll be able to:
+      </p>
+      <ul style="color: #6b7280; margin: 0 0 24px 0; padding-left: 20px;">
+        <li style="margin-bottom: 8px;">Receive bookings from shared team links</li>
+        <li style="margin-bottom: 8px;">Collaborate on team scheduling</li>
+        <li style="margin-bottom: 8px;">Get your own personal booking page</li>
+      </ul>
+
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${inviteUrl}" style="display: inline-block; background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+          Accept Invitation
+        </a>
+      </div>
+
+      <p style="color: #9ca3af; font-size: 14px; text-align: center; margin: 24px 0 0 0;">
+        This invitation will expire in 7 days.
+      </p>
+    </div>
+
+    <div style="text-align: center; padding: 24px;">
+      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+        Powered by <a href="https://trucal.xyz" style="color: #8b5cf6; text-decoration: none;">TruCal</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
 
   try {
     await resend.emails.send({
-      from: 'ScheduleSync <hello@trucal.xyz>',  // ✅ Use same as your working emails
+      from: 'TruCal <hello@trucal.xyz>',
       to: to,
-      subject: `You're invited to join ${teamName} on ScheduleSync!`,
+      subject: `🎉 You're invited to join ${teamName} on TruCal!`,
       html: html,
       headers: {
         'Content-Type': 'text/html; charset=UTF-8',
@@ -15698,62 +15711,247 @@ const buildEmailVariables = (booking, organizer, extras = {}) => {
   };
 };
 
-// Default templates when user has none
+// Default templates when user has none - Modern HTML design
 const DEFAULT_EMAIL_TEMPLATES = {
   confirmation: {
-    subject: 'Meeting Confirmed - {{meetingDate}}',
-    body: `Hi {{guestName}},
+    subject: '✅ Meeting Confirmed: {{meetingTitle}}',
+    body: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%); border-radius: 16px 16px 0 0; padding: 32px; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700;">Meeting Confirmed! ✅</h1>
+    </div>
+    <div style="background: white; border-radius: 0 0 16px 16px; padding: 32px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+        Hi {{guestName}},
+      </p>
+      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+        Your meeting with <strong>{{hostName}}</strong> has been confirmed!
+      </p>
 
-Your meeting has been confirmed!
+      <div style="background: #f9fafb; border-radius: 12px; padding: 24px; margin: 24px 0;">
+        <h2 style="color: #111827; font-size: 18px; margin: 0 0 16px 0;">{{meetingTitle}}</h2>
+        <table style="width: 100%;">
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📅 Date</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{meetingDate}}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">🕐 Time</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{meetingTime}}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">⏱️ Duration</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{meetingDuration}} minutes</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📍 Location</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{meetingLocation}}</td>
+          </tr>
+        </table>
+      </div>
 
-Date: {{meetingDate}}
-Time: {{meetingTime}}
-Meeting Link: {{meetingLink}}
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="{{manageLink}}" style="display: inline-block; background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+          Manage Booking
+        </a>
+      </div>
 
-If you need to reschedule or cancel:
-{{manageLink}}
+      <p style="color: #9ca3af; font-size: 14px; text-align: center; margin: 24px 0 0 0;">
+        Need to make changes? Use the button above to reschedule or cancel.
+      </p>
+    </div>
 
-See you soon!
-{{organizerName}}`
+    <div style="text-align: center; padding: 24px;">
+      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+        Powered by <a href="https://trucal.xyz" style="color: #8b5cf6; text-decoration: none;">TruCal</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`
   },
+
   reminder: {
-    subject: 'Reminder: Meeting tomorrow with {{organizerName}}',
-    body: `Hi {{guestName}},
+    subject: '⏰ Reminder: {{meetingTitle}} is coming up!',
+    body: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); border-radius: 16px 16px 0 0; padding: 32px; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700;">Meeting Reminder ⏰</h1>
+    </div>
+    <div style="background: white; border-radius: 0 0 16px 16px; padding: 32px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+        Hi {{guestName}},
+      </p>
+      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+        This is a friendly reminder that your meeting with <strong>{{hostName}}</strong> is coming up soon!
+      </p>
 
-Friendly reminder about your upcoming meeting.
+      <div style="background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 0 12px 12px 0; padding: 24px; margin: 24px 0;">
+        <h2 style="color: #1e40af; font-size: 18px; margin: 0 0 16px 0;">{{meetingTitle}}</h2>
+        <table style="width: 100%;">
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📅 Date</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{meetingDate}}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">🕐 Time</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{meetingTime}}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📍 Location</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{meetingLocation}}</td>
+          </tr>
+        </table>
+      </div>
 
-Date: {{meetingDate}}
-Time: {{meetingTime}}
-Meeting Link: {{meetingLink}}
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="{{manageLink}}" style="display: inline-block; background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+          View Meeting Details
+        </a>
+      </div>
 
-See you soon!
-{{organizerName}}`
+      <p style="color: #9ca3af; font-size: 14px; text-align: center; margin: 24px 0 0 0;">
+        Can't make it? <a href="{{manageLink}}" style="color: #3b82f6;">Reschedule or cancel</a>
+      </p>
+    </div>
+
+    <div style="text-align: center; padding: 24px;">
+      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+        Powered by <a href="https://trucal.xyz" style="color: #8b5cf6; text-decoration: none;">TruCal</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`
   },
+
   cancellation: {
-    subject: 'Meeting Cancelled - {{meetingDate}}',
-    body: `Hi {{guestName}},
+    subject: '❌ Meeting Cancelled: {{meetingTitle}}',
+    body: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: linear-gradient(135deg, #ef4444 0%, #f97316 100%); border-radius: 16px 16px 0 0; padding: 32px; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700;">Meeting Cancelled ❌</h1>
+    </div>
+    <div style="background: white; border-radius: 0 0 16px 16px; padding: 32px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+        Hi {{guestName}},
+      </p>
+      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+        Your meeting with <strong>{{hostName}}</strong> has been cancelled.
+      </p>
 
-Your meeting on {{meetingDate}} at {{meetingTime}} has been cancelled.
+      <div style="background: #fef2f2; border-left: 4px solid #ef4444; border-radius: 0 12px 12px 0; padding: 24px; margin: 24px 0;">
+        <h2 style="color: #991b1b; font-size: 18px; margin: 0 0 16px 0; text-decoration: line-through;">{{meetingTitle}}</h2>
+        <table style="width: 100%;">
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📅 Was scheduled for</td>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px; text-align: right;">{{meetingDate}} at {{meetingTime}}</td>
+          </tr>
+        </table>
+      </div>
 
-{{cancellationReason}}
+      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 24px 0;">
+        Want to reschedule? Book a new time below:
+      </p>
 
-To book a new time: {{bookingLink}}
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="{{bookingLink}}" style="display: inline-block; background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+          Book New Meeting
+        </a>
+      </div>
+    </div>
 
-{{organizerName}}`
+    <div style="text-align: center; padding: 24px;">
+      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+        Powered by <a href="https://trucal.xyz" style="color: #8b5cf6; text-decoration: none;">TruCal</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`
   },
+
   reschedule: {
-    subject: 'Meeting Rescheduled - {{meetingDate}}',
-    body: `Hi {{guestName}},
+    subject: '📅 Meeting Rescheduled: {{meetingTitle}}',
+    body: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: linear-gradient(135deg, #f59e0b 0%, #eab308 100%); border-radius: 16px 16px 0 0; padding: 32px; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700;">Meeting Rescheduled 📅</h1>
+    </div>
+    <div style="background: white; border-radius: 0 0 16px 16px; padding: 32px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+        Hi {{guestName}},
+      </p>
+      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+        Your meeting with <strong>{{hostName}}</strong> has been rescheduled to a new time.
+      </p>
 
-Your meeting has been rescheduled.
+      <div style="background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 0 12px 12px 0; padding: 24px; margin: 24px 0;">
+        <h2 style="color: #92400e; font-size: 18px; margin: 0 0 16px 0;">{{meetingTitle}}</h2>
+        <p style="color: #92400e; font-size: 14px; font-weight: 600; margin: 0 0 12px 0;">✨ NEW TIME:</p>
+        <table style="width: 100%;">
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📅 Date</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{meetingDate}}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">🕐 Time</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{meetingTime}}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">⏱️ Duration</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{meetingDuration}} minutes</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📍 Location</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{meetingLocation}}</td>
+          </tr>
+        </table>
+      </div>
 
-Previous time: {{previousDate}} at {{previousTime}}
-New time: {{meetingDate}} at {{meetingTime}}
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="{{manageLink}}" style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #eab308 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+          View Updated Booking
+        </a>
+      </div>
 
-Meeting Link: {{meetingLink}}
-Manage booking: {{manageLink}}
+      <p style="color: #9ca3af; font-size: 14px; text-align: center; margin: 24px 0 0 0;">
+        Need to make more changes? <a href="{{manageLink}}" style="color: #f59e0b;">Manage your booking</a>
+      </p>
+    </div>
 
-{{organizerName}}`
+    <div style="text-align: center; padding: 24px;">
+      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+        Powered by <a href="https://trucal.xyz" style="color: #8b5cf6; text-decoration: none;">TruCal</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`
   }
 };
 
@@ -15783,17 +15981,20 @@ const sendTemplatedEmail = async (to, userId, templateType, variables, options =
       }
     }
 
+    // Check if body is already full HTML (starts with <!DOCTYPE or <html>)
+    const isFullHtml = body.trim().startsWith('<!DOCTYPE') || body.trim().startsWith('<html');
+
     const emailPayload = {
       from: options.from || 'ScheduleSync <notifications@trucal.xyz>',
       to: to,
       subject: subject,
-      html: `
+      html: isFullHtml ? body : `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="white-space: pre-wrap; line-height: 1.6; color: #333;">
 ${body}
           </div>
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #888;">
-            Sent via <a href="https://trucal.xyz" style="color: #6366f1;">ScheduleSync</a>
+            Sent via <a href="https://trucal.xyz" style="color: #6366f1;">TruCal</a>
           </div>
         </div>
       `,
@@ -15822,7 +16023,7 @@ async function checkAndSendReminders() {
   console.log('? Running reminder check at', now.toISOString());
 
   try {
-    // ? CRITICAL: Include manage_token in the SELECT query
+    // Include manage_token and user_id in the SELECT query
     const query = `
       SELECT
         b.id,
@@ -15830,6 +16031,7 @@ async function checkAndSendReminders() {
         b.end_time,
         b.title,
         b.status,
+        b.duration,
         b.attendee_email as guest_email,
         b.attendee_name as guest_name,
         b.meet_link as meeting_url,
@@ -15837,6 +16039,7 @@ async function checkAndSendReminders() {
         tm.email as host_email,
         tm.name as host_name,
         tm.timezone,
+        tm.user_id,
         b.reminder_sent,
         tm.id AS team_member_id,
         t.id AS team_id,
@@ -15874,44 +16077,63 @@ async function checkAndSendReminders() {
           )}h window=${hoursBefore}h`
         );
 
-        // ? CRITICAL: Pass manage_token to the template
-        const bookingForTemplate = {
-          id: row.id,
-          start_time: row.start_time,
-          end_time: row.end_time,
-          title: row.title || 'Meeting',
-          guest_email: row.guest_email,
-          guest_name: row.guest_name,
-          host_email: row.host_email,
-          host_name: row.host_name,
-          meeting_url: row.meeting_url,
-          timezone: row.timezone,
-          manage_token: row.manage_token, // ? ADDED THIS
+        // Format date and time for the template
+        const startTime = new Date(row.start_time);
+        const meetingDate = startTime.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        const meetingTime = startTime.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+        const manageLink = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${row.manage_token}`;
+
+        // Template variables for reminder
+        const reminderVars = {
+          guestName: row.guest_name || 'there',
+          hostName: row.host_name || 'Your Host',
+          meetingTitle: row.title || 'Meeting',
+          meetingDate: meetingDate,
+          meetingTime: meetingTime,
+          meetingDuration: row.duration || 30,
+          meetingLocation: row.meeting_url || 'Video call',
+          manageLink: manageLink,
+          timezone: row.timezone || 'UTC'
         };
 
-        const html = reminderEmailTemplate(bookingForTemplate, hoursBefore);
-
-        const recipients = [];
-        if (row.send_to_guest ?? true) {
-          if (row.guest_email) recipients.push(row.guest_email);
+        // Send to guest if configured
+        if ((row.send_to_guest ?? true) && row.guest_email) {
+          try {
+            await sendTemplatedEmail(row.guest_email, row.user_id, 'reminder', reminderVars);
+            console.log(`📧 Reminder sent to guest: ${row.guest_email}`);
+          } catch (emailErr) {
+            console.error(`❌ Failed to send reminder to guest ${row.guest_email}:`, emailErr.message);
+          }
         }
-        if (row.send_to_host ?? true) {
-          if (row.host_email) recipients.push(row.host_email);
+
+        // Send to host if configured
+        if ((row.send_to_host ?? true) && row.host_email) {
+          try {
+            const hostVars = {
+              ...reminderVars,
+              guestName: row.host_name || 'there', // Swap for host view
+              hostName: row.guest_name || 'Guest'
+            };
+            await sendTemplatedEmail(row.host_email, row.user_id, 'reminder', hostVars);
+            console.log(`📧 Reminder sent to host: ${row.host_email}`);
+          } catch (emailErr) {
+            console.error(`❌ Failed to send reminder to host ${row.host_email}:`, emailErr.message);
+          }
         }
 
-        if (recipients.length === 0) {
-          console.log(
-            `?? No recipients for booking ${row.id}, skipping reminder`
-          );
+        if (!(row.send_to_guest ?? true) && !(row.send_to_host ?? true)) {
+          console.log(`⏭️ No recipients configured for booking ${row.id}, skipping reminder`);
           continue;
         }
-
-        await sendBookingEmail({
-          to: recipients,
-          subject: `Reminder: ${bookingForTemplate.title}`,
-          html,
-          icsAttachment: null,
-        });
 
         await pool.query(
           `UPDATE bookings SET reminder_sent = TRUE WHERE id = $1`,
