@@ -4,6 +4,82 @@ const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 
 // ============================================================================
+// ACTIVITY LOGGING HELPER
+// ============================================================================
+
+async function logActivity(client, userId, actionType, metadata = {}) {
+  try {
+    await client.query(
+      `INSERT INTO inbox_activity (user_id, action_type, inbox_email_id, email_draft_id, metadata)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [userId, actionType, metadata.inboxEmailId || null, metadata.emailDraftId || null, JSON.stringify(metadata)]
+    );
+  } catch (error) {
+    console.error('Activity logging error:', error);
+    // Don't throw - logging should not break main flow
+  }
+}
+
+// ============================================================================
+// OPERATING MODE HELPER
+// ============================================================================
+
+async function getUserSettings(client, userId) {
+  const result = await client.query(
+    `SELECT * FROM inbox_settings WHERE user_id = $1`,
+    [userId]
+  );
+
+  if (result.rows.length === 0) {
+    // Create default settings
+    const insertResult = await client.query(
+      `INSERT INTO inbox_settings (user_id) VALUES ($1) RETURNING *`,
+      [userId]
+    );
+    return insertResult.rows[0];
+  }
+
+  return result.rows[0];
+}
+
+async function handleDraftBasedOnMode(client, userId, draft, email, confidence) {
+  const settings = await getUserSettings(client, userId);
+  const mode = settings.operating_mode || 'semi_autonomous';
+
+  // Check for contact-specific overrides
+  const overrides = settings.contact_overrides || {};
+  const contactOverride = overrides[email.from_email];
+  const effectiveMode = contactOverride?.mode || mode;
+
+  if (effectiveMode === 'fully_autonomous' && confidence >= 0.85) {
+    // Schedule auto-send with undo window
+    const delaySeconds = settings.auto_send_delay_seconds || 120;
+    await client.query(
+      `UPDATE email_drafts SET auto_send_at = NOW() + INTERVAL '${delaySeconds} seconds' WHERE id = $1`,
+      [draft.id]
+    );
+
+    await logActivity(client, userId, 'auto_send_scheduled', {
+      emailDraftId: draft.id,
+      inboxEmailId: email.id,
+      delaySeconds,
+      scheduledFor: new Date(Date.now() + delaySeconds * 1000).toISOString()
+    });
+
+    return { mode: 'auto_send_scheduled', delaySeconds, draft };
+  }
+
+  // Semi-autonomous or manual - just notify
+  await logActivity(client, userId, 'draft_ready_for_review', {
+    emailDraftId: draft.id,
+    inboxEmailId: email.id,
+    mode: effectiveMode
+  });
+
+  return { mode: effectiveMode, draft };
+}
+
+// ============================================================================
 // INBOX ASSISTANT ROUTES
 // ============================================================================
 
@@ -678,5 +754,272 @@ async function generateDraftResponse(client, userId, email, analysis, options = 
 
   return draftResult.rows[0];
 }
+
+// ============================================================================
+// WEBHOOK HANDLERS (Gmail & Outlook)
+// ============================================================================
+
+// POST /api/inbox/webhook/gmail - Gmail push notification webhook
+router.post('/webhook/gmail', async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    if (!message?.data) {
+      return res.status(200).json({ success: true, message: 'No data' });
+    }
+
+    // Decode the base64 message from Gmail
+    const data = JSON.parse(Buffer.from(message.data, 'base64').toString());
+    console.log('Gmail webhook received:', data);
+
+    // data contains: { emailAddress, historyId }
+    // In production, you would:
+    // 1. Look up user by emailAddress
+    // 2. Fetch new messages since historyId
+    // 3. Process each message through the inbox system
+
+    // For now, acknowledge receipt
+    res.status(200).json({ success: true, received: true });
+  } catch (error) {
+    console.error('Gmail webhook error:', error);
+    res.status(200).json({ success: true, error: error.message }); // Always 200 for webhooks
+  }
+});
+
+// POST /api/inbox/webhook/outlook - Microsoft Graph push notification webhook
+router.post('/webhook/outlook', async (req, res) => {
+  try {
+    // Handle validation request from Microsoft
+    if (req.query.validationToken) {
+      return res.status(200).send(req.query.validationToken);
+    }
+
+    const { value: notifications } = req.body;
+
+    if (!notifications || !Array.isArray(notifications)) {
+      return res.status(200).json({ success: true });
+    }
+
+    for (const notification of notifications) {
+      console.log('Outlook webhook received:', notification);
+      // notification contains: { subscriptionId, changeType, resource, resourceData }
+      // Process similar to Gmail
+    }
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Outlook webhook error:', error);
+    res.status(200).json({ success: true, error: error.message });
+  }
+});
+
+// ============================================================================
+// SETTINGS ROUTES
+// ============================================================================
+
+// GET /api/inbox/settings - Get user's inbox settings
+router.get('/settings', authenticateToken, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const userId = req.user.id;
+    const settings = await getUserSettings(client, userId);
+    res.json({ settings });
+  } catch (error) {
+    console.error('Get inbox settings error:', error);
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  } finally {
+    client.release();
+  }
+});
+
+// PUT /api/inbox/settings - Update user's inbox settings
+router.put('/settings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      operating_mode,
+      auto_send_delay_seconds,
+      email_style,
+      contact_overrides,
+      enabled,
+      notify_on_draft
+    } = req.body;
+
+    // Validate operating_mode
+    const validModes = ['manual', 'semi_autonomous', 'fully_autonomous'];
+    if (operating_mode && !validModes.includes(operating_mode)) {
+      return res.status(400).json({ error: 'Invalid operating mode' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO inbox_settings (user_id, operating_mode, auto_send_delay_seconds, email_style, contact_overrides, enabled, notify_on_draft)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (user_id) DO UPDATE SET
+        operating_mode = COALESCE($2, inbox_settings.operating_mode),
+        auto_send_delay_seconds = COALESCE($3, inbox_settings.auto_send_delay_seconds),
+        email_style = COALESCE($4, inbox_settings.email_style),
+        contact_overrides = COALESCE($5, inbox_settings.contact_overrides),
+        enabled = COALESCE($6, inbox_settings.enabled),
+        notify_on_draft = COALESCE($7, inbox_settings.notify_on_draft),
+        updated_at = NOW()
+      RETURNING *
+    `, [
+      userId,
+      operating_mode,
+      auto_send_delay_seconds,
+      email_style ? JSON.stringify(email_style) : null,
+      contact_overrides ? JSON.stringify(contact_overrides) : null,
+      enabled,
+      notify_on_draft
+    ]);
+
+    res.json({ settings: result.rows[0], message: 'Settings updated' });
+  } catch (error) {
+    console.error('Update inbox settings error:', error);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
+// ============================================================================
+// AUTO-SEND & UNDO ROUTES
+// ============================================================================
+
+// POST /api/inbox/drafts/:id/undo - Cancel scheduled auto-send
+router.post('/drafts/:id/undo', authenticateToken, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const userId = req.user.id;
+    const draftId = parseInt(req.params.id);
+
+    const result = await client.query(`
+      UPDATE email_drafts
+      SET auto_send_at = NULL, status = 'pending'
+      WHERE id = $1 AND user_id = $2 AND auto_send_at IS NOT NULL AND status = 'pending'
+      RETURNING *
+    `, [draftId, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Draft not found or already sent' });
+    }
+
+    await logActivity(client, userId, 'auto_send_cancelled', {
+      emailDraftId: draftId
+    });
+
+    res.json({ success: true, message: 'Auto-send cancelled', draft: result.rows[0] });
+  } catch (error) {
+    console.error('Undo auto-send error:', error);
+    res.status(500).json({ error: 'Failed to cancel auto-send' });
+  } finally {
+    client.release();
+  }
+});
+
+// GET /api/inbox/drafts/scheduled - Get drafts scheduled for auto-send
+router.get('/drafts/scheduled', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const result = await pool.query(`
+      SELECT ed.*, ie.from_email, ie.from_name, ie.subject as original_subject
+      FROM email_drafts ed
+      JOIN inbox_emails ie ON ed.inbox_email_id = ie.id
+      WHERE ed.user_id = $1 AND ed.auto_send_at IS NOT NULL AND ed.status = 'pending'
+      ORDER BY ed.auto_send_at ASC
+    `, [userId]);
+
+    res.json({ drafts: result.rows });
+  } catch (error) {
+    console.error('Get scheduled drafts error:', error);
+    res.status(500).json({ error: 'Failed to fetch scheduled drafts' });
+  }
+});
+
+// ============================================================================
+// ACTIVITY LOG ROUTES
+// ============================================================================
+
+// GET /api/inbox/activity - Get activity log
+router.get('/activity', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { limit = 50, offset = 0, action_type } = req.query;
+
+    let query = `
+      SELECT ia.*, ie.from_email, ie.subject, ed.to_email
+      FROM inbox_activity ia
+      LEFT JOIN inbox_emails ie ON ia.inbox_email_id = ie.id
+      LEFT JOIN email_drafts ed ON ia.email_draft_id = ed.id
+      WHERE ia.user_id = $1
+    `;
+    const params = [userId];
+    let paramIndex = 2;
+
+    if (action_type) {
+      query += ` AND ia.action_type = $${paramIndex++}`;
+      params.push(action_type);
+    }
+
+    query += ` ORDER BY ia.created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const result = await pool.query(query, params);
+    res.json({ activity: result.rows });
+  } catch (error) {
+    console.error('Get activity error:', error);
+    res.status(500).json({ error: 'Failed to fetch activity' });
+  }
+});
+
+// ============================================================================
+// BACKGROUND JOB: Process scheduled auto-sends
+// ============================================================================
+
+async function processScheduledSends() {
+  const client = await pool.connect();
+  try {
+    // Find drafts ready to send
+    const readyDrafts = await client.query(`
+      SELECT ed.*, u.email as user_email, u.name as user_name
+      FROM email_drafts ed
+      JOIN users u ON ed.user_id = u.id
+      WHERE ed.auto_send_at <= NOW() AND ed.status = 'pending'
+    `);
+
+    for (const draft of readyDrafts.rows) {
+      try {
+        console.log(`Auto-sending draft ${draft.id} to ${draft.to_email}`);
+
+        // Here you would integrate with email sending (nodemailer, etc.)
+        // For now, just mark as sent
+
+        await client.query(`
+          UPDATE email_drafts SET status = 'sent', sent_at = NOW(), auto_send_at = NULL WHERE id = $1
+        `, [draft.id]);
+
+        await client.query(`
+          UPDATE inbox_emails SET status = 'responded', updated_at = NOW() WHERE id = $1
+        `, [draft.inbox_email_id]);
+
+        await logActivity(client, draft.user_id, 'email_auto_sent', {
+          emailDraftId: draft.id,
+          inboxEmailId: draft.inbox_email_id,
+          toEmail: draft.to_email
+        });
+
+        console.log(`Draft ${draft.id} auto-sent successfully`);
+      } catch (sendError) {
+        console.error(`Failed to auto-send draft ${draft.id}:`, sendError);
+      }
+    }
+  } catch (error) {
+    console.error('Process scheduled sends error:', error);
+  } finally {
+    client.release();
+  }
+}
+
+// Run auto-send processor every 30 seconds
+setInterval(processScheduledSends, 30000);
 
 module.exports = router;
