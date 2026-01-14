@@ -4520,7 +4520,7 @@ app.post('/api/teams/:teamId/members', authenticateToken, async (req, res) => {
     const invitation = result.rows[0];
     
     // Build invitation URL
-    const inviteUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/invite/${inviteToken}`;
+    const inviteUrl = `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/invite/${inviteToken}`;
 
     // Send invitation email
     if (typeof sendTeamInvitationEmail === 'function') {
@@ -7715,7 +7715,7 @@ app.post('/api/magic-links', authenticateToken, async (req, res) => {
       [magicLinkId]
     );
     
-    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    const baseUrl = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
     
     res.json({
       success: true,
@@ -7768,7 +7768,7 @@ app.get('/api/magic-links', authenticateToken, async (req, res) => {
         [link.id]
       );
       
-      const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+      const baseUrl = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
       
       return {
         ...link,
@@ -8530,7 +8530,7 @@ app.post('/api/bookings/manage/:token/reschedule', async (req, res) => {
         notes: booking.notes,
       });
 
-      const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${token}`;
+      const manageUrl = `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/manage/${token}`;
       const rescheduleVars = buildEmailVariables(updatedBooking, {
         name: booking.member_name,
         email: booking.member_email
@@ -8630,7 +8630,7 @@ app.post('/api/bookings/manage/:token/cancel', async (req, res) => {
         guestName: booking.attendee_name,
         guestEmail: booking.attendee_email,
         cancellationReason: reason ? `Reason: ${reason}` : '',
-        bookingLink: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/book/${booking.member_booking_token || ''}`
+        bookingLink: `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/book/${booking.member_booking_token || ''}`
       });
 
       // Email to guest
@@ -10153,7 +10153,7 @@ if (parsedIntent.intent === 'get_personal_link') {
       });
     }
     const member = memberResult.rows[0];
-    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    const baseUrl = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
     const bookingUrl = `${baseUrl}/book/${member.booking_token}`;
     return res.json({
       type: 'personal_link',
@@ -10286,7 +10286,7 @@ if (parsedIntent.intent === 'get_magic_link') {
     );
     console.log(`📊 Magic link usage incremented for user ${userId}: ${magicLinksUsed + 1}/${magicLinksLimit}`);
     
-    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    const baseUrl = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
     const magicUrl = `${baseUrl}/m/${magicToken}`;
     
     // Build response message
@@ -10356,7 +10356,7 @@ if (parsedIntent.intent === 'get_magic_link') {
             });
           }
 
-          const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+          const baseUrl = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
 
           const teamLinks = teamsResult2.rows
             .map((team, index) => {
@@ -10486,7 +10486,7 @@ ${memberList}`,
             });
           }
 
-          const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+          const baseUrl = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
 
           if (memberResult.rows.length === 1) {
             const member = memberResult.rows[0];
@@ -10571,7 +10571,7 @@ Go to Event Types to create your first one!`,
             });
           }
 
-          const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+          const baseUrl = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
 
           const eventTypesList = eventTypesResult.rows
             .map((et, index) => {
@@ -10716,7 +10716,7 @@ ${eventList}`,
           }
 
           const et = eventTypeResult.rows[0];
-          const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+          const baseUrl = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
           const bookingUrl = `${baseUrl}/book/${username}/${et.slug}`;
 
           return res.json({
@@ -13142,7 +13142,7 @@ app.post('/api/analyze-email', authenticateToken, async (req, res) => {
       );
 
       if (user.rows[0]?.username) {
-        analysis.booking_link = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/${user.rows[0].username}`;
+        analysis.booking_link = `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/${user.rows[0].username}`;
       }
 
       // Get user's next available slots
@@ -13790,7 +13790,7 @@ app.post('/api/subscriptions/billing-portal', authenticateToken, async (req, res
       try {
         const session = await stripe.billingPortal.sessions.create({
           customer: user.stripe_customer_id,
-          return_url: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/settings`,
+          return_url: `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/settings`,
         });
         
         return res.json({ url: session.url });
@@ -13802,7 +13802,7 @@ app.post('/api/subscriptions/billing-portal', authenticateToken, async (req, res
     
     // ? Fallback: Return settings page URL (not /billing to avoid refresh loop)
     res.json({ 
-      url: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/settings?tab=billing`,
+      url: `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/settings?tab=billing`,
       message: 'Billing management available in settings',
       is_simulated: true
     });
@@ -14078,7 +14078,7 @@ app.post('/api/billing/portal', authenticateToken, async (req, res) => {
       try {
         const session = await stripe.billingPortal.sessions.create({
           customer: user.stripe_customer_id,
-          return_url: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/billing`,
+          return_url: `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/billing`,
         });
         
         return res.json({ url: session.url, is_simulated: false });
@@ -14363,7 +14363,7 @@ const formattedTime = startDate.toLocaleTimeString('en-US', {
   minute: '2-digit',
   hour12: true
 });
-const manageUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${manageToken}`;
+const manageUrl = `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/manage/${manageToken}`;
 
     
   // Send confirmation email to ALL GUESTS (using templates)
@@ -14629,7 +14629,7 @@ app.post('/api/chatgpt/send-email', authenticateToken, async (req, res) => {
       guestEmail: recipient_email,
       organizerName: user.name,
       organizerEmail: user.email,
-      bookingLink: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/book/${req.user.id}`,
+      bookingLink: `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/book/${req.user.id}`,
       ...bookingData,
       ...custom_data
     };
@@ -15139,7 +15139,7 @@ app.get('/api/magic-links', authenticateToken, async (req, res) => {
       success: true,
       links: result.rows.map(link => ({
         ...link,
-        url: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/m/${link.token}`
+        url: `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/m/${link.token}`
       }))
     });
   } catch (error) {
@@ -15190,7 +15190,7 @@ app.post('/api/magic-links', authenticateToken, async (req, res) => {
     
     await pool.query('UPDATE users SET magic_links_used = COALESCE(magic_links_used, 0) + 1 WHERE id = $1', [userId]);
     
-    const baseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+    const baseUrl = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
     res.json({
       success: true,
       link: { token: magicToken, url: `${baseUrl}/m/${magicToken}`, expires_at: expiresAt }
@@ -16090,7 +16090,7 @@ async function checkAndSendReminders() {
           minute: '2-digit',
           hour12: true
         });
-        const manageLink = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${row.manage_token}`;
+        const manageLink = `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/manage/${row.manage_token}`;
 
         // Template variables for reminder
         const reminderVars = {
