@@ -16,7 +16,7 @@ router.get('/', authenticateToken, async (req, res) => {
       'SELECT * FROM bookings WHERE user_id = $1 ORDER BY start_time DESC',
       [req.user.id]
     );
-    res.json(result.rows);
+    res.json({ bookings: result.rows });
   } catch (error) {
     console.error('Error fetching bookings:', error);
     res.status(500).json({ error: 'Failed to fetch bookings' });
