@@ -349,7 +349,10 @@ What would you like to do?`;
       'teams': 'Show my team links',
       'share': 'How should I share my booking link?',
       'book': 'Help me book a meeting',
-      'availability': 'What is my current availability?',
+      'availability': "What's my availability this week?",
+      'check_free': 'Am I free tomorrow at 2pm?',
+      'cancel': 'Cancel a meeting',
+      'reschedule': 'Reschedule a meeting',
       'create_rule': 'Help me create a smart rule',
       'list_rules': 'Show my active rules',
       'block_friday': 'Create a rule: no meetings on Friday',
@@ -360,11 +363,11 @@ What would you like to do?`;
       'team_stats': 'Show team booking distribution',
       'plan_info': 'Compare the different plans',
       'analytics': 'Show my booking stats',
-      'reschedule': 'Help me reschedule a meeting',
       'event_types': 'What event types do I have?',
       'create_event': 'Help me create a new event type',
       'list_templates': 'Show my email templates',
-      'create_template': 'Help me create a new email template'
+      'create_template': 'Help me create a new email template',
+      'find_meetings': 'Find meetings with someone'
     };
     setMessage(actions[action] || '');
   };

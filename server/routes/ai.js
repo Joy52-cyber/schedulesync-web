@@ -8,6 +8,38 @@ const { applySchedulingRules } = require('../utils/schedulingRules');
 const detectIntent = (message) => {
   const lowerMessage = message.toLowerCase();
 
+  // Cancel booking intent - check first before other intents
+  if ((lowerMessage.includes('cancel') || lowerMessage.includes('delete') || lowerMessage.includes('remove')) &&
+      (lowerMessage.includes('meeting') || lowerMessage.includes('booking') || lowerMessage.includes('appointment'))) {
+    return 'cancel_booking';
+  }
+
+  // Reschedule booking intent
+  if ((lowerMessage.includes('reschedule') || lowerMessage.includes('move') || lowerMessage.includes('change time') ||
+       lowerMessage.includes('postpone') || lowerMessage.includes('push back') || lowerMessage.includes('change my')) &&
+      (lowerMessage.includes('meeting') || lowerMessage.includes('booking') || lowerMessage.includes('appointment') ||
+       lowerMessage.includes('to ') || lowerMessage.match(/to \d/))) {
+    return 'reschedule_booking';
+  }
+
+  // Availability check intent
+  if ((lowerMessage.includes('am i free') || lowerMessage.includes('am i available') ||
+       lowerMessage.includes('do i have time') || lowerMessage.includes('check availability') ||
+       lowerMessage.includes('what\'s my availability') || lowerMessage.includes('whats my availability') ||
+       lowerMessage.includes('show availability') || lowerMessage.includes('free slots') ||
+       lowerMessage.includes('open slots') || lowerMessage.includes('available times') ||
+       (lowerMessage.includes('availability') && (lowerMessage.includes('my') || lowerMessage.includes('check')))) &&
+      !lowerMessage.includes('set ')) {
+    return 'check_availability';
+  }
+
+  // Meetings with specific person
+  if ((lowerMessage.includes('meetings with') || lowerMessage.includes('meeting with') ||
+       lowerMessage.includes('appointments with') || lowerMessage.includes('calls with')) &&
+      (lowerMessage.includes('@') || lowerMessage.match(/with\s+\w+/))) {
+    return 'find_meetings';
+  }
+
   // Analytics/Stats intent
   if (lowerMessage.includes('analytics') ||
       lowerMessage.includes('stats') ||
@@ -96,6 +128,14 @@ const detectIntent = (message) => {
     return 'template_choice';
   }
 
+  // Yes/No confirmation response
+  if (/^(yes|yeah|yep|confirm|ok|sure|do it)$/i.test(lowerMessage.trim())) {
+    return 'confirm_yes';
+  }
+  if (/^(no|nope|cancel|nevermind|never mind|don't|dont)$/i.test(lowerMessage.trim())) {
+    return 'confirm_no';
+  }
+
   return 'general';
 };
 
@@ -155,6 +195,159 @@ async function suggestTemplateForBooking(client, userId, message, eventTypeName)
   return null;
 }
 
+// Enhanced date parsing with natural language support
+function parseNaturalDate(text) {
+  const lowerText = text.toLowerCase();
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // Today
+  if (lowerText.includes('today')) {
+    return { date: today, dateStr: 'today' };
+  }
+
+  // Tomorrow
+  if (lowerText.includes('tomorrow')) {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return { date: tomorrow, dateStr: 'tomorrow' };
+  }
+
+  // Day after tomorrow
+  if (lowerText.includes('day after tomorrow')) {
+    const dayAfter = new Date(today);
+    dayAfter.setDate(dayAfter.getDate() + 2);
+    return { date: dayAfter, dateStr: 'day after tomorrow' };
+  }
+
+  // In X days/weeks
+  const inXMatch = lowerText.match(/in\s+(\d+)\s+(day|days|week|weeks)/);
+  if (inXMatch) {
+    const amount = parseInt(inXMatch[1]);
+    const unit = inXMatch[2];
+    const futureDate = new Date(today);
+    if (unit.startsWith('week')) {
+      futureDate.setDate(futureDate.getDate() + (amount * 7));
+    } else {
+      futureDate.setDate(futureDate.getDate() + amount);
+    }
+    return { date: futureDate, dateStr: `in ${amount} ${unit}` };
+  }
+
+  // Next week (meaning next Monday)
+  if (lowerText.includes('next week') && !lowerText.match(/next\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/)) {
+    const nextMonday = new Date(today);
+    const daysUntilMonday = (8 - today.getDay()) % 7 || 7;
+    nextMonday.setDate(nextMonday.getDate() + daysUntilMonday);
+    return { date: nextMonday, dateStr: 'next week' };
+  }
+
+  // End of week (Friday)
+  if (lowerText.includes('end of week') || lowerText.includes('end of the week')) {
+    const friday = new Date(today);
+    const daysUntilFriday = (5 - today.getDay() + 7) % 7 || 7;
+    friday.setDate(friday.getDate() + daysUntilFriday);
+    return { date: friday, dateStr: 'end of week' };
+  }
+
+  // Day names: "Monday", "next Monday", "this Monday"
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayMatch = lowerText.match(/(next\s+|this\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i);
+  if (dayMatch) {
+    const isNext = dayMatch[1]?.includes('next');
+    const dayName = dayMatch[2].toLowerCase();
+    const targetDay = dayNames.indexOf(dayName);
+    const currentDay = today.getDay();
+
+    let daysToAdd = targetDay - currentDay;
+    if (daysToAdd <= 0 || isNext) {
+      daysToAdd += 7;
+    }
+    if (isNext && daysToAdd <= 7) {
+      daysToAdd += 7; // "next Monday" means the Monday after this coming one
+    }
+
+    const targetDate = new Date(today);
+    targetDate.setDate(targetDate.getDate() + daysToAdd);
+    return { date: targetDate, dateStr: `${isNext ? 'next ' : ''}${dayName}` };
+  }
+
+  // Specific date formats: "Jan 15", "January 15", "1/15", "15th"
+  const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+  const monthShort = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+  // "January 15" or "Jan 15"
+  const monthDayMatch = lowerText.match(/(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?/i);
+  if (monthDayMatch) {
+    const monthStr = monthDayMatch[1].toLowerCase();
+    const day = parseInt(monthDayMatch[2]);
+    let month = monthNames.indexOf(monthStr);
+    if (month === -1) month = monthShort.indexOf(monthStr);
+
+    const targetDate = new Date(now.getFullYear(), month, day);
+    if (targetDate < today) {
+      targetDate.setFullYear(targetDate.getFullYear() + 1);
+    }
+    return { date: targetDate, dateStr: `${monthDayMatch[1]} ${day}` };
+  }
+
+  // "1/15" or "01/15"
+  const slashDateMatch = lowerText.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+  if (slashDateMatch) {
+    const month = parseInt(slashDateMatch[1]) - 1;
+    const day = parseInt(slashDateMatch[2]);
+    let year = slashDateMatch[3] ? parseInt(slashDateMatch[3]) : now.getFullYear();
+    if (year < 100) year += 2000;
+
+    const targetDate = new Date(year, month, day);
+    if (targetDate < today && !slashDateMatch[3]) {
+      targetDate.setFullYear(targetDate.getFullYear() + 1);
+    }
+    return { date: targetDate, dateStr: `${month + 1}/${day}` };
+  }
+
+  return null;
+}
+
+// Parse time from natural language
+function parseNaturalTime(text) {
+  const lowerText = text.toLowerCase();
+
+  // "at 2pm", "at 2:30pm", "at 14:00"
+  const timeMatch = lowerText.match(/(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+  if (timeMatch) {
+    let hours = parseInt(timeMatch[1]);
+    const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+    const meridiem = timeMatch[3]?.toLowerCase();
+
+    if (meridiem === 'pm' && hours < 12) hours += 12;
+    if (meridiem === 'am' && hours === 12) hours = 0;
+    if (!meridiem && hours < 8) hours += 12; // Assume PM for times like "2" or "3"
+
+    return {
+      hours,
+      minutes,
+      timeStr: `${hours > 12 ? hours - 12 : hours}:${minutes.toString().padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`
+    };
+  }
+
+  // Named times
+  if (lowerText.includes('noon') || lowerText.includes('midday')) {
+    return { hours: 12, minutes: 0, timeStr: '12:00 PM' };
+  }
+  if (lowerText.includes('morning') && !lowerText.includes('tomorrow morning')) {
+    return { hours: 9, minutes: 0, timeStr: '9:00 AM' };
+  }
+  if (lowerText.includes('afternoon')) {
+    return { hours: 14, minutes: 0, timeStr: '2:00 PM' };
+  }
+  if (lowerText.includes('evening')) {
+    return { hours: 17, minutes: 0, timeStr: '5:00 PM' };
+  }
+
+  return null;
+}
+
 // Parse booking details from natural language
 function parseBookingDetails(message) {
   const details = {
@@ -162,6 +355,8 @@ function parseBookingDetails(message) {
     attendeeName: null,
     date: null,
     time: null,
+    parsedDate: null,
+    parsedTime: null,
     duration: 30,
     title: 'Meeting',
     eventType: null
@@ -174,26 +369,18 @@ function parseBookingDetails(message) {
     details.attendeeName = emailMatch[1].split('@')[0];
   }
 
-  // Extract date patterns
-  const datePatterns = [
-    /(?:on\s+)?(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/i,
-    /(?:on\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i,
-    /(?:on\s+)?(tomorrow|today|next\s+week)/i,
-    /(?:on\s+)?(\w+\s+\d{1,2}(?:st|nd|rd|th)?(?:\s*,?\s*\d{4})?)/i
-  ];
-
-  for (const pattern of datePatterns) {
-    const match = message.match(pattern);
-    if (match) {
-      details.date = match[1];
-      break;
-    }
+  // Extract date using enhanced parser
+  const dateResult = parseNaturalDate(message);
+  if (dateResult) {
+    details.parsedDate = dateResult.date;
+    details.date = dateResult.dateStr;
   }
 
-  // Extract time
-  const timeMatch = message.match(/(?:at\s+)?(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
-  if (timeMatch) {
-    details.time = timeMatch[1];
+  // Extract time using enhanced parser
+  const timeResult = parseNaturalTime(message);
+  if (timeResult) {
+    details.parsedTime = timeResult;
+    details.time = timeResult.timeStr;
   }
 
   // Extract duration
@@ -230,6 +417,50 @@ function parseBookingDetails(message) {
   }
 
   return details;
+}
+
+// Parse meeting reference from message (for cancel/reschedule)
+function parseMeetingReference(message) {
+  const lowerMessage = message.toLowerCase();
+  const reference = {
+    email: null,
+    name: null,
+    date: null,
+    time: null,
+    meetingId: null
+  };
+
+  // Extract email
+  const emailMatch = message.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+  if (emailMatch) {
+    reference.email = emailMatch[1];
+  }
+
+  // Extract name pattern: "with John", "with Sarah"
+  const nameMatch = lowerMessage.match(/with\s+([a-z]+)(?:\s|$|')/i);
+  if (nameMatch && !nameMatch[1].includes('@')) {
+    reference.name = nameMatch[1];
+  }
+
+  // Extract date
+  const dateResult = parseNaturalDate(message);
+  if (dateResult) {
+    reference.date = dateResult.date;
+  }
+
+  // Extract time
+  const timeResult = parseNaturalTime(message);
+  if (timeResult) {
+    reference.time = timeResult;
+  }
+
+  // Extract meeting ID if mentioned
+  const idMatch = message.match(/(?:meeting|booking|#)\s*(\d+)/i);
+  if (idMatch) {
+    reference.meetingId = parseInt(idMatch[1]);
+  }
+
+  return reference;
 }
 
 // Parse smart rule from natural language
@@ -365,6 +596,243 @@ router.post('/schedule', authenticateToken, async (req, res) => {
       });
     }
 
+    // Handle cancel booking intent
+    if (intent === 'cancel_booking') {
+      const reference = parseMeetingReference(message);
+      const meetings = await findMatchingMeetings(client, userId, reference);
+
+      if (meetings.length === 0) {
+        return res.json({
+          type: 'not_found',
+          message: `I couldn't find any upcoming meetings matching that description.\n\nTry being more specific:\n- "Cancel my meeting with john@email.com"\n- "Cancel my 2pm meeting tomorrow"\n- "Cancel meeting #123"`
+        });
+      }
+
+      if (meetings.length === 1) {
+        const meeting = meetings[0];
+        const dateStr = new Date(meeting.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const timeStr = new Date(meeting.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+        // Store pending cancel action
+        await client.query(
+          `INSERT INTO ai_pending_actions (user_id, action_type, action_data, expires_at)
+           VALUES ($1, 'cancel_booking', $2, NOW() + INTERVAL '5 minutes')
+           ON CONFLICT (user_id, action_type) DO UPDATE SET action_data = $2, expires_at = NOW() + INTERVAL '5 minutes'`,
+          [userId, JSON.stringify({ bookingId: meeting.id, meeting })]
+        );
+
+        return res.json({
+          type: 'confirm_cancel',
+          message: `Found this meeting:\n\n📅 **${meeting.title || 'Meeting'}**\n🗓️ ${dateStr} at ${timeStr}\n👤 ${meeting.attendee_email}\n\n⚠️ Are you sure you want to cancel?\n\nReply **"yes"** to confirm or **"no"** to keep it.`,
+          data: { meeting, action: 'cancel' }
+        });
+      }
+
+      // Multiple meetings found
+      const meetingList = meetings.slice(0, 5).map((m, i) => {
+        const dateStr = new Date(m.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const timeStr = new Date(m.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        return `${i + 1}. **${m.title || 'Meeting'}** - ${dateStr} at ${timeStr} with ${m.attendee_email}`;
+      }).join('\n');
+
+      return res.json({
+        type: 'multiple_found',
+        message: `I found ${meetings.length} matching meeting${meetings.length > 1 ? 's' : ''}:\n\n${meetingList}\n\nWhich one would you like to cancel? Reply with the number (e.g., "cancel 1").`,
+        data: { meetings: meetings.slice(0, 5) }
+      });
+    }
+
+    // Handle reschedule booking intent
+    if (intent === 'reschedule_booking') {
+      const reference = parseMeetingReference(message);
+      const meetings = await findMatchingMeetings(client, userId, reference);
+
+      // Check if new time is specified
+      const newTimeMatch = message.match(/to\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
+      const newDateResult = message.includes(' to ') ? parseNaturalDate(message.split(' to ')[1]) : null;
+
+      if (meetings.length === 0) {
+        return res.json({
+          type: 'not_found',
+          message: `I couldn't find any upcoming meetings to reschedule.\n\nTry:\n- "Reschedule my meeting with john@email.com to 3pm"\n- "Move my 2pm tomorrow to 4pm"\n- "Reschedule meeting #123 to next Monday"`
+        });
+      }
+
+      if (meetings.length === 1) {
+        const meeting = meetings[0];
+        const dateStr = new Date(meeting.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const timeStr = new Date(meeting.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+        // Store pending reschedule action
+        await client.query(
+          `INSERT INTO ai_pending_actions (user_id, action_type, action_data, expires_at)
+           VALUES ($1, 'reschedule_booking', $2, NOW() + INTERVAL '5 minutes')
+           ON CONFLICT (user_id, action_type) DO UPDATE SET action_data = $2, expires_at = NOW() + INTERVAL '5 minutes'`,
+          [userId, JSON.stringify({ bookingId: meeting.id, meeting, newTime: newTimeMatch?.[1], newDate: newDateResult?.dateStr })]
+        );
+
+        if (newTimeMatch || newDateResult) {
+          return res.json({
+            type: 'confirm_reschedule',
+            message: `Found this meeting:\n\n📅 **${meeting.title || 'Meeting'}**\n🗓️ Currently: ${dateStr} at ${timeStr}\n👤 ${meeting.attendee_email}\n\n➡️ New time: ${newDateResult?.dateStr || dateStr} at ${newTimeMatch?.[1] || timeStr}\n\nReply **"yes"** to confirm or **"no"** to cancel.`,
+            data: { meeting, newTime: newTimeMatch?.[1], newDate: newDateResult?.dateStr, action: 'reschedule' }
+          });
+        }
+
+        return res.json({
+          type: 'need_new_time',
+          message: `Found this meeting:\n\n📅 **${meeting.title || 'Meeting'}**\n🗓️ ${dateStr} at ${timeStr}\n👤 ${meeting.attendee_email}\n\nWhen would you like to reschedule it to?\n\nExample: "Move it to 3pm" or "Reschedule to next Monday at 2pm"`,
+          data: { meeting, action: 'reschedule' }
+        });
+      }
+
+      // Multiple meetings found
+      const meetingList = meetings.slice(0, 5).map((m, i) => {
+        const dateStr = new Date(m.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const timeStr = new Date(m.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        return `${i + 1}. **${m.title || 'Meeting'}** - ${dateStr} at ${timeStr} with ${m.attendee_email}`;
+      }).join('\n');
+
+      return res.json({
+        type: 'multiple_found',
+        message: `I found ${meetings.length} matching meeting${meetings.length > 1 ? 's' : ''}:\n\n${meetingList}\n\nWhich one would you like to reschedule? Reply with the number.`,
+        data: { meetings: meetings.slice(0, 5) }
+      });
+    }
+
+    // Handle availability check intent
+    if (intent === 'check_availability') {
+      const dateResult = parseNaturalDate(message);
+      const timeResult = parseNaturalTime(message);
+
+      if (!dateResult) {
+        // Show general availability for the week
+        const availability = await getWeekAvailability(client, userId);
+        return res.json({
+          type: 'availability',
+          message: formatWeekAvailability(availability),
+          data: { availability }
+        });
+      }
+
+      // Check specific date/time
+      const checkDate = dateResult.date;
+      const slots = await getAvailableSlotsForDate(client, userId, checkDate);
+
+      if (timeResult) {
+        // Check specific time slot
+        const requestedTime = new Date(checkDate);
+        requestedTime.setHours(timeResult.hours, timeResult.minutes, 0, 0);
+
+        const isAvailable = slots.some(slot => {
+          const slotStart = new Date(slot.start);
+          const slotEnd = new Date(slot.end);
+          return requestedTime >= slotStart && requestedTime < slotEnd;
+        });
+
+        const dateStr = checkDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+        if (isAvailable) {
+          return res.json({
+            type: 'available',
+            message: `✅ **Yes, you're free!**\n\n${dateStr} at ${timeResult.timeStr} is available.\n\nWould you like me to book a meeting for that time?`,
+            data: { date: dateStr, time: timeResult.timeStr, available: true }
+          });
+        } else {
+          const alternativeSlots = slots.slice(0, 3).map(s => {
+            const start = new Date(s.start);
+            return start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+          }).join(', ');
+
+          return res.json({
+            type: 'unavailable',
+            message: `❌ **Sorry, that time is not available.**\n\n${dateStr} at ${timeResult.timeStr} conflicts with another event.\n\n${slots.length > 0 ? `**Available times:** ${alternativeSlots}` : 'No available slots that day.'}`,
+            data: { date: dateStr, time: timeResult.timeStr, available: false, alternatives: slots.slice(0, 3) }
+          });
+        }
+      }
+
+      // Show available slots for the day
+      const dateStr = checkDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+      if (slots.length === 0) {
+        return res.json({
+          type: 'no_slots',
+          message: `📅 **${dateStr}**\n\nNo available slots that day. Your calendar is fully booked or it's outside your working hours.`,
+          data: { date: dateStr, slots: [] }
+        });
+      }
+
+      const slotList = slots.slice(0, 6).map(s => {
+        const start = new Date(s.start);
+        const end = new Date(s.end);
+        return `• ${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+      }).join('\n');
+
+      return res.json({
+        type: 'availability',
+        message: `📅 **${dateStr}**\n\n**Available slots:**\n${slotList}${slots.length > 6 ? `\n\n...and ${slots.length - 6} more` : ''}`,
+        data: { date: dateStr, slots }
+      });
+    }
+
+    // Handle find meetings with specific person
+    if (intent === 'find_meetings') {
+      const reference = parseMeetingReference(message);
+      const searchTerm = reference.email || reference.name;
+
+      if (!searchTerm) {
+        return res.json({
+          type: 'clarification',
+          message: `Who would you like to find meetings with?\n\nTry:\n- "Show meetings with john@email.com"\n- "Meetings with Sarah"`
+        });
+      }
+
+      const meetings = await client.query(
+        `SELECT * FROM bookings
+         WHERE user_id = $1
+         AND status != 'cancelled'
+         AND (LOWER(attendee_email) LIKE $2 OR LOWER(attendee_name) LIKE $2)
+         ORDER BY start_time DESC
+         LIMIT 10`,
+        [userId, `%${searchTerm.toLowerCase()}%`]
+      );
+
+      if (meetings.rows.length === 0) {
+        return res.json({
+          type: 'not_found',
+          message: `I couldn't find any meetings with "${searchTerm}".`
+        });
+      }
+
+      const upcoming = meetings.rows.filter(m => new Date(m.start_time) > new Date());
+      const past = meetings.rows.filter(m => new Date(m.start_time) <= new Date());
+
+      let response = `📋 **Meetings with ${searchTerm}**\n\n`;
+
+      if (upcoming.length > 0) {
+        response += `**Upcoming:**\n`;
+        upcoming.forEach(m => {
+          const dateStr = new Date(m.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+          const timeStr = new Date(m.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+          response += `• ${dateStr} at ${timeStr} - ${m.title || 'Meeting'}\n`;
+        });
+      }
+
+      if (past.length > 0) {
+        response += `\n**Past:**\n`;
+        past.slice(0, 3).forEach(m => {
+          const dateStr = new Date(m.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          response += `• ${dateStr} - ${m.title || 'Meeting'}\n`;
+        });
+      }
+
+      return res.json({
+        type: 'meetings_list',
+        message: response,
+        data: { meetings: meetings.rows, searchTerm }
+      });
+    }
+
     // Handle smart rule creation
     if (intent === 'create_rule') {
       const parsedRule = parseRuleFromMessage(message);
@@ -480,7 +948,113 @@ router.post('/schedule', authenticateToken, async (req, res) => {
     if (intent === 'plan_info') {
       return res.json({
         type: 'info',
-        message: `**TruCal Plans:**\n\n**Free** - $0/month\n- 10 AI queries/month\n- Basic booking page\n- Google Calendar sync\n\n**Pro** - $15/month\n- Unlimited AI queries\n- Quick links & email assistant\n- Custom booking rules\n- Priority support\n\n**Team** - $25/month\n- Everything in Pro\n- Team booking pages\n- Round-robin scheduling\n- Team analytics\n\n[Upgrade now](/billing)`
+        message: `**ScheduleSync Plans:**\n\n**Free** - $0/month\n- 50 bookings/month\n- 10 AI queries/month\n- Google & Outlook sync\n- Email reminders\n\n**Starter** - $8/month\n- 200 bookings/month\n- 50 AI queries/month\n- Buffer times & templates\n\n**Pro** - $15/month\n- Unlimited bookings\n- 250 AI queries/month\n- Smart Rules & Email Assistant\n- Priority support\n\n**Team** - $20/user/month\n- Everything in Pro\n- Round-robin booking\n- Collective availability\n- Up to 10 members\n\n[Compare plans](/billing)`
+      });
+    }
+
+    // Handle yes confirmation for pending actions
+    if (intent === 'confirm_yes') {
+      // Check for pending cancel action
+      const pendingCancel = await client.query(
+        `SELECT id, action_data FROM ai_pending_actions
+         WHERE user_id = $1 AND action_type = 'cancel_booking'
+         AND expires_at > NOW()`,
+        [userId]
+      );
+
+      if (pendingCancel.rows.length > 0) {
+        const pendingData = JSON.parse(pendingCancel.rows[0].action_data);
+        const bookingId = pendingData.bookingId;
+
+        // Cancel the booking
+        await client.query(
+          `UPDATE bookings SET status = 'cancelled' WHERE id = $1 AND user_id = $2`,
+          [bookingId, userId]
+        );
+
+        // Clear pending action
+        await client.query('DELETE FROM ai_pending_actions WHERE id = $1', [pendingCancel.rows[0].id]);
+
+        return res.json({
+          type: 'cancelled',
+          message: `✅ **Meeting cancelled!**\n\nI've cancelled the meeting with ${pendingData.meeting.attendee_email}.\n\nIs there anything else I can help with?`,
+          data: { cancelled: true, bookingId }
+        });
+      }
+
+      // Check for pending reschedule action
+      const pendingReschedule = await client.query(
+        `SELECT id, action_data FROM ai_pending_actions
+         WHERE user_id = $1 AND action_type = 'reschedule_booking'
+         AND expires_at > NOW()`,
+        [userId]
+      );
+
+      if (pendingReschedule.rows.length > 0) {
+        const pendingData = JSON.parse(pendingReschedule.rows[0].action_data);
+        const bookingId = pendingData.bookingId;
+        const meeting = pendingData.meeting;
+
+        // Calculate new start time
+        let newStartTime = new Date(meeting.start_time);
+        if (pendingData.newDate) {
+          const newDate = parseNaturalDate(pendingData.newDate);
+          if (newDate) {
+            newStartTime = new Date(newDate.date);
+            newStartTime.setHours(
+              new Date(meeting.start_time).getHours(),
+              new Date(meeting.start_time).getMinutes()
+            );
+          }
+        }
+        if (pendingData.newTime) {
+          const timeResult = parseNaturalTime(pendingData.newTime);
+          if (timeResult) {
+            newStartTime.setHours(timeResult.hours, timeResult.minutes, 0, 0);
+          }
+        }
+
+        // Calculate new end time (same duration)
+        const duration = new Date(meeting.end_time) - new Date(meeting.start_time);
+        const newEndTime = new Date(newStartTime.getTime() + duration);
+
+        // Update the booking
+        await client.query(
+          `UPDATE bookings SET start_time = $1, end_time = $2 WHERE id = $3 AND user_id = $4`,
+          [newStartTime.toISOString(), newEndTime.toISOString(), bookingId, userId]
+        );
+
+        // Clear pending action
+        await client.query('DELETE FROM ai_pending_actions WHERE id = $1', [pendingReschedule.rows[0].id]);
+
+        const newDateStr = newStartTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const newTimeStr = newStartTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+        return res.json({
+          type: 'rescheduled',
+          message: `✅ **Meeting rescheduled!**\n\nYour meeting with ${meeting.attendee_email} has been moved to:\n\n📅 ${newDateStr} at ${newTimeStr}\n\nIs there anything else I can help with?`,
+          data: { rescheduled: true, bookingId, newStartTime: newStartTime.toISOString() }
+        });
+      }
+
+      // No pending action
+      return res.json({
+        type: 'info',
+        message: `I'm not sure what you're confirming. What would you like to do?`
+      });
+    }
+
+    // Handle no confirmation for pending actions
+    if (intent === 'confirm_no') {
+      // Clear any pending actions
+      await client.query(
+        `DELETE FROM ai_pending_actions WHERE user_id = $1 AND action_type IN ('cancel_booking', 'reschedule_booking')`,
+        [userId]
+      );
+
+      return res.json({
+        type: 'info',
+        message: `No problem, I've cancelled that action. Your meeting remains unchanged.\n\nWhat else can I help with?`
       });
     }
 
@@ -866,6 +1440,190 @@ async function getTeamLinks(client, userId) {
     url: `${frontendUrl}/team/${team.slug || team.team_booking_token}`,
     short_url: `/team/${team.slug || team.team_booking_token}`
   }));
+}
+
+// Find matching meetings based on reference criteria
+async function findMatchingMeetings(client, userId, reference) {
+  let query = `
+    SELECT * FROM bookings
+    WHERE user_id = $1
+    AND status != 'cancelled'
+    AND start_time > NOW()
+  `;
+  const params = [userId];
+  let paramIndex = 2;
+
+  // Filter by meeting ID
+  if (reference.meetingId) {
+    query += ` AND id = $${paramIndex++}`;
+    params.push(reference.meetingId);
+  }
+
+  // Filter by email
+  if (reference.email) {
+    query += ` AND LOWER(attendee_email) = $${paramIndex++}`;
+    params.push(reference.email.toLowerCase());
+  }
+
+  // Filter by name
+  if (reference.name && !reference.email) {
+    query += ` AND LOWER(attendee_name) LIKE $${paramIndex++}`;
+    params.push(`%${reference.name.toLowerCase()}%`);
+  }
+
+  // Filter by date
+  if (reference.date) {
+    const startOfDay = new Date(reference.date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(reference.date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    query += ` AND start_time >= $${paramIndex++} AND start_time <= $${paramIndex++}`;
+    params.push(startOfDay.toISOString(), endOfDay.toISOString());
+  }
+
+  // Filter by time (approximate match within 30 minutes)
+  if (reference.time && reference.date) {
+    const targetTime = new Date(reference.date);
+    targetTime.setHours(reference.time.hours, reference.time.minutes, 0, 0);
+    const timeBefore = new Date(targetTime.getTime() - 30 * 60000);
+    const timeAfter = new Date(targetTime.getTime() + 30 * 60000);
+
+    query += ` AND start_time >= $${paramIndex++} AND start_time <= $${paramIndex++}`;
+    params.push(timeBefore.toISOString(), timeAfter.toISOString());
+  }
+
+  query += ` ORDER BY start_time ASC LIMIT 10`;
+
+  const result = await client.query(query, params);
+  return result.rows;
+}
+
+// Get week availability summary
+async function getWeekAvailability(client, userId) {
+  const today = new Date();
+  const weekDays = [];
+
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + i);
+
+    // Get bookings for this day
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const bookings = await client.query(
+      `SELECT COUNT(*) as count FROM bookings
+       WHERE user_id = $1 AND status != 'cancelled'
+       AND start_time >= $2 AND start_time <= $3`,
+      [userId, startOfDay.toISOString(), endOfDay.toISOString()]
+    );
+
+    weekDays.push({
+      date,
+      dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
+      dateStr: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      bookingCount: parseInt(bookings.rows[0].count),
+      isWeekend: date.getDay() === 0 || date.getDay() === 6
+    });
+  }
+
+  return weekDays;
+}
+
+// Format week availability for display
+function formatWeekAvailability(weekDays) {
+  let response = `📅 **Your Week at a Glance**\n\n`;
+
+  weekDays.forEach(day => {
+    const status = day.isWeekend ? '🔒' : (day.bookingCount === 0 ? '✅' : (day.bookingCount >= 5 ? '🔴' : '🟡'));
+    const bookingText = day.bookingCount === 0 ? 'Free' : `${day.bookingCount} meeting${day.bookingCount > 1 ? 's' : ''}`;
+    response += `${status} **${day.dayName}** ${day.dateStr}: ${bookingText}\n`;
+  });
+
+  response += `\n💡 Ask "Am I free tomorrow at 2pm?" to check specific times.`;
+  return response;
+}
+
+// Get available slots for a specific date
+async function getAvailableSlotsForDate(client, userId, date) {
+  // Get user's working hours
+  const userResult = await client.query(
+    'SELECT working_hours, timezone FROM users WHERE id = $1',
+    [userId]
+  );
+
+  const user = userResult.rows[0];
+  const workingHours = user?.working_hours || {
+    monday: { enabled: true, start: '09:00', end: '17:00' },
+    tuesday: { enabled: true, start: '09:00', end: '17:00' },
+    wednesday: { enabled: true, start: '09:00', end: '17:00' },
+    thursday: { enabled: true, start: '09:00', end: '17:00' },
+    friday: { enabled: true, start: '09:00', end: '17:00' },
+    saturday: { enabled: false },
+    sunday: { enabled: false }
+  };
+
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayName = dayNames[date.getDay()];
+  const dayHours = workingHours[dayName];
+
+  if (!dayHours?.enabled) {
+    return []; // Not a working day
+  }
+
+  // Parse working hours
+  const [startHour, startMin] = (dayHours.start || '09:00').split(':').map(Number);
+  const [endHour, endMin] = (dayHours.end || '17:00').split(':').map(Number);
+
+  const dayStart = new Date(date);
+  dayStart.setHours(startHour, startMin, 0, 0);
+  const dayEnd = new Date(date);
+  dayEnd.setHours(endHour, endMin, 0, 0);
+
+  // Get existing bookings for the day
+  const bookings = await client.query(
+    `SELECT start_time, end_time FROM bookings
+     WHERE user_id = $1 AND status != 'cancelled'
+     AND start_time >= $2 AND start_time < $3
+     ORDER BY start_time ASC`,
+    [userId, dayStart.toISOString(), dayEnd.toISOString()]
+  );
+
+  // Calculate available slots (30-minute increments)
+  const slots = [];
+  let currentTime = new Date(dayStart);
+
+  // Don't show past slots
+  const now = new Date();
+  if (currentTime < now) {
+    currentTime = new Date(now);
+    currentTime.setMinutes(Math.ceil(currentTime.getMinutes() / 30) * 30, 0, 0);
+  }
+
+  while (currentTime < dayEnd) {
+    const slotEnd = new Date(currentTime.getTime() + 30 * 60000);
+
+    // Check if slot conflicts with any booking
+    const hasConflict = bookings.rows.some(booking => {
+      const bookingStart = new Date(booking.start_time);
+      const bookingEnd = new Date(booking.end_time);
+      return currentTime < bookingEnd && slotEnd > bookingStart;
+    });
+
+    if (!hasConflict) {
+      slots.push({
+        start: currentTime.toISOString(),
+        end: slotEnd.toISOString()
+      });
+    }
+
+    currentTime = slotEnd;
+  }
+
+  return slots;
 }
 
 // POST /api/ai/schedule/confirm - Confirm booking with scheduling rules
