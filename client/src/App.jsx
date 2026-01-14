@@ -40,7 +40,7 @@ import CalendlyMigration from './pages/CalendlyMigration';
 import InboxAssistant from './pages/InboxAssistant';
 import EmailTemplates from './pages/EmailTemplates';
 import SchedulingRules from './pages/SchedulingRules';
-import EmailAnalyzer from './pages/EmailAnalyzer';
+// EmailAnalyzer merged into InboxAssistant as Quick Paste tab
 import MyLinks from './pages/MyLinks';
 import BillingSettings from './pages/BillingSettings';
 import BillingPage from './pages/BillingPage';
@@ -156,7 +156,7 @@ function InnerApp() {
                 <Route path="/availability" element={<Availability />} />
                 <Route path="/templates" element={<EmailTemplates />} />
                 <Route path="/rules" element={<SchedulingRules />} />
-                <Route path="/email-assistant" element={<EmailAnalyzer />} />
+                <Route path="/email-assistant" element={<Navigate to="/inbox-assistant" replace />} />
                 <Route path="/inbox-assistant" element={<InboxAssistant />} />
                 <Route path="/autonomous" element={<AutonomousSettings />} />
                 <Route path="/my-links" element={<MyLinks />} />

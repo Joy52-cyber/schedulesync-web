@@ -11,7 +11,6 @@ import {
   Settings,
   Link2,
   Zap,
-  Mail,
   Bot,
   Inbox,
   Sparkles,
@@ -56,7 +55,6 @@ export default function Layout() {
   const aiFeatures = [
     { name: "Inbox Assistant", path: "/inbox-assistant", icon: Inbox, walkthrough: "inbox-nav", requiredTier: "pro" },
     { name: "Smart Rules", path: "/rules", icon: Zap, walkthrough: "rules-nav", requiredTier: "pro" },
-    { name: "Email Assistant", path: "/email-assistant", icon: Mail, walkthrough: "email-nav", requiredTier: "pro" },
     { name: "Autonomous", path: "/autonomous", icon: Bot, walkthrough: "autonomous-nav", requiredTier: "team" },
   ];
 
