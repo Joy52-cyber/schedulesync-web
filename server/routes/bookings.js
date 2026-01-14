@@ -774,16 +774,21 @@ router.get('/manage/:token', async (req, res) => {
        tm.email as organizer_email,
        tm.booking_token as member_booking_token,
        u.name as user_organizer_name,
-       u.email as user_organizer_email
+       u.email as user_organizer_email,
+       u.username as user_username,
+       et.title as event_type_title,
+       et.duration as event_type_duration
        FROM bookings b
        LEFT JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
        LEFT JOIN users u ON b.user_id = u.id
+       LEFT JOIN event_types et ON b.event_type_id = et.id
        WHERE b.manage_token = $1`,
       [token]
     );
 
     if (result.rows.length === 0) {
+      console.log('Booking not found for manage token:', token);
       return res.status(404).json({ error: 'Booking not found' });
     }
 
@@ -794,9 +799,18 @@ router.get('/manage/:token', async (req, res) => {
     const bookingTime = new Date(booking.start_time);
     const canModify = bookingTime > now && booking.status === 'confirmed';
 
+    // Get organizer info from either team member or user (for public bookings)
+    const organizerName = booking.organizer_name || booking.user_organizer_name || 'Host';
+    const organizerEmail = booking.organizer_email || booking.user_organizer_email;
+
+    // Calculate booking token for reschedule (team member token or public:username)
+    const rescheduleToken = booking.member_booking_token ||
+      (booking.user_username ? `public:${booking.user_username}:${booking.event_type_id}` : null);
+
     res.json({
       booking: {
         id: booking.id,
+        title: booking.title || booking.event_type_title || 'Meeting',
         attendee_name: booking.attendee_name,
         attendee_email: booking.attendee_email,
         start_time: booking.start_time,
@@ -804,13 +818,14 @@ router.get('/manage/:token', async (req, res) => {
         notes: booking.notes,
         status: booking.status,
         team_name: booking.team_name,
-        organizer_name: booking.organizer_name || booking.user_organizer_name,
-        organizer_email: booking.organizer_email || booking.user_organizer_email,
-        member_booking_token: booking.member_booking_token,
+        organizer_name: organizerName,
+        organizer_email: organizerEmail,
+        member_booking_token: rescheduleToken,
         meet_link: booking.meet_link,
         calendar_event_id: booking.calendar_event_id,
         can_modify: canModify,
-        is_past: bookingTime < now
+        is_past: bookingTime < now,
+        duration: booking.event_type_duration || booking.duration
       }
     });
   } catch (error) {
@@ -831,13 +846,16 @@ router.post('/manage/:token/reschedule', async (req, res) => {
       return res.status(400).json({ error: 'New start and end times are required' });
     }
 
-    // Get booking by token
+    // Get booking by token - use LEFT JOIN to support both team and public bookings
     const bookingCheck = await pool.query(
-      `SELECT b.*, b.meet_link, b.calendar_event_id, t.owner_id, tm.user_id as member_user_id, tm.name as member_name,
-              tm.email as member_email, t.name as team_name
+      `SELECT b.*, b.meet_link, b.calendar_event_id,
+              t.owner_id, t.name as team_name,
+              tm.user_id as member_user_id, tm.name as member_name, tm.email as member_email,
+              u.id as host_user_id, u.name as host_name, u.email as host_email
        FROM bookings b
-       JOIN teams t ON b.team_id = t.id
+       LEFT JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN users u ON b.user_id = u.id
        WHERE b.manage_token = $1 AND b.status = 'confirmed'`,
       [token]
     );
@@ -873,6 +891,11 @@ router.post('/manage/:token/reschedule', async (req, res) => {
 
     console.log('Booking rescheduled successfully');
 
+    // Get organizer info from either team member or user (for public bookings)
+    const organizerName = booking.member_name || booking.host_name || 'Host';
+    const organizerEmail = booking.member_email || booking.host_email;
+    const organizerUserId = booking.member_user_id || booking.host_user_id;
+
     // Send reschedule emails using templates
     try {
       const icsFile = generateICS({
@@ -881,16 +904,16 @@ router.post('/manage/:token/reschedule', async (req, res) => {
         end_time: updatedBooking.end_time,
         attendee_name: booking.attendee_name,
         attendee_email: booking.attendee_email,
-        organizer_name: booking.member_name,
-        organizer_email: booking.member_email,
-        team_name: booking.team_name,
+        organizer_name: organizerName,
+        organizer_email: organizerEmail,
+        team_name: booking.team_name || `${organizerName}'s Events`,
         notes: booking.notes,
       });
 
       const manageUrl = `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/manage/${token}`;
       const rescheduleVars = buildEmailVariables(updatedBooking, {
-        name: booking.member_name,
-        email: booking.member_email
+        name: organizerName,
+        email: organizerEmail
       }, {
         guestName: booking.attendee_name,
         guestEmail: booking.attendee_email,
@@ -901,15 +924,15 @@ router.post('/manage/:token/reschedule', async (req, res) => {
       });
 
       // Email to guest
-      await sendTemplatedEmail(booking.attendee_email, booking.member_user_id, 'reschedule', rescheduleVars, {
+      await sendTemplatedEmail(booking.attendee_email, organizerUserId, 'reschedule', rescheduleVars, {
         attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsFile).toString('base64') }]
       });
 
       // Email to organizer
-      if (booking.member_email) {
-        await sendTemplatedEmail(booking.member_email, booking.member_user_id, 'reschedule', {
+      if (organizerEmail) {
+        await sendTemplatedEmail(organizerEmail, organizerUserId, 'reschedule', {
           ...rescheduleVars,
-          guestName: booking.member_name,
+          guestName: organizerName,
         }, {
           attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsFile).toString('base64') }]
         });
@@ -925,7 +948,7 @@ router.post('/manage/:token/reschedule', async (req, res) => {
       booking: {
         ...updatedBooking,
         team_name: booking.team_name,
-        organizer_name: booking.member_name,
+        organizer_name: organizerName,
       },
       message: 'Booking rescheduled successfully'
     });
@@ -944,13 +967,17 @@ router.post('/manage/:token/cancel', async (req, res) => {
 
     console.log('Canceling booking via token:', token);
 
-    // Get booking by token
+    // Get booking by token - use LEFT JOIN to support both team and public bookings
     const bookingCheck = await pool.query(
-      `SELECT b.*, b.meet_link, b.calendar_event_id, t.owner_id, tm.user_id as member_user_id, tm.name as member_name,
-              tm.email as member_email, t.name as team_name, tm.booking_token as member_booking_token
+      `SELECT b.*, b.meet_link, b.calendar_event_id,
+              t.owner_id, t.name as team_name,
+              tm.user_id as member_user_id, tm.name as member_name, tm.email as member_email,
+              tm.booking_token as member_booking_token,
+              u.id as host_user_id, u.name as host_name, u.email as host_email, u.username as host_username
        FROM bookings b
-       JOIN teams t ON b.team_id = t.id
+       LEFT JOIN teams t ON b.team_id = t.id
        LEFT JOIN team_members tm ON b.member_id = tm.id
+       LEFT JOIN users u ON b.user_id = u.id
        WHERE b.manage_token = $1 AND b.status = 'confirmed'`,
       [token]
     );
@@ -961,43 +988,51 @@ router.post('/manage/:token/cancel', async (req, res) => {
 
     const booking = bookingCheck.rows[0];
 
-    // Update booking status
+    // Get organizer info from either team member or user (for public bookings)
+    const organizerName = booking.member_name || booking.host_name || 'Host';
+    const organizerEmail = booking.member_email || booking.host_email;
+    const organizerUserId = booking.member_user_id || booking.host_user_id;
+    const bookingToken = booking.member_booking_token || (booking.host_username ? `public:${booking.host_username}` : '');
+
+    // Update booking status with cancellation details
     await pool.query(
       `UPDATE bookings
        SET status = 'cancelled',
-           notes = COALESCE(notes, '') || E'\n\nCancellation reason: ' || COALESCE($1, 'No reason provided'),
+           cancellation_reason = $1,
+           cancelled_at = NOW(),
+           cancelled_by = 'guest',
            updated_at = NOW()
        WHERE manage_token = $2`,
-      [reason, token]
+      [reason || 'No reason provided', token]
     );
 
     console.log('Booking cancelled successfully');
 
     // Notify organizer
-    if (booking.member_user_id) {
-      await notifyBookingCancelled(booking, booking.member_user_id);
+    if (organizerUserId) {
+      await notifyBookingCancelled(booking, organizerUserId);
     }
 
     // Send cancellation emails using templates
     try {
       const cancellationVars = buildEmailVariables(booking, {
-        name: booking.member_name,
-        email: booking.member_email
+        name: organizerName,
+        email: organizerEmail
       }, {
         guestName: booking.attendee_name,
         guestEmail: booking.attendee_email,
         cancellationReason: reason ? `Reason: ${reason}` : '',
-        bookingLink: `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/book/${booking.member_booking_token || ''}`
+        bookingLink: `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/book/${bookingToken}`
       });
 
       // Email to guest
-      await sendTemplatedEmail(booking.attendee_email, booking.member_user_id, 'cancellation', cancellationVars);
+      await sendTemplatedEmail(booking.attendee_email, organizerUserId, 'cancellation', cancellationVars);
 
       // Email to organizer
-      if (booking.member_email) {
-        await sendTemplatedEmail(booking.member_email, booking.member_user_id, 'cancellation', {
+      if (organizerEmail) {
+        await sendTemplatedEmail(organizerEmail, organizerUserId, 'cancellation', {
           ...cancellationVars,
-          guestName: booking.member_name,
+          guestName: organizerName,
         });
       }
 

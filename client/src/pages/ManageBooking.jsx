@@ -1,6 +1,6 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
+import {
   Calendar,
   User,
   Mail,
@@ -12,12 +12,14 @@ import {
   Clock,
   AlertCircle
 } from 'lucide-react';
+import { bookings } from '../utils/api';
 
 export default function ManageBooking() {
   const { token } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(null);
+  const [error, setError] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -28,14 +30,13 @@ export default function ManageBooking() {
 
   const loadBooking = async () => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/bookings/manage/${token}`
-      );
-      const data = await response.json();
-      console.log('📋 Booking data loaded:', data);
-      setBooking(data.booking);
-    } catch (error) {
-      console.error('Error loading booking:', error);
+      setError(null);
+      const response = await bookings.getManagementDetails(token);
+      console.log('📋 Booking data loaded:', response.data);
+      setBooking(response.data.booking);
+    } catch (err) {
+      console.error('Error loading booking:', err);
+      setError(err.response?.data?.error || 'Failed to load booking');
     } finally {
       setLoading(false);
     }
@@ -44,21 +45,12 @@ export default function ManageBooking() {
   const handleCancel = async () => {
     try {
       setProcessing(true);
-      await fetch(
-        `${import.meta.env.VITE_API_URL}/api/bookings/manage/${token}/cancel`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ reason: cancelReason || 'Cancelled by guest' }),
-        }
-      );
+      await bookings.cancelByToken(token, cancelReason || 'Cancelled by guest');
       setShowCancelConfirm(false);
       await loadBooking();
-    } catch (error) {
-      console.error('Error cancelling booking:', error);
-      alert('Failed to cancel booking. Please try again.');
+    } catch (err) {
+      console.error('Error cancelling booking:', err);
+      alert(err.response?.data?.error || 'Failed to cancel booking. Please try again.');
     } finally {
       setProcessing(false);
     }
@@ -112,7 +104,7 @@ export default function ManageBooking() {
     );
   }
 
-  if (!booking) {
+  if (error || !booking) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl shadow-2xl p-12 text-center max-w-md border-2 border-gray-100">
@@ -123,7 +115,7 @@ export default function ManageBooking() {
             Booking Not Found
           </h2>
           <p className="text-gray-600 mb-6">
-            This booking link is invalid or has expired. Please check your email for the correct link or contact the organizer.
+            {error || 'This booking link is invalid or has expired. Please check your email for the correct link or contact the organizer.'}
           </p>
           <p className="text-sm text-gray-400">
             You can safely close this page.

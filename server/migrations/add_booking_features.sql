@@ -19,6 +19,13 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS additional_guests JSONB DEFAULT '[
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS custom_answers JSONB DEFAULT '{}';
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_timezone TEXT;
 
+-- Booking cancellation tracking
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancellation_reason TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled_by TEXT; -- 'guest' or 'host'
+
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_bookings_additional_guests ON bookings USING gin(additional_guests);
 CREATE INDEX IF NOT EXISTS idx_event_types_custom_questions ON event_types USING gin(custom_questions);
+CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
+CREATE INDEX IF NOT EXISTS idx_bookings_manage_token ON bookings(manage_token);
