@@ -103,6 +103,68 @@ router.get('/autonomous', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/user/limits - Get user's plan limits and usage
+router.get('/limits', authenticateToken, async (req, res) => {
+  try {
+    const user = await pool.query(
+      'SELECT subscription_tier FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    const tier = user.rows[0]?.subscription_tier || 'free';
+
+    const planLimits = {
+      free: { ai_queries: 10, bookings: 50, event_types: 2, quick_links: 3 },
+      starter: { ai_queries: 50, bookings: 200, event_types: 5, quick_links: 10 },
+      pro: { ai_queries: 250, bookings: Infinity, event_types: Infinity, quick_links: Infinity },
+      team: { ai_queries: 750, bookings: Infinity, event_types: Infinity, quick_links: Infinity },
+      enterprise: { ai_queries: Infinity, bookings: Infinity, event_types: Infinity, quick_links: Infinity }
+    };
+
+    // Get current usage
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const usage = await pool.query(`
+      SELECT
+        (SELECT COUNT(*) FROM ai_queries WHERE user_id = $1 AND created_at >= $2) as ai_used,
+        (SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND created_at >= $2) as bookings_used,
+        (SELECT COUNT(*) FROM event_types WHERE user_id = $1) as event_types_count,
+        (SELECT COUNT(*) FROM quick_links WHERE user_id = $1 AND created_at >= $2) as quick_links_used
+    `, [req.user.id, startOfMonth]);
+
+    const u = usage.rows[0] || {};
+    const limits = planLimits[tier] || planLimits.free;
+
+    res.json({
+      tier,
+      limits,
+      usage: {
+        ai_queries: parseInt(u.ai_used) || 0,
+        bookings: parseInt(u.bookings_used) || 0,
+        event_types: parseInt(u.event_types_count) || 0,
+        quick_links: parseInt(u.quick_links_used) || 0
+      }
+    });
+  } catch (error) {
+    console.error('Get limits error:', error);
+    res.status(500).json({ error: 'Failed to get limits' });
+  }
+});
+
+// GET /api/user/jwt-token - Get current JWT token
+router.get('/jwt-token', authenticateToken, async (req, res) => {
+  try {
+    // Return the token from the request header (it's already valid since authenticateToken passed)
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    res.json({ token });
+  } catch (error) {
+    console.error('Get JWT token error:', error);
+    res.status(500).json({ error: 'Failed to get token' });
+  }
+});
+
 // PUT /api/autonomous-settings - Update autonomous mode settings
 router.put('/autonomous', authenticateToken, async (req, res) => {
   try {
