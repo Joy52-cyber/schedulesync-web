@@ -1,4 +1,5 @@
 ﻿import { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useUpgrade } from '../context/UpgradeContext';
 import {
   Sparkles,
@@ -27,15 +28,21 @@ import api from '../utils/api';
 export default function AISchedulerChat() {
   console.log('🔥 AISchedulerChat component is rendering!');
 
+  // Get current page location for context-aware suggestions
+  const location = useLocation();
+
   // Use global UpgradeContext - this syncs with Dashboard
-  const { 
-    currentTier, 
-    hasProFeature, 
-    hasTeamFeature, 
+  const {
+    currentTier,
+    hasProFeature,
+    hasTeamFeature,
     loading: tierLoading,
     refreshUsage,
     usage: globalUsage
   } = useUpgrade();
+
+  // User name for personalized greeting
+  const [userName, setUserName] = useState('');
 
   // Derive usage from global context (syncs with Dashboard automatically)
   const usage = {
@@ -70,23 +77,100 @@ export default function AISchedulerChat() {
     return found ? found.label : tz;
   };
 
-  const getGreetingMessage = () => {
+  // Page context-aware suggestions
+  const getPageContextSuggestions = () => {
+    const path = location.pathname;
+
+    if (path === '/dashboard' || path === '/') {
+      return [
+        { action: 'link', label: 'Booking Link', icon: Link, color: 'purple' },
+        { action: 'upcoming', label: 'Upcoming', icon: Calendar, color: 'blue' },
+        { action: 'timezone', label: 'Timezone', icon: Globe, color: 'green' },
+        ...(hasProFeature() ? [{ action: 'quick', label: 'Quick Link', icon: Sparkles, color: 'pink' }] : []),
+        ...(hasTeamFeature() ? [{ action: 'teams', label: 'Team Links', icon: Users, color: 'orange' }] : [])
+      ];
+    }
+
+    if (path === '/links' || path === '/my-links') {
+      return [
+        { action: 'link', label: 'Copy my link', icon: Link, color: 'purple' },
+        ...(hasProFeature() ? [{ action: 'quick', label: 'Create Quick Link', icon: Sparkles, color: 'pink' }] : []),
+        { action: 'share', label: 'Share tips', icon: Send, color: 'blue' }
+      ];
+    }
+
+    if (path === '/schedule' || path === '/calendar') {
+      return [
+        { action: 'upcoming', label: 'Upcoming', icon: Calendar, color: 'blue' },
+        { action: 'book', label: 'Book meeting', icon: Calendar, color: 'green' },
+        { action: 'availability', label: 'My availability', icon: Clock, color: 'purple' }
+      ];
+    }
+
+    if (path === '/settings') {
+      return [
+        { action: 'timezone', label: 'Timezone', icon: Globe, color: 'green' },
+        { action: 'availability', label: 'Availability', icon: Clock, color: 'blue' },
+        { action: 'link', label: 'Booking Link', icon: Link, color: 'purple' }
+      ];
+    }
+
+    if (path === '/rules' || path === '/smart-rules') {
+      return [
+        { action: 'create_rule', label: 'Create rule', icon: Sparkles, color: 'purple' },
+        { action: 'rules_help', label: 'How rules work', icon: FileText, color: 'blue' }
+      ];
+    }
+
+    if (path === '/email-analyzer') {
+      return [
+        { action: 'email_help', label: 'How it works', icon: Mail, color: 'blue' },
+        { action: 'link', label: 'My booking link', icon: Link, color: 'purple' }
+      ];
+    }
+
+    if (path === '/teams' || path.startsWith('/team')) {
+      return [
+        { action: 'teams', label: 'Team Links', icon: Users, color: 'orange' },
+        { action: 'team_help', label: 'Team features', icon: FileText, color: 'blue' }
+      ];
+    }
+
+    if (path === '/billing') {
+      return [
+        { action: 'plan_info', label: 'Compare plans', icon: FileText, color: 'purple' },
+        { action: 'link', label: 'Booking Link', icon: Link, color: 'blue' }
+      ];
+    }
+
+    // Default suggestions
+    return [
+      { action: 'link', label: 'Booking Link', icon: Link, color: 'purple' },
+      { action: 'upcoming', label: 'Upcoming', icon: Calendar, color: 'blue' },
+      { action: 'timezone', label: 'Timezone', icon: Globe, color: 'green' }
+    ];
+  };
+
+  const getGreetingMessage = (name = '') => {
     const hour = new Date().getHours();
     let timeGreeting = "Hi";
     if (hour < 12) timeGreeting = "Good morning";
     else if (hour < 17) timeGreeting = "Good afternoon";
     else timeGreeting = "Good evening";
 
-    return `${timeGreeting}! 👋 I'm your scheduling assistant.
+    const firstName = name ? name.split(' ')[0] : '';
+    const greeting = firstName ? `${timeGreeting}, ${firstName}` : timeGreeting;
+
+    return `${greeting}! 👋 I'm your scheduling assistant.
 
 I can help you book meetings, share your links, check your schedule, and more.
 
 What would you like to do?`;
   };
 
-  const createGreeting = () => ({
+  const createGreeting = (name = '') => ({
     role: 'assistant',
-    content: getGreetingMessage(),
+    content: getGreetingMessage(name || userName),
     timestamp: new Date(),
     isGreeting: true
   });
@@ -125,6 +209,7 @@ What would you like to do?`;
   });
 
   const [loading, setLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const [pendingBooking, setPendingBooking] = useState(() => {
     const saved = localStorage.getItem('aiChat_pendingBooking');
     return saved ? JSON.parse(saved) : null;
@@ -154,6 +239,22 @@ What would you like to do?`;
       setCurrentTimezone(tz);
     } catch (error) {
       console.error('Failed to fetch timezone:', error);
+    }
+  };
+
+  const fetchUserName = async () => {
+    try {
+      const response = await api.get('/auth/me');
+      if (response.data?.name) {
+        setUserName(response.data.name);
+        // Update greeting if chat just started
+        if (chatHistory.length <= 1 && chatHistory[0]?.isGreeting) {
+          const newGreeting = createGreeting(response.data.name);
+          setChatHistory([newGreeting]);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch user name:', error);
     }
   };
 
@@ -194,7 +295,16 @@ What would you like to do?`;
       'quick': 'Create a quick link',
       'upcoming': 'Show my upcoming meetings',
       'timezone': 'Change my timezone',
-      'teams': 'Show my team links'
+      'teams': 'Show my team links',
+      'share': 'How should I share my booking link?',
+      'book': 'Help me book a meeting',
+      'availability': 'What is my current availability?',
+      'create_rule': 'Help me create a smart rule',
+      'rules_help': 'How do smart rules work?',
+      'email_help': 'How does the email analyzer work?',
+      'team_help': 'What can I do with teams?',
+      'plan_info': 'Compare the different plans',
+      'analytics': 'Show my booking analytics'
     };
     setMessage(actions[action] || '');
   };
@@ -240,6 +350,7 @@ What would you like to do?`;
       // Refresh global usage when chat opens
       if (refreshUsage) refreshUsage();
       fetchTimezone();
+      fetchUserName();
     }
   }, [isOpen]);
 
@@ -349,6 +460,7 @@ What would you like to do?`;
     setChatHistory(prev => [...prev, { role: 'user', content: userMessage, timestamp: new Date() }]);
 
     setLoading(true);
+    setIsTyping(true);
     try {
       let contextMessage = userMessage;
       if (pendingBooking) {
@@ -395,6 +507,7 @@ What would you like to do?`;
       setChatHistory(prev => [...prev, { role: 'assistant', content: fallbackResponse, timestamp: new Date() }]);
     } finally {
       setLoading(false);
+      setIsTyping(false);
     }
   };
 
@@ -611,30 +724,26 @@ What would you like to do?`;
 
               {chatHistory.length <= 1 && (isUnlimited || usage.ai_queries_used < usage.ai_queries_limit) && (
                 <div className="grid grid-cols-2 gap-2 mt-2">
-                  <button onClick={() => handleQuickAction('link')} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left">
-                    <Link className="h-4 w-4 text-purple-600" />
-                    <span className="text-sm font-medium">Booking Link</span>
-                  </button>
-                  <button onClick={() => handleQuickAction('upcoming')} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left">
-                    <Calendar className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-medium">Upcoming</span>
-                  </button>
-                  <button onClick={() => handleQuickAction('timezone')} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left">
-                    <Globe className="h-4 w-4 text-green-600" />
-                    <span className="text-sm font-medium">Timezone</span>
-                  </button>
-                  {hasProFeature() && (
-                    <button onClick={() => handleQuickAction('quick')} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left">
-                      <Sparkles className="h-4 w-4 text-pink-600" />
-                      <span className="text-sm font-medium">Quick Link</span>
-                    </button>
-                  )}
-                  {hasTeamFeature() && (
-                    <button onClick={() => handleQuickAction('teams')} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left">
-                      <Users className="h-4 w-4 text-orange-600" />
-                      <span className="text-sm font-medium">Team Links</span>
-                    </button>
-                  )}
+                  {getPageContextSuggestions().slice(0, 4).map((suggestion, index) => {
+                    const IconComponent = suggestion.icon;
+                    const colorClasses = {
+                      purple: 'text-purple-600',
+                      blue: 'text-blue-600',
+                      green: 'text-green-600',
+                      pink: 'text-pink-600',
+                      orange: 'text-orange-600'
+                    };
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => handleQuickAction(suggestion.action)}
+                        className="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-left"
+                      >
+                        <IconComponent className={`h-4 w-4 ${colorClasses[suggestion.color] || 'text-purple-600'}`} />
+                        <span className="text-sm font-medium">{suggestion.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -657,11 +766,15 @@ What would you like to do?`;
                 </div>
               ))}
 
-              {loading && (
+              {(loading || isTyping) && (
                 <div className="flex justify-start">
                   <div className="bg-white rounded-2xl px-4 py-3 border border-gray-200 shadow-sm flex items-center gap-2">
-                    <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
-                    <span className="text-sm text-gray-500">Thinking...</span>
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                    <span className="text-sm text-gray-500 ml-1">Typing...</span>
                   </div>
                 </div>
               )}

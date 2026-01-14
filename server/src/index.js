@@ -49,9 +49,11 @@ console.log('  - /api/auth/*');
 console.log('  - /api/teams/*');
 console.log('  - /api/bookings/*');
 console.log('  - /api/book/:token');
+console.log('  - /api/chatgpt/book-meeting (with Smart Rules)');
+console.log('  - /api/public/booking/create (with Smart Rules)');
 console.log('  - /api/availability/*');
 console.log('  - /api/dashboard/*');
-console.log('  - /api/ai/*');
+console.log('  - /api/ai/* (with Smart Rules)');
 console.log('  - /api/my-booking-link ✨');
 
 // Serve static files in production
