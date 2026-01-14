@@ -44,11 +44,14 @@ const settingsRoutes = require('../routes/settings');
 const adminRoutes = require('../routes/admin');
 const rulesRoutes = require('../routes/rules');
 const preferencesRoutes = require('../routes/preferences');
+const calendarRoutes = require('../routes/calendar');
+const publicRoutes = require('../routes/public');
 
 // Register core routes
 app.use('/api/auth', authRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/public', publicRoutes);  // Public booking pages - must be before /api catch-all
 app.use('/api', bookingRoutes);
 app.use('/api/availability', availabilityRoutes);
 app.use('/api/dashboard', dashboardRoutes);
@@ -70,6 +73,8 @@ app.use('/api/scheduling-rules', rulesRoutes);
 app.use('/api/preferences', preferencesRoutes);
 app.use('/api/reschedule-suggestions', preferencesRoutes);  // Reschedule suggestions share preferences router
 app.use('/api/check-conflicts', preferencesRoutes);  // Conflict check shares preferences router
+app.use('/api/calendar', calendarRoutes);  // Calendar status
+app.use('/api/auth', calendarRoutes);  // Google/Microsoft OAuth (shares with auth routes)
 
 console.log('Routes registered:');
 console.log('  - /api/auth/*');
@@ -87,6 +92,8 @@ console.log('  - /api/settings/*');
 console.log('  - /api/admin/*');
 console.log('  - /api/scheduling-rules/*');
 console.log('  - /api/preferences/*');
+console.log('  - /api/calendar/*');
+console.log('  - /api/public/*');
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
