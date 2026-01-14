@@ -131,7 +131,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET booking availability
+// GET booking availability (legacy)
 router.get('/book/:token/availability', async (req, res) => {
   const client = await pool.connect();
   try {
@@ -145,6 +145,192 @@ router.get('/book/:token/availability', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch availability' });
   } finally {
     client.release();
+  }
+});
+
+// POST /book/:token/slots-with-status - Get available slots with status info
+router.post('/book/:token/slots-with-status', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { duration = 30, timezone = 'UTC' } = req.body;
+
+    console.log('📅 Fetching slots for token:', token);
+
+    // Check if this is a public event type booking (format: public:username:eventSlug)
+    if (token.startsWith('public:')) {
+      const parts = token.split(':');
+      if (parts.length !== 3) {
+        return res.status(400).json({ error: 'Invalid public booking token format' });
+      }
+
+      const [, username, eventSlug] = parts;
+      console.log('📅 Public booking slots for:', username, eventSlug);
+
+      // Find user by username
+      const userResult = await pool.query(
+        `SELECT id, name, email, google_access_token, google_refresh_token,
+                microsoft_access_token, microsoft_refresh_token, provider
+         FROM users
+         WHERE LOWER(username) = LOWER($1)
+            OR LOWER(email) LIKE LOWER($2)
+         LIMIT 1`,
+        [username, `${username}%`]
+      );
+
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const host = userResult.rows[0];
+
+      // Find event type
+      const eventResult = await pool.query(
+        `SELECT id, duration, buffer_before, buffer_after, min_notice_hours, max_days_ahead
+         FROM event_types
+         WHERE user_id = $1
+           AND LOWER(slug) = LOWER($2)
+           AND is_active = true`,
+        [host.id, eventSlug]
+      );
+
+      if (eventResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Event type not found' });
+      }
+
+      const eventType = eventResult.rows[0];
+      const eventDuration = eventType.duration || duration;
+      const bufferBefore = eventType.buffer_before || 0;
+      const bufferAfter = eventType.buffer_after || 0;
+      const minNoticeHours = eventType.min_notice_hours || 1;
+      const maxDaysAhead = eventType.max_days_ahead || 60;
+
+      // Generate slots for the next maxDaysAhead days
+      const slots = {};
+      const now = new Date();
+      const earliestAllowedTime = new Date(now.getTime() + minNoticeHours * 60 * 60 * 1000);
+
+      for (let dayOffset = 0; dayOffset < Math.min(maxDaysAhead, 30); dayOffset++) {
+        const date = new Date(now);
+        date.setDate(date.getDate() + dayOffset);
+        date.setHours(0, 0, 0, 0);
+
+        const dateKey = date.toISOString().split('T')[0];
+        const daySlots = [];
+
+        // Get existing bookings for this day
+        const startOfDay = new Date(date);
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const bookingsResult = await pool.query(
+          `SELECT start_time, end_time
+           FROM bookings
+           WHERE host_user_id = $1
+             AND event_type_id = $2
+             AND status != 'cancelled'
+             AND start_time >= $3
+             AND start_time < $4`,
+          [host.id, eventType.id, startOfDay.toISOString(), endOfDay.toISOString()]
+        );
+
+        const existingBookings = bookingsResult.rows;
+
+        // Generate slots for working hours (9 AM - 5 PM)
+        const startHour = 9;
+        const endHour = 17;
+        const slotInterval = Math.min(eventDuration, 60);
+
+        for (let hour = startHour; hour < endHour; hour++) {
+          for (let minute = 0; minute < 60; minute += slotInterval) {
+            const slotStart = new Date(date);
+            slotStart.setHours(hour, minute, 0, 0);
+
+            const slotEnd = new Date(slotStart.getTime() + eventDuration * 60000);
+
+            // Skip if slot ends after working hours
+            if (slotEnd.getHours() >= endHour && slotEnd.getMinutes() > 0) continue;
+            if (slotEnd.getHours() > endHour) continue;
+
+            // Check min notice
+            if (slotStart < earliestAllowedTime) {
+              daySlots.push({
+                start: slotStart.toISOString(),
+                end: slotEnd.toISOString(),
+                time: slotStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+                status: 'unavailable',
+                reason: 'lead_time'
+              });
+              continue;
+            }
+
+            // Check for conflicts with existing bookings
+            let hasConflict = false;
+            for (const booking of existingBookings) {
+              const bookingStart = new Date(booking.start_time);
+              const bookingEnd = new Date(booking.end_time);
+
+              const slotStartWithBuffer = new Date(slotStart.getTime() - bufferBefore * 60000);
+              const slotEndWithBuffer = new Date(slotEnd.getTime() + bufferAfter * 60000);
+
+              if (slotStartWithBuffer < bookingEnd && slotEndWithBuffer > bookingStart) {
+                hasConflict = true;
+                break;
+              }
+            }
+
+            if (hasConflict) {
+              daySlots.push({
+                start: slotStart.toISOString(),
+                end: slotEnd.toISOString(),
+                time: slotStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+                status: 'unavailable',
+                reason: 'organizer_busy'
+              });
+            } else {
+              daySlots.push({
+                start: slotStart.toISOString(),
+                end: slotEnd.toISOString(),
+                time: slotStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+                status: 'available',
+                matchScore: 80,
+                matchColor: 'green',
+                matchLabel: 'Available'
+              });
+            }
+          }
+        }
+
+        if (daySlots.length > 0) {
+          slots[dateKey] = daySlots;
+        }
+      }
+
+      const availableCount = Object.values(slots).flat().filter(s => s.status === 'available').length;
+
+      return res.json({
+        slots,
+        summary: {
+          availableSlots: availableCount,
+          settings: {
+            horizonDays: maxDaysAhead
+          }
+        }
+      });
+    }
+
+    // For non-public tokens, return empty for now (would need team member logic)
+    console.log('⚠️ Non-public token, returning empty slots');
+    res.json({
+      slots: {},
+      summary: {
+        availableSlots: 0,
+        settings: { horizonDays: 30 }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching slots:', error);
+    res.status(500).json({ error: 'Failed to fetch available slots' });
   }
 });
 
