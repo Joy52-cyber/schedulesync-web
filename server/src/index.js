@@ -25,16 +25,27 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API Routes - FIXED PATHS
+// API Routes - Core
 const authRoutes = require('../routes/auth');
 const teamRoutes = require('../routes/teams');
 const bookingRoutes = require('../routes/bookings');
 const availabilityRoutes = require('../routes/availability');
 const dashboardRoutes = require('../routes/dashboard');
 const aiRoutes = require('../routes/ai');
-const bookingLinksRoutes = require('../routes/bookingLinks');  // ← Fixed
+const bookingLinksRoutes = require('../routes/bookingLinks');
 
-// Register routes
+// API Routes - New Modular Routes
+const eventTypesRoutes = require('../routes/eventTypes');
+const quickLinksRoutes = require('../routes/quickLinks');
+const templatesRoutes = require('../routes/templates');
+const billingRoutes = require('../routes/billing');
+const webhooksRoutes = require('../routes/webhooks');
+const settingsRoutes = require('../routes/settings');
+const adminRoutes = require('../routes/admin');
+const rulesRoutes = require('../routes/rules');
+const preferencesRoutes = require('../routes/preferences');
+
+// Register core routes
 app.use('/api/auth', authRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/bookings', bookingRoutes);
@@ -44,17 +55,38 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api', bookingLinksRoutes);
 
-console.log('✅ Routes registered:');
+// Register new modular routes
+app.use('/api/event-types', eventTypesRoutes);
+app.use('/api/magic-links', quickLinksRoutes);
+app.use('/api/single-use-links', quickLinksRoutes);  // Single-use links share quickLinks router
+app.use('/api/email-templates', templatesRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/webhooks', webhooksRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/user', settingsRoutes);  // User settings share settings router
+app.use('/api/autonomous-settings', settingsRoutes);  // Autonomous settings
+app.use('/api/admin', adminRoutes);
+app.use('/api/scheduling-rules', rulesRoutes);
+app.use('/api/preferences', preferencesRoutes);
+app.use('/api/reschedule-suggestions', preferencesRoutes);  // Reschedule suggestions share preferences router
+app.use('/api/check-conflicts', preferencesRoutes);  // Conflict check shares preferences router
+
+console.log('Routes registered:');
 console.log('  - /api/auth/*');
 console.log('  - /api/teams/*');
 console.log('  - /api/bookings/*');
-console.log('  - /api/book/:token');
-console.log('  - /api/chatgpt/book-meeting (with Smart Rules)');
-console.log('  - /api/public/booking/create (with Smart Rules)');
 console.log('  - /api/availability/*');
 console.log('  - /api/dashboard/*');
-console.log('  - /api/ai/* (with Smart Rules)');
-console.log('  - /api/my-booking-link ✨');
+console.log('  - /api/ai/*');
+console.log('  - /api/event-types/*');
+console.log('  - /api/magic-links/*');
+console.log('  - /api/email-templates/*');
+console.log('  - /api/billing/*');
+console.log('  - /api/webhooks/*');
+console.log('  - /api/settings/*');
+console.log('  - /api/admin/*');
+console.log('  - /api/scheduling-rules/*');
+console.log('  - /api/preferences/*');
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {

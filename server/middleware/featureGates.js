@@ -1,6 +1,6 @@
 ﻿// server/middleware/featureGates.js
  
-const pool = require('../../db/pool');
+const pool = require('../config/database');
 
 // ============================================
 // PLAN LIMITS CONFIGURATION
