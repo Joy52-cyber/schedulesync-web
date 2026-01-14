@@ -52,6 +52,7 @@ const paymentsRoutes = require('../routes/payments');
 const invitationsRoutes = require('../routes/invitations');
 const teamMembersRoutes = require('../routes/team-members');
 const inboxRoutes = require('../routes/inbox');
+const subscriptionRoutes = require('../routes/subscription');
 
 // Register core routes
 app.use('/api/auth', authRoutes);
@@ -74,6 +75,7 @@ app.use('/api/subscriptions', billingRoutes);  // Subscriptions share billing ro
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/user', settingsRoutes);  // User settings share settings router
+app.use('/api/user', subscriptionRoutes);  // User subscription routes
 app.use('/api/autonomous-settings', settingsRoutes);  // Autonomous settings
 app.use('/api/admin', adminRoutes);
 app.use('/api/scheduling-rules', rulesRoutes);
