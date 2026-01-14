@@ -26,7 +26,6 @@ import api, {
   timezone as timezoneApi,
   chatgptIntegration,
 } from '../utils/api';
-import AISchedulerChat from '../components/AISchedulerChat';
 import PreferencesInsights from '../components/PreferencesInsights';
 import RescheduleSuggestions from '../components/RescheduleSuggestions';
 import { useNotification } from '../contexts/NotificationContext';
@@ -744,8 +743,6 @@ export default function Dashboard() {
         onClose={() => setShowUpgradeModal(false)}
         currentTier={currentTier}
       />
-
-      <AISchedulerChat />
     </div>
   );
 }

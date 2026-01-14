@@ -20,6 +20,7 @@ import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { NotificationBell } from "../contexts/NotificationContext";
 import { useUpgrade } from "../context/UpgradeContext";
+import AISchedulerChat from "./AISchedulerChat";
 
 export default function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -336,6 +337,9 @@ export default function Layout() {
       <main className="mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 max-w-[1600px]">
         <Outlet />
       </main>
+
+      {/* AI Assistant - Available on all protected pages */}
+      <AISchedulerChat />
     </div>
   );
 }
