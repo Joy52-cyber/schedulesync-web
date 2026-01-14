@@ -49,6 +49,8 @@ const publicRoutes = require('../routes/public');
 const brandingRoutes = require('../routes/branding');
 const notificationsRoutes = require('../routes/notifications');
 const paymentsRoutes = require('../routes/payments');
+const invitationsRoutes = require('../routes/invitations');
+const teamMembersRoutes = require('../routes/team-members');
 
 // Register core routes
 app.use('/api/auth', authRoutes);
@@ -81,6 +83,8 @@ app.use('/api/auth', calendarRoutes);  // Google/Microsoft OAuth (shares with au
 app.use('/api/user/branding', brandingRoutes);  // User branding settings
 app.use('/api/notifications', notificationsRoutes);  // Notifications
 app.use('/api/payments', paymentsRoutes);  // Payment processing
+app.use('/api/invitations', invitationsRoutes);  // Team invitations
+app.use('/api/team-members', teamMembersRoutes);  // Team member availability
 
 console.log('Routes registered:');
 console.log('  - /api/auth/*');
@@ -103,6 +107,8 @@ console.log('  - /api/public/*');
 console.log('  - /api/user/branding/*');
 console.log('  - /api/notifications/*');
 console.log('  - /api/payments/*');
+console.log('  - /api/invitations/*');
+console.log('  - /api/team-members/*');
 
 // Serve uploaded files (logos)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
