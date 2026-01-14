@@ -108,8 +108,8 @@ router.post('/google', async (req, res) => {
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, email, name, subscription_tier, calendar_sync_enabled,
-              onboarding_completed, is_admin
+      `SELECT id, email, name, username, subscription_tier, calendar_sync_enabled,
+              onboarding_completed, is_admin, timezone
        FROM users WHERE id = $1`,
       [req.user.id]
     );
@@ -118,7 +118,7 @@ router.get('/me', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json(result.rows[0]);
+    res.json({ user: result.rows[0] });
   } catch (error) {
     console.error('Error fetching user:', error);
     res.status(500).json({ error: 'Failed to fetch user' });

@@ -114,7 +114,7 @@ export default function UserSettings() {
   const loadData = async () => {
     try {
       const userRes = await auth.me();
-      const userData = userRes.data.user;
+      const userData = userRes.data.user || userRes.data;
 
       setProfile({
         name: userData.name || '',
@@ -123,30 +123,37 @@ export default function UserSettings() {
         timezone: userData.timezone || 'America/New_York',
       });
 
-      const teamsRes = await api.get('/teams');
-      const personalTeam = teamsRes.data.teams.find((t) =>
-        t.name.includes('Personal Bookings')
-      );
-      
-      if (personalTeam) {
-        setPersonalTeamId(personalTeam.id);
+      // Teams API may return 403 for free users - handle gracefully
+      try {
+        const teamsRes = await api.get('/teams');
+        const teams = teamsRes.data?.teams || [];
+        const personalTeam = teams.find((t) =>
+          t.name?.includes('Personal Bookings')
+        );
 
-        try {
-          setRemindersLoading(true);
-          const remRes = await remindersApi.getSettings(personalTeam.id);
-          const s = remRes.data?.settings || remRes.data || {};
+        if (personalTeam) {
+          setPersonalTeamId(personalTeam.id);
 
-          setReminderSettings({
-            enabled: s.enabled ?? true,
-            hoursBefore: s.hours_before ?? 24,
-            sendToHost: s.send_to_host ?? true,
-            sendToGuest: s.send_to_guest ?? true,
-          });
-        } catch (err) {
-          console.error('Error loading reminder settings:', err);
-        } finally {
-          setRemindersLoading(false);
+          try {
+            setRemindersLoading(true);
+            const remRes = await remindersApi.getSettings(personalTeam.id);
+            const s = remRes.data?.settings || remRes.data || {};
+
+            setReminderSettings({
+              enabled: s.enabled ?? true,
+              hoursBefore: s.hours_before ?? 24,
+              sendToHost: s.send_to_host ?? true,
+              sendToGuest: s.send_to_guest ?? true,
+            });
+          } catch (err) {
+            console.error('Error loading reminder settings:', err);
+          } finally {
+            setRemindersLoading(false);
+          }
         }
+      } catch (teamsError) {
+        // Teams feature may not be available for this subscription tier
+        console.log('Teams not available:', teamsError.response?.status === 403 ? 'requires Team subscription' : teamsError.message);
       }
 
       await loadCalendarStatus();
