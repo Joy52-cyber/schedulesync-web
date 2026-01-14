@@ -1168,24 +1168,25 @@ await pool.query(`
 // DATABASE MIGRATIONS
 // ============================================
 
-// Event Types columns migra tion
+// Event Types columns migration
 async function migrateEventTypesColumns() {
   try {
-    console.log('?? Checking Event Types columns...');
-    
+    console.log('📋 Checking Event Types columns...');
+
     await pool.query(`
-      ALTER TABLE event_types 
+      ALTER TABLE event_types
       ADD COLUMN IF NOT EXISTS location VARCHAR(255),
       ADD COLUMN IF NOT EXISTS location_type VARCHAR(50) DEFAULT 'google_meet',
       ADD COLUMN IF NOT EXISTS buffer_before INTEGER DEFAULT 0,
       ADD COLUMN IF NOT EXISTS buffer_after INTEGER DEFAULT 0,
       ADD COLUMN IF NOT EXISTS max_bookings_per_day INTEGER,
-      ADD COLUMN IF NOT EXISTS require_approval BOOLEAN DEFAULT false
+      ADD COLUMN IF NOT EXISTS require_approval BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS slot_interval INTEGER DEFAULT NULL
     `);
-    
-    console.log('? Event Types columns updated');
+
+    console.log('✅ Event Types columns updated');
   } catch (error) {
-    console.error('? Event Types migration error:', error);
+    console.error('❌ Event Types migration error:', error);
   }
 }
 
@@ -1456,10 +1457,10 @@ app.get('/api/public/available-slots', async (req, res) => {
 
     // ========== FIND EVENT TYPE ==========
     const eventResult = await pool.query(
-      `SELECT id, duration, buffer_before, buffer_after, max_bookings_per_day 
-       FROM event_types 
-       WHERE user_id = $1 
-         AND LOWER(slug) = LOWER($2) 
+      `SELECT id, duration, buffer_before, buffer_after, max_bookings_per_day, slot_interval
+       FROM event_types
+       WHERE user_id = $1
+         AND LOWER(slug) = LOWER($2)
          AND is_active = true`,
       [host.id, event_slug]
     );
@@ -1472,8 +1473,10 @@ app.get('/api/public/available-slots', async (req, res) => {
     const duration = eventType.duration;
     const bufferBefore = eventType.buffer_before || 0;
     const bufferAfter = eventType.buffer_after || 0;
+    // Use slot_interval if set, otherwise use duration (capped at 60 min for cleaner display)
+    const slotInterval = eventType.slot_interval || Math.min(duration, 60);
 
-    console.log('? Event type found:', { duration, bufferBefore, bufferAfter });
+    console.log('📅 Event type found:', { duration, bufferBefore, bufferAfter, slotInterval });
 
     // ========== GET HOST'S CALENDAR EVENTS ==========
     let calendarEvents = [];
@@ -1566,10 +1569,9 @@ app.get('/api/public/available-slots', async (req, res) => {
     const slots = [];
     const startHour = 9;  // 9 AM
     const endHour = 17;   // 5 PM
-    const intervalMinutes = 30; // Generate slots every 30 minutes
 
     for (let hour = startHour; hour < endHour; hour++) {
-      for (let minute = 0; minute < 60; minute += intervalMinutes) {
+      for (let minute = 0; minute < 60; minute += slotInterval) {
         const slotStart = new Date(date);
         slotStart.setHours(hour, minute, 0, 0);
         
@@ -5329,12 +5331,12 @@ if (token && token.startsWith('public:')) {
   
     // In server.js, find the public booking section:
 } else {
-  // Generate slots for next 90 days  // ?? CHANGE
+  // Generate slots for next 14 days (user can navigate to see more)
   startDate = new Date();
   endDate = new Date();
-  endDate.setDate(endDate.getDate() + 90);  // ?? CHANGE
-  daysToGenerate = 90;  // ?? CHANGE
-  console.log(`?? Generating slots for next 90 days`);
+  endDate.setDate(endDate.getDate() + 14);
+  daysToGenerate = 14;
+  console.log(`📅 Generating slots for next 14 days`);
 }
 
   // Find user
@@ -5356,10 +5358,10 @@ if (token && token.startsWith('public:')) {
 
   // Find event type
   const eventResult = await pool.query(
-    `SELECT id, duration, buffer_before, buffer_after, max_bookings_per_day 
-     FROM event_types 
-     WHERE user_id = $1 
-       AND LOWER(slug) = LOWER($2) 
+    `SELECT id, duration, buffer_before, buffer_after, max_bookings_per_day, slot_interval
+     FROM event_types
+     WHERE user_id = $1
+       AND LOWER(slug) = LOWER($2)
        AND is_active = true`,
     [host.id, eventSlug]
   );
@@ -5372,8 +5374,10 @@ if (token && token.startsWith('public:')) {
   const eventDuration = eventType.duration;
   const bufferBefore = eventType.buffer_before || 0;
   const bufferAfter = eventType.buffer_after || 0;
+  // Use slot_interval if set, otherwise use duration (capped at 60 min for cleaner display)
+  const slotInterval = eventType.slot_interval || Math.min(eventDuration, 60);
 
-  console.log('? Public event type found:', { duration: eventDuration, bufferBefore, bufferAfter });
+  console.log('📅 Public event type found:', { duration: eventDuration, bufferBefore, bufferAfter, slotInterval });
 
   // ?? FETCH ALL CALENDAR EVENTS FOR THE ENTIRE RANGE (More Efficient)
   let allCalendarEvents = [];
@@ -5477,10 +5481,9 @@ if (token && token.startsWith('public:')) {
     const daySlots = [];
     const startHour = 9;
     const endHour = 17;
-    const intervalMinutes = 30;
 
     for (let hour = startHour; hour < endHour; hour++) {
-      for (let minute = 0; minute < 60; minute += intervalMinutes) {
+      for (let minute = 0; minute < 60; minute += slotInterval) {
         const slotStart = new Date(dateString);
         slotStart.setHours(hour, minute, 0, 0);
         
@@ -11275,6 +11278,10 @@ ${bookingsList}`,
           const slots = [];
           const now = new Date();
           const daysToCheck = 7;
+          // Use extracted duration or default to 30 minutes
+          const slotDuration = parsedIntent.extracted?.duration_minutes || 30;
+          // Slot interval matches duration (capped at 60 for cleaner display)
+          const slotIntervalMs = Math.min(slotDuration, 60) * 60000;
 
           for (let dayOffset = 0; dayOffset < daysToCheck; dayOffset++) {
             const checkDate = new Date(now);
@@ -11302,10 +11309,10 @@ ${bookingsList}`,
               while (slotTime < endTime && slots.length < 50) {
                 if (slotTime > now) {
                   const conflictCheck = await pool.query(
-                    `SELECT id FROM bookings 
-                     WHERE member_id = $1 
+                    `SELECT id FROM bookings
+                     WHERE member_id = $1
                      AND status = 'confirmed'
-                     AND start_time <= $2 
+                     AND start_time <= $2
                      AND end_time > $2`,
                     [member.id, slotTime.toISOString()]
                   );
@@ -11326,7 +11333,7 @@ ${bookingsList}`,
                     slots.push({
                       start: slotTime.toISOString(),
                       end: new Date(
-                        slotTime.getTime() + 30 * 60000
+                        slotTime.getTime() + slotDuration * 60000
                       ).toISOString(),
                       matchScore,
                       matchLabel
@@ -11334,7 +11341,7 @@ ${bookingsList}`,
                   }
                 }
 
-                slotTime = new Date(slotTime.getTime() + 30 * 60000);
+                slotTime = new Date(slotTime.getTime() + slotIntervalMs);
               }
             }
           }
