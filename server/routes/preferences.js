@@ -20,12 +20,12 @@ async function analyzeUserPreferences(userId) {
 
     // Store patterns
     for (const pattern of patterns.rows) {
-      await pool.query(`
-        INSERT INTO booking_patterns (user_id, day_of_week, hour_of_day, booking_count)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (user_id, day_of_week, hour_of_day)
-        DO UPDATE SET booking_count = booking_patterns.booking_count + 1, updated_at = NOW()
-      `, [userId, pattern.day_of_week, pattern.hour_of_day, pattern.booking_count]);
+     await pool.query(`
+  INSERT INTO booking_patterns (user_id, day_of_week, hour_of_day, booking_count)
+  VALUES ($1, $2, $3, $4)
+  ON CONFLICT ON CONSTRAINT booking_patterns_user_day_hour_unique
+  DO UPDATE SET booking_count = booking_patterns.booking_count + 1, updated_at = NOW()
+`, [userId, pattern.day_of_week, pattern.hour_of_day, pattern.booking_count]); 
     }
 
     return patterns.rows;
