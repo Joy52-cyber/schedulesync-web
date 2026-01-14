@@ -579,6 +579,145 @@ router.get('/stats', authenticateToken, async (req, res) => {
 });
 
 // ============================================================================
+// QUICK PASTE ENDPOINTS (for manual email analysis)
+// ============================================================================
+
+// POST /api/inbox/analyze-email - Analyze pasted email text (Quick Paste feature)
+router.post('/analyze-email', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { email_text } = req.body;
+
+    if (!email_text || !email_text.trim()) {
+      return res.status(400).json({ error: 'Email text is required' });
+    }
+
+    // Analyze the email
+    const analysis = await analyzeEmailIntent(email_text, null);
+
+    // Get user's booking link
+    const userResult = await pool.query(
+      `SELECT u.username, et.slug, et.title, et.duration
+       FROM users u
+       LEFT JOIN event_types et ON et.user_id = u.id AND et.is_active = true
+       WHERE u.id = $1
+       ORDER BY et.created_at ASC
+       LIMIT 1`,
+      [userId]
+    );
+
+    const user = userResult.rows[0];
+    const bookingLink = user?.slug
+      ? `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/${user.username}/${user.slug}`
+      : user?.username
+        ? `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/${user.username}`
+        : null;
+
+    // Build suggested actions
+    const suggestedActions = [];
+    if (analysis.intent === 'schedule_meeting' || analysis.intent === 'request_meeting') {
+      suggestedActions.push(
+        { action: 'send_booking_link', label: 'Send Booking Link' },
+        { action: 'propose_times', label: 'Propose Specific Times' },
+        { action: 'ask_for_details', label: 'Ask for More Details' }
+      );
+    } else if (analysis.intent === 'reschedule') {
+      suggestedActions.push(
+        { action: 'confirm_reschedule', label: 'Confirm & Send New Link' },
+        { action: 'suggest_alternatives', label: 'Suggest Alternative Times' }
+      );
+    } else if (analysis.intent === 'cancel') {
+      suggestedActions.push(
+        { action: 'confirm_cancel', label: 'Confirm Cancellation' },
+        { action: 'offer_reschedule', label: 'Offer to Reschedule' }
+      );
+    } else {
+      suggestedActions.push(
+        { action: 'general_reply', label: 'Generate General Reply' }
+      );
+    }
+
+    // Extract sender info from email text if possible
+    const fromMatch = email_text.match(/(?:From|from):\s*([^\n<]+)/i);
+    const senderName = fromMatch ? fromMatch[1].trim() : null;
+
+    res.json({
+      intent_type: analysis.intent,
+      confidence: analysis.confidence,
+      has_scheduling_intent: ['schedule_meeting', 'request_meeting', 'reschedule'].includes(analysis.intent),
+      extracted_data: {
+        ...analysis.data,
+        sender_name: senderName,
+        mentioned_dates: analysis.data.mentioned_times || []
+      },
+      suggested_actions: suggestedActions,
+      booking_link: bookingLink,
+      event_info: user?.title ? { title: user.title, duration: user.duration } : null
+    });
+  } catch (error) {
+    console.error('Analyze email error:', error);
+    res.status(500).json({ error: 'Failed to analyze email' });
+  }
+});
+
+// POST /api/inbox/generate-reply - Generate a reply for Quick Paste
+router.post('/generate-reply', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { intent_type, sender_name, booking_link, selected_action } = req.body;
+
+    // Get user info
+    const userResult = await pool.query(
+      `SELECT name, email FROM users WHERE id = $1`,
+      [userId]
+    );
+    const user = userResult.rows[0];
+    const userName = user?.name || 'there';
+    const recipientName = sender_name || 'there';
+
+    let reply = '';
+
+    switch (selected_action) {
+      case 'send_booking_link':
+        reply = `Hi ${recipientName},\n\nThank you for reaching out! I'd be happy to schedule a time to connect.\n\nPlease use my booking link to find a time that works best for you:\n${booking_link || '[Your booking link]'}\n\nLooking forward to speaking with you!\n\nBest regards,\n${userName}`;
+        break;
+
+      case 'propose_times':
+        reply = `Hi ${recipientName},\n\nThank you for reaching out! I'd love to find a time to connect.\n\nHere are a few times that work for me:\n- [Option 1]\n- [Option 2]\n- [Option 3]\n\nAlternatively, you can book directly on my calendar: ${booking_link || '[Your booking link]'}\n\nLet me know what works best for you!\n\nBest regards,\n${userName}`;
+        break;
+
+      case 'ask_for_details':
+        reply = `Hi ${recipientName},\n\nThank you for reaching out! I'd be happy to schedule a call.\n\nTo help me prepare, could you share a bit more about what you'd like to discuss? That way I can make sure we make the most of our time together.\n\nOnce I have a better understanding, I'll send over my availability.\n\nBest regards,\n${userName}`;
+        break;
+
+      case 'confirm_reschedule':
+        reply = `Hi ${recipientName},\n\nNo problem at all! I understand schedules can change.\n\nPlease feel free to book a new time using my calendar link:\n${booking_link || '[Your booking link]'}\n\nLooking forward to connecting!\n\nBest regards,\n${userName}`;
+        break;
+
+      case 'suggest_alternatives':
+        reply = `Hi ${recipientName},\n\nI understand the original time doesn't work. Here are some alternative times:\n\n- [Alternative 1]\n- [Alternative 2]\n- [Alternative 3]\n\nOr you can pick any available slot here: ${booking_link || '[Your booking link]'}\n\nLet me know what works!\n\nBest regards,\n${userName}`;
+        break;
+
+      case 'confirm_cancel':
+        reply = `Hi ${recipientName},\n\nNo worries, I've noted the cancellation.\n\nIf you'd like to reschedule in the future, feel free to use my booking link anytime:\n${booking_link || '[Your booking link]'}\n\nTake care!\n\nBest regards,\n${userName}`;
+        break;
+
+      case 'offer_reschedule':
+        reply = `Hi ${recipientName},\n\nI'm sorry to hear you need to cancel. If your schedule opens up, I'd still love to connect.\n\nFeel free to book a new time whenever works for you:\n${booking_link || '[Your booking link]'}\n\nNo rush - the link will always be available.\n\nBest regards,\n${userName}`;
+        break;
+
+      default:
+        reply = `Hi ${recipientName},\n\nThank you for your email.\n\n[Your response here]\n\nBest regards,\n${userName}`;
+    }
+
+    res.json({ reply });
+  } catch (error) {
+    console.error('Generate reply error:', error);
+    res.status(500).json({ error: 'Failed to generate reply' });
+  }
+});
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 

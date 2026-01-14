@@ -166,7 +166,7 @@ export default function InboxAssistant() {
     setQuickReply('');
 
     try {
-      const response = await api.post('/analyze-email', { email_text: pastedEmail });
+      const response = await api.post('/inbox/analyze-email', { email_text: pastedEmail });
       setQuickAnalysis(response.data);
     } catch (error) {
       console.error('Failed to analyze:', error);
@@ -179,7 +179,7 @@ export default function InboxAssistant() {
   const generateQuickReply = async (action) => {
     setGeneratingReply(true);
     try {
-      const response = await api.post('/generate-reply', {
+      const response = await api.post('/inbox/generate-reply', {
         intent_type: quickAnalysis?.intent_type,
         sender_name: quickAnalysis?.extracted_data?.sender_name,
         booking_link: quickAnalysis?.booking_link,
