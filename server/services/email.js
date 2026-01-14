@@ -52,36 +52,69 @@ const buildEmailVariables = (booking, organizer, extras = {}) => {
   const startTime = new Date(booking.start_time);
   const endTime = new Date(booking.end_time);
 
+  // Calculate duration from times if not provided
+  const durationMinutes = booking.duration || extras.duration || Math.round((endTime - startTime) / 60000) || 30;
+
+  // Get location/meeting link
+  const location = extras.meetingLink || booking.meet_link || booking.location || 'To be provided';
+
   return {
-    guestName: booking.attendee_name || 'Guest',
-    guest_name: booking.attendee_name || 'Guest',
-    attendee_name: booking.attendee_name || 'Guest',
-    guestEmail: booking.attendee_email || '',
-    guest_email: booking.attendee_email || '',
-    attendee_email: booking.attendee_email || '',
+    // Guest/Attendee names (multiple formats for compatibility)
+    guestName: booking.attendee_name || extras.guestName || 'Guest',
+    guest_name: booking.attendee_name || extras.guestName || 'Guest',
+    attendee_name: booking.attendee_name || extras.guestName || 'Guest',
+    guestEmail: booking.attendee_email || extras.guestEmail || '',
+    guest_email: booking.attendee_email || extras.guestEmail || '',
+    attendee_email: booking.attendee_email || extras.guestEmail || '',
+
+    // Host/Organizer names (multiple formats for compatibility)
+    hostName: organizer?.name || 'Your Host',
+    host_name: organizer?.name || 'Your Host',
     organizerName: organizer?.name || 'Your Host',
     organizer_name: organizer?.name || 'Your Host',
-    host_name: organizer?.name || 'Your Host',
     organizerEmail: organizer?.email || '',
     organizer_email: organizer?.email || '',
+
+    // Meeting title (multiple formats for compatibility)
+    meetingTitle: extras.eventTitle || booking.title || 'Meeting',
+    meeting_title: extras.eventTitle || booking.title || 'Meeting',
+    eventName: extras.eventTitle || booking.title || 'Meeting',
+    event_name: extras.eventTitle || booking.title || 'Meeting',
+    title: extras.eventTitle || booking.title || 'Meeting',
+
+    // Date formatting
     meetingDate: startTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
     meeting_date: startTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
     date: startTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+
+    // Time formatting
     meetingTime: startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
     meeting_time: startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
     time: startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-    meetingLink: booking.meet_link || '',
-    meeting_link: booking.meet_link || '',
-    meet_link: booking.meet_link || '',
-    bookingLink: extras.bookingLink || '',
-    booking_link: extras.bookingLink || '',
+
+    // Duration (multiple formats)
+    meetingDuration: durationMinutes,
+    meeting_duration: durationMinutes,
+    duration: durationMinutes,
+
+    // Location/Meeting link (multiple formats)
+    meetingLocation: location,
+    meeting_location: location,
+    meetingLink: location,
+    meeting_link: location,
+    meet_link: location,
+    location: location,
+
+    // Management and booking links
     manageLink: extras.manageLink || '',
     manage_link: extras.manageLink || '',
-    eventName: booking.title || 'Meeting',
-    event_name: booking.title || 'Meeting',
-    title: booking.title || 'Meeting',
-    duration: booking.duration || 30,
-    notes: booking.notes || '',
+    bookingLink: extras.bookingLink || '',
+    booking_link: extras.bookingLink || '',
+
+    // Notes
+    notes: booking.notes || extras.notes || '',
+
+    // Spread any additional extras
     ...extras
   };
 };
@@ -333,6 +366,10 @@ const DEFAULT_EMAIL_TEMPLATES = {
 // Send email using user's template or fallback to default
 const sendTemplatedEmail = async (to, userId, templateType, variables, options = {}) => {
   try {
+    // Debug logging for email variables
+    console.log(`[Email Debug] Sending ${templateType} email to: ${to}`);
+    console.log(`[Email Debug] Key variables: guestName=${variables.guestName}, hostName=${variables.hostName}, meetingTitle=${variables.meetingTitle}, meetingDate=${variables.meetingDate}, meetingTime=${variables.meetingTime}, meetingDuration=${variables.meetingDuration}, meetingLocation=${variables.meetingLocation}, manageLink=${variables.manageLink ? 'set' : 'NOT SET'}`);
+
     // Check user's email preferences before sending
     if (userId && !options.skipPreferenceCheck) {
       const prefsResult = await pool.query(
@@ -367,20 +404,23 @@ const sendTemplatedEmail = async (to, userId, templateType, variables, options =
     if (userTemplate) {
       subject = replaceTemplateVariables(userTemplate.subject, variables);
       body = replaceTemplateVariables(userTemplate.body, variables);
-      console.log(`Using custom template: ${userTemplate.name}`);
+      console.log(`[Email Debug] Using custom template: ${userTemplate.name}`);
     } else {
       // Use default template
       const defaultTpl = DEFAULT_EMAIL_TEMPLATES[templateType];
       if (defaultTpl) {
         subject = replaceTemplateVariables(defaultTpl.subject, variables);
         body = replaceTemplateVariables(defaultTpl.body, variables);
-        console.log(`Using default ${templateType} template`);
+        console.log(`[Email Debug] Using default ${templateType} template`);
       } else {
         // Ultimate fallback
         subject = options.fallbackSubject || 'ScheduleSync Notification';
         body = options.fallbackBody || 'You have a notification from ScheduleSync.';
       }
     }
+
+    // Log final subject to verify variable replacement
+    console.log(`[Email Debug] Final subject: ${subject}`);
 
     // Check if body is already full HTML (starts with <!DOCTYPE or <html>)
     const isFullHtml = body.trim().startsWith('<!DOCTYPE') || body.trim().startsWith('<html');
