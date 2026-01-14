@@ -440,6 +440,121 @@ async function createMicrosoftCalendarEvent(accessToken, refreshToken, eventData
   }
 }
 
+// ============ SMART SCHEDULING RULES ============
+
+async function applySchedulingRules(userId, bookingData) {
+  const results = {
+    originalData: { ...bookingData },
+    modifiedData: { ...bookingData },
+    appliedRules: [],
+    blocked: false,
+    blockReason: null,
+    autoApproved: false
+  };
+
+  try {
+    // Fetch active rules for this user
+    const rulesResult = await pool.query(
+      `SELECT * FROM scheduling_rules
+       WHERE user_id = $1 AND is_active = true
+       ORDER BY priority DESC, created_at ASC`,
+      [userId]
+    );
+
+    const rules = rulesResult.rows;
+    if (rules.length === 0) {
+      return results;
+    }
+
+    const attendeeEmail = (bookingData.attendee_email || '').toLowerCase();
+    const attendeeDomain = attendeeEmail.includes('@') ? attendeeEmail.split('@')[1] : '';
+    const bookingTitle = (bookingData.title || '').toLowerCase();
+    const bookingNotes = (bookingData.notes || '').toLowerCase();
+    const combinedText = `${bookingTitle} ${bookingNotes} ${attendeeEmail}`.toLowerCase();
+
+    // Get booking hour for time-based rules
+    let bookingHour = null;
+    if (bookingData.start_time) {
+      const startTime = new Date(bookingData.start_time);
+      bookingHour = startTime.getHours();
+    }
+
+    for (const rule of rules) {
+      let matches = false;
+
+      switch (rule.trigger_type) {
+        case 'domain':
+          matches = attendeeDomain === rule.trigger_value.toLowerCase();
+          break;
+        case 'keyword':
+          matches = combinedText.includes(rule.trigger_value.toLowerCase());
+          break;
+        case 'email':
+          matches = attendeeEmail === rule.trigger_value.toLowerCase();
+          break;
+        case 'time_before':
+          if (bookingHour !== null) {
+            matches = bookingHour < parseInt(rule.trigger_value);
+          }
+          break;
+        case 'time_after':
+          if (bookingHour !== null) {
+            matches = bookingHour >= parseInt(rule.trigger_value);
+          }
+          break;
+        case 'all':
+          matches = true;
+          break;
+      }
+
+      if (matches) {
+        // Apply the action
+        switch (rule.action_type) {
+          case 'set_duration':
+            results.modifiedData.duration = parseInt(rule.action_value);
+            break;
+          case 'auto_approve':
+            results.autoApproved = rule.action_value === 'true';
+            results.modifiedData.status = 'confirmed';
+            break;
+          case 'block':
+            if (rule.action_value === 'true') {
+              results.blocked = true;
+              results.blockReason = rule.block_message || `Booking blocked by rule: ${rule.name}`;
+            }
+            break;
+          case 'set_priority':
+            results.modifiedData.priority = rule.action_value;
+            break;
+          case 'add_note':
+            results.modifiedData.notes = results.modifiedData.notes
+              ? `${results.modifiedData.notes}\n[Auto] ${rule.action_value}`
+              : `[Auto] ${rule.action_value}`;
+            break;
+        }
+
+        results.appliedRules.push({
+          id: rule.id,
+          name: rule.name,
+          trigger: `${rule.trigger_type}: ${rule.trigger_value}`,
+          action: `${rule.action_type}: ${rule.action_value}`
+        });
+
+        if (results.blocked) break;
+      }
+    }
+
+    if (results.appliedRules.length > 0) {
+      console.log(`📋 Applied ${results.appliedRules.length} scheduling rule(s):`, results.appliedRules.map(r => r.name).join(', '));
+    }
+
+    return results;
+  } catch (error) {
+    console.error('Error applying scheduling rules:', error);
+    return results;
+  }
+}
+
 // ============ MIDDLEWARE ============
 
 app.use(cors());
@@ -1738,6 +1853,27 @@ app.post('/api/public/booking/create', async (req, res) => {
     // Generate manage token
     const manageToken = crypto.randomBytes(32).toString('hex');
 
+    // Apply scheduling rules
+    const ruleBookingData = {
+      title: eventType.title,
+      start_time,
+      attendee_email,
+      attendee_name,
+      notes: notes || '',
+      duration: eventType.duration
+    };
+
+    const ruleResults = await applySchedulingRules(host.id, ruleBookingData);
+
+    // Check if booking is blocked by rules
+    if (ruleResults.blocked) {
+      console.log('🚫 Public booking blocked by rule:', ruleResults.blockReason);
+      return res.status(403).json({
+        error: 'Booking not available',
+        reason: ruleResults.blockReason
+      });
+    }
+
     // Check for auto-confirm based on autonomous mode
     const autoConfirmResult = await shouldAutoConfirm(host.id, {
       start_time: start_time,
@@ -1746,13 +1882,21 @@ app.post('/api/public/booking/create', async (req, res) => {
     });
 
     let bookingStatus = 'confirmed'; // Default
-    if (autoConfirmResult.mode === 'suggest') {
+
+    // Check if rules auto-approved this booking
+    if (ruleResults.autoApproved) {
+      bookingStatus = 'confirmed';
+      console.log('✅ Booking auto-approved by scheduling rule');
+    } else if (autoConfirmResult.mode === 'suggest') {
       bookingStatus = 'pending'; // Requires host approval
       console.log(`⏳ Booking pending approval: ${autoConfirmResult.reason}`);
     } else if (autoConfirmResult.mode === 'auto' && !autoConfirmResult.autoConfirm) {
       bookingStatus = 'pending'; // Didn't meet auto-confirm rules
       console.log(`⏳ Booking pending (auto rules not met): ${autoConfirmResult.reason}`);
     }
+
+    // Use modified notes from rules (may include auto-added notes)
+    const finalNotes = ruleResults.modifiedData.notes || notes || null;
 
     // Create booking
     const bookingResult = await pool.query(
@@ -1777,7 +1921,7 @@ app.post('/api/public/booking/create', async (req, res) => {
         attendee_email,
         start_time,
         end_time,
-        notes || null,
+        finalNotes,
         manageToken,
         guest_timezone || 'UTC',
         bookingStatus,
@@ -2300,18 +2444,47 @@ app.post('/api/bookings', async (req, res) => {
 
     for (const assignedMember of assignedMembers) {
       const manageToken = crypto.randomBytes(16).toString('hex');
-      
+
       console.log(`?? Creating booking for member ${assignedMember.id}...`);
-      
+
+      // Apply scheduling rules for this member's user
+      let finalNotes = notes || '';
+      let bookingStatus = 'confirmed';
+
+      if (assignedMember.user_id) {
+        const duration = Math.round((new Date(slot.end) - new Date(slot.start)) / 60000);
+        const ruleBookingData = {
+          title: `Meeting with ${attendee_name}`,
+          start_time: slot.start,
+          attendee_email,
+          attendee_name,
+          notes: notes || '',
+          duration
+        };
+
+        const ruleResults = await applySchedulingRules(assignedMember.user_id, ruleBookingData);
+
+        // Check if blocked by rules
+        if (ruleResults.blocked) {
+          console.log(`🚫 Booking blocked for member ${assignedMember.id}:`, ruleResults.blockReason);
+          continue; // Skip this member, try next one
+        }
+
+        finalNotes = ruleResults.modifiedData.notes || notes || '';
+        if (ruleResults.autoApproved) {
+          bookingStatus = 'confirmed';
+        }
+      }
+
       const bookingResult = await pool.query(
         `INSERT INTO bookings (
-          team_id, member_id, user_id, 
-          attendee_name, attendee_email, 
-          start_time, end_time, 
-          title, notes, 
+          team_id, member_id, user_id,
+          attendee_name, attendee_email,
+          start_time, end_time,
+          title, notes,
           booking_token, status, manage_token
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *`,
         [
           member.team_id,
@@ -2322,13 +2495,13 @@ app.post('/api/bookings', async (req, res) => {
           slot.start,
           slot.end,
           `Meeting with ${attendee_name}`,
-          notes || '',
+          finalNotes,
           token,
-          'confirmed',
+          bookingStatus,
           manageToken
         ]
       );
-      
+
       createdBookings.push(bookingResult.rows[0]);
       console.log(`? Booking created: ID ${bookingResult.rows[0].id}, manage_token: ${manageToken}`);
     }
@@ -8231,18 +8404,47 @@ try {
 
     for (const assignedMember of assignedMembers) {
       const manageToken = crypto.randomBytes(16).toString('hex');
-      
+
       console.log(`?? Creating booking for member ${assignedMember.id}...`);
-      
+
+      // Apply scheduling rules for this member's user
+      let finalNotes = notes || '';
+      let bookingStatus = 'confirmed';
+
+      if (assignedMember.user_id) {
+        const duration = Math.round((new Date(slot.end) - new Date(slot.start)) / 60000);
+        const ruleBookingData = {
+          title: `Meeting with ${attendee_name}`,
+          start_time: slot.start,
+          attendee_email,
+          attendee_name,
+          notes: notes || '',
+          duration
+        };
+
+        const ruleResults = await applySchedulingRules(assignedMember.user_id, ruleBookingData);
+
+        // Check if blocked by rules
+        if (ruleResults.blocked) {
+          console.log(`🚫 Booking blocked for member ${assignedMember.id}:`, ruleResults.blockReason);
+          continue; // Skip this member, try next one
+        }
+
+        finalNotes = ruleResults.modifiedData.notes || notes || '';
+        if (ruleResults.autoApproved) {
+          bookingStatus = 'confirmed';
+        }
+      }
+
       const bookingResult = await pool.query(
         `INSERT INTO bookings (
-          team_id, member_id, user_id, 
-          attendee_name, attendee_email, 
-          start_time, end_time, 
-          title, notes, 
+          team_id, member_id, user_id,
+          attendee_name, attendee_email,
+          start_time, end_time,
+          title, notes,
           booking_token, status, manage_token
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *`,
         [
           member.team_id,
@@ -8253,13 +8455,13 @@ try {
           slot.start,
           slot.end,
           `Meeting with ${attendee_name}`,
-          notes || '',
+          finalNotes,
           token,
-          'confirmed',
+          bookingStatus,
           manageToken
         ]
       );
-      
+
       createdBookings.push(bookingResult.rows[0]);
       console.log(`? Booking created: ID ${bookingResult.rows[0].id}, manage_token: ${manageToken}`);
     }
@@ -9038,19 +9240,42 @@ app.post('/api/payments/confirm-booking', async (req, res) => {
 
     const member = memberResult.rows[0];
 
+    // Apply scheduling rules (notes only - payment already made, don't block)
+    let finalNotes = notes || '';
+
+    if (member.user_id) {
+      const duration = Math.round((new Date(slot.end) - new Date(slot.start)) / 60000);
+      const ruleBookingData = {
+        title: `Meeting with ${attendeeName}`,
+        start_time: slot.start,
+        attendee_email: attendeeEmail,
+        attendee_name: attendeeName,
+        notes: notes || '',
+        duration
+      };
+
+      const ruleResults = await applySchedulingRules(member.user_id, ruleBookingData);
+      // Note: We don't block paid bookings - payment was already made
+      finalNotes = ruleResults.modifiedData.notes || notes || '';
+
+      if (ruleResults.appliedRules.length > 0) {
+        console.log('📋 Applied rules to paid booking:', ruleResults.appliedRules.map(r => r.name).join(', '));
+      }
+    }
+
     // Create booking with payment info
     const bookingResult = await pool.query(
       `INSERT INTO bookings (
-        team_id, member_id, user_id, attendee_name, attendee_email, 
+        team_id, member_id, user_id, attendee_name, attendee_email,
         start_time, end_time, notes, booking_token, status,
-        payment_status, payment_amount, payment_currency, 
+        payment_status, payment_amount, payment_currency,
         stripe_payment_intent_id, payment_receipt_url
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
       [
         member.team_id, member.id, member.user_id, attendeeName, attendeeEmail,
-        slot.start, slot.end, notes || '', bookingToken, 'confirmed',
+        slot.start, slot.end, finalNotes, bookingToken, 'confirmed',
         'paid', paymentIntent.amount / 100, paymentIntent.currency,
         paymentIntentId, paymentIntent.charges?.data[0]?.receipt_url
       ]
@@ -11718,7 +11943,7 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
     // Create individual booking for each attendee
     const bookings = [];
     const failedBookings = [];
-    
+
     for (const email of uniqueAttendees) {
       try {
         // Generate attendee name from email
@@ -11726,7 +11951,31 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
           .split('@')[0]
           .replace(/[._-]/g, ' ')
           .replace(/\b\w/g, c => c.toUpperCase());
-        
+
+        // Apply scheduling rules
+        const bookingData = {
+          title,
+          start_time,
+          attendee_email: email,
+          attendee_name: generatedName,
+          notes: notes || '',
+          duration: duration || 30
+        };
+
+        const ruleResults = await applySchedulingRules(userId, bookingData);
+
+        // Check if booking is blocked
+        if (ruleResults.blocked) {
+          console.log(`🚫 Booking blocked for ${email}:`, ruleResults.blockReason);
+          failedBookings.push({ email, error: ruleResults.blockReason, blocked: true });
+          continue;
+        }
+
+        // Use modified data from rules
+        const finalData = ruleResults.modifiedData;
+        const finalDuration = finalData.duration || duration || 30;
+        const finalEndTime = end_time || new Date(new Date(start_time).getTime() + finalDuration * 60000).toISOString();
+
         const result = await pool.query(`
           INSERT INTO bookings (
             title, start_time, end_time, attendee_email, attendee_name,
@@ -11734,19 +11983,21 @@ app.post('/api/ai/book-meeting', authenticateToken, async (req, res) => {
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed', NOW(), NOW())
           RETURNING *
         `, [
-          title, 
-          start_time, 
-          end_time || new Date(new Date(start_time).getTime() + (duration || 30) * 60000).toISOString(),
-          email, 
-          generatedName, 
-          notes || '', 
-          duration || 30
+          finalData.title || title,
+          start_time,
+          finalEndTime,
+          email,
+          generatedName,
+          finalData.notes || '',
+          finalDuration
         ]);
-        
-        bookings.push(result.rows[0]);
-        console.log(`? Booking created for ${email}: ${result.rows[0].id}`);
+
+        const booking = result.rows[0];
+        booking.appliedRules = ruleResults.appliedRules.length > 0 ? ruleResults.appliedRules : undefined;
+        bookings.push(booking);
+        console.log(`✅ Booking created for ${email}: ${booking.id}${ruleResults.appliedRules.length > 0 ? ' (rules applied)' : ''}`);
       } catch (bookingError) {
-        console.error(`? Booking failed for ${email}:`, bookingError);
+        console.error(`❌ Booking failed for ${email}:`, bookingError);
         failedBookings.push({ email, error: bookingError.message });
       }
     }
@@ -14409,22 +14660,49 @@ app.post('/api/chatgpt/book-meeting', authenticateToken, async (req, res) => {
     const manageToken = crypto.randomBytes(16).toString('hex');
     const bookingTitle = title || 'Meeting';
     const guestName = attendee_name || attendee_email.split('@')[0];
-    
+
     // Calculate end time if not provided (default 30 min)
     const startDate = new Date(start_time);
     const endDate = end_time ? new Date(end_time) : new Date(startDate.getTime() + 30 * 60000);
     const duration = Math.round((endDate - startDate) / 60000);
+
+    // Apply scheduling rules
+    const ruleBookingData = {
+      title: bookingTitle,
+      start_time,
+      attendee_email,
+      attendee_name: guestName,
+      notes: notes || '',
+      duration
+    };
+
+    const ruleResults = await applySchedulingRules(userId, ruleBookingData);
+
+    // Check if booking is blocked by rules
+    if (ruleResults.blocked) {
+      console.log('🚫 ChatGPT booking blocked by rule:', ruleResults.blockReason);
+      return res.status(403).json({
+        error: 'Booking blocked',
+        reason: ruleResults.blockReason
+      });
+    }
+
+    // Use modified data from rules
+    const finalNotes = ruleResults.modifiedData.notes || notes || null;
+    const finalDuration = ruleResults.modifiedData.duration || duration;
+    const finalEndDate = new Date(startDate.getTime() + finalDuration * 60000);
+
     const bookingResult = await pool.query(`
-  INSERT INTO bookings (
-    member_id, user_id, attendee_name, attendee_email,
-    start_time, end_time, title, notes, status, manage_token, duration
-  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'confirmed', $9, $10)
-  RETURNING *
-`, [
-  member.id, userId, guestName, attendee_email,
-  startDate.toISOString(), endDate.toISOString(), 
-  bookingTitle, notes || null, manageToken, duration
-]);
+      INSERT INTO bookings (
+        member_id, user_id, attendee_name, attendee_email,
+        start_time, end_time, title, notes, status, manage_token, duration
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'confirmed', $9, $10)
+      RETURNING *
+    `, [
+      member.id, userId, guestName, attendee_email,
+      startDate.toISOString(), finalEndDate.toISOString(),
+      bookingTitle, finalNotes, manageToken, finalDuration
+    ]);
 
 const booking = bookingResult.rows[0];
 console.log('? AI Booking created:', booking.id);
