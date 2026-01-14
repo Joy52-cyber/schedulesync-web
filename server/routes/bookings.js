@@ -30,8 +30,10 @@ router.get('/book/:token', async (req, res) => {
   const client = await pool.connect();
   try {
     const { token } = req.params;
+    // Only select non-sensitive columns for public endpoint
     const result = await client.query(
-      'SELECT * FROM teams WHERE team_booking_token = $1 OR name = $1',
+      `SELECT id, name, description, booking_mode, team_booking_token, created_at
+       FROM teams WHERE team_booking_token = $1 OR name = $1`,
       [token]
     );
 
