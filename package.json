@@ -2,13 +2,13 @@
   "name": "schedulesync-server",
   "version": "1.0.0",
   "description": "ScheduleSync Backend API",
-  "main": "server.js",
+  "main": "server/src/index.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node server.js",
-    "start:modular": "node server/src/index.js",
-    "dev": "nodemon server.js",
-    "dev:modular": "nodemon server/src/index.js",
+    "start": "node server/src/index.js",
+    "start:legacy": "node server.js",
+    "dev": "nodemon server/src/index.js",
+    "dev:legacy": "nodemon server.js",
     "build": "npm run build:client",
     "build:client": "cd client && npm install && npm run build && cd .. && node ./scripts/copy-dist.js",
     "postinstall": "cd client && npm install"

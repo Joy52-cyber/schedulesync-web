@@ -8,20 +8,44 @@ const { applySchedulingRules } = require('../utils/schedulingRules');
 const detectIntent = (message) => {
   const lowerMessage = message.toLowerCase();
 
-  // Analytics intent
+  // Analytics/Stats intent
   if (lowerMessage.includes('analytics') ||
       lowerMessage.includes('stats') ||
       lowerMessage.includes('statistics') ||
       lowerMessage.includes('how many bookings') ||
+      lowerMessage.includes('how many') ||
       lowerMessage.includes('booking stats') ||
       lowerMessage.includes('my numbers') ||
-      lowerMessage.includes('performance')) {
+      lowerMessage.includes('performance') ||
+      lowerMessage.includes('report') ||
+      lowerMessage.includes('summary') ||
+      (lowerMessage.includes('this week') && !lowerMessage.includes('book')) ||
+      (lowerMessage.includes('this month') && !lowerMessage.includes('book')) ||
+      (lowerMessage.includes('today') && lowerMessage.includes('meeting'))) {
     return 'analytics';
   }
 
-  // Smart rule creation intent
+  // Show rules intent
+  if ((lowerMessage.includes('show') || lowerMessage.includes('list') || lowerMessage.includes('my') || lowerMessage.includes('active')) &&
+      (lowerMessage.includes('rule') || lowerMessage.includes('rules'))) {
+    return 'show_rules';
+  }
+
+  // Smart rule creation intent - includes natural language patterns
   if ((lowerMessage.includes('create') || lowerMessage.includes('add') || lowerMessage.includes('set up') || lowerMessage.includes('make')) &&
       (lowerMessage.includes('rule') || lowerMessage.includes('smart rule') || lowerMessage.includes('scheduling rule'))) {
+    return 'create_rule';
+  }
+
+  // Natural language rule creation
+  if (lowerMessage.includes('no meetings on') ||
+      lowerMessage.includes('block ') ||
+      lowerMessage.includes('add buffer') ||
+      lowerMessage.includes('add 15') ||
+      lowerMessage.includes('add 30') ||
+      lowerMessage.includes('route ') ||
+      lowerMessage.includes('auto-approve') ||
+      lowerMessage.includes('auto approve')) {
     return 'create_rule';
   }
 
@@ -213,12 +237,37 @@ const parseRuleFromMessage = (message) => {
   const lowerMessage = message.toLowerCase();
   let rule = {
     name: '',
-    trigger_type: 'domain',
-    trigger_value: '',
+    trigger_type: 'all',
+    trigger_value: 'all_bookings',
     action_type: 'set_duration',
     action_value: '30',
     is_active: true
   };
+
+  // Day-based blocking rules: "no meetings on Friday", "block Mondays"
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayBlockMatch = lowerMessage.match(/(?:no meetings on|block|no bookings on)\s*(sunday|monday|tuesday|wednesday|thursday|friday|saturday)s?/i);
+  if (dayBlockMatch) {
+    const day = dayBlockMatch[1].toLowerCase();
+    rule.trigger_type = 'day_of_week';
+    rule.trigger_value = day;
+    rule.action_type = 'block';
+    rule.action_value = 'true';
+    rule.name = `No meetings on ${day.charAt(0).toUpperCase() + day.slice(1)}`;
+    return rule;
+  }
+
+  // Buffer rules: "add 15 min buffer", "add buffer after meetings"
+  const bufferMatch = lowerMessage.match(/(?:add\s+)?(\d+)?\s*(?:min(?:ute)?s?)?\s*buffer\s*(?:after|before|between)?/i);
+  if (bufferMatch || lowerMessage.includes('add buffer')) {
+    const bufferMins = bufferMatch?.[1] || '15';
+    rule.trigger_type = 'all';
+    rule.trigger_value = 'all_bookings';
+    rule.action_type = 'add_buffer';
+    rule.action_value = bufferMins;
+    rule.name = `Add ${bufferMins} min buffer after meetings`;
+    return rule;
+  }
 
   // Detect domain-based rules
   const domainMatch = message.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
@@ -245,9 +294,20 @@ const parseRuleFromMessage = (message) => {
     }
   }
 
+  // Routing rules: "route sales to Sarah", "route demo calls to John"
+  const routeMatch = lowerMessage.match(/route\s+(.+?)\s+(?:to|for)\s+(\w+)/i);
+  if (routeMatch) {
+    rule.trigger_type = 'keyword';
+    rule.trigger_value = routeMatch[1].trim();
+    rule.action_type = 'route_to';
+    rule.action_value = routeMatch[2].trim();
+    rule.name = `Route "${routeMatch[1]}" to ${routeMatch[2]}`;
+    return rule;
+  }
+
   // Detect duration action
   const durationMatch = message.match(/(\d+)\s*(min|minute|hour)/i);
-  if (durationMatch) {
+  if (durationMatch && !lowerMessage.includes('buffer')) {
     let duration = parseInt(durationMatch[1]);
     if (durationMatch[2].toLowerCase().startsWith('hour')) {
       duration *= 60;
@@ -260,10 +320,11 @@ const parseRuleFromMessage = (message) => {
   if (lowerMessage.includes('auto') && (lowerMessage.includes('approve') || lowerMessage.includes('accept') || lowerMessage.includes('confirm'))) {
     rule.action_type = 'auto_approve';
     rule.action_value = 'true';
+    if (!rule.name) rule.name = 'Auto-approve rule';
   }
 
-  // Detect block action
-  if (lowerMessage.includes('block') || lowerMessage.includes('reject') || lowerMessage.includes('decline')) {
+  // Detect block action (general)
+  if ((lowerMessage.includes('block') || lowerMessage.includes('reject') || lowerMessage.includes('decline')) && !dayBlockMatch) {
     rule.action_type = 'block';
     rule.action_value = 'true';
   }
@@ -272,6 +333,7 @@ const parseRuleFromMessage = (message) => {
   if (lowerMessage.includes('priority') || lowerMessage.includes('vip') || lowerMessage.includes('important')) {
     rule.action_type = 'set_priority';
     rule.action_value = 'high';
+    if (!rule.name) rule.name = 'High priority rule';
   }
 
   return rule;
@@ -335,6 +397,38 @@ router.post('/schedule', authenticateToken, async (req, res) => {
       return res.json({
         type: 'info',
         message: `**Smart Rules** automatically apply actions to bookings based on conditions you set.\n\n**How they work:**\n1. **Triggers** - When a booking matches (e.g., email domain, keyword)\n2. **Actions** - What happens (e.g., set duration, auto-approve, block)\n\n**Examples:**\n- Auto-approve bookings from @yourcompany.com\n- Set 15-minute meetings for "quick chat" requests\n- Block bookings from competitor domains\n\nWant me to help you create one? Just describe what you want!`
+      });
+    }
+
+    // Handle show rules
+    if (intent === 'show_rules') {
+      const rules = await client.query(
+        `SELECT id, name, rule_text, rule_type, trigger_type, trigger_value, action_type, action_value, is_active
+         FROM scheduling_rules
+         WHERE user_id = $1
+         ORDER BY created_at DESC
+         LIMIT 10`,
+        [userId]
+      );
+
+      if (rules.rows.length === 0) {
+        return res.json({
+          type: 'info',
+          message: `You don't have any scheduling rules yet.\n\nWould you like to create one? Try:\n- "No meetings on Friday"\n- "Add 15 min buffer after meetings"\n- "Auto-approve bookings from @company.com"`
+        });
+      }
+
+      const ruleList = rules.rows.map((r, i) => {
+        const status = r.is_active ? '✅' : '❌';
+        const ruleName = r.name || r.rule_text || `${r.trigger_type}: ${r.trigger_value}`;
+        const ruleType = r.rule_type || r.action_type || 'custom';
+        return `${i + 1}. ${status} **${ruleName}** (${ruleType})`;
+      }).join('\n');
+
+      return res.json({
+        type: 'rules_list',
+        message: `📋 **Your Scheduling Rules**\n\n${ruleList}\n\nManage these in the **Smart Rules** page.`,
+        data: { rules: rules.rows }
       });
     }
 
@@ -583,53 +677,26 @@ router.post('/schedule', authenticateToken, async (req, res) => {
 
 // Helper functions
 async function getBookingAnalytics(client, userId) {
-  // Total bookings
-  const totalResult = await client.query(
-    'SELECT COUNT(*) as count FROM bookings WHERE user_id = $1',
-    [userId]
-  );
-
-  // This month's bookings
-  const thisMonthResult = await client.query(
-    `SELECT COUNT(*) as count FROM bookings
-     WHERE user_id = $1 AND start_time >= date_trunc('month', CURRENT_DATE)`,
-    [userId]
-  );
-
-  // Last month's bookings
-  const lastMonthResult = await client.query(
-    `SELECT COUNT(*) as count FROM bookings
-     WHERE user_id = $1
-     AND start_time >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
-     AND start_time < date_trunc('month', CURRENT_DATE)`,
-    [userId]
-  );
-
-  // Upcoming bookings
-  const upcomingResult = await client.query(
-    `SELECT COUNT(*) as count FROM bookings
-     WHERE user_id = $1 AND start_time > NOW() AND status != 'cancelled'`,
-    [userId]
-  );
-
-  // Completion rate
-  const completedResult = await client.query(
-    `SELECT COUNT(*) as count FROM bookings
-     WHERE user_id = $1 AND status = 'completed'`,
-    [userId]
-  );
-
-  // Cancellation rate
-  const cancelledResult = await client.query(
-    `SELECT COUNT(*) as count FROM bookings
-     WHERE user_id = $1 AND status = 'cancelled'`,
-    [userId]
-  );
+  // Combined query for efficiency - get all stats in one query
+  const statsResult = await client.query(`
+    SELECT
+      COUNT(*) FILTER (WHERE status != 'cancelled') as total,
+      COUNT(*) FILTER (WHERE start_time >= CURRENT_DATE AND start_time < CURRENT_DATE + 1 AND status != 'cancelled') as today,
+      COUNT(*) FILTER (WHERE start_time >= CURRENT_DATE AND start_time < CURRENT_DATE + 7 AND status != 'cancelled') as this_week,
+      COUNT(*) FILTER (WHERE start_time >= CURRENT_DATE - 7 AND start_time < CURRENT_DATE AND status != 'cancelled') as last_week,
+      COUNT(*) FILTER (WHERE start_time >= date_trunc('month', CURRENT_DATE) AND status != 'cancelled') as this_month,
+      COUNT(*) FILTER (WHERE start_time >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month') AND start_time < date_trunc('month', CURRENT_DATE) AND status != 'cancelled') as last_month,
+      COUNT(*) FILTER (WHERE start_time > NOW() AND status != 'cancelled') as upcoming,
+      COUNT(*) FILTER (WHERE status = 'completed') as completed,
+      COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled
+    FROM bookings
+    WHERE user_id = $1
+  `, [userId]);
 
   // Most popular day
   const popularDayResult = await client.query(
     `SELECT EXTRACT(DOW FROM start_time) as day_of_week, COUNT(*) as count
-     FROM bookings WHERE user_id = $1
+     FROM bookings WHERE user_id = $1 AND status != 'cancelled'
      GROUP BY EXTRACT(DOW FROM start_time)
      ORDER BY count DESC LIMIT 1`,
     [userId]
@@ -638,23 +705,28 @@ async function getBookingAnalytics(client, userId) {
   // Most popular hour
   const popularHourResult = await client.query(
     `SELECT EXTRACT(HOUR FROM start_time) as hour, COUNT(*) as count
-     FROM bookings WHERE user_id = $1
+     FROM bookings WHERE user_id = $1 AND status != 'cancelled'
      GROUP BY EXTRACT(HOUR FROM start_time)
      ORDER BY count DESC LIMIT 1`,
     [userId]
   );
 
-  const total = parseInt(totalResult.rows[0].count);
-  const completed = parseInt(completedResult.rows[0].count);
-  const cancelled = parseInt(cancelledResult.rows[0].count);
+  const s = statsResult.rows[0];
+  const total = parseInt(s.total) || 0;
+  const completed = parseInt(s.completed) || 0;
+  const cancelled = parseInt(s.cancelled) || 0;
 
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   return {
     total,
-    thisMonth: parseInt(thisMonthResult.rows[0].count),
-    lastMonth: parseInt(lastMonthResult.rows[0].count),
-    upcoming: parseInt(upcomingResult.rows[0].count),
+    today: parseInt(s.today) || 0,
+    thisWeek: parseInt(s.this_week) || 0,
+    lastWeek: parseInt(s.last_week) || 0,
+    thisMonth: parseInt(s.this_month) || 0,
+    lastMonth: parseInt(s.last_month) || 0,
+    upcoming: parseInt(s.upcoming) || 0,
+    cancelled: cancelled,
     completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
     cancellationRate: total > 0 ? Math.round((cancelled / total) * 100) : 0,
     popularDay: popularDayResult.rows[0] ? dayNames[parseInt(popularDayResult.rows[0].day_of_week)] : null,
@@ -663,26 +735,19 @@ async function getBookingAnalytics(client, userId) {
 }
 
 function formatAnalyticsResponse(stats) {
-  const monthChange = stats.lastMonth > 0
-    ? Math.round(((stats.thisMonth - stats.lastMonth) / stats.lastMonth) * 100)
-    : stats.thisMonth > 0 ? 100 : 0;
+  let response = `📊 **Your Booking Stats**\n\n`;
+  response += `📅 **Today:** ${stats.today} meeting${stats.today !== 1 ? 's' : ''}\n`;
+  response += `📆 **This week:** ${stats.thisWeek} meetings\n`;
+  response += `⏳ **Upcoming:** ${stats.upcoming} scheduled\n\n`;
 
-  const changeText = monthChange > 0 ? `+${monthChange}%` : `${monthChange}%`;
-  const changeEmoji = monthChange > 0 ? '📈' : monthChange < 0 ? '📉' : '➡️';
-
-  let response = `**Your Booking Analytics** 📊\n\n`;
-  response += `**All Time:** ${stats.total} bookings\n`;
-  response += `**This Month:** ${stats.thisMonth} bookings ${changeEmoji} ${changeText} vs last month\n`;
-  response += `**Upcoming:** ${stats.upcoming} scheduled\n\n`;
-
-  if (stats.completionRate > 0 || stats.cancellationRate > 0) {
-    response += `**Rates:**\n`;
-    response += `- Completion: ${stats.completionRate}%\n`;
-    response += `- Cancellation: ${stats.cancellationRate}%\n\n`;
-  }
+  response += `**History:**\n`;
+  response += `- Last 7 days: ${stats.lastWeek}\n`;
+  response += `- This month: ${stats.thisMonth}\n`;
+  response += `- Total: ${stats.total}\n`;
+  response += `- Cancelled: ${stats.cancelled}\n`;
 
   if (stats.popularDay || stats.popularHour !== null) {
-    response += `**Peak Times:**\n`;
+    response += `\n**Peak Times:**\n`;
     if (stats.popularDay) response += `- Busiest day: ${stats.popularDay}\n`;
     if (stats.popularHour !== null) {
       const hour = stats.popularHour;
@@ -691,6 +756,8 @@ function formatAnalyticsResponse(stats) {
       response += `- Popular hour: ${displayHour}:00 ${ampm}\n`;
     }
   }
+
+  response += `\nAnything else you'd like to know?`;
 
   return response;
 }
@@ -705,6 +772,10 @@ function formatAction(actionType, actionValue) {
       return 'Block booking';
     case 'set_priority':
       return `Set priority to ${actionValue}`;
+    case 'add_buffer':
+      return `Add ${actionValue} min buffer after meetings`;
+    case 'route_to':
+      return `Route to ${actionValue}`;
     default:
       return `${actionType}: ${actionValue}`;
   }
