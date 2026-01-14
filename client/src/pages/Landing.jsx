@@ -168,10 +168,11 @@ export default function Landing() {
               <span className="font-bold text-lg">ScheduleSync</span>
             </div>
             
-            <div className="hidden md:flex items-center gap-6 text-sm">
-              <a href="#features" className="text-gray-600 hover:text-gray-900 font-medium">Features</a>
-              <a href="#pricing" className="text-gray-600 hover:text-gray-900 font-medium">Pricing</a>
-            </div>
+            <nav className="hidden md:flex items-center gap-6 text-sm">
+              <a href="#features" className="text-gray-600 hover:text-gray-900 font-medium transition-colors">Features</a>
+              <a href="#pricing" className="text-gray-600 hover:text-gray-900 font-medium transition-colors">Pricing</a>
+              <button onClick={() => navigate('/demo')} className="text-gray-600 hover:text-gray-900 font-medium transition-colors">Demo</button>
+            </nav>
 
             <div className="flex items-center gap-2 sm:gap-3">
               <button 
@@ -485,7 +486,7 @@ export default function Landing() {
               <div className="bg-white rounded-lg p-3 border border-purple-200">
                 <p className="text-xs text-purple-700 font-medium">
                   💡 Free: 10 queries/month<br/>
-                  💎 Pro: Unlimited queries
+                  💎 Pro: 250 queries/month
                 </p>
               </div>
             </div>
@@ -508,7 +509,7 @@ export default function Landing() {
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span><strong>Unlimited</strong> AI queries</span>
+                  <span><strong>250</strong> AI queries/month</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
@@ -544,7 +545,7 @@ export default function Landing() {
               </p>
               <div className="bg-white rounded-lg p-3 border border-amber-200">
                 <p className="text-xs text-amber-700 font-medium">
-                  🎁 Free: 2/month<br/>
+                  🎁 Free: 3/month<br/>
                   💎 Pro: Unlimited
                 </p>
               </div>
@@ -558,7 +559,7 @@ export default function Landing() {
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-900">Team Scheduling</h3>
-                  <p className="text-xs text-gray-600">$25/month (up to 10)</p>
+                  <p className="text-xs text-gray-600">$20/user/month</p>
                 </div>
               </div>
               <ul className="space-y-2 text-sm text-gray-700">
