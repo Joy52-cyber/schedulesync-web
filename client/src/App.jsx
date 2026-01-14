@@ -36,6 +36,7 @@ import About from './pages/About';
 // Dashboard Pages
 import Dashboard from './pages/Dashboard';
 import Bookings from './pages/Bookings';
+import Analytics from './pages/Analytics';
 import EventTypes from './pages/EventTypes';
 import EventTypeForm from './pages/EventTypeForm';
 import EventTypeDetail from './pages/EventTypeDetail';
@@ -157,6 +158,7 @@ function InnerApp() {
               }>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/bookings" element={<Bookings />} />
+                <Route path="/analytics" element={<Analytics />} />
                 <Route path="/availability" element={<Availability />} />
                 <Route path="/templates" element={<EmailTemplates />} />
                 <Route path="/rules" element={<SchedulingRules />} />

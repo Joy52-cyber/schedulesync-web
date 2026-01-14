@@ -134,4 +134,101 @@ router.patch('/:id/favorite', authenticateToken, async (req, res) => {
   }
 });
 
+// POST /api/email-templates/test - Send test email
+router.post('/test', authenticateToken, async (req, res) => {
+  try {
+    const { templateId } = req.body;
+
+    // Get user info
+    const user = await pool.query(
+      'SELECT email, name FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (user.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get template if templateId provided
+    let template = null;
+    if (templateId) {
+      const templateResult = await pool.query(
+        'SELECT * FROM email_templates WHERE id = $1 AND user_id = $2',
+        [templateId, req.user.id]
+      );
+      template = templateResult.rows[0];
+    }
+
+    // Import email service
+    const { sendBookingEmail } = require('../services/email');
+
+    // Sample data for test email
+    const sampleData = {
+      guestName: 'Test Guest',
+      hostName: user.rows[0].name || 'Host',
+      meetingTitle: 'Test Meeting',
+      meetingDate: new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }),
+      meetingTime: '2:00 PM',
+      meetingDuration: '30 minutes',
+      meetingLocation: 'Google Meet',
+      manageLink: 'https://example.com/manage/test'
+    };
+
+    // Build HTML content
+    let subject = template?.subject || 'Test Email - Meeting Confirmed';
+    let body = template?.body || getDefaultTestEmailBody();
+
+    // Replace variables in subject and body
+    Object.entries(sampleData).forEach(([key, value]) => {
+      const regex = new RegExp(`{{${key}}}`, 'g');
+      subject = subject.replace(regex, value);
+      body = body.replace(regex, value);
+    });
+
+    // Send test email
+    await sendBookingEmail({
+      to: user.rows[0].email,
+      subject: `[TEST] ${subject}`,
+      html: body
+    });
+
+    console.log(`Test email sent to ${user.rows[0].email}`);
+    res.json({ success: true, message: 'Test email sent to your email address' });
+  } catch (error) {
+    console.error('Test email error:', error);
+    res.status(500).json({ error: 'Failed to send test email' });
+  }
+});
+
+function getDefaultTestEmailBody() {
+  return `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: linear-gradient(135deg, #8b5cf6, #ec4899); padding: 32px; text-align: center; border-radius: 16px 16px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">Test Email</h1>
+      </div>
+      <div style="padding: 32px; background: #f9fafb;">
+        <p style="color: #374151; font-size: 16px;">Hi {{guestName}},</p>
+        <p style="color: #374151; font-size: 16px;">This is a test email from ScheduleSync.</p>
+        <div style="background: white; border-radius: 12px; padding: 24px; margin: 24px 0; border: 1px solid #e5e7eb;">
+          <table style="width: 100%;">
+            <tr><td style="padding: 8px 0; color: #6b7280;">Date</td><td style="color: #111827; font-weight: 500;">{{meetingDate}}</td></tr>
+            <tr><td style="padding: 8px 0; color: #6b7280;">Time</td><td style="color: #111827; font-weight: 500;">{{meetingTime}}</td></tr>
+            <tr><td style="padding: 8px 0; color: #6b7280;">Duration</td><td style="color: #111827; font-weight: 500;">{{meetingDuration}}</td></tr>
+            <tr><td style="padding: 8px 0; color: #6b7280;">Location</td><td style="color: #111827; font-weight: 500;">{{meetingLocation}}</td></tr>
+          </table>
+        </div>
+        <p style="color: #6b7280; font-size: 14px;">If you received this email, your email templates are working correctly!</p>
+      </div>
+      <div style="text-align: center; padding: 16px; color: #9ca3af; font-size: 12px;">
+        Powered by ScheduleSync
+      </div>
+    </div>
+  `;
+}
+
 module.exports = router;
