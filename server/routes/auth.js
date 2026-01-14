@@ -538,6 +538,53 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// GET /api/auth/check-username/:username - Check username availability
+router.get('/check-username/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+
+    // Validate username format (lowercase letters, numbers, hyphens only)
+    if (!/^[a-z0-9-]+$/.test(username)) {
+      return res.json({
+        available: false,
+        message: 'Use lowercase letters, numbers, and hyphens only'
+      });
+    }
+
+    // Check minimum length
+    if (username.length < 3) {
+      return res.json({
+        available: false,
+        message: 'Username must be at least 3 characters'
+      });
+    }
+
+    // Check if username exists
+    const result = await pool.query(
+      'SELECT 1 FROM users WHERE username = $1 LIMIT 1',
+      [username]
+    );
+
+    const available = result.rows.length === 0;
+
+    // Generate suggestions if taken
+    const suggestions = available ? [] : [
+      `${username}-${Math.floor(Math.random() * 1000)}`,
+      `${username}-cal`,
+      `${username}-${new Date().getFullYear()}`
+    ];
+
+    res.json({
+      available,
+      message: available ? 'Available!' : 'This username is already taken',
+      suggestions
+    });
+  } catch (error) {
+    console.error('Check username error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/auth/create-test-user - Create test user (dev only)
 router.get('/create-test-user', async (req, res) => {
   try {
