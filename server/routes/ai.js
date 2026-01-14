@@ -102,8 +102,12 @@ const detectIntent = (message) => {
     return 'upcoming';
   }
 
-  // Quick link creation
-  if (lowerMessage.includes('quick link') || lowerMessage.includes('magic link')) {
+  // Quick link creation - detect various ways users might ask
+  if (lowerMessage.includes('quick link') || lowerMessage.includes('quicklink') ||
+      lowerMessage.includes('magic link') || lowerMessage.includes('single use link') ||
+      lowerMessage.includes('single-use link') || lowerMessage.includes('one-time link') ||
+      ((lowerMessage.includes('create') || lowerMessage.includes('make') || lowerMessage.includes('new') ||
+        lowerMessage.includes('generate')) && lowerMessage.includes('link') && !lowerMessage.includes('team'))) {
     return 'create_quick_link';
   }
 
@@ -922,14 +926,207 @@ router.post('/schedule', authenticateToken, async (req, res) => {
       });
     }
 
-    // Handle quick link creation
+    // Handle quick link creation - start multi-step flow
     if (intent === 'create_quick_link') {
-      const quickLink = await createQuickLink(client, userId, message);
-      return res.json({
-        type: 'quick_link',
-        message: `Done! I've created a quick link for you. It expires in 7 days.`,
-        data: quickLink
-      });
+      // Check if user has teams
+      const teams = await client.query(
+        `SELECT t.id, t.name FROM teams t
+         WHERE t.owner_id = $1
+         OR EXISTS (SELECT 1 FROM team_members tm WHERE tm.team_id = t.id AND tm.user_id = $1 AND tm.is_active = true)`,
+        [userId]
+      );
+
+      // Get user's event types
+      const eventTypes = await client.query(
+        `SELECT id, title as name, duration FROM event_types WHERE user_id = $1 AND is_active = true ORDER BY title`,
+        [userId]
+      );
+
+      if (eventTypes.rows.length === 0) {
+        return res.json({
+          type: 'info',
+          message: `You need to create an event type first before creating a quick link.\n\nGo to **Event Types** to create one, or I can help you set up a default 30-minute meeting.`
+        });
+      }
+
+      // Store pending action for the flow
+      const flowData = {
+        step: teams.rows.length > 0 ? 'type' : 'event_type',
+        teams: teams.rows,
+        eventTypes: eventTypes.rows,
+        data: teams.rows.length === 0 ? { isTeam: false, teamId: null } : {}
+      };
+
+      await client.query(
+        `INSERT INTO ai_pending_actions (user_id, action_type, action_data, expires_at)
+         VALUES ($1, 'quicklink_flow', $2, NOW() + INTERVAL '10 minutes')
+         ON CONFLICT (user_id, action_type) DO UPDATE SET action_data = $2, expires_at = NOW() + INTERVAL '10 minutes'`,
+        [userId, JSON.stringify(flowData)]
+      );
+
+      if (teams.rows.length > 0) {
+        const teamList = teams.rows.map((t, i) => `${i + 2}. **${t.name}** (Team)`).join('\n');
+        return res.json({
+          type: 'quicklink_step',
+          message: `Let's create a quick link! 🔗\n\n**Step 1 of 4:** Is this for you or a team?\n\n1. **Personal** - Just for me\n${teamList}\n\nReply with the number.`
+        });
+      } else {
+        // Skip team selection if no teams
+        const eventList = eventTypes.rows.map((e, i) => `${i + 1}. ${e.name} (${e.duration} min)`).join('\n');
+        return res.json({
+          type: 'quicklink_step',
+          message: `Let's create a quick link! 🔗\n\n**Step 1 of 3:** Which event type is this for?\n\n${eventList}\n\nReply with the number.`
+        });
+      }
+    }
+
+    // Handle quick link flow steps (check for pending quicklink_flow action)
+    const quicklinkFlow = await client.query(
+      `SELECT action_data FROM ai_pending_actions
+       WHERE user_id = $1 AND action_type = 'quicklink_flow' AND expires_at > NOW()`,
+      [userId]
+    );
+
+    if (quicklinkFlow.rows.length > 0) {
+      const flowState = quicklinkFlow.rows[0].action_data;
+      const { step, teams = [], eventTypes = [], data = {} } = flowState;
+      const lower = message.toLowerCase().trim();
+
+      // Step: Team or Personal selection
+      if (step === 'type') {
+        const num = parseInt(message.trim());
+
+        if (isNaN(num) || num < 1 || num > teams.length + 1) {
+          return res.json({
+            type: 'quicklink_step',
+            message: `Please reply with a number between 1 and ${teams.length + 1}.`
+          });
+        }
+
+        if (num === 1) {
+          data.isTeam = false;
+          data.teamId = null;
+          data.teamName = null;
+        } else {
+          const team = teams[num - 2];
+          data.isTeam = true;
+          data.teamId = team.id;
+          data.teamName = team.name;
+        }
+
+        // Move to event type selection
+        const eventList = eventTypes.map((e, i) => `${i + 1}. ${e.name} (${e.duration} min)`).join('\n');
+
+        await client.query(
+          `UPDATE ai_pending_actions SET action_data = $1 WHERE user_id = $2 AND action_type = 'quicklink_flow'`,
+          [JSON.stringify({ step: 'event_type', teams, eventTypes, data }), userId]
+        );
+
+        return res.json({
+          type: 'quicklink_step',
+          message: `${data.isTeam ? `Creating team link for **${data.teamName}**` : 'Creating personal link'} ✓\n\n**Step 2 of 4:** Which event type?\n\n${eventList}\n\nReply with the number.`
+        });
+      }
+
+      // Step: Event type selection
+      if (step === 'event_type') {
+        const num = parseInt(message.trim());
+
+        if (isNaN(num) || num < 1 || num > eventTypes.length) {
+          return res.json({
+            type: 'quicklink_step',
+            message: `Please reply with a number between 1 and ${eventTypes.length}.`
+          });
+        }
+
+        const eventType = eventTypes[num - 1];
+        data.eventTypeId = eventType.id;
+        data.eventTypeName = eventType.name;
+        data.duration = eventType.duration;
+
+        await client.query(
+          `UPDATE ai_pending_actions SET action_data = $1 WHERE user_id = $2 AND action_type = 'quicklink_flow'`,
+          [JSON.stringify({ step: 'name', teams, eventTypes, data }), userId]
+        );
+
+        const stepNum = teams.length > 0 ? '3 of 4' : '2 of 3';
+        return res.json({
+          type: 'quicklink_step',
+          message: `**${eventType.name}** selected ✓\n\n**Step ${stepNum}:** Give this link a name (helps you identify it later)\n\nExamples:\n• "Sales call with Acme Corp"\n• "John's Interview Link"\n• "VIP Client Meeting"\n\nOr reply **skip** to use default name.`
+        });
+      }
+
+      // Step: Name the link
+      if (step === 'name') {
+        if (lower === 'skip' || lower === 's') {
+          data.name = `${data.eventTypeName} - Quick Link`;
+        } else {
+          data.name = message.trim();
+        }
+
+        await client.query(
+          `UPDATE ai_pending_actions SET action_data = $1 WHERE user_id = $2 AND action_type = 'quicklink_flow'`,
+          [JSON.stringify({ step: 'options', teams, eventTypes, data }), userId]
+        );
+
+        const stepNum = teams.length > 0 ? '4 of 4' : '3 of 3';
+        return res.json({
+          type: 'quicklink_step',
+          message: `Name: **${data.name}** ✓\n\n**Step ${stepNum}:** Link options\n\n1. **Standard** - Never expires, unlimited uses\n2. **Single-use** - One booking only, then expires\n3. **Expires in 7 days** - Limited time link\n4. **Personalized** - For a specific person (I'll ask their name)\n\nReply with the number.`
+        });
+      }
+
+      // Step: Options selection
+      if (step === 'options') {
+        const num = parseInt(message.trim());
+
+        if (isNaN(num) || num < 1 || num > 4) {
+          return res.json({
+            type: 'quicklink_step',
+            message: `Please reply with a number between 1 and 4.`
+          });
+        }
+
+        if (num === 1) {
+          data.usageLimit = null;
+          data.expiresAt = null;
+          data.attendeeName = null;
+        } else if (num === 2) {
+          data.usageLimit = 1;
+          data.expiresAt = null;
+          data.attendeeName = null;
+        } else if (num === 3) {
+          data.usageLimit = null;
+          const expires = new Date();
+          expires.setDate(expires.getDate() + 7);
+          data.expiresAt = expires.toISOString();
+          data.attendeeName = null;
+        } else if (num === 4) {
+          // Ask for attendee name
+          await client.query(
+            `UPDATE ai_pending_actions SET action_data = $1 WHERE user_id = $2 AND action_type = 'quicklink_flow'`,
+            [JSON.stringify({ step: 'personalize', teams, eventTypes, data }), userId]
+          );
+
+          return res.json({
+            type: 'quicklink_step',
+            message: `Who is this link for? Enter their name:\n\n(This will personalize the booking page with their name)`
+          });
+        }
+
+        // Create the quick link
+        return await createQuickLinkFromFlow(client, res, userId, data);
+      }
+
+      // Step: Personalize (attendee name)
+      if (step === 'personalize') {
+        data.attendeeName = message.trim();
+        data.usageLimit = 1; // Personalized links are single-use
+        data.expiresAt = null;
+
+        // Create the quick link
+        return await createQuickLinkFromFlow(client, res, userId, data);
+      }
     }
 
     // Handle team links
@@ -1420,6 +1617,89 @@ async function createQuickLink(client, userId, message) {
     duration,
     expiresAt
   };
+}
+
+// Create quick link from multi-step flow data
+async function createQuickLinkFromFlow(client, res, userId, data) {
+  const crypto = require('crypto');
+  const token = crypto.randomBytes(16).toString('hex');
+  const frontendUrl = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
+
+  try {
+    // Insert into magic_links table (which is what the booking system uses)
+    await client.query(`
+      INSERT INTO magic_links (
+        user_id, token, duration_minutes, expires_at, is_active,
+        max_uses, current_uses, attendee_name, name, event_type_id, team_id
+      ) VALUES ($1, $2, $3, $4, true, $5, 0, $6, $7, $8, $9)
+    `, [
+      userId,
+      token,
+      data.duration || 30,
+      data.expiresAt || null,
+      data.usageLimit,
+      data.attendeeName,
+      data.name,
+      data.eventTypeId,
+      data.teamId
+    ]);
+
+    // Clear pending action
+    await client.query(
+      'DELETE FROM ai_pending_actions WHERE user_id = $1 AND action_type = $2',
+      [userId, 'quicklink_flow']
+    );
+
+    const link = `${frontendUrl}/m/${token}`;
+
+    let summary = `✅ **Quick Link Created!**\n\n`;
+    summary += `📝 **Name:** ${data.name}\n`;
+    summary += `📅 **Event:** ${data.eventTypeName} (${data.duration} min)\n`;
+
+    if (data.isTeam) {
+      summary += `👥 **Team:** ${data.teamName}\n`;
+    }
+
+    if (data.attendeeName) {
+      summary += `👤 **For:** ${data.attendeeName}\n`;
+    }
+
+    if (data.usageLimit) {
+      summary += `🔢 **Uses:** Single-use\n`;
+    }
+
+    if (data.expiresAt) {
+      summary += `⏰ **Expires:** ${new Date(data.expiresAt).toLocaleDateString()}\n`;
+    }
+
+    summary += `\n🔗 **Your link:**`;
+
+    return res.json({
+      type: 'quicklink_created',
+      message: summary,
+      data: {
+        url: link,
+        token,
+        type: 'magic',
+        short_url: `/m/${token.substring(0, 8)}...`,
+        name: data.name,
+        duration: data.duration
+      }
+    });
+  } catch (error) {
+    console.error('Error creating quick link from flow:', error);
+
+    // Clear pending action even on error
+    await client.query(
+      'DELETE FROM ai_pending_actions WHERE user_id = $1 AND action_type = $2',
+      [userId, 'quicklink_flow']
+    );
+
+    return res.json({
+      type: 'error',
+      message: `Sorry, I couldn't create the quick link. Error: ${error.message}\n\nPlease try again or create it from the **Quick Links** page.`
+    });
+  }
 }
 
 async function getTeamLinks(client, userId) {

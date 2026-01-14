@@ -663,12 +663,12 @@ export default function AISchedulerChat() {
       ];
     }
 
-    if (path === '/links' || path === '/my-links') {
+    if (path === '/links' || path === '/my-links' || path === '/quick-links') {
       return [
-        { action: 'link', label: 'Copy my link', icon: Link, color: 'purple' },
-        ...(hasProFeature() ? [{ action: 'quick', label: 'Create Quick Link', icon: Zap, color: 'pink' }] : []),
-        { action: 'share', label: 'Share tips', icon: Send, color: 'blue' },
-        { action: 'event_types', label: 'Event types', icon: Calendar, color: 'green' }
+        { action: 'quick', label: 'New Quick Link', icon: Zap, color: 'pink' },
+        { action: 'link', label: 'My Booking Link', icon: Link, color: 'purple' },
+        { action: 'list_quick_links', label: 'List Links', icon: FileText, color: 'blue' },
+        { action: 'share', label: 'Share tips', icon: Send, color: 'green' }
       ];
     }
 
@@ -1002,6 +1002,8 @@ export default function AISchedulerChat() {
     const actions = {
       'link': "What's my booking link?",
       'quick': 'Create a quick link',
+      'new_quick_link': 'Create a quick link',
+      'list_quick_links': 'Show my quick links',
       'upcoming': 'Show my upcoming meetings',
       'today': "What meetings do I have today?",
       'tomorrow': "What's on my schedule tomorrow?",
