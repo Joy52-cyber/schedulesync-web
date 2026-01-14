@@ -13,6 +13,7 @@ import {
   Zap,
   Mail,
   Bot,
+  Inbox,
   Sparkles,
   ChevronDown,
 } from "lucide-react";
@@ -53,6 +54,7 @@ export default function Layout() {
 
   // AI Features with required tier (badges shown conditionally)
   const aiFeatures = [
+    { name: "Inbox Assistant", path: "/inbox-assistant", icon: Inbox, walkthrough: "inbox-nav", requiredTier: "pro" },
     { name: "Smart Rules", path: "/rules", icon: Zap, walkthrough: "rules-nav", requiredTier: "pro" },
     { name: "Email Assistant", path: "/email-assistant", icon: Mail, walkthrough: "email-nav", requiredTier: "pro" },
     { name: "Autonomous", path: "/autonomous", icon: Bot, walkthrough: "autonomous-nav", requiredTier: "team" },

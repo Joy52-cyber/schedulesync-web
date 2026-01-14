@@ -37,6 +37,7 @@ import EventTypeForm from './pages/EventTypeForm';
 import EventTypeDetail from './pages/EventTypeDetail';
 import Availability from './pages/Availability';
 import CalendlyMigration from './pages/CalendlyMigration';
+import InboxAssistant from './pages/InboxAssistant';
 import EmailTemplates from './pages/EmailTemplates';
 import SchedulingRules from './pages/SchedulingRules';
 import EmailAnalyzer from './pages/EmailAnalyzer';
@@ -156,6 +157,7 @@ function InnerApp() {
                 <Route path="/templates" element={<EmailTemplates />} />
                 <Route path="/rules" element={<SchedulingRules />} />
                 <Route path="/email-assistant" element={<EmailAnalyzer />} />
+                <Route path="/inbox-assistant" element={<InboxAssistant />} />
                 <Route path="/autonomous" element={<AutonomousSettings />} />
                 <Route path="/my-links" element={<MyLinks />} />
                 <Route path="/billing" element={<BillingPage />} />

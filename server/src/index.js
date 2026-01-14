@@ -51,6 +51,7 @@ const notificationsRoutes = require('../routes/notifications');
 const paymentsRoutes = require('../routes/payments');
 const invitationsRoutes = require('../routes/invitations');
 const teamMembersRoutes = require('../routes/team-members');
+const inboxRoutes = require('../routes/inbox');
 
 // Register core routes
 app.use('/api/auth', authRoutes);
@@ -86,6 +87,7 @@ app.use('/api/notifications', notificationsRoutes);  // Notifications
 app.use('/api/payments', paymentsRoutes);  // Payment processing
 app.use('/api/invitations', invitationsRoutes);  // Team invitations
 app.use('/api/team-members', teamMembersRoutes);  // Team member availability
+app.use('/api/inbox', inboxRoutes);  // Inbox Assistant
 
 console.log('Routes registered:');
 console.log('  - /api/auth/*');
