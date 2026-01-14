@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+﻿require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -48,6 +48,7 @@ const calendarRoutes = require('../routes/calendar');
 const publicRoutes = require('../routes/public');
 const brandingRoutes = require('../routes/branding');
 const notificationsRoutes = require('../routes/notifications');
+const paymentsRoutes = require('../routes/payments');
 
 // Register core routes
 app.use('/api/auth', authRoutes);
@@ -79,6 +80,7 @@ app.use('/api/calendar', calendarRoutes);  // Calendar status
 app.use('/api/auth', calendarRoutes);  // Google/Microsoft OAuth (shares with auth routes)
 app.use('/api/user/branding', brandingRoutes);  // User branding settings
 app.use('/api/notifications', notificationsRoutes);  // Notifications
+app.use('/api/payments', paymentsRoutes);  // Payment processing
 
 console.log('Routes registered:');
 console.log('  - /api/auth/*');
@@ -100,6 +102,7 @@ console.log('  - /api/calendar/*');
 console.log('  - /api/public/*');
 console.log('  - /api/user/branding/*');
 console.log('  - /api/notifications/*');
+console.log('  - /api/payments/*');
 
 // Serve uploaded files (logos)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));

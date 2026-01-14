@@ -434,9 +434,47 @@ const sendEmail = async (to, subject, html, options = {}) => {
   }
 };
 
+// Send booking email with ICS attachment
+const sendBookingEmail = async ({ to, subject, html, icsAttachment }) => {
+  try {
+    console.log('📧 Attempting to send email to:', to);
+
+    const emailOptions = {
+      from: 'ScheduleSync <hello@trucal.xyz>',
+      to: to,
+      subject: subject,
+      html: html,
+      headers: {
+        'Content-Type': 'text/html; charset=UTF-8',
+        'Content-Transfer-Encoding': '8bit',
+        'MIME-Version': '1.0',
+      },
+    };
+
+    if (icsAttachment) {
+      emailOptions.attachments = [
+        {
+          filename: 'meeting.ics',
+          content: Buffer.from(icsAttachment).toString('base64'),
+          type: 'text/calendar; charset=UTF-8',
+        },
+      ];
+    }
+
+    const result = await resend.emails.send(emailOptions);
+    console.log('✅ Email sent to:', to);
+    return result;
+
+  } catch (error) {
+    console.error('❌ Email error:', error.message);
+    throw error;
+  }
+};
+
 module.exports = {
   resend,
   sendEmail,
+  sendBookingEmail,
   sendTemplatedEmail,
   getUserEmailTemplate,
   replaceTemplateVariables,
