@@ -27,6 +27,79 @@ router.put('/timezone', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/user/profile - Get user profile
+router.get('/profile', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, name, email, username, timezone FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// PUT /api/user/profile - Update user profile (name, username)
+router.put('/profile', authenticateToken, async (req, res) => {
+  try {
+    const { name, username } = req.body;
+    const updates = [];
+    const values = [req.user.id];
+    let paramIndex = 2;
+
+    if (name !== undefined && name.trim()) {
+      updates.push(`name = $${paramIndex++}`);
+      values.push(name.trim());
+    }
+
+    if (username !== undefined) {
+      // Validate username format
+      const usernameClean = username.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      if (usernameClean.length < 3) {
+        return res.status(400).json({ error: 'Username must be at least 3 characters' });
+      }
+
+      // Check if username is taken by another user
+      const existingUser = await pool.query(
+        'SELECT id FROM users WHERE LOWER(username) = $1 AND id != $2',
+        [usernameClean, req.user.id]
+      );
+      if (existingUser.rows.length > 0) {
+        return res.status(400).json({ error: 'Username already taken' });
+      }
+
+      updates.push(`username = $${paramIndex++}`);
+      values.push(usernameClean);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No updates provided' });
+    }
+
+    await pool.query(
+      `UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $1`,
+      values
+    );
+
+    // Return updated profile
+    const result = await pool.query(
+      'SELECT id, name, email, username, timezone FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    console.log(`Profile updated for user ${req.user.id}:`, { name, username });
+    res.json({ success: true, user: result.rows[0] });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
 // GET /api/settings/email-preferences - Get email preferences
 router.get('/email-preferences', authenticateToken, async (req, res) => {
   try {

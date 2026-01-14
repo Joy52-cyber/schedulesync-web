@@ -28,7 +28,7 @@ export default function UserProfilePage() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/book/user/${username}`);
+      const response = await fetch(`/api/public/user/${username}`);
       const data = await response.json();
 
       if (!response.ok) {

@@ -55,8 +55,11 @@ export default function UserSettings() {
   const [profile, setProfile] = useState({
     name: '',
     email: '',
+    username: '',
     timezone: 'America/New_York',
   });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
 
   const [personalTeamId, setPersonalTeamId] = useState(null);
 
@@ -112,10 +115,11 @@ export default function UserSettings() {
     try {
       const userRes = await auth.me();
       const userData = userRes.data.user;
-      
+
       setProfile({
-        name: userData.name,
-        email: userData.email,
+        name: userData.name || '',
+        email: userData.email || '',
+        username: userData.username || userData.email?.split('@')[0] || '',
         timezone: userData.timezone || 'America/New_York',
       });
 
@@ -341,6 +345,12 @@ export default function UserSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Save profile (name, username)
+      await api.put('/user/profile', {
+        name: profile.name,
+        username: profile.username,
+      });
+
       await timezoneApi.update(profile.timezone);
 
       if (personalTeamId) {
@@ -360,7 +370,8 @@ export default function UserSettings() {
       setTimeout(() => setSaved(false), 2000);
     } catch (error) {
       console.error('Error saving:', error);
-      notify.error('Failed to save settings');
+      const errorMsg = error.response?.data?.error || 'Failed to save settings';
+      notify.error(errorMsg);
     } finally {
       setSaving(false);
     }
@@ -505,11 +516,39 @@ export default function UserSettings() {
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
-                  <input type="text" value={profile.name} disabled className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-500" />
+                  <input
+                    type="text"
+                    value={profile.name}
+                    onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="Your full name"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
-                  <input type="email" value={profile.email} disabled className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-500" />
+                  <input
+                    type="email"
+                    value={profile.email}
+                    disabled
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Email cannot be changed</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Username</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-gray-400 text-sm">schedulesync.app/</span>
+                    <input
+                      type="text"
+                      value={profile.username}
+                      onChange={(e) => setProfile({ ...profile, username: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })}
+                      className="w-full pl-[130px] pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="your-username"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Your booking page URL: <span className="font-medium text-blue-600">{window.location.origin}/{profile.username}</span>
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Timezone</label>

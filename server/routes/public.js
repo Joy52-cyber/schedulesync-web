@@ -7,6 +7,59 @@ const { generateICS } = require('../../icsGenerator');
 const { sendTemplatedEmail, buildEmailVariables } = require('../services/email');
 const { applySchedulingRules, shouldAutoConfirm, recordBookingPattern } = require('../services/scheduling');
 
+// GET /api/public/user/:username - Get user profile and event types for booking page
+router.get('/user/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    console.log(`Public user profile request: ${username}`);
+
+    // Find user by username or email prefix
+    const userResult = await pool.query(
+      `SELECT id, name, email, username,
+              brand_logo_url, brand_primary_color, brand_accent_color, hide_powered_by
+       FROM users
+       WHERE LOWER(username) = LOWER($1)
+          OR LOWER(email) LIKE LOWER($2)
+       LIMIT 1`,
+      [username, `${username}%`]
+    );
+
+    if (userResult.rows.length === 0) {
+      console.log(`User not found: ${username}`);
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+
+    // Get user's active event types
+    const eventTypes = await pool.query(
+      `SELECT id, title as name, slug, duration, description, color, is_active
+       FROM event_types
+       WHERE user_id = $1 AND is_active = true
+       ORDER BY title`,
+      [user.id]
+    );
+
+    res.json({
+      user: {
+        name: user.name,
+        email: user.email,
+        username: user.username || user.email.split('@')[0],
+      },
+      eventTypes: eventTypes.rows,
+      branding: {
+        logo_url: user.brand_logo_url,
+        primary_color: user.brand_primary_color || '#8B5CF6',
+        accent_color: user.brand_accent_color || '#EC4899',
+        hide_powered_by: user.hide_powered_by || false
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ error: 'Failed to load user profile' });
+  }
+});
+
 // GET /api/public/booking/:username/:eventSlug - Get public event type info
 router.get('/booking/:username/:eventSlug', async (req, res) => {
   try {
