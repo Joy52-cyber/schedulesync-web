@@ -553,17 +553,21 @@ export default function AISchedulerChat() {
       timeSuggestions.push({ action: 'week', label: 'Week overview', icon: TrendingUp, color: 'green' });
     }
 
-    // Add frequent actions
-    const frequentSuggestions = frequentActions.slice(0, 2).map(action => {
-      const actionMap = {
-        'link': { label: 'Booking link', icon: Link, color: 'purple' },
-        'upcoming': { label: 'Upcoming', icon: Calendar, color: 'blue' },
-        'analytics': { label: 'Stats', icon: BarChart3, color: 'green' },
-        'quick': { label: 'Quick link', icon: Sparkles, color: 'pink' },
-        'teams': { label: 'Teams', icon: Users, color: 'orange' }
-      };
-      return actionMap[action] ? { action, ...actionMap[action] } : null;
-    }).filter(Boolean);
+    // Add frequent actions (but avoid duplicates with time suggestions)
+    const existingActions = new Set(timeSuggestions.map(s => s.action));
+    const frequentSuggestions = frequentActions
+      .filter(action => !existingActions.has(action))
+      .slice(0, 2)
+      .map(action => {
+        const actionMap = {
+          'link': { label: 'Booking link', icon: Link, color: 'purple' },
+          'upcoming': { label: 'Upcoming', icon: Calendar, color: 'blue' },
+          'analytics': { label: 'Stats', icon: BarChart3, color: 'green' },
+          'quick': { label: 'Quick link', icon: Zap, color: 'pink' },
+          'teams': { label: 'Teams', icon: Users, color: 'orange' }
+        };
+        return actionMap[action] ? { action, ...actionMap[action] } : null;
+      }).filter(Boolean);
 
     return [...timeSuggestions, ...frequentSuggestions].slice(0, 4);
   };
@@ -574,11 +578,12 @@ export default function AISchedulerChat() {
     const timeAware = getTimeAwareSuggestions();
 
     if (path === '/dashboard' || path === '/') {
+      // Filter out link-related items from timeAware to avoid duplicates
+      const filteredTimeAware = timeAware.filter(s => !['link', 'quick'].includes(s.action)).slice(0, 2);
       return [
-        ...timeAware.slice(0, 2),
-        { action: 'link', label: 'Booking Link', icon: Link, color: 'purple' },
-        ...(hasProFeature() ? [{ action: 'quick', label: 'Quick Link', icon: Sparkles, color: 'pink' }] : []),
-        ...(hasTeamFeature() ? [{ action: 'teams', label: 'Team Links', icon: Users, color: 'orange' }] : [])
+        { action: 'link', label: 'My Booking Link', icon: Link, color: 'purple' },
+        ...(hasProFeature() ? [{ action: 'quick', label: 'Quick Link', icon: Zap, color: 'pink' }] : []),
+        ...filteredTimeAware
       ].slice(0, 4);
     }
 
@@ -594,7 +599,7 @@ export default function AISchedulerChat() {
     if (path === '/links' || path === '/my-links') {
       return [
         { action: 'link', label: 'Copy my link', icon: Link, color: 'purple' },
-        ...(hasProFeature() ? [{ action: 'quick', label: 'Create Quick Link', icon: Sparkles, color: 'pink' }] : []),
+        ...(hasProFeature() ? [{ action: 'quick', label: 'Create Quick Link', icon: Zap, color: 'pink' }] : []),
         { action: 'share', label: 'Share tips', icon: Send, color: 'blue' },
         { action: 'event_types', label: 'Event types', icon: Calendar, color: 'green' }
       ];
