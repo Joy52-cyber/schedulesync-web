@@ -46,6 +46,8 @@ const rulesRoutes = require('../routes/rules');
 const preferencesRoutes = require('../routes/preferences');
 const calendarRoutes = require('../routes/calendar');
 const publicRoutes = require('../routes/public');
+const brandingRoutes = require('../routes/branding');
+const notificationsRoutes = require('../routes/notifications');
 
 // Register core routes
 app.use('/api/auth', authRoutes);
@@ -75,6 +77,8 @@ app.use('/api/reschedule-suggestions', preferencesRoutes);  // Reschedule sugges
 app.use('/api/check-conflicts', preferencesRoutes);  // Conflict check shares preferences router
 app.use('/api/calendar', calendarRoutes);  // Calendar status
 app.use('/api/auth', calendarRoutes);  // Google/Microsoft OAuth (shares with auth routes)
+app.use('/api/user/branding', brandingRoutes);  // User branding settings
+app.use('/api/notifications', notificationsRoutes);  // Notifications
 
 console.log('Routes registered:');
 console.log('  - /api/auth/*');
@@ -94,6 +98,11 @@ console.log('  - /api/scheduling-rules/*');
 console.log('  - /api/preferences/*');
 console.log('  - /api/calendar/*');
 console.log('  - /api/public/*');
+console.log('  - /api/user/branding/*');
+console.log('  - /api/notifications/*');
+
+// Serve uploaded files (logos)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
