@@ -267,16 +267,16 @@ export default function MyLinks() {
               <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
                 <Link2 className="h-5 w-5 text-blue-600" />
               </div>
-              Your Booking Page
+              Your Profile Link
             </h2>
             <p className="text-blue-700 text-sm mb-4">
-              Your permanent booking page - share it anywhere
+              Your permanent link - share it anywhere
             </p>
 
             {user?.username ? (
               <div className="space-y-4">
                 <div className="bg-white border border-blue-200 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 mb-1">Your personal booking page</p>
+                  <p className="text-xs text-gray-500 mb-1">Your profile link</p>
                   <p className="font-mono text-sm text-blue-700 break-all">
                     {`${window.location.origin}/${user.username}`}
                   </p>
