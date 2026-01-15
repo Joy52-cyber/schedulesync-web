@@ -458,34 +458,33 @@ function generateProposalEmail(user, thread, slots, settings) {
 
   let slotsHtml = slots.map((slot, i) => {
     const confirmUrl = `${bookingBaseUrl}/quick-book?user=${user.username}&time=${encodeURIComponent(slot.start)}&thread=${thread.id}`;
-    return `<tr><td style="padding:8px 0;"><a href="${confirmUrl}" style="display:block;padding:14px 20px;background-color:#7c3aed;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;text-align:center;">${slot.formatted}</a></td></tr>`;
+    return `<tr><td style="padding:6px 0;"><a href="${confirmUrl}" style="display:block;padding:16px 20px;background-color:#8b5cf6;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:600;font-size:15px;text-align:center;">${slot.formatted}</a></td></tr>`;
   }).join('');
 
-  const intro = (settings.intro_message || "I'm helping {{hostName}} find a time for your meeting.")
+  const intro = (settings.intro_message || "I'm helping {{hostName}} schedule a meeting with you.")
     .replace('{{hostName}}', user.name);
 
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:40px 20px;">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;padding:32px 16px;">
 <tr><td align="center">
-<table width="500" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;">
-<tr><td style="background-color:#7c3aed;padding:24px;text-align:center;">
-<h1 style="margin:0;color:#ffffff;font-size:22px;">Pick a Time</h1>
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:16px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1),0 2px 4px -1px rgba(0,0,0,0.06);overflow:hidden;">
+<tr><td style="background:linear-gradient(135deg,#8b5cf6 0%,#ec4899 100%);padding:32px 24px;text-align:center;">
+<h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">Pick a Time</h1>
 </td></tr>
-<tr><td style="padding:30px;">
-<p style="margin:0 0 15px;color:#374151;font-size:16px;">Hi ${guestName}!</p>
-<p style="margin:0 0 25px;color:#374151;font-size:16px;">${intro}</p>
-<p style="margin:0 0 15px;color:#374151;font-size:14px;font-weight:600;">Available times:</p>
+<tr><td style="padding:32px 24px;">
+<p style="margin:0 0 8px;color:#111827;font-size:18px;font-weight:600;">Hi ${guestName}!</p>
+<p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.5;">${intro}</p>
 <table width="100%" cellpadding="0" cellspacing="0">
 ${slotsHtml}
 </table>
-<p style="margin:25px 0 0;color:#6b7280;font-size:14px;text-align:center;">Click any button to book instantly</p>
+<p style="margin:24px 0 0;color:#9ca3af;font-size:13px;text-align:center;">Click any time to book instantly</p>
 </td></tr>
-<tr><td style="padding:20px 30px;background-color:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">
-<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Or view all times: <a href="${bookingBaseUrl}/${user.username}" style="color:#7c3aed;">${bookingBaseUrl}/${user.username}</a></p>
-<p style="margin:0;color:#9ca3af;font-size:11px;">${settings.signature || 'Powered by TruCal'}</p>
+<tr><td style="padding:20px 24px;background-color:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">
+<p style="margin:0 0 8px;color:#6b7280;font-size:13px;">Or view all times: <a href="${bookingBaseUrl}/${user.username}" style="color:#8b5cf6;text-decoration:none;">${user.username}'s calendar</a></p>
+<p style="margin:0;color:#9ca3af;font-size:12px;">${settings.signature || 'Powered by <strong style="color:#6b7280;">TruCal</strong>'}</p>
 </td></tr>
 </table>
 </td></tr>
