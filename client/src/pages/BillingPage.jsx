@@ -157,9 +157,9 @@ const BillingPage = () => {
   const isCancelled = subscription?.status === 'cancelled';
 
   const planDetails = {
-    free: { name: 'Free', price: 0, icon: Settings, features: ['10 AI queries/month', '50 bookings/month', '1 booking link', 'Email support'] },
-    pro: { name: 'Pro', price: 12, icon: Zap, features: ['Unlimited AI queries', 'Unlimited bookings', 'Unlimited links', 'Priority support'] },
-    team: { name: 'Team', price: 25, icon: Users, features: ['Everything in Pro', 'Unlimited team members', 'Admin dashboard', 'Phone support'] }
+    free: { name: 'Free', price: 0, icon: Settings, features: ['Basic AI features', 'Bookings included', 'Personal booking link', 'Email support'] },
+    pro: { name: 'Pro', price: 15, icon: Zap, features: ['Unlimited AI queries', 'Unlimited bookings', 'Unlimited links', 'Priority support'] },
+    team: { name: 'Team', price: 25, icon: Users, features: ['Everything in Pro', 'Team collaboration', 'Admin dashboard', 'Priority support'] }
   };
 
   const currentPlan = planDetails[plan] || planDetails.free;

@@ -146,9 +146,9 @@ const UsageIndicator = () => {
           <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
             <div className="flex items-start">
               <div className="flex-1">
-                <p className="text-sm text-blue-800 font-medium mb-1">🚀 Unlock unlimited ChatGPT</p>
+                <p className="text-sm text-blue-800 font-medium mb-1">🚀 Unlock unlimited AI</p>
                 <p className="text-xs text-blue-600 mb-2">
-                  Get unlimited ChatGPT queries, 500 bookings/month, and priority support for just $15/month.
+                  Get unlimited AI queries, unlimited bookings, and priority support.
                 </p>
               </div>
             </div>

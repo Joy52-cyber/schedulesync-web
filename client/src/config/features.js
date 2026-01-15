@@ -44,7 +44,7 @@ export const FEATURES = {
   event_types: {
     key: 'event_types',
     label: 'Event Types',
-    description: 'Create different meeting types for various purposes',
+    description: 'Create different event types for various purposes',
     category: 'Booking',
     tiers: {
       [TIERS.FREE]: 1,

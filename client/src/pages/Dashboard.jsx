@@ -64,6 +64,7 @@ export default function Dashboard() {
   });
 
   const [chatgptConfigured, setChatgptConfigured] = useState(false);
+  const [bookingFilter, setBookingFilter] = useState('upcoming');
 
   useEffect(() => {
     loadAllData();
@@ -364,9 +365,6 @@ export default function Dashboard() {
               >
                 <Bot className="h-4 w-4" />
                 AI Scheduler
-                <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs">
-                  {usage.ai_queries_limit >= 999999 || usage.ai_queries_limit === null ? '∞' : `${usage.ai_queries_used}/${usage.ai_queries_limit}`}
-                </span>
               </button>
 
               <button
@@ -454,15 +452,13 @@ export default function Dashboard() {
                     <div className="flex items-center gap-3">
                       <Calendar className="w-5 h-5 text-gray-600" />
                       <h2 className="text-lg font-bold text-gray-900">Event Types</h2>
-                      <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs font-medium text-gray-600">
-                        {eventTypes.length}
-                      </span>
                     </div>
-                    <button 
-                      onClick={() => navigate('/events')}
-                      className="text-sm font-medium text-purple-600 hover:text-purple-700 flex items-center gap-1"
+                    <button
+                      onClick={() => navigate('/events/new')}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700"
                     >
-                      View All <ChevronRight className="w-4 h-4" />
+                      <Plus className="w-4 h-4" />
+                      Create Event Type
                     </button>
                   </div>
 
@@ -544,32 +540,54 @@ export default function Dashboard() {
                     </button>
                   </div>
 
-                  {/* Stats Row */}
-                  <div className="grid grid-cols-3 gap-4 mb-6 pb-6 border-b border-gray-200">
-                    <div className="text-center p-4 bg-gray-50 rounded-xl">
-                      <div className="text-3xl font-bold text-gray-900">{stats.totalBookings}</div>
-                      <div className="text-sm text-gray-500">Total</div>
-                    </div>
-                    <div className="text-center p-4 bg-blue-50 rounded-xl">
-                      <div className="text-3xl font-bold text-blue-600">{stats.upcomingBookings}</div>
-                      <div className="text-sm text-gray-500">Upcoming</div>
-                    </div>
-                    <div className="text-center p-4 bg-green-50 rounded-xl">
-                      <div className="text-3xl font-bold text-green-600">{stats.confirmationRate}%</div>
-                      <div className="text-sm text-gray-500">Confirmed</div>
-                    </div>
+                  {/* Filter Tabs */}
+                  <div className="flex items-center gap-2 mb-6">
+                    <button
+                      onClick={() => setBookingFilter('upcoming')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        bookingFilter === 'upcoming'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      Upcoming
+                    </button>
+                    <button
+                      onClick={() => setBookingFilter('past')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        bookingFilter === 'past'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      Past
+                    </button>
                   </div>
 
                   {/* Bookings List */}
-                  {recentBookings.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-500 font-medium">No bookings yet</p>
-                      <p className="text-gray-400 text-sm mt-1">Share your booking link to get started</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {recentBookings.slice(0, 3).map((booking) => (
+                  {(() => {
+                    const filteredBookings = recentBookings.filter(b => {
+                      const isPast = new Date(b.start_time) < new Date();
+                      return bookingFilter === 'past' ? isPast : !isPast;
+                    });
+
+                    if (filteredBookings.length === 0) {
+                      return (
+                        <div className="text-center py-8">
+                          <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                          <p className="text-gray-500 font-medium">
+                            {bookingFilter === 'upcoming' ? 'No upcoming bookings' : 'No past bookings'}
+                          </p>
+                          <p className="text-gray-400 text-sm mt-1">
+                            {bookingFilter === 'upcoming' ? 'Share your booking link to get started' : 'Your completed bookings will appear here'}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-3">
+                        {filteredBookings.slice(0, 5).map((booking) => (
                         <div
                           key={booking.id}
                           className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-blue-300 transition-all cursor-pointer"
@@ -612,17 +630,18 @@ export default function Dashboard() {
                             </div>
                           </div>
                         </div>
-                      ))}
-                      {recentBookings.length > 3 && (
-                        <button
-                          onClick={() => navigate('/bookings')}
-                          className="w-full text-center text-sm text-blue-600 hover:text-blue-700 font-medium py-2"
-                        >
-                          View all {recentBookings.length} bookings →
-                        </button>
-                      )}
-                    </div>
-                  )}
+                        ))}
+                        {filteredBookings.length > 5 && (
+                          <button
+                            onClick={() => navigate('/bookings')}
+                            className="w-full text-center text-sm text-blue-600 hover:text-blue-700 font-medium py-2"
+                          >
+                            View all bookings →
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
               </div>

@@ -183,30 +183,26 @@ const SubscriptionSettings = () => {
           <div className="space-y-2 text-sm">
             <div className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
-              {/* ✅ FIXED: Updated to match our new strategy */}
-              {plan === 'free' ? '10 AI queries/month' : '🤖 Unlimited AI queries'}
+              {plan === 'free' ? 'Basic AI features' : '🤖 Unlimited AI queries'}
             </div>
             <div className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
-              {/* ✅ FIXED: Updated to match our new strategy */}
-              {plan === 'free' ? '50 bookings/month' : 
-               plan === 'pro' ? 'Unlimited bookings' : 
-               'Unlimited bookings'}
+              {plan === 'free' ? 'Bookings included' : 'Unlimited bookings'}
             </div>
             <div className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
-              {plan === 'free' ? '1 booking link' : 'Unlimited booking links'}
+              {plan === 'free' ? 'Personal booking link' : 'Unlimited booking links'}
             </div>
             <div className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
-              {plan === 'team' ? 'Unlimited team members' : 
-               plan === 'pro' ? 'Up to 5 team members' : 
-               '1 user only'}
+              {plan === 'team' ? 'Team collaboration' :
+               plan === 'pro' ? 'Personal use' :
+               'Personal use'}
             </div>
             {plan !== 'free' && (
               <div className="flex items-center">
                 <span className="text-green-500 mr-2">✓</span>
-                {plan === 'team' ? 'Phone + Priority support' : 'Priority email support'}
+                {plan === 'team' ? 'Priority support' : 'Priority email support'}
               </div>
             )}
           </div>

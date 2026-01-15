@@ -219,44 +219,28 @@ export default function BillingSettings() {
               
               {/* AI Queries */}
               <div className="bg-gray-50 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600 flex items-center gap-2">
                     <Bot className="h-4 w-4" />
-                    AI Queries
+                    AI Features
                   </span>
                   <span className="text-sm font-medium">
-                    {currentTier === 'free' ? `${usage.ai_queries_used}/${usage.ai_queries_limit}` : '∞ Unlimited'}
+                    {currentTier === 'free' ? 'Basic' : currentTier === 'starter' ? 'Advanced' : 'Unlimited'}
                   </span>
                 </div>
-                {currentTier === 'free' && (
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-purple-600 h-2 rounded-full transition-all"
-                      style={{width: `${Math.min(100, (usage.ai_queries_used / usage.ai_queries_limit) * 100)}%`}}
-                    />
-                  </div>
-                )}
               </div>
 
               {/* Bookings */}
               <div className="bg-gray-50 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600 flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
                     Bookings
                   </span>
                   <span className="text-sm font-medium">
-                    {currentTier === 'free' ? `${limits.current_bookings}/${limits.limits.soft}` : '∞ Unlimited'}
+                    {currentTier === 'free' ? 'Included' : 'Unlimited'}
                   </span>
                 </div>
-                {currentTier === 'free' && (
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-600 h-2 rounded-full transition-all"
-                      style={{width: `${Math.min(100, (limits.current_bookings / limits.limits.soft) * 100)}%`}}
-                    />
-                  </div>
-                )}
               </div>
             </div>
 

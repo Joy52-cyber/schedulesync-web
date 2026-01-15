@@ -89,26 +89,26 @@ const UpgradeModal = () => {
       color: 'purple'
     },
     ai_queries: {
-      title: 'AI Query Limit Reached',
-      description: `You've used ${usage?.ai_queries_used || 0}/${usage?.ai_queries_limit || 10} AI queries this month.`,
+      title: 'Unlock Unlimited AI',
+      description: 'Get unlimited AI queries to supercharge your scheduling.',
       icon: Bot,
       color: 'purple'
     },
     bookings: {
-      title: 'Booking Limit Reached',
-      description: `You've used ${usage?.bookings_used || 0}/${usage?.bookings_limit || 50} bookings this month.`,
+      title: 'Unlock Unlimited Bookings',
+      description: 'Get unlimited bookings to grow without limits.',
       icon: Calendar,
       color: 'blue'
     },
     event_types: {
-      title: 'Event Type Limit Reached',
-      description: `You've created ${usage?.event_types_used || 0}/${usage?.event_types_limit || 2} event types.`,
+      title: 'Create More Event Types',
+      description: 'Upgrade to create unlimited event types for all your needs.',
       icon: Sparkles,
       color: 'pink'
     },
     magic_links: {
-      title: 'Quick Link Limit Reached',
-      description: `You've used ${usage?.magic_links_used || 0}/${usage?.magic_links_limit || 2} quick links this month.`,
+      title: 'Unlock More Quick Links',
+      description: 'Get more quick links to share your availability.',
       icon: Link,
       color: 'indigo'
     },
@@ -116,8 +116,8 @@ const UpgradeModal = () => {
       title: 'Team Features',
       description: 'Create teams, add members, and manage group scheduling.',
       features: [
-        'Create unlimited teams',
-        'Up to 10 team members',
+        'Create teams',
+        'Add team members',
         'Round-robin scheduling',
         'Collective booking',
       ],
@@ -165,9 +165,9 @@ const UpgradeModal = () => {
       color: 'blue',
       icon: Sparkles,
       features: [
-        '50 AI queries/month',
-        '200 bookings/month',
-        '5 event types',
+        'Advanced AI features',
+        'More bookings',
+        'More event types',
         'Buffer times',
         'Email templates'
       ]
@@ -178,7 +178,7 @@ const UpgradeModal = () => {
       color: 'purple',
       icon: Crown,
       features: [
-        '250 AI queries/month',
+        'Unlimited AI queries',
         'Unlimited bookings',
         'Unlimited event types',
         'Smart rules',
@@ -187,16 +187,15 @@ const UpgradeModal = () => {
     },
     team: {
       name: 'Team',
-      price: 20,
-      priceNote: '/user',
+      price: 25,
       color: 'green',
       icon: Users,
       features: [
-        '750 AI queries pooled',
-        'Up to 10 team members',
+        'Everything in Pro',
+        'Team collaboration',
         'Round-robin scheduling',
         'Autonomous mode',
-        'Priority routing'
+        'Priority support'
       ]
     }
   };

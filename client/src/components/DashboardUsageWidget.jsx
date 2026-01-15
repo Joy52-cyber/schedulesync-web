@@ -179,23 +179,12 @@ const DashboardUsageWidget = () => {
                   </span>
                 </div>
                 <span className={`font-bold ${
-                  atLimit ? 'text-red-600' : 
+                  atLimit ? 'text-red-600' :
                   unlimited ? 'text-green-600' : 'text-gray-900'
                 }`}>
-                  {unlimited ? '∞ Unlimited' : `${item.used}/${item.limit}`}
+                  {unlimited ? 'Unlimited' : atLimit ? 'Upgrade for more' : 'Included'}
                 </span>
               </div>
-
-              {!unlimited && (
-                <div className={`h-2 rounded-full ${atLimit ? 'bg-red-100' : colors.barBg}`}>
-                  <div
-                    className={`h-2 rounded-full transition-all duration-500 ${
-                      atLimit ? 'bg-red-500' : colors.bar
-                    }`}
-                    style={{ width: `${Math.min(percentage, 100)}%` }}
-                  />
-                </div>
-              )}
 
               {atLimit && (
                 <button

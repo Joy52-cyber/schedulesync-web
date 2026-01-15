@@ -307,7 +307,7 @@ export default function EventTypeDetail() {
               <Globe className="h-5 w-5 flex-shrink-0" /> Share Event
             </h2>
             <p className="text-xs sm:text-sm text-blue-700 mb-4">
-              Share this link to let people book this specific meeting type.
+              Share this link to let people book this specific event type.
             </p>
 
             <div className="space-y-3">

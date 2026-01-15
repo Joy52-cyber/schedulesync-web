@@ -71,14 +71,13 @@ export default function Landing() {
       name: 'Free',
       price: '$0',
       period: 'forever',
-      description: 'Perfect for getting started',
+      description: 'Free forever. No credit card required.',
       features: [
-        '50 bookings/month',
-        '2 event types',
-        '10 AI queries/month',
-        '3 quick links/month',
+        'Unlimited bookings',
+        'Unlimited event types',
+        'Basic AI features',
         'Google & Outlook sync',
-        'Email reminders',
+        'Email notifications',
       ],
       cta: 'Get Started Free',
       popular: false,
@@ -87,12 +86,11 @@ export default function Landing() {
       name: 'Starter',
       price: '$8',
       period: '/month',
-      description: 'For individuals who need more',
+      description: 'For individuals ready to grow.',
       features: [
-        '200 bookings/month',
-        '5 event types',
-        '50 AI queries/month',
-        '10 quick links/month',
+        'Everything in Free',
+        'Advanced AI features',
+        'Custom branding',
         'Buffer times',
         'Email templates',
       ],
@@ -103,14 +101,12 @@ export default function Landing() {
       name: 'Pro',
       price: '$15',
       period: '/month',
-      description: 'For busy professionals',
+      description: 'For professionals who mean business.',
       features: [
-        'Unlimited bookings',
-        'Unlimited event types',
-        '250 AI queries/month',
-        'Unlimited quick links',
-        'AI Inbox Assistant (Gmail & Outlook)',
-        'Smart Rules (AI)',
+        'Everything in Starter',
+        'Unlimited AI features',
+        'AI Inbox Assistant',
+        'Smart scheduling rules',
         'Priority support',
       ],
       cta: 'Start Pro Trial',
@@ -121,14 +117,13 @@ export default function Landing() {
       name: 'Team',
       price: '$20',
       period: '/user/month',
-      description: 'For growing teams',
+      description: 'For teams that collaborate.',
       features: [
         'Everything in Pro',
-        '750 AI queries pooled',
-        'Round-robin booking',
+        'Unlimited team members',
+        'Round-robin scheduling',
         'Collective availability',
-        'Autonomous mode',
-        'Up to 10 members',
+        'Admin dashboard',
       ],
       cta: 'Start Team Trial',
       popular: false,
@@ -139,12 +134,11 @@ export default function Landing() {
       period: '',
       description: 'For large organizations',
       features: [
-        'Unlimited everything',
-        'Unlimited team size',
-        'SSO / SAML',
+        'Everything in Team',
+        'SSO / SAML integration',
         'Audit logs',
         'Dedicated support',
-        'SLA guarantee',
+        'Custom SLA',
       ],
       cta: 'Contact Sales',
       popular: false,
@@ -605,11 +599,11 @@ export default function Landing() {
               <ul className="space-y-2 text-sm text-gray-700">
                 <li className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <span>50 bookings/month</span>
+                  <span>Unlimited bookings</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <span>10 AI queries/month</span>
+                  <span>Basic AI features</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -645,8 +639,8 @@ export default function Landing() {
               </p>
               <div className="bg-white rounded-lg p-3 border border-purple-200">
                 <p className="text-xs text-purple-700 font-medium">
-                  💡 Free: 10 queries/month<br/>
-                  💎 Pro: 250 queries/month
+                  💡 Free: Basic AI included<br/>
+                  💎 Pro: Unlimited AI queries
                 </p>
               </div>
             </div>

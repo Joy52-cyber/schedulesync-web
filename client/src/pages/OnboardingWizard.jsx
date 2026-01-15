@@ -637,7 +637,7 @@ export default function OnboardingWizard() {
                 </h2>
                 <p className="text-gray-500 max-w-xs mx-auto">
                   We&apos;ve created your booking page and a default 30-min
-                  meeting type.
+                  event type.
                 </p>
               </div>
 

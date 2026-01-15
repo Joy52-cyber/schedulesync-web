@@ -33,7 +33,7 @@ const DESKTOP_STEPS = [
   {
     id: 'event-types',
     title: 'Create Event Types',
-    description: 'Set up different meeting types like "30-min Call", "1-hour Consultation", or "Quick Chat". Each gets its own booking link!',
+    description: 'Set up different event types like "30-min Call", "1-hour Consultation", or "Quick Chat". Each gets its own booking link!',
     target: '[data-walkthrough="events-nav"]',
     icon: 'Sparkles',
     position: 'right'
@@ -110,7 +110,7 @@ const MOBILE_STEPS = [
   {
     id: 'features',
     title: 'Key Features 📋',
-    description: '• Event Types - Create different meeting types\n• Booking Links - Get your booking link to share\n• Settings - Connect Google/Outlook calendar\n• Teams - Set up team scheduling (Team plan)',
+    description: '• Event Types - Create different event types\n• Booking Links - Get your booking link to share\n• Settings - Connect Google/Outlook calendar\n• Teams - Set up team scheduling (Team plan)',
     target: null,
     icon: 'CheckCircle',
     position: 'center'

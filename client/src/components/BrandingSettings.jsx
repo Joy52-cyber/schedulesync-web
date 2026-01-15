@@ -520,7 +520,7 @@ export default function BrandingSettings() {
                         color: branding.brand_primary_color
                       }}
                     >
-                      Select a meeting type to continue.
+                      Select an event type to continue.
                     </div>
                   )}
                 </div>
@@ -539,7 +539,7 @@ export default function BrandingSettings() {
                 {/* Step 1: Event Type Selection */}
                 {previewStep === 'event-select' && (
                   <div>
-                    <h2 className="text-sm font-bold text-slate-900 mb-1">Select a Meeting Type</h2>
+                    <h2 className="text-sm font-bold text-slate-900 mb-1">Select an Event Type</h2>
                     <p className="text-slate-500 text-xs mb-4">Choose the type of meeting you'd like to schedule.</p>
                     
                     <div className="space-y-2">

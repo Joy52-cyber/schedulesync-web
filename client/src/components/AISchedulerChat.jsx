@@ -1533,10 +1533,12 @@ export default function AISchedulerChat() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-white/10 rounded-lg px-2 py-1">
-              <Zap className="h-3 w-3 text-yellow-300" />
-              <span className="text-xs text-white font-medium">{isUnlimited ? '∞' : `${usage.ai_queries_used}/${usage.ai_queries_limit}`}</span>
-            </div>
+            {isUnlimited && (
+              <div className="flex items-center gap-1 bg-white/10 rounded-lg px-2 py-1">
+                <Zap className="h-3 w-3 text-yellow-300" />
+                <span className="text-xs text-white font-medium">Unlimited</span>
+              </div>
+            )}
             <button onClick={() => setIsMinimized(!isMinimized)} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
               {isMinimized ? <Maximize2 className="h-4 w-4 text-white" /> : <Minus className="h-4 w-4 text-white" />}
             </button>
@@ -1550,21 +1552,17 @@ export default function AISchedulerChat() {
           <>
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50">
-              {!isUnlimited && (
-                <div className={`rounded-lg p-4 mb-4 ${usage.ai_queries_used >= usage.ai_queries_limit ? 'bg-red-50 border-2 border-red-300' : 'bg-yellow-50 border border-yellow-200'}`}>
+              {!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit && (
+                <div className="rounded-lg p-4 mb-4 bg-purple-50 border border-purple-200">
                   <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-full ${usage.ai_queries_used >= usage.ai_queries_limit ? 'bg-red-100' : 'bg-yellow-100'}`}>
-                      <Zap className={`h-5 w-5 ${usage.ai_queries_used >= usage.ai_queries_limit ? 'text-red-600' : 'text-yellow-600'}`} />
+                    <div className="p-2 rounded-full bg-purple-100">
+                      <Zap className="h-5 w-5 text-purple-600" />
                     </div>
                     <div className="flex-1">
-                      <p className={`font-bold mb-2 ${usage.ai_queries_used >= usage.ai_queries_limit ? 'text-red-800 text-base' : 'text-yellow-800 text-sm'}`}>
-                        {usage.ai_queries_used >= usage.ai_queries_limit ? `You've used all ${usage.ai_queries_limit} queries` : `${usage.ai_queries_limit - usage.ai_queries_used} queries left`}
+                      <p className="font-bold mb-2 text-purple-800 text-sm">
+                        Upgrade for unlimited AI
                       </p>
-                      {usage.ai_queries_used >= usage.ai_queries_limit ? (
-                        <button onClick={() => window.location.href = '/billing'} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 rounded-lg font-semibold text-sm">Get Pro – $15/mo</button>
-                      ) : (
-                        <p className="text-xs text-yellow-700">Go Pro for unlimited!</p>
-                      )}
+                      <button onClick={() => window.location.href = '/billing'} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 rounded-lg font-semibold text-sm">Get Pro – $15/mo</button>
                     </div>
                   </div>
                 </div>

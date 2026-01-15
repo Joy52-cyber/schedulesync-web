@@ -673,7 +673,7 @@ export default function BookingPage() {
                 }}
               >
                 <p className="text-sm" style={{ color: branding.primary_color }}>
-                  Please select a meeting type from the list to continue.
+                  Please select an event type from the list to continue.
                 </p>
               </div>
             )}
@@ -691,7 +691,7 @@ export default function BookingPage() {
           
           {step === 'event-select' && !isPublicEventType && (
             <FadeIn className="max-w-xl mx-auto">
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">Select a Meeting Type</h2>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Select an Event Type</h2>
               <p className="text-slate-500 mb-8">Choose the type of meeting you'd like to schedule.</p>
               
               <div className="grid gap-4">

@@ -95,88 +95,45 @@ const UsageWidget = () => {
           </div>
         </div>
 
-       {/* ChatGPT Usage */}
+       {/* AI Features */}
 <div>
-  <div className="flex items-center justify-between mb-2">
-    <span className="text-sm font-medium text-gray-700">🤖 ChatGPT Queries</span>
-   <span className={`text-sm font-semibold ${getTextColor(chatgptPercentage)}`}>
-  {chatgpt.limit === -1 
-    ? 'Unlimited' 
-    : `${Math.min(chatgpt.used, chatgpt.limit)}/${chatgpt.limit}${chatgpt.used > chatgpt.limit ? '+' : ''}`
-  }
-</span>
+  <div className="flex items-center justify-between">
+    <span className="text-sm font-medium text-gray-700">🤖 AI Features</span>
+    <span className="text-sm font-semibold text-gray-900">
+      {chatgpt.limit === -1 ? 'Unlimited' : 'Included'}
+    </span>
   </div>
-  
-  {chatgpt.limit !== -1 ? (
-    <div className="w-full bg-gray-200 rounded-full h-2">
-      <div
-        className={`h-2 rounded-full transition-all duration-500 ${getUsageColor(chatgptPercentage)}`}
-        style={{ width: `${chatgptPercentage}%` }}
-      ></div>
-    </div>
-  ) : (
-    <div className="flex items-center justify-center py-2">
-      <span className="text-green-600 font-medium text-sm">∞ Unlimited</span>
-    </div>
-  )}
-  
-  {/* ChatGPT Limit Warning */}
-  {chatgptPercentage >= 100 && (
-    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm">
-      <span className="text-red-700 font-medium">⚠️ ChatGPT limit reached!</span>
-      <button 
+
+  {chatgptPercentage >= 100 && chatgpt.limit !== -1 && (
+    <div className="mt-2 p-2 bg-purple-50 border border-purple-200 rounded text-sm">
+      <span className="text-purple-700 font-medium">Upgrade for unlimited AI</span>
+      <button
         onClick={() => setShowUpgradeModal(true)}
-        className="ml-2 text-red-600 hover:text-red-700 underline"
+        className="ml-2 text-purple-600 hover:text-purple-700 underline"
       >
-        Upgrade now
-      </button>
-    </div>
-  )}
-  
-  {chatgptPercentage >= 80 && chatgptPercentage < 100 && (
-    <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
-      <span className="text-yellow-700">⚡ Running low on ChatGPT queries</span>
-      <button 
-        onClick={() => setShowUpgradeModal(true)}
-        className="ml-2 text-blue-600 hover:text-blue-700 underline"
-      >
-        Upgrade for unlimited
+        Get Pro
       </button>
     </div>
   )}
 </div>
 
-        {/* Bookings Usage */}
+        {/* Bookings */}
         <div>
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-gray-700">📅 Bookings</span>
-            <span className={`text-sm font-medium ${getTextColor(bookingsPercentage)}`}>
-              {bookings.limit === -1 ? 'Unlimited' : `${bookings.used}/${bookings.limit}`}
+            <span className="text-sm font-semibold text-gray-900">
+              {bookings.limit === -1 ? 'Unlimited' : 'Included'}
             </span>
           </div>
-          
-          {bookings.limit !== -1 ? (
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className={`h-2 rounded-full transition-all duration-500 ${getUsageColor(bookingsPercentage)}`}
-                style={{ width: `${bookingsPercentage}%` }}
-              ></div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center py-2">
-              <span className="text-green-600 font-medium text-sm">∞ Unlimited</span>
-            </div>
-          )}
-          
-          {/* Booking Limit Warning */}
-          {bookingsPercentage >= 90 && bookings.limit !== -1 && (
-            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
-              <span className="text-yellow-700">📅 Almost at booking limit</span>
-              <button 
+
+          {bookingsPercentage >= 100 && bookings.limit !== -1 && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+              <span className="text-blue-700 font-medium">Upgrade for unlimited bookings</span>
+              <button
                 onClick={() => setShowUpgradeModal(true)}
                 className="ml-2 text-blue-600 hover:text-blue-700 underline"
               >
-                Upgrade for more
+                Get Pro
               </button>
             </div>
           )}

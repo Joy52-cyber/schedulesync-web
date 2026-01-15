@@ -66,10 +66,10 @@ export default function Terms() {
               ScheduleSync offers the following plans:
             </p>
             <ul className="list-disc pl-6 text-gray-600 mb-6 space-y-2">
-              <li><strong>Free:</strong> 50 bookings/month, 10 AI queries/month, 3 quick links/month</li>
-              <li><strong>Starter ($8/month):</strong> 200 bookings/month, 50 AI queries/month, 10 quick links/month</li>
-              <li><strong>Pro ($15/month):</strong> Unlimited bookings, 250 AI queries, unlimited quick links</li>
-              <li><strong>Team ($20/user/month):</strong> All Pro features plus team scheduling for up to 10 members</li>
+              <li><strong>Free:</strong> Unlimited bookings, basic AI features, Google & Outlook sync</li>
+              <li><strong>Starter ($8/month):</strong> Advanced AI features, buffer times, custom email templates</li>
+              <li><strong>Pro ($15/month):</strong> Unlimited AI queries, smart rules, email assistant, priority support</li>
+              <li><strong>Team ($25/month):</strong> Everything in Pro plus team collaboration and round-robin scheduling</li>
               <li><strong>Enterprise:</strong> Custom pricing for large organizations with SSO and dedicated support</li>
             </ul>
             <p className="text-gray-600 mb-6">

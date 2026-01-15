@@ -34,7 +34,7 @@ const ONBOARDING_STEPS = [
   {
     id: 'event_type',
     title: 'Create Your First Event Type',
-    description: 'Set up a meeting type like "30-min Call" or "Consultation" that people can book with you.',
+    description: 'Set up an event type like "30-min Call" or "Consultation" that people can book with you.',
     icon: Clock,
     color: 'green',
     action: 'Create Event Type',

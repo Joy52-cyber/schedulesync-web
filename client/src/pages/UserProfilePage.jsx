@@ -118,7 +118,7 @@ export default function UserProfilePage() {
       ) : (
         <div className="space-y-3">
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">
-            Select a meeting type
+            Select an event type
           </h2>
           {eventTypes.map((eventType) => (
             <EventTypeCard
