@@ -94,50 +94,38 @@ export default function RescheduleSuggestions() {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="flex items-center justify-center py-4">
-          <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
-        </div>
-      </div>
-    );
+  // Hide completely when loading or no conflicts
+  if (loading || suggestions.length === 0) {
+    return null;
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
+    <div className="bg-white rounded-xl border-2 border-orange-200 p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center">
-            <RefreshCw className="h-5 w-5 text-white" />
+            <AlertTriangle className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h3 className="font-bold text-gray-900">Smart Rescheduling</h3>
-            <p className="text-xs text-gray-500">AI-powered conflict resolution</p>
+            <h3 className="font-bold text-gray-900">Scheduling Conflicts</h3>
+            <p className="text-xs text-gray-500">{suggestions.length} conflict{suggestions.length !== 1 ? 's' : ''} found - review suggested times</p>
           </div>
         </div>
         <button
           onClick={checkConflicts}
           disabled={checking}
-          className="text-sm px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium text-gray-700 flex items-center gap-1.5 disabled:opacity-50"
+          className="text-sm px-3 py-1.5 bg-orange-100 hover:bg-orange-200 rounded-lg font-medium text-orange-700 flex items-center gap-1.5 disabled:opacity-50"
         >
           {checking ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          Check Conflicts
+          Refresh
         </button>
       </div>
 
-      {suggestions.length === 0 ? (
-        <div className="text-center py-6 bg-green-50 rounded-xl">
-          <Check className="h-8 w-8 text-green-500 mx-auto mb-2" />
-          <p className="text-green-800 font-medium">No conflicts detected</p>
-          <p className="text-sm text-green-600">Your calendar is optimized</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
+      <div className="space-y-3">
           {suggestions.map((suggestion) => {
             const suggestedTimes = JSON.parse(suggestion.suggested_times || '[]');
             const isExpanded = expanded === suggestion.id;
@@ -215,8 +203,7 @@ export default function RescheduleSuggestions() {
               </div>
             );
           })}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
