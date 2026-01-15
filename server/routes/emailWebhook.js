@@ -144,14 +144,43 @@ function parseMailgunEmail(body) {
  * Parse generic JSON format
  */
 function parseGenericEmail(body) {
+  // Helper to normalize email addresses to {email, name} objects
+  const normalizeAddress = (addr) => {
+    if (!addr) return null;
+    if (typeof addr === 'string') {
+      // Could be "Name <email>" or just "email"
+      const match = addr.match(/^(.+?)\s*<(.+?)>$/);
+      if (match) {
+        return { name: match[1].trim().replace(/"/g, ''), email: match[2].trim() };
+      }
+      return { email: addr.trim(), name: '' };
+    }
+    if (typeof addr === 'object' && addr.email) {
+      return addr;
+    }
+    return null;
+  };
+
+  // Helper to normalize array of addresses
+  const normalizeAddressList = (list) => {
+    if (!list) return [];
+    if (typeof list === 'string') {
+      return [normalizeAddress(list)].filter(Boolean);
+    }
+    if (Array.isArray(list)) {
+      return list.map(normalizeAddress).filter(Boolean);
+    }
+    return [];
+  };
+
   return {
-    from: body.from || { email: body.fromEmail, name: body.fromName },
-    to: body.to || [{ email: body.toEmail }],
-    cc: body.cc || [],
-    subject: body.subject,
-    text: body.text || body.textBody,
-    html: body.html || body.htmlBody,
-    messageId: body.messageId || `msg-${Date.now()}`,
+    from: normalizeAddress(body.from) || normalizeAddress(body.fromEmail) || { email: 'unknown', name: '' },
+    to: normalizeAddressList(body.to) || [normalizeAddress(body.toEmail)].filter(Boolean),
+    cc: normalizeAddressList(body.cc),
+    subject: body.subject || '(no subject)',
+    text: body.text || body.textBody || '',
+    html: body.html || body.htmlBody || '',
+    messageId: body.messageId || body.headers?.['Message-ID'] || `msg-${Date.now()}`,
     inReplyTo: body.inReplyTo,
     references: body.references
   };
