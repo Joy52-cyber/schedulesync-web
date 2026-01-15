@@ -55,6 +55,7 @@ const inboxRoutes = require('../routes/inbox');
 const subscriptionRoutes = require('../routes/subscription');
 const analyticsRoutes = require('../routes/analytics');
 const emailIntegrationRoutes = require('../routes/emailIntegration');
+const emailWebhookRoutes = require('../routes/emailWebhook');
 
 // Register core routes
 app.use('/api/auth', authRoutes);
@@ -94,6 +95,7 @@ app.use('/api/team-members', teamMembersRoutes);  // Team member availability
 app.use('/api/inbox', inboxRoutes);  // Inbox Assistant
 app.use('/api/analytics', analyticsRoutes);  // Booking analytics
 app.use('/api/email', emailIntegrationRoutes);  // Email Integration (Gmail/Outlook)
+app.use('/api/email', emailWebhookRoutes);  // Email Bot Webhooks (inbound emails)
 
 console.log('Routes registered:');
 console.log('  - /api/auth/*');

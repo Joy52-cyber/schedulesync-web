@@ -642,4 +642,140 @@ router.post('/booking/create', async (req, res) => {
   }
 });
 
+// POST /api/public/quick-book - Book from email bot link
+router.post('/quick-book', async (req, res) => {
+  try {
+    const { username, time, threadId } = req.body;
+
+    // Find user
+    const user = await pool.query(
+      'SELECT * FROM users WHERE username = $1',
+      [username]
+    );
+
+    if (user.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const host = user.rows[0];
+    const startTime = new Date(decodeURIComponent(time));
+
+    // Validate time is in future
+    if (startTime < new Date()) {
+      return res.status(400).json({ error: 'This time slot is no longer available' });
+    }
+
+    // Get thread info if provided
+    let guestEmail = null;
+    let guestName = null;
+
+    if (threadId) {
+      const thread = await pool.query(
+        'SELECT * FROM email_bot_threads WHERE id = $1',
+        [threadId]
+      );
+
+      if (thread.rows.length > 0) {
+        const t = thread.rows[0];
+
+        // Check if already booked
+        if (t.status === 'booked') {
+          return res.status(400).json({ error: 'This meeting has already been scheduled' });
+        }
+
+        const participants = t.participants || [];
+        const guest = participants.find(p => p.email !== host.email);
+        if (guest) {
+          guestEmail = guest.email;
+          guestName = guest.name || guest.email.split('@')[0];
+        }
+      }
+    }
+
+    // Get duration from settings
+    const settings = await pool.query(
+      'SELECT default_duration FROM email_bot_settings WHERE user_id = $1',
+      [host.id]
+    );
+    const duration = settings.rows[0]?.default_duration || 30;
+
+    // Calculate end time
+    const endTime = new Date(startTime);
+    endTime.setMinutes(endTime.getMinutes() + duration);
+
+    // Check for conflicts
+    const conflicts = await pool.query(`
+      SELECT id FROM bookings
+      WHERE user_id = $1 AND status = 'confirmed'
+        AND start_time < $3 AND end_time > $2
+    `, [host.id, startTime, endTime]);
+
+    if (conflicts.rows.length > 0) {
+      return res.status(400).json({ error: 'This time slot is no longer available' });
+    }
+
+    // Create booking
+    const manageToken = crypto.randomBytes(32).toString('hex');
+
+    const booking = await pool.query(`
+      INSERT INTO bookings (
+        user_id, title, attendee_name, attendee_email,
+        start_time, end_time, status, manage_token, source
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', $7, 'email_bot')
+      RETURNING *
+    `, [
+      host.id,
+      `Meeting with ${guestName || 'Guest'}`,
+      guestName || 'Guest',
+      guestEmail || 'unknown@email.com',
+      startTime,
+      endTime,
+      manageToken
+    ]);
+
+    // Update thread if exists
+    if (threadId) {
+      await pool.query(`
+        UPDATE email_bot_threads
+        SET status = 'booked', booking_id = $1, updated_at = NOW()
+        WHERE id = $2
+      `, [booking.rows[0].id, threadId]);
+    }
+
+    // Send confirmation emails
+    if (guestEmail) {
+      try {
+        await sendTemplatedEmail(guestEmail, host.id, 'confirmation', {
+          guestName,
+          hostName: host.name,
+          meetingTitle: booking.rows[0].title,
+          meetingDate: startTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
+          meetingTime: startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+          meetingDuration: duration.toString(),
+          manageLink: `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${manageToken}`
+        });
+      } catch (emailError) {
+        console.error('Failed to send quick book confirmation email:', emailError);
+      }
+    }
+
+    res.json({
+      success: true,
+      booking: {
+        id: booking.rows[0].id,
+        duration,
+        manage_token: manageToken
+      },
+      host: {
+        name: host.name,
+        email: host.email
+      }
+    });
+
+  } catch (error) {
+    console.error('Quick book error:', error);
+    res.status(500).json({ error: 'Failed to create booking' });
+  }
+});
+
 module.exports = router;

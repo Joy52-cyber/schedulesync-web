@@ -70,6 +70,7 @@ import PaymentStatus from './pages/PaymentStatus';
 import Book from './pages/Book';
 import BookingConfirmation from './components/BookingConfirmation';
 import UserProfilePage from './pages/UserProfilePage';
+import QuickBook from './pages/QuickBook';
 
 // ======================
 // Login Wrapper
@@ -144,6 +145,7 @@ function InnerApp() {
               <Route path="/book/:token" element={<BookingPage />} />
               <Route path="/m/:token" element={<QuickLinkBooking />} />
               <Route path="/book" element={<Book />} />
+              <Route path="/quick-book" element={<QuickBook />} />
               <Route path="/manage/:token" element={<ManageBooking />} />
               <Route path="/payment/status" element={<PaymentStatus />} />
               <Route path="/booking-success" element={<BookingConfirmation />} />

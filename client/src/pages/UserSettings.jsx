@@ -101,6 +101,18 @@ export default function UserSettings() {
   const [testingConnection, setTestingConnection] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
 
+  // 🤖 Email Bot Settings
+  const [emailBotSettings, setEmailBotSettings] = useState({
+    is_enabled: true,
+    default_duration: 30,
+    max_slots_to_show: 5,
+    intro_message: "I'm helping {{hostName}} find a time for your meeting.",
+    signature: 'Powered by TruCal',
+    bot_email: 'schedule@trucal.xyz'
+  });
+  const [emailBotLoading, setEmailBotLoading] = useState(false);
+  const [emailBotCopied, setEmailBotCopied] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -169,6 +181,7 @@ export default function UserSettings() {
 
       await loadCalendarStatus();
       await loadEmailPreferences();
+      await loadEmailBotSettings();
 
       if (activeTab === 'integrations') {
         await loadChatGptToken();
@@ -199,6 +212,42 @@ export default function UserSettings() {
     } finally {
       setEmailPrefsLoading(false);
     }
+  };
+
+  const loadEmailBotSettings = async () => {
+    try {
+      setEmailBotLoading(true);
+      const response = await api.get('/settings/email-bot');
+      if (response.data?.settings) {
+        setEmailBotSettings(response.data.settings);
+      }
+    } catch (error) {
+      console.error('Error loading email bot settings:', error);
+    } finally {
+      setEmailBotLoading(false);
+    }
+  };
+
+  const updateEmailBotSettings = async (updates) => {
+    try {
+      setEmailBotLoading(true);
+      const response = await api.put('/settings/email-bot', updates);
+      if (response.data?.settings) {
+        setEmailBotSettings(response.data.settings);
+        notify.success('Email bot settings updated');
+      }
+    } catch (error) {
+      console.error('Error updating email bot settings:', error);
+      notify.error('Failed to update settings');
+    } finally {
+      setEmailBotLoading(false);
+    }
+  };
+
+  const copyBotEmail = () => {
+    navigator.clipboard.writeText(emailBotSettings.bot_email || 'schedule@trucal.xyz');
+    setEmailBotCopied(true);
+    setTimeout(() => setEmailBotCopied(false), 2000);
   };
 
   const loadCalendarStatus = async () => {
@@ -521,6 +570,19 @@ export default function UserSettings() {
               <Palette size={18} /> Branding
               {!hasProFeature() && (
                 <span className="ml-auto text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-semibold">PRO</span>
+              )}
+            </button>
+            <button
+              onClick={() => handleTabChange('email-bot')}
+              className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
+                activeTab === 'email-bot'
+                  ? 'bg-green-50 text-green-700'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Bot size={18} /> Email Bot
+              {!hasProFeature() && (
+                <span className="ml-auto text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold">PRO</span>
               )}
             </button>
           </nav>
@@ -1031,6 +1093,145 @@ export default function UserSettings() {
           {activeTab === 'branding' && (
             <div className="p-4 sm:p-8">
               <BrandingSettings />
+            </div>
+          )}
+
+          {/* EMAIL BOT TAB */}
+          {activeTab === 'email-bot' && (
+            <div className="p-4 sm:p-8 max-w-xl">
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Email Scheduling Assistant</h2>
+              <p className="text-gray-600 mb-6">
+                Let people schedule with you by CC'ing your scheduling email address.
+              </p>
+
+              {/* Bot Email */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 mb-6 border border-green-200">
+                <p className="text-sm text-gray-600 mb-2">Your scheduling email:</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 px-4 py-2 bg-white rounded-lg font-mono text-green-700 text-sm border border-green-200">
+                    {emailBotSettings.bot_email || 'schedule@trucal.xyz'}
+                  </code>
+                  <button
+                    onClick={copyBotEmail}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center gap-2"
+                  >
+                    {emailBotCopied ? <Check size={16} /> : <Copy size={16} />}
+                    {emailBotCopied ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Just CC this address in any email to propose meeting times automatically!
+                </p>
+              </div>
+
+              {/* How It Works */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-200">
+                <h3 className="font-semibold text-gray-900 mb-3">How it works:</h3>
+                <ol className="space-y-2 text-sm text-gray-600">
+                  <li className="flex items-start gap-2">
+                    <span className="w-5 h-5 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">1</span>
+                    CC <span className="font-mono text-green-700">schedule@trucal.xyz</span> in an email thread
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="w-5 h-5 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">2</span>
+                    The bot proposes available times based on your calendar
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="w-5 h-5 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">3</span>
+                    Guest clicks a time and it's booked instantly
+                  </li>
+                </ol>
+              </div>
+
+              <div className="space-y-6">
+                {/* Default Duration */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Default Meeting Duration
+                  </label>
+                  <select
+                    value={emailBotSettings.default_duration}
+                    onChange={(e) => updateEmailBotSettings({ default_duration: parseInt(e.target.value) })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+                    disabled={emailBotLoading}
+                  >
+                    <option value={15}>15 minutes</option>
+                    <option value={30}>30 minutes</option>
+                    <option value={45}>45 minutes</option>
+                    <option value={60}>60 minutes</option>
+                  </select>
+                </div>
+
+                {/* Max Slots */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Time Slots to Propose
+                  </label>
+                  <select
+                    value={emailBotSettings.max_slots_to_show}
+                    onChange={(e) => updateEmailBotSettings({ max_slots_to_show: parseInt(e.target.value) })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+                    disabled={emailBotLoading}
+                  >
+                    <option value={3}>3 options</option>
+                    <option value={5}>5 options</option>
+                    <option value={7}>7 options</option>
+                    <option value={10}>10 options</option>
+                  </select>
+                </div>
+
+                {/* Intro Message */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Introduction Message
+                  </label>
+                  <textarea
+                    value={emailBotSettings.intro_message}
+                    onChange={(e) => setEmailBotSettings({ ...emailBotSettings, intro_message: e.target.value })}
+                    onBlur={() => updateEmailBotSettings({ intro_message: emailBotSettings.intro_message })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none resize-none"
+                    rows={2}
+                    placeholder="I'm helping {{hostName}} find a time for your meeting."
+                    disabled={emailBotLoading}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Use {"{{hostName}}"} to include your name</p>
+                </div>
+
+                {/* Signature */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Email Signature
+                  </label>
+                  <input
+                    type="text"
+                    value={emailBotSettings.signature}
+                    onChange={(e) => setEmailBotSettings({ ...emailBotSettings, signature: e.target.value })}
+                    onBlur={() => updateEmailBotSettings({ signature: emailBotSettings.signature })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+                    placeholder="Powered by TruCal"
+                    disabled={emailBotLoading}
+                  />
+                </div>
+
+                {/* Enabled Toggle */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div>
+                    <p className="font-medium text-gray-900">Email Bot Active</p>
+                    <p className="text-sm text-gray-500">Automatically respond to CC'd emails</p>
+                  </div>
+                  <button
+                    onClick={() => updateEmailBotSettings({ is_enabled: !emailBotSettings.is_enabled })}
+                    disabled={emailBotLoading}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      emailBotSettings.is_enabled ? 'bg-green-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                      emailBotSettings.is_enabled ? 'left-7' : 'left-1'
+                    }`} />
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

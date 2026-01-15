@@ -357,4 +357,131 @@ router.put('/autonomous', authenticateToken, async (req, res) => {
   }
 });
 
+// ============ EMAIL BOT SETTINGS ============
+
+// GET /api/settings/email-bot - Get email bot settings
+router.get('/email-bot', authenticateToken, async (req, res) => {
+  try {
+    let result = await pool.query(
+      'SELECT * FROM email_bot_settings WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    // Create default settings if none exist
+    if (result.rows.length === 0) {
+      result = await pool.query(`
+        INSERT INTO email_bot_settings (user_id)
+        VALUES ($1)
+        RETURNING *
+      `, [req.user.id]);
+    }
+
+    const settings = result.rows[0];
+
+    // Get the bot email address
+    const botEmail = process.env.BOT_EMAIL || 'schedule@trucal.xyz';
+
+    res.json({
+      success: true,
+      settings: {
+        ...settings,
+        bot_email: botEmail
+      }
+    });
+  } catch (error) {
+    console.error('Get email bot settings error:', error);
+    res.status(500).json({ error: 'Failed to fetch email bot settings' });
+  }
+});
+
+// PUT /api/settings/email-bot - Update email bot settings
+router.put('/email-bot', authenticateToken, async (req, res) => {
+  try {
+    const {
+      is_enabled,
+      default_duration,
+      default_event_type_id,
+      intro_message,
+      signature,
+      max_slots_to_show,
+      prefer_time_of_day
+    } = req.body;
+
+    const allowedFields = [
+      'is_enabled', 'default_duration', 'default_event_type_id',
+      'intro_message', 'signature', 'max_slots_to_show', 'prefer_time_of_day'
+    ];
+
+    const updates = [];
+    const values = [req.user.id];
+    let paramCount = 2;
+
+    const fieldValues = {
+      is_enabled, default_duration, default_event_type_id,
+      intro_message, signature, max_slots_to_show, prefer_time_of_day
+    };
+
+    for (const [key, value] of Object.entries(fieldValues)) {
+      if (value !== undefined && allowedFields.includes(key)) {
+        updates.push(`${key} = $${paramCount}`);
+        values.push(value);
+        paramCount++;
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No updates provided' });
+    }
+
+    updates.push('updated_at = NOW()');
+
+    // Upsert settings
+    await pool.query(`
+      INSERT INTO email_bot_settings (user_id)
+      VALUES ($1)
+      ON CONFLICT (user_id) DO NOTHING
+    `, [req.user.id]);
+
+    const result = await pool.query(`
+      UPDATE email_bot_settings
+      SET ${updates.join(', ')}
+      WHERE user_id = $1
+      RETURNING *
+    `, values);
+
+    res.json({
+      success: true,
+      settings: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Update email bot settings error:', error);
+    res.status(500).json({ error: 'Failed to update email bot settings' });
+  }
+});
+
+// GET /api/settings/email-bot/threads - Get email bot threads
+router.get('/email-bot/threads', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        t.*,
+        b.title as booking_title,
+        b.start_time as booking_start_time
+      FROM email_bot_threads t
+      LEFT JOIN bookings b ON b.id = t.booking_id
+      WHERE t.user_id = $1
+      ORDER BY t.created_at DESC
+      LIMIT 50
+    `, [req.user.id]);
+
+    res.json({
+      success: true,
+      threads: result.rows
+    });
+  } catch (error) {
+    console.error('Get email bot threads error:', error);
+    res.status(500).json({ error: 'Failed to fetch threads' });
+  }
+});
+
 module.exports = router;

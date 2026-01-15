@@ -1,0 +1,186 @@
+/**
+ * Email Webhook Routes
+ * Receives inbound emails from email providers (SendGrid, Mailgun, etc.)
+ */
+
+const express = require('express');
+const router = express.Router();
+const multer = require('multer');
+const { processInboundEmail } = require('../services/emailBot');
+
+// Multer for parsing multipart form data (SendGrid format)
+const upload = multer();
+
+/**
+ * POST /api/email/inbound
+ * Webhook endpoint for receiving inbound emails
+ *
+ * Supports:
+ * - SendGrid Inbound Parse
+ * - Mailgun
+ * - Custom SMTP relay
+ */
+router.post('/inbound', upload.any(), async (req, res) => {
+  console.log('📨 Received inbound email webhook');
+
+  try {
+    // Parse based on provider
+    let emailData;
+
+    if (req.body.envelope) {
+      // SendGrid format
+      emailData = parseSendGridEmail(req.body);
+    } else if (req.body['body-plain']) {
+      // Mailgun format
+      emailData = parseMailgunEmail(req.body);
+    } else {
+      // Generic JSON format
+      emailData = parseGenericEmail(req.body);
+    }
+
+    console.log('📧 Parsed email:', {
+      from: emailData.from?.email,
+      to: emailData.to?.map(t => t.email),
+      subject: emailData.subject
+    });
+
+    // Process the email
+    const result = await processInboundEmail(emailData);
+
+    if (result.success) {
+      console.log('✅ Email processed successfully');
+      res.status(200).json({ success: true, threadId: result.threadId });
+    } else {
+      console.log('⚠️ Email processing issue:', result.reason);
+      res.status(200).json({ success: false, reason: result.reason });
+    }
+
+  } catch (error) {
+    console.error('❌ Webhook error:', error);
+    // Return 200 to prevent retries
+    res.status(200).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/email/inbound/test
+ * Test endpoint for simulating inbound emails
+ */
+router.post('/inbound/test', async (req, res) => {
+  console.log('🧪 Test inbound email received');
+
+  try {
+    const emailData = parseGenericEmail(req.body);
+
+    console.log('📧 Test email data:', {
+      from: emailData.from?.email,
+      to: emailData.to?.map(t => t.email),
+      subject: emailData.subject
+    });
+
+    const result = await processInboundEmail(emailData);
+    res.json(result);
+
+  } catch (error) {
+    console.error('❌ Test webhook error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Parse SendGrid Inbound Parse format
+ */
+function parseSendGridEmail(body) {
+  const envelope = JSON.parse(body.envelope || '{}');
+  const headers = parseHeaders(body.headers);
+
+  // Parse from
+  const fromHeader = body.from || '';
+  const fromMatch = fromHeader.match(/^(.+?)\s*<(.+?)>$/) || [null, fromHeader, fromHeader];
+
+  // Parse to/cc
+  const parseAddressList = (str) => {
+    if (!str) return [];
+    return str.split(',').map(addr => {
+      const match = addr.trim().match(/^(.+?)\s*<(.+?)>$/) || [null, '', addr.trim()];
+      return { name: match[1]?.trim().replace(/"/g, ''), email: match[2]?.trim() };
+    });
+  };
+
+  return {
+    from: {
+      name: fromMatch[1]?.trim().replace(/"/g, ''),
+      email: fromMatch[2]?.trim() || envelope.from
+    },
+    to: parseAddressList(body.to),
+    cc: parseAddressList(body.cc),
+    subject: body.subject,
+    text: body.text,
+    html: body.html,
+    messageId: headers['message-id'],
+    inReplyTo: headers['in-reply-to'],
+    references: headers['references']?.split(/\s+/)
+  };
+}
+
+/**
+ * Parse Mailgun format
+ */
+function parseMailgunEmail(body) {
+  return {
+    from: { email: body.sender, name: body.from?.split('<')[0]?.trim() },
+    to: [{ email: body.recipient }],
+    cc: [],
+    subject: body.subject,
+    text: body['body-plain'],
+    html: body['body-html'],
+    messageId: body['Message-Id'],
+    inReplyTo: body['In-Reply-To'],
+    references: body['References']?.split(/\s+/)
+  };
+}
+
+/**
+ * Parse generic JSON format
+ */
+function parseGenericEmail(body) {
+  return {
+    from: body.from || { email: body.fromEmail, name: body.fromName },
+    to: body.to || [{ email: body.toEmail }],
+    cc: body.cc || [],
+    subject: body.subject,
+    text: body.text || body.textBody,
+    html: body.html || body.htmlBody,
+    messageId: body.messageId || `msg-${Date.now()}`,
+    inReplyTo: body.inReplyTo,
+    references: body.references
+  };
+}
+
+/**
+ * Parse email headers string
+ */
+function parseHeaders(headersStr) {
+  const headers = {};
+  if (!headersStr) return headers;
+
+  const lines = headersStr.split('\n');
+  let currentKey = '';
+
+  lines.forEach(line => {
+    if (line.match(/^\s/)) {
+      // Continuation of previous header
+      headers[currentKey] += ' ' + line.trim();
+    } else {
+      const match = line.match(/^([^:]+):\s*(.+)$/);
+      if (match) {
+        currentKey = match[1].toLowerCase();
+        headers[currentKey] = match[2].trim();
+      }
+    }
+  });
+
+  return headers;
+}
+
+module.exports = router;
