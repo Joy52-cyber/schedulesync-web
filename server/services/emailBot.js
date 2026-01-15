@@ -17,7 +17,7 @@ const mg = mailgun.client({
 });
 
 // Main bot email address
-const BOT_EMAIL = process.env.BOT_EMAIL || 'schedule@sandbox819735cb87704e23b545fc2f270c358f.mailgun.org';
+const BOT_EMAIL = process.env.BOT_EMAIL || 'schedule@mg.trucal.xyz';
 const BOT_NAME = 'TruCal Scheduling Assistant';
 
 /**
@@ -676,7 +676,7 @@ async function sendBotResponse(thread, user, response, originalEmail) {
 
   // Also CC the TruCal user
   const ccList = [user.email];
-  const mailgunDomain = process.env.MAILGUN_DOMAIN || 'sandbox819735cb87704e23b545fc2f270c358f.mailgun.org';
+  const mailgunDomain = process.env.MAILGUN_DOMAIN || 'mg.trucal.xyz';
 
   try {
     // Send via Mailgun

@@ -379,7 +379,7 @@ router.get('/email-bot', authenticateToken, async (req, res) => {
     const settings = result.rows[0];
 
     // Get the bot email address
-    const botEmail = process.env.BOT_EMAIL || 'schedule@sandbox819735cb87704e23b545fc2f270c358f.mailgun.org';
+    const botEmail = process.env.BOT_EMAIL || 'schedule@mg.trucal.xyz';
 
     res.json({
       success: true,
