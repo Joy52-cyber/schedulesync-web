@@ -585,22 +585,26 @@ export default function InboxAssistant() {
                 {detectedEmails.slice(0, 3).map(email => {
                   const intent = email.scheduling_intent || {};
                   const reply = email.suggested_reply ? JSON.parse(email.suggested_reply) : null;
+                  // Clean up display name - remove email part if present
+                  const displayName = (email.from_name || email.from_email || '').split('<')[0].trim().replace(/"/g, '') || email.from_email;
                   return (
                     <div key={email.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-green-100">
                       <div className="flex-1 min-w-0 mr-4">
-                        <p className="font-medium text-gray-900 truncate">{email.from_name || email.from_email}</p>
+                        <p className="font-medium text-gray-900 truncate">{displayName}</p>
                         <p className="text-sm text-gray-500 truncate">{email.subject}</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <button
                           onClick={() => handleDetectedReply(email.id)}
-                          className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
+                          className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 flex items-center gap-1"
                         >
                           <Send className="h-4 w-4" />
+                          <span className="hidden sm:inline">Reply</span>
                         </button>
                         <button
                           onClick={() => handleDetectedDismiss(email.id)}
                           className="p-1.5 text-gray-400 hover:text-gray-600"
+                          title="Dismiss"
                         >
                           <X className="h-4 w-4" />
                         </button>
