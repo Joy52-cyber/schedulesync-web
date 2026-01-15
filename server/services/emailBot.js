@@ -6,6 +6,15 @@
 const pool = require('../config/database');
 const { sendEmail, sendTemplatedEmail } = require('./email');
 const crypto = require('crypto');
+const FormData = require('form-data');
+const Mailgun = require('mailgun.js');
+
+// Initialize Mailgun client
+const mailgun = new Mailgun(FormData);
+const mg = mailgun.client({
+  username: 'api',
+  key: process.env.MAILGUN_API_KEY || ''
+});
 
 // Main bot email address
 const BOT_EMAIL = process.env.BOT_EMAIL || 'schedule@sandbox819735cb87704e23b545fc2f270c358f.mailgun.org';
@@ -449,66 +458,40 @@ function generateProposalEmail(user, thread, slots, settings) {
 
   let slotsHtml = slots.map((slot, i) => {
     const confirmUrl = `${bookingBaseUrl}/quick-book?user=${user.username}&time=${encodeURIComponent(slot.start)}&thread=${thread.id}`;
-    return `
-      <tr>
-        <td style="padding: 12px 0; border-bottom: 1px solid #eee;">
-          <a href="${confirmUrl}" style="color: #7c3aed; text-decoration: none; font-weight: 500;">
-            📅 ${slot.formatted}
-          </a>
-        </td>
-      </tr>
-    `;
+    return `<tr><td style="padding:8px 0;"><a href="${confirmUrl}" style="display:block;padding:14px 20px;background-color:#7c3aed;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;text-align:center;">${slot.formatted}</a></td></tr>`;
   }).join('');
 
   const intro = (settings.intro_message || "I'm helping {{hostName}} find a time for your meeting.")
     .replace('{{hostName}}', user.name);
 
-  return `
-<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 500px; margin: 0 auto; padding: 20px; }
-    .header { margin-bottom: 20px; }
-    .slots-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #888; }
-    .btn { display: inline-block; padding: 12px 24px; background: #7c3aed; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <p>Hi ${guestName}! 👋</p>
-      <p>${intro}</p>
-      <p>Here are some available times:</p>
-    </div>
-
-    <table class="slots-table">
-      ${slotsHtml}
-    </table>
-
-    <p style="margin-top: 20px;">
-      <strong>Click any time above to book instantly!</strong>
-    </p>
-
-    <p style="color: #666; font-size: 14px;">
-      Or view all available times:
-      <a href="${bookingBaseUrl}/${user.username}" style="color: #7c3aed;">${bookingBaseUrl}/${user.username}</a>
-    </p>
-
-    <div class="footer">
-      <p>${settings.signature || 'Powered by TruCal'}</p>
-      <p style="font-size: 11px; color: #aaa;">
-        This is an automated message from TruCal Scheduling Assistant.
-        <a href="${bookingBaseUrl}/unsubscribe?thread=${thread.id}" style="color: #aaa;">Unsubscribe</a>
-      </p>
-    </div>
-  </div>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:40px 20px;">
+<tr><td align="center">
+<table width="500" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;">
+<tr><td style="background-color:#7c3aed;padding:24px;text-align:center;">
+<h1 style="margin:0;color:#ffffff;font-size:22px;">Pick a Time</h1>
+</td></tr>
+<tr><td style="padding:30px;">
+<p style="margin:0 0 15px;color:#374151;font-size:16px;">Hi ${guestName}!</p>
+<p style="margin:0 0 25px;color:#374151;font-size:16px;">${intro}</p>
+<p style="margin:0 0 15px;color:#374151;font-size:14px;font-weight:600;">Available times:</p>
+<table width="100%" cellpadding="0" cellspacing="0">
+${slotsHtml}
+</table>
+<p style="margin:25px 0 0;color:#6b7280;font-size:14px;text-align:center;">Click any button to book instantly</p>
+</td></tr>
+<tr><td style="padding:20px 30px;background-color:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">
+<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Or view all times: <a href="${bookingBaseUrl}/${user.username}" style="color:#7c3aed;">${bookingBaseUrl}/${user.username}</a></p>
+<p style="margin:0;color:#9ca3af;font-size:11px;">${settings.signature || 'Powered by TruCal'}</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
 </body>
-</html>
-  `;
+</html>`;
 }
 
 /**
@@ -685,7 +668,7 @@ async function handleCancelRequest(thread, user) {
 }
 
 /**
- * Send the bot's response email
+ * Send the bot's response email via Mailgun
  */
 async function sendBotResponse(thread, user, response, originalEmail) {
   const participants = thread.participants || [];
@@ -693,23 +676,23 @@ async function sendBotResponse(thread, user, response, originalEmail) {
 
   // Also CC the TruCal user
   const ccList = [user.email];
+  const mailgunDomain = process.env.MAILGUN_DOMAIN || 'sandbox819735cb87704e23b545fc2f270c358f.mailgun.org';
 
   try {
-    // Send via email service
-    await sendEmail(
-      recipients,
-      response.subject,
-      response.body,
-      {
-        from: `${BOT_NAME} <${BOT_EMAIL}>`,
-        cc: ccList,
-        replyTo: BOT_EMAIL,
-        headers: {
-          'In-Reply-To': originalEmail.messageId,
-          'References': originalEmail.messageId
-        }
-      }
-    );
+    // Send via Mailgun
+    const messageData = {
+      from: `${BOT_NAME} <${BOT_EMAIL}>`,
+      to: recipients,
+      cc: ccList,
+      subject: response.subject,
+      html: response.body,
+      'h:Reply-To': BOT_EMAIL,
+      'h:In-Reply-To': originalEmail.messageId || '',
+      'h:References': originalEmail.messageId || ''
+    };
+
+    const result = await mg.messages.create(mailgunDomain, messageData);
+    console.log(`📤 Mailgun response:`, result);
 
     // Store outbound message
     await storeMessage(thread.id, 'outbound', {
@@ -717,7 +700,7 @@ async function sendBotResponse(thread, user, response, originalEmail) {
       to: recipients.map(e => ({ email: e })),
       subject: response.subject,
       html: response.body,
-      messageId: `bot-${Date.now()}@trucal.xyz`
+      messageId: result.id || `bot-${Date.now()}@${mailgunDomain}`
     });
 
     console.log(`📤 Sent bot response to: ${recipients.join(', ')}`);
