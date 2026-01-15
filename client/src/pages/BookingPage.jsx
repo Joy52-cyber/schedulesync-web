@@ -53,7 +53,8 @@ export default function BookingPage() {
     accent_color: '#6366F1',
     hide_powered_by: false,
   });
-    
+  const [logoError, setLogoError] = useState(false);
+
   const [step, setStep] = useState('loading');
   const [guestCalendar, setGuestCalendar] = useState(null);
   const [hasProcessedOAuth, setHasProcessedOAuth] = useState(false);
@@ -606,17 +607,17 @@ export default function BookingPage() {
 
           <div className="flex-1 mt-8">
             <div className="mb-6">
-              {branding.logo_url ? (
+              {branding.logo_url && !logoError ? (
                 <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg mb-4 bg-white border border-slate-200">
                   <img
                     src={getLogoUrl(branding.logo_url)}
                     alt="Logo"
                     className="w-full h-full object-contain"
-                    onError={(e) => { e.target.parentElement.style.display = 'none'; }}
+                    onError={() => setLogoError(true)}
                   />
                 </div>
               ) : (
-                <div 
+                <div
                   className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-4"
                   style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}
                 >
