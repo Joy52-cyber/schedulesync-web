@@ -29,6 +29,8 @@ export default function Bookings() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [actionMenuOpen, setActionMenuOpen] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
@@ -50,7 +52,7 @@ export default function Bookings() {
     }
   };
 
-  // Apply filters whenever list / search / status changes
+  // Apply filters whenever list / search / status / date changes
   useEffect(() => {
     let filtered = [...bookingsList];
 
@@ -67,8 +69,20 @@ export default function Bookings() {
       filtered = filtered.filter((b) => b.status === statusFilter);
     }
 
+    if (dateFrom) {
+      const fromDate = new Date(dateFrom);
+      fromDate.setHours(0, 0, 0, 0);
+      filtered = filtered.filter((b) => new Date(b.start_time) >= fromDate);
+    }
+
+    if (dateTo) {
+      const toDate = new Date(dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      filtered = filtered.filter((b) => new Date(b.start_time) <= toDate);
+    }
+
     setFilteredBookings(filtered);
-  }, [bookingsList, searchTerm, statusFilter]);
+  }, [bookingsList, searchTerm, statusFilter, dateFrom, dateTo]);
 
   const getStatusBadge = (status) => {
     const map = {
@@ -140,7 +154,7 @@ export default function Bookings() {
 
         {/* Filters */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border-2 border-gray-100">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -168,6 +182,56 @@ export default function Bookings() {
               </select>
             </div>
           </div>
+
+          {/* Date Range Filter */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="relative">
+              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none text-sm sm:text-base"
+                placeholder="From date"
+              />
+              {!dateFrom && (
+                <span className="absolute left-12 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">
+                  From date
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none text-sm sm:text-base"
+                placeholder="To date"
+              />
+              {!dateTo && (
+                <span className="absolute left-12 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">
+                  To date
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Clear Filters */}
+          {(searchTerm || statusFilter !== 'all' || dateFrom || dateTo) && (
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setStatusFilter('all');
+                setDateFrom('');
+                setDateTo('');
+              }}
+              className="mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+            >
+              <X className="h-4 w-4" />
+              Clear all filters
+            </button>
+          )}
         </div>
 
         {/* Booking list */}
@@ -175,7 +239,7 @@ export default function Bookings() {
           <div className="bg-white rounded-2xl shadow-lg p-12 text-center border-2 border-gray-100">
             <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 text-lg">
-              {searchTerm || statusFilter !== 'all'
+              {searchTerm || statusFilter !== 'all' || dateFrom || dateTo
                 ? 'No bookings match your filters'
                 : 'No bookings yet'}
             </p>
