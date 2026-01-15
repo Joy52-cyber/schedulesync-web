@@ -44,10 +44,10 @@ router.get('/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// PUT /api/user/profile - Update user profile (name, username, bio)
+// PUT /api/user/profile - Update user profile (name, username, bio, timezone, etc.)
 router.put('/profile', authenticateToken, async (req, res) => {
   try {
-    const { name, username, bio } = req.body;
+    const { name, username, bio, timezone, availability, inbox_assistant_enabled, has_completed_onboarding } = req.body;
     const updates = [];
     const values = [req.user.id];
     let paramIndex = 2;
@@ -84,7 +84,38 @@ router.put('/profile', authenticateToken, async (req, res) => {
       values.push(bioClean);
     }
 
+    if (timezone !== undefined) {
+      updates.push(`timezone = $${paramIndex++}`);
+      values.push(timezone);
+    }
+
+    // Handle onboarding_completed (database column name) from has_completed_onboarding (frontend key)
+    if (has_completed_onboarding !== undefined) {
+      updates.push(`onboarding_completed = $${paramIndex++}`);
+      values.push(has_completed_onboarding);
+    }
+
+    // Log received availability and inbox settings for debugging (stored separately)
+    if (availability !== undefined) {
+      console.log(`Onboarding availability for user ${req.user.id}:`, availability);
+      // Note: Availability is stored in availability_rules table, not users table
+      // This can be implemented later to create default availability rules
+    }
+
+    if (inbox_assistant_enabled !== undefined) {
+      console.log(`Inbox assistant setting for user ${req.user.id}:`, inbox_assistant_enabled);
+      // Note: This feature flag can be added as a column later if needed
+    }
+
     if (updates.length === 0) {
+      // If only availability or inbox_assistant_enabled were provided, return success anyway
+      if (availability !== undefined || inbox_assistant_enabled !== undefined) {
+        const result = await pool.query(
+          'SELECT id, name, email, username, timezone, bio, profile_photo, onboarding_completed FROM users WHERE id = $1',
+          [req.user.id]
+        );
+        return res.json({ success: true, user: result.rows[0] });
+      }
       return res.status(400).json({ error: 'No updates provided' });
     }
 
@@ -95,11 +126,11 @@ router.put('/profile', authenticateToken, async (req, res) => {
 
     // Return updated profile
     const result = await pool.query(
-      'SELECT id, name, email, username, timezone, bio, profile_photo FROM users WHERE id = $1',
+      'SELECT id, name, email, username, timezone, bio, profile_photo, onboarding_completed FROM users WHERE id = $1',
       [req.user.id]
     );
 
-    console.log(`Profile updated for user ${req.user.id}:`, { name, username, bio: bio ? 'updated' : 'unchanged' });
+    console.log(`Profile updated for user ${req.user.id}:`, { name, username, timezone, onboarding_completed: has_completed_onboarding });
     res.json({ success: true, user: result.rows[0] });
   } catch (error) {
     console.error('Update profile error:', error);

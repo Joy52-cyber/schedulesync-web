@@ -27,10 +27,10 @@ async function createTestAccounts() {
       // Delete existing account if it exists (to reset password)
       await pool.query('DELETE FROM users WHERE email = $1', [account.email]);
 
-      // Create user with email_verified = true so they can login immediately
+      // Create user with email_verified = true and onboarding_completed = true so they can login immediately
       const result = await pool.query(
-        `INSERT INTO users (email, name, username, password_hash, provider, email_verified, subscription_tier, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, 'email', true, $5, NOW(), NOW())
+        `INSERT INTO users (email, name, username, password_hash, provider, email_verified, subscription_tier, onboarding_completed, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, 'email', true, $5, true, NOW(), NOW())
          RETURNING id, email, name, username`,
         [account.email, account.name, account.username, passwordHash, account.tier]
       );
