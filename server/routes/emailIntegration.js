@@ -4,11 +4,12 @@ const { google } = require('googleapis');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 
-// Gmail OAuth config
+// Gmail OAuth config - uses frontend callback URL for registered redirect
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const gmailOAuth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/email/gmail/callback`
+  `${FRONTEND_URL}/oauth/callback`
 );
 
 // Gmail scopes for reading emails
@@ -22,7 +23,8 @@ const GMAIL_SCOPES = [
 
 // GET /api/email/gmail/auth - Start Gmail OAuth
 router.get('/gmail/auth', authenticateToken, (req, res) => {
-  const state = Buffer.from(JSON.stringify({ userId: req.user.id })).toString('base64');
+  // Use state format: email-connect:<userId>:gmail
+  const state = `email-connect:${req.user.id}:gmail`;
 
   const authUrl = gmailOAuth2Client.generateAuthUrl({
     access_type: 'offline',
@@ -34,11 +36,17 @@ router.get('/gmail/auth', authenticateToken, (req, res) => {
   res.json({ authUrl });
 });
 
-// GET /api/email/gmail/callback - Gmail OAuth callback
-router.get('/gmail/callback', async (req, res) => {
+// POST /api/email/gmail/callback - Gmail OAuth callback (called by frontend OAuthCallback)
+router.post('/gmail/callback', async (req, res) => {
   try {
-    const { code, state } = req.query;
-    const { userId } = JSON.parse(Buffer.from(state, 'base64').toString());
+    const { code, state } = req.body;
+
+    // Parse state: email-connect:<userId>:gmail
+    const parts = state.split(':');
+    if (parts[0] !== 'email-connect' || parts[2] !== 'gmail') {
+      return res.status(400).json({ error: 'Invalid state parameter' });
+    }
+    const userId = parseInt(parts[1], 10);
 
     const { tokens } = await gmailOAuth2Client.getToken(code);
     gmailOAuth2Client.setCredentials(tokens);
@@ -66,11 +74,10 @@ router.get('/gmail/callback', async (req, res) => {
     // Trigger initial sync
     syncGmailForUser(userId).catch(console.error);
 
-    // Redirect to frontend
-    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/settings?tab=email&connected=gmail`);
+    res.json({ success: true, email: emailAddress, provider: 'gmail' });
   } catch (error) {
     console.error('Gmail OAuth error:', error);
-    res.redirect(`${process.env.FRONTEND_URL}/settings?tab=email&error=gmail_failed`);
+    res.status(500).json({ error: 'Failed to connect Gmail', details: error.message });
   }
 });
 
@@ -88,12 +95,13 @@ const OUTLOOK_SCOPES = [
 
 // GET /api/email/outlook/auth - Start Outlook OAuth
 router.get('/outlook/auth', authenticateToken, (req, res) => {
-  const state = Buffer.from(JSON.stringify({ userId: req.user.id })).toString('base64');
+  // Use state format: email-connect:<userId>:outlook
+  const state = `email-connect:${req.user.id}:outlook`;
 
   const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
     `client_id=${process.env.MICROSOFT_CLIENT_ID}` +
     `&response_type=code` +
-    `&redirect_uri=${encodeURIComponent((process.env.BACKEND_URL || 'http://localhost:3000') + '/api/email/outlook/callback')}` +
+    `&redirect_uri=${encodeURIComponent(FRONTEND_URL + '/oauth/callback/microsoft')}` +
     `&scope=${encodeURIComponent(OUTLOOK_SCOPES.join(' '))}` +
     `&state=${state}` +
     `&prompt=consent`;
@@ -101,11 +109,17 @@ router.get('/outlook/auth', authenticateToken, (req, res) => {
   res.json({ authUrl });
 });
 
-// GET /api/email/outlook/callback - Outlook OAuth callback
-router.get('/outlook/callback', async (req, res) => {
+// POST /api/email/outlook/callback - Outlook OAuth callback (called by frontend OAuthCallback)
+router.post('/outlook/callback', async (req, res) => {
   try {
-    const { code, state } = req.query;
-    const { userId } = JSON.parse(Buffer.from(state, 'base64').toString());
+    const { code, state } = req.body;
+
+    // Parse state: email-connect:<userId>:outlook
+    const parts = state.split(':');
+    if (parts[0] !== 'email-connect' || parts[2] !== 'outlook') {
+      return res.status(400).json({ error: 'Invalid state parameter' });
+    }
+    const userId = parseInt(parts[1], 10);
 
     // Exchange code for tokens
     const tokenResponse = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
@@ -115,7 +129,7 @@ router.get('/outlook/callback', async (req, res) => {
         client_id: process.env.MICROSOFT_CLIENT_ID,
         client_secret: process.env.MICROSOFT_CLIENT_SECRET,
         code,
-        redirect_uri: `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/email/outlook/callback`,
+        redirect_uri: `${FRONTEND_URL}/oauth/callback/microsoft`,
         grant_type: 'authorization_code'
       })
     });
@@ -150,10 +164,10 @@ router.get('/outlook/callback', async (req, res) => {
     // Trigger initial sync
     syncOutlookForUser(userId).catch(console.error);
 
-    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/settings?tab=email&connected=outlook`);
+    res.json({ success: true, email: profile.mail || profile.userPrincipalName, provider: 'outlook' });
   } catch (error) {
     console.error('Outlook OAuth error:', error);
-    res.redirect(`${process.env.FRONTEND_URL}/settings?tab=email&error=outlook_failed`);
+    res.status(500).json({ error: 'Failed to connect Outlook', details: error.message });
   }
 });
 

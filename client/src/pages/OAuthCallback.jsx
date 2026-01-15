@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { oauth } from '../utils/api';
+import { oauth, api } from '../utils/api';
 
 // CRITICAL: Module-level guard survives component re-renders
 const processedCodes = new Set();
@@ -70,9 +70,9 @@ export default function OAuthCallback({ onLogin }) {
     // Clear query string but keep the provider-specific path
     window.history.replaceState({}, '', location.pathname);
 
-    // 1?? Booking flow (guest OAuth for booking pages)
+    // 1. Booking flow (guest OAuth for booking pages)
     if (state?.startsWith('guest-booking:')) {
-      console.log('?? Booking OAuth flow');
+      console.log('Booking OAuth flow');
 
       const parts = state.split(':');
       const bookingToken = parts[1];
@@ -87,8 +87,42 @@ export default function OAuthCallback({ onLogin }) {
       return;
     }
 
-    // 2?? Dashboard login / account connect flow
-    console.log('?? Dashboard OAuth flow - processing login for:', provider);
+    // 2. Email connect flow (inbox integration)
+    if (state?.startsWith('email-connect:')) {
+      console.log('Email connect OAuth flow');
+
+      const parts = state.split(':');
+      const emailProvider = parts[2]; // gmail or outlook
+
+      (async () => {
+        try {
+          const endpoint = emailProvider === 'gmail'
+            ? '/email/gmail/callback'
+            : '/email/outlook/callback';
+
+          console.log(`Calling backend ${endpoint}...`);
+          const res = await api.post(endpoint, { code, state });
+
+          console.log('Email connected:', res.data);
+          isProcessing = false;
+
+          // Redirect to settings with success
+          navigate(`/settings?tab=email&connected=${emailProvider}`, { replace: true });
+        } catch (err) {
+          console.error('Email connect failed:', err);
+          isProcessing = false;
+          processedCodes.delete(code);
+
+          const errorMsg = err.response?.data?.error || 'Failed to connect email';
+          navigate(`/settings?tab=email&error=${encodeURIComponent(errorMsg)}`, { replace: true });
+        }
+      })();
+
+      return;
+    }
+
+    // 3. Dashboard login / account connect flow
+    console.log('Dashboard OAuth flow - processing login for:', provider);
 
     (async () => {
       try {
