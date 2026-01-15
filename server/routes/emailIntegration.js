@@ -8,7 +8,7 @@ const { authenticateToken } = require('../middleware/auth');
 const gmailOAuth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/email/gmail/callback`
+  `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/email/gmail/callback`
 );
 
 // Gmail scopes for reading emails
@@ -93,7 +93,7 @@ router.get('/outlook/auth', authenticateToken, (req, res) => {
   const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
     `client_id=${process.env.MICROSOFT_CLIENT_ID}` +
     `&response_type=code` +
-    `&redirect_uri=${encodeURIComponent((process.env.BACKEND_URL || 'http://localhost:3001') + '/api/email/outlook/callback')}` +
+    `&redirect_uri=${encodeURIComponent((process.env.BACKEND_URL || 'http://localhost:3000') + '/api/email/outlook/callback')}` +
     `&scope=${encodeURIComponent(OUTLOOK_SCOPES.join(' '))}` +
     `&state=${state}` +
     `&prompt=consent`;
@@ -115,7 +115,7 @@ router.get('/outlook/callback', async (req, res) => {
         client_id: process.env.MICROSOFT_CLIENT_ID,
         client_secret: process.env.MICROSOFT_CLIENT_SECRET,
         code,
-        redirect_uri: `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/email/outlook/callback`,
+        redirect_uri: `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/email/outlook/callback`,
         grant_type: 'authorization_code'
       })
     });
