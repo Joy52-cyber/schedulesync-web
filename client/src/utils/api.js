@@ -63,7 +63,7 @@ export const auth = {
     api.post('/auth/reset-password', { token, newPassword }),
   resendVerification: (email) =>
     api.post('/auth/resend-verification', { email }),
-  updateProfile: (data) => api.put('/users/profile', data),
+  updateProfile: (data) => api.put('/user/profile', data),
   getGoogleUrl: () => api.get('/auth/google/url'),
 };
 

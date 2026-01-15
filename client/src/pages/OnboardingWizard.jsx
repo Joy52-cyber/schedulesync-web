@@ -155,7 +155,7 @@ export default function OnboardingWizard() {
   const handleSkip = async () => {
     setLoading(true);
     try {
-      await api.put('/users/profile', {
+      await api.put('/user/profile', {
         has_completed_onboarding: true
       });
 
@@ -189,7 +189,7 @@ export default function OnboardingWizard() {
 
     try {
       // 1. Send data to backend
-      await api.put('/users/profile', {
+      await api.put('/user/profile', {
         username: formData.username,
         timezone: formData.timezone,
         availability: {
