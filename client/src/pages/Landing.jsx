@@ -11,6 +11,11 @@ import {
   Star,
   Bot,
   Play,
+  Inbox,
+  Mail,
+  Send,
+  Clock,
+  Check,
 } from 'lucide-react';
 
 export default function Landing() {
@@ -18,11 +23,21 @@ export default function Landing() {
 
   const features = [
     {
+      icon: Inbox,
+      title: 'AI Inbox Assistant',
+      description: 'AI monitors your Gmail or Outlook, detects scheduling requests, and auto-drafts replies with your booking link.',
+      stat: 'Save 3hrs/week',
+      color: 'from-purple-500 to-pink-500',
+      demo: 'Auto-detects "Can we meet next week?" emails',
+      isNew: true,
+      isPro: true
+    },
+    {
       icon: Bot,
       title: 'AI Scheduling Assistant',
       description: 'Type "Book meeting with john@email.com tomorrow 2pm" and it\'s done. No forms, no clicks.',
       stat: '10x faster',
-      color: 'from-purple-500 to-pink-500',
+      color: 'from-blue-500 to-cyan-500',
       demo: 'Ask AI: "Book with client@company.com tomorrow"'
     },
     {
@@ -30,7 +45,7 @@ export default function Landing() {
       title: 'Instant Calendar Sync',
       description: 'Connect Google or Outlook Calendar in one click. Auto-detects your availability.',
       stat: '< 30 seconds',
-      color: 'from-blue-500 to-cyan-500',
+      color: 'from-green-500 to-emerald-500',
       demo: 'One-click OAuth connection'
     },
     {
@@ -38,7 +53,7 @@ export default function Landing() {
       title: 'Zero Double-Bookings',
       description: 'Smart conflict detection across all your calendars. Never get overbooked again.',
       stat: '100% protected',
-      color: 'from-green-500 to-emerald-500',
+      color: 'from-cyan-500 to-blue-500',
       demo: 'Checks all calendars in real-time'
     },
     {
@@ -94,12 +109,13 @@ export default function Landing() {
         'Unlimited event types',
         '250 AI queries/month',
         'Unlimited quick links',
+        'AI Inbox Assistant (Gmail & Outlook)',
         'Smart Rules (AI)',
-        'Email Assistant (AI)',
         'Priority support',
       ],
       cta: 'Start Pro Trial',
       popular: true,
+      highlight: 'Includes AI Inbox Monitoring'
     },
     {
       name: 'Team',
@@ -330,27 +346,162 @@ export default function Landing() {
 
           <div className="grid md:grid-cols-2 gap-8">
             {features.map((feature, idx) => (
-              <div key={idx} className="group bg-white rounded-2xl p-8 shadow-sm border border-gray-100 hover:shadow-xl hover:border-purple-200 transition-all">
+              <div key={idx} className={`group bg-white rounded-2xl p-8 shadow-sm border-2 hover:shadow-xl transition-all relative ${feature.isNew ? 'border-purple-300 hover:border-purple-400' : 'border-gray-100 hover:border-purple-200'}`}>
+                {feature.isNew && (
+                  <div className="absolute -top-3 right-4 px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold rounded-full flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    NEW
+                  </div>
+                )}
                 <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
                   <feature.icon className="w-7 h-7 text-white" />
                 </div>
-                
+
                 <div className="flex items-start justify-between mb-4">
                   <h3 className="text-2xl font-bold text-gray-900">{feature.title}</h3>
-                  <span className="px-3 py-1 bg-purple-100 text-purple-600 rounded-full text-sm font-bold">
-                    {feature.stat}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {feature.isPro && (
+                      <span className="px-2 py-1 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-full text-xs font-bold">
+                        PRO
+                      </span>
+                    )}
+                    <span className="px-3 py-1 bg-purple-100 text-purple-600 rounded-full text-sm font-bold">
+                      {feature.stat}
+                    </span>
+                  </div>
                 </div>
-                
+
                 <p className="text-gray-600 mb-4 leading-relaxed">
                   {feature.description}
                 </p>
-                
+
                 <div className="text-sm text-purple-600 font-medium bg-purple-50 rounded-lg px-4 py-3 border border-purple-100">
                   💡 {feature.demo}
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================= INBOX ASSISTANT SECTION ================= */}
+      <section className="py-24 bg-gradient-to-br from-purple-900 via-purple-800 to-pink-900 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Left: Content */}
+            <div>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full text-sm font-medium mb-6">
+                <Sparkles className="w-4 h-4 text-yellow-400" />
+                <span>NEW: AI Inbox Monitoring</span>
+              </div>
+
+              <h2 className="text-4xl md:text-5xl font-extrabold mb-6">
+                Never miss a scheduling request again
+              </h2>
+
+              <p className="text-xl text-purple-100 mb-8">
+                Connect your Gmail or Outlook, and let AI do the heavy lifting.
+                We'll detect scheduling requests and draft the perfect reply with your booking link.
+              </p>
+
+              <ul className="space-y-4 mb-8">
+                <li className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Check className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-lg">Automatically scans your inbox every 15 minutes</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Check className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-lg">AI detects "Can we meet?" style emails</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Check className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-lg">Drafts professional replies with your booking link</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Check className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-lg">One-click to send - takes 5 seconds</span>
+                </li>
+              </ul>
+
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button
+                  onClick={() => navigate('/register')}
+                  className="px-8 py-4 bg-white text-purple-600 rounded-full font-bold hover:shadow-xl transition-all"
+                >
+                  Try Free for 14 Days
+                </button>
+                <div className="flex items-center gap-2 text-purple-200">
+                  <Clock className="w-5 h-5" />
+                  <span>Available on Pro & Team plans</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Demo Visual */}
+            <div className="relative">
+              <div className="bg-white rounded-2xl shadow-2xl p-6 transform rotate-1">
+                {/* Email Preview */}
+                <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                      J
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">John from Acme Corp</p>
+                      <p className="text-sm text-gray-500">john@acmecorp.com</p>
+                    </div>
+                  </div>
+                  <p className="text-gray-700">
+                    "Hi! I'd love to schedule a call to discuss the partnership opportunity.
+                    Are you free sometime next week?"
+                  </p>
+                </div>
+
+                {/* AI Detection */}
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+                    <Sparkles className="w-4 h-4" />
+                    <span>Scheduling request detected</span>
+                  </div>
+                  <span className="text-sm text-gray-500">95% confidence</span>
+                </div>
+
+                {/* Suggested Reply */}
+                <div className="bg-purple-50 rounded-xl p-4 border-2 border-purple-200">
+                  <p className="text-sm text-purple-600 font-medium mb-2">AI-Generated Reply:</p>
+                  <p className="text-gray-700 text-sm">
+                    "Hi John, Thanks for reaching out! I'd be happy to discuss the partnership.
+                    <br /><br />
+                    You can book a time that works for you here:
+                    <span className="text-purple-600 font-medium"> schedulesync.com/yourname</span>
+                    <br /><br />
+                    Looking forward to connecting!"
+                  </p>
+                </div>
+
+                {/* Action Button */}
+                <button className="w-full mt-4 py-3 bg-purple-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2">
+                  <Send className="w-5 h-5" />
+                  Send Reply
+                </button>
+              </div>
+
+              {/* Floating badges */}
+              <div className="absolute -top-4 -left-4 px-4 py-2 bg-yellow-400 text-yellow-900 rounded-full font-bold text-sm shadow-lg transform -rotate-6">
+                ⚡ 5 seconds
+              </div>
+              <div className="absolute -bottom-4 -right-4 px-4 py-2 bg-green-500 text-white rounded-full font-bold text-sm shadow-lg transform rotate-6">
+                ✓ Auto-detected
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -391,6 +542,15 @@ export default function Landing() {
                   </div>
                   <p className="text-sm text-gray-500 mt-2">{tier.description}</p>
                 </div>
+
+                {tier.highlight && (
+                  <div className="mb-4 p-3 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg">
+                    <p className="text-sm font-semibold text-purple-700 flex items-center justify-center gap-2">
+                      <Inbox className="w-4 h-4" />
+                      {tier.highlight}
+                    </p>
+                  </div>
+                )}
 
                 <ul className="space-y-3 mb-8">
                   {tier.features.map((feature, fIdx) => (

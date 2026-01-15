@@ -4,6 +4,32 @@ const { google } = require('googleapis');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 
+// Middleware to check if user has inbox feature (Pro/Team/Enterprise)
+const requireInboxFeature = async (req, res, next) => {
+  try {
+    const user = await pool.query(
+      'SELECT subscription_tier FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    const tier = user.rows[0]?.subscription_tier || 'free';
+    const allowedTiers = ['pro', 'team', 'enterprise'];
+
+    if (!allowedTiers.includes(tier)) {
+      return res.status(403).json({
+        error: 'Upgrade required',
+        message: 'Inbox monitoring is available on Pro and Team plans',
+        requiredTier: 'pro'
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Subscription check error:', error);
+    res.status(500).json({ error: 'Failed to check subscription' });
+  }
+};
+
 // Gmail OAuth config - uses frontend callback URL for registered redirect
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const gmailOAuth2Client = new google.auth.OAuth2(
@@ -22,7 +48,7 @@ const GMAIL_SCOPES = [
 // ============ GMAIL ROUTES ============
 
 // GET /api/email/gmail/auth - Start Gmail OAuth
-router.get('/gmail/auth', authenticateToken, (req, res) => {
+router.get('/gmail/auth', authenticateToken, requireInboxFeature, (req, res) => {
   // Use state format: email-connect:<userId>:gmail
   const state = `email-connect:${req.user.id}:gmail`;
 
@@ -94,7 +120,7 @@ const OUTLOOK_SCOPES = [
 ];
 
 // GET /api/email/outlook/auth - Start Outlook OAuth
-router.get('/outlook/auth', authenticateToken, (req, res) => {
+router.get('/outlook/auth', authenticateToken, requireInboxFeature, (req, res) => {
   // Use state format: email-connect:<userId>:outlook
   const state = `email-connect:${req.user.id}:outlook`;
 
