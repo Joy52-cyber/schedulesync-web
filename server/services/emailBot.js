@@ -8,7 +8,7 @@ const { sendEmail, sendTemplatedEmail } = require('./email');
 const crypto = require('crypto');
 
 // Main bot email address
-const BOT_EMAIL = process.env.BOT_EMAIL || 'schedule@trucal.xyz';
+const BOT_EMAIL = process.env.BOT_EMAIL || 'schedule@sandbox819735cb87704e23b545fc2f270c358f.mailgun.org';
 const BOT_NAME = 'TruCal Scheduling Assistant';
 
 /**
