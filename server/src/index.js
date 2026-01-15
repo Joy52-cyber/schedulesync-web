@@ -54,6 +54,7 @@ const teamMembersRoutes = require('../routes/team-members');
 const inboxRoutes = require('../routes/inbox');
 const subscriptionRoutes = require('../routes/subscription');
 const analyticsRoutes = require('../routes/analytics');
+const emailIntegrationRoutes = require('../routes/emailIntegration');
 
 // Register core routes
 app.use('/api/auth', authRoutes);
@@ -92,6 +93,7 @@ app.use('/api/invitations', invitationsRoutes);  // Team invitations
 app.use('/api/team-members', teamMembersRoutes);  // Team member availability
 app.use('/api/inbox', inboxRoutes);  // Inbox Assistant
 app.use('/api/analytics', analyticsRoutes);  // Booking analytics
+app.use('/api/email', emailIntegrationRoutes);  // Email Integration (Gmail/Outlook)
 
 console.log('Routes registered:');
 console.log('  - /api/auth/*');
@@ -116,6 +118,15 @@ console.log('  - /api/notifications/*');
 console.log('  - /api/payments/*');
 console.log('  - /api/invitations/*');
 console.log('  - /api/team-members/*');
+console.log('  - /api/email/*');
+
+// Initialize cron jobs
+try {
+  require('../cron/emailSync');
+  console.log('✅ Email sync cron job initialized');
+} catch (error) {
+  console.log('⚠️ Email sync cron not loaded:', error.message);
+}
 
 // Serve uploaded files (logos)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));

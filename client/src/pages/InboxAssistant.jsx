@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useUpgrade } from '../context/UpgradeContext';
 import {
   Mail,
@@ -25,7 +25,9 @@ import {
   Edit3,
   CheckCircle,
   XCircle,
-  Plus
+  Plus,
+  Settings,
+  Unplug
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -43,7 +45,15 @@ const INTENT_INFO = {
 
 export default function InboxAssistant() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { hasProFeature, showUpgradeModal } = useUpgrade();
+
+  // Email integration connections state
+  const [emailConnections, setEmailConnections] = useState([]);
+  const [detectedEmails, setDetectedEmails] = useState([]);
+  const [connectionsLoading, setConnectionsLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [showConnectPanel, setShowConnectPanel] = useState(false);
 
   // Main inbox state
   const [emails, setEmails] = useState([]);
@@ -65,6 +75,115 @@ export default function InboxAssistant() {
   const [quickReply, setQuickReply] = useState('');
   const [generatingReply, setGeneratingReply] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Check for connection success/error from OAuth redirect
+  useEffect(() => {
+    const connected = searchParams.get('connected');
+    const error = searchParams.get('error');
+    if (connected) {
+      // Show success message and refresh connections
+      fetchEmailConnections();
+    }
+    if (error) {
+      alert(`Failed to connect ${error.replace('_failed', '')}. Please try again.`);
+    }
+  }, [searchParams]);
+
+  // Fetch email integration connections
+  const fetchEmailConnections = async () => {
+    try {
+      const [connectionsRes, detectedRes] = await Promise.all([
+        api.get('/email/connections'),
+        api.get('/email/detected?status=pending')
+      ]);
+      setEmailConnections(connectionsRes.data.connections || []);
+      setDetectedEmails(detectedRes.data.emails || []);
+    } catch (error) {
+      console.error('Failed to fetch email connections:', error);
+    } finally {
+      setConnectionsLoading(false);
+    }
+  };
+
+  // Connect Gmail
+  const connectGmail = async () => {
+    try {
+      const response = await api.get('/email/gmail/auth');
+      window.location.href = response.data.authUrl;
+    } catch (error) {
+      console.error('Failed to start Gmail auth:', error);
+      alert('Failed to connect Gmail. Please try again.');
+    }
+  };
+
+  // Connect Outlook
+  const connectOutlook = async () => {
+    try {
+      const response = await api.get('/email/outlook/auth');
+      window.location.href = response.data.authUrl;
+    } catch (error) {
+      console.error('Failed to start Outlook auth:', error);
+      alert('Failed to connect Outlook. Please try again.');
+    }
+  };
+
+  // Sync emails manually
+  const handleEmailSync = async () => {
+    setSyncing(true);
+    try {
+      await api.post('/email/sync');
+      await fetchEmailConnections();
+    } catch (error) {
+      console.error('Sync failed:', error);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Toggle monitoring for a connection
+  const toggleMonitoring = async (connectionId) => {
+    try {
+      await api.patch(`/email/connections/${connectionId}/toggle`);
+      fetchEmailConnections();
+    } catch (error) {
+      console.error('Failed to toggle monitoring:', error);
+    }
+  };
+
+  // Disconnect email
+  const disconnectEmail = async (connectionId) => {
+    if (!confirm('Are you sure you want to disconnect this email account?')) return;
+    try {
+      await api.delete(`/email/connections/${connectionId}`);
+      fetchEmailConnections();
+    } catch (error) {
+      console.error('Failed to disconnect:', error);
+    }
+  };
+
+  // Send detected email reply
+  const handleDetectedReply = async (emailId, customReply = null) => {
+    try {
+      await api.post(`/email/detected/${emailId}/reply`, { customReply });
+      fetchEmailConnections();
+    } catch (error) {
+      alert('Failed to send reply');
+    }
+  };
+
+  // Dismiss detected email
+  const handleDetectedDismiss = async (emailId) => {
+    try {
+      await api.post(`/email/detected/${emailId}/dismiss`);
+      fetchEmailConnections();
+    } catch (error) {
+      console.error('Failed to dismiss:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchEmailConnections();
+  }, []);
 
   useEffect(() => {
     if (!quickPasteMode) {
@@ -337,7 +456,17 @@ export default function InboxAssistant() {
               </h1>
               <p className="text-gray-500 mt-1">AI-powered email response management</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              {emailConnections.length > 0 && (
+                <button
+                  onClick={handleEmailSync}
+                  disabled={syncing}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+                  {syncing ? 'Syncing...' : 'Sync Inbox'}
+                </button>
+              )}
               <button
                 onClick={() => setQuickPasteMode(!quickPasteMode)}
                 className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
@@ -360,6 +489,131 @@ export default function InboxAssistant() {
               )}
             </div>
           </div>
+
+          {/* Email Connections Bar */}
+          <div className="mt-4 pt-4 border-t">
+            {emailConnections.length === 0 ? (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <Mail className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Connect your email for automatic monitoring</p>
+                    <p className="text-sm text-gray-500">AI will detect scheduling requests and generate replies</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={connectGmail}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24">
+                      <path fill="#EA4335" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
+                    </svg>
+                    Gmail
+                  </button>
+                  <button
+                    onClick={connectOutlook}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24">
+                      <path fill="#0078D4" d="M24 7.387v10.478c0 .566-.46 1.025-1.025 1.025H15.07v-12.53h7.905c.566 0 1.025.46 1.025 1.027z"/>
+                      <path fill="#0364B8" d="M15.07 6.36v12.53H1.025A1.025 1.025 0 0 1 0 17.865V7.387c0-.567.459-1.027 1.025-1.027H15.07z"/>
+                    </svg>
+                    Outlook
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="text-sm text-gray-500">Connected:</span>
+                {emailConnections.map(conn => (
+                  <div key={conn.id} className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg">
+                    {conn.provider === 'gmail' ? (
+                      <svg className="w-4 h-4" viewBox="0 0 24 24">
+                        <path fill="#EA4335" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" viewBox="0 0 24 24">
+                        <path fill="#0078D4" d="M24 7.387v10.478c0 .566-.46 1.025-1.025 1.025H15.07v-12.53h7.905c.566 0 1.025.46 1.025 1.027z"/>
+                        <path fill="#0364B8" d="M15.07 6.36v12.53H1.025A1.025 1.025 0 0 1 0 17.865V7.387c0-.567.459-1.027 1.025-1.027H15.07z"/>
+                      </svg>
+                    )}
+                    <span className="text-sm font-medium text-gray-700">{conn.email_address}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${conn.monitoring_enabled ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>
+                      {conn.monitoring_enabled ? 'Active' : 'Paused'}
+                    </span>
+                    <button
+                      onClick={() => toggleMonitoring(conn.id)}
+                      className="text-gray-400 hover:text-gray-600 p-1"
+                      title={conn.monitoring_enabled ? 'Pause monitoring' : 'Resume monitoring'}
+                    >
+                      <Settings className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => disconnectEmail(conn.id)}
+                      className="text-gray-400 hover:text-red-500 p-1"
+                      title="Disconnect"
+                    >
+                      <Unplug className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                {!emailConnections.find(c => c.provider === 'gmail') && (
+                  <button onClick={connectGmail} className="text-sm text-purple-600 hover:text-purple-700">+ Gmail</button>
+                )}
+                {!emailConnections.find(c => c.provider === 'outlook') && (
+                  <button onClick={connectOutlook} className="text-sm text-purple-600 hover:text-purple-700">+ Outlook</button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Detected Scheduling Emails Banner */}
+          {detectedEmails.length > 0 && (
+            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-green-600" />
+                  <span className="font-medium text-green-800">
+                    {detectedEmails.length} scheduling request{detectedEmails.length !== 1 ? 's' : ''} detected
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {detectedEmails.slice(0, 3).map(email => {
+                  const intent = email.scheduling_intent || {};
+                  const reply = email.suggested_reply ? JSON.parse(email.suggested_reply) : null;
+                  return (
+                    <div key={email.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-green-100">
+                      <div className="flex-1 min-w-0 mr-4">
+                        <p className="font-medium text-gray-900 truncate">{email.from_name || email.from_email}</p>
+                        <p className="text-sm text-gray-500 truncate">{email.subject}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleDetectedReply(email.id)}
+                          className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
+                        >
+                          <Send className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDetectedDismiss(email.id)}
+                          className="p-1.5 text-gray-400 hover:text-gray-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {detectedEmails.length > 3 && (
+                  <p className="text-sm text-green-700 text-center">+{detectedEmails.length - 3} more</p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
