@@ -393,7 +393,7 @@ export default function Dashboard() {
             <LimitWarningBanner />
 
             {/* QUICK ACTIONS - NOW AT TOP */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button
                 onClick={handleShareCalendar}
                 className="flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all text-left"
@@ -407,7 +407,7 @@ export default function Dashboard() {
                 </div>
               </button>
 
-              <button 
+              <button
                 onClick={() => navigate('/my-links')}
                 className="flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-amber-300 hover:shadow-md transition-all text-left"
               >
@@ -419,20 +419,6 @@ export default function Dashboard() {
                   <div className="text-sm text-gray-500">Create instant booking link</div>
                 </div>
               </button>
-
-              <button
-                onClick={() => navigate('/events/new')}
-                className="flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-green-300 hover:shadow-md transition-all text-left"
-              >
-                <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center">
-                  <Plus className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <div className="font-bold text-gray-900">New Event Type</div>
-                  <div className="text-sm text-gray-500">Create a booking type</div>
-                </div>
-              </button>
-
             </div>
 
             {/* Reschedule Suggestions */}
