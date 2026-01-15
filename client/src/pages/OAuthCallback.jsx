@@ -106,15 +106,15 @@ export default function OAuthCallback({ onLogin }) {
           console.log('Email connected:', res.data);
           isProcessing = false;
 
-          // Redirect to settings with success
-          navigate(`/settings?tab=email&connected=${emailProvider}`, { replace: true });
+          // Redirect to inbox assistant with success
+          navigate(`/inbox-assistant?connected=${emailProvider}`, { replace: true });
         } catch (err) {
           console.error('Email connect failed:', err);
           isProcessing = false;
           processedCodes.delete(code);
 
           const errorMsg = err.response?.data?.error || 'Failed to connect email';
-          navigate(`/settings?tab=email&error=${encodeURIComponent(errorMsg)}`, { replace: true });
+          navigate(`/inbox-assistant?error=${encodeURIComponent(errorMsg)}`, { replace: true });
         }
       })();
 
