@@ -455,40 +455,75 @@ function generateProposalEmail(user, thread, slots, settings) {
   const guestName = participants.find(p => p.email !== user.email)?.name?.split(' ')[0] || 'there';
 
   const bookingBaseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+  const duration = settings.default_duration || 30;
 
-  let slotsHtml = slots.map((slot, i) => {
+  let slotsHtml = slots.map((slot) => {
     const confirmUrl = `${bookingBaseUrl}/quick-book?user=${user.username}&time=${encodeURIComponent(slot.start)}&thread=${thread.id}`;
-    return `<tr><td style="padding:6px 0;"><a href="${confirmUrl}" style="display:block;padding:16px 20px;background-color:#8b5cf6;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:600;font-size:15px;text-align:center;">${slot.formatted}</a></td></tr>`;
+    return `
+      <tr>
+        <td style="padding: 6px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td align="center" bgcolor="#8b5cf6" style="background-color: #8b5cf6; border-radius: 8px;">
+                <a href="${confirmUrl}" target="_blank" style="display: block; padding: 16px 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none; text-align: center;">
+                  ${slot.formatted}
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
   }).join('');
 
   const intro = (settings.intro_message || "I'm helping {{hostName}} schedule a meeting with you.")
     .replace('{{hostName}}', user.name);
 
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background-color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;padding:32px 16px;">
-<tr><td align="center">
-<table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:16px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1),0 2px 4px -1px rgba(0,0,0,0.06);overflow:hidden;">
-<tr><td style="background:linear-gradient(135deg,#8b5cf6 0%,#ec4899 100%);padding:32px 24px;text-align:center;">
-<h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">Pick a Time</h1>
-</td></tr>
-<tr><td style="padding:32px 24px;">
-<p style="margin:0 0 8px;color:#111827;font-size:18px;font-weight:600;">Hi ${guestName}!</p>
-<p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.5;">${intro}</p>
-<table width="100%" cellpadding="0" cellspacing="0">
-${slotsHtml}
-</table>
-<p style="margin:24px 0 0;color:#9ca3af;font-size:13px;text-align:center;">Click any time to book instantly</p>
-</td></tr>
-<tr><td style="padding:20px 24px;background-color:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">
-<p style="margin:0 0 8px;color:#6b7280;font-size:13px;">Or view all times: <a href="${bookingBaseUrl}/${user.username}" style="color:#8b5cf6;text-decoration:none;">${user.username}'s calendar</a></p>
-<p style="margin:0;color:#9ca3af;font-size:12px;">${settings.signature || 'Powered by <strong style="color:#6b7280;">TruCal</strong>'}</p>
-</td></tr>
-</table>
-</td></tr>
-</table>
+  return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pick a Time</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f4f5;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 500px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <tr>
+            <td align="center" bgcolor="#8b5cf6" style="background-color: #8b5cf6; padding: 32px 24px;">
+              <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #ffffff;">Pick a Time</h1>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px 24px;">
+              <p style="margin: 0 0 8px 0; font-size: 20px; font-weight: 600; color: #18181b;">Hi ${guestName}!</p>
+              <p style="margin: 0 0 8px 0; font-size: 15px; color: #71717a; line-height: 1.5;">${intro}</p>
+              <p style="margin: 0 0 24px 0; font-size: 14px; color: #a1a1aa;">Duration: ${duration} minutes</p>
+              <!-- Time Slots -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                ${slotsHtml}
+              </table>
+              <p style="margin: 24px 0 0 0; font-size: 13px; color: #a1a1aa; text-align: center;">Click any time above to book instantly</p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 24px; background-color: #fafafa; border-top: 1px solid #e4e4e7;">
+              <p style="margin: 0 0 8px 0; font-size: 13px; color: #71717a; text-align: center;">
+                Or view all available times: <a href="${bookingBaseUrl}/${user.username}" style="color: #8b5cf6; text-decoration: none; font-weight: 500;">${user.name}'s calendar</a>
+              </p>
+              <p style="margin: 0; font-size: 12px; color: #a1a1aa; text-align: center;">
+                ${settings.signature || 'Powered by <span style="color: #71717a; font-weight: 600;">TruCal</span>'}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`;
 }
@@ -498,19 +533,63 @@ ${slotsHtml}
  */
 function generateNoAvailabilityEmail(user, thread) {
   const bookingBaseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+  const participants = thread.participants || [];
+  const guestName = participants.find(p => p.email !== user.email)?.name?.split(' ')[0] || 'there';
 
-  return `
-<!DOCTYPE html>
-<html>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
-  <p>Hi! 👋</p>
-  <p>I'm helping ${user.name} find a time for your meeting, but I couldn't find any available slots in the next two weeks based on their current schedule.</p>
-  <p>You can check their full availability here:</p>
-  <p><a href="${bookingBaseUrl}/${user.username}" style="color: #7c3aed; font-weight: 600;">${bookingBaseUrl}/${user.username}</a></p>
-  <p style="color: #888; font-size: 12px; margin-top: 30px;">Powered by TruCal</p>
+  return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>No Available Times</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f4f5;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 500px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <tr>
+            <td align="center" bgcolor="#f59e0b" style="background-color: #f59e0b; padding: 32px 24px;">
+              <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #ffffff;">No Times Available</h1>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px 24px;">
+              <p style="margin: 0 0 16px 0; font-size: 20px; font-weight: 600; color: #18181b;">Hi ${guestName}!</p>
+              <p style="margin: 0 0 24px 0; font-size: 15px; color: #71717a; line-height: 1.6;">
+                I'm helping ${user.name} find a time for your meeting, but I couldn't find any available slots in the next two weeks based on their current schedule.
+              </p>
+              <p style="margin: 0 0 24px 0; font-size: 15px; color: #71717a; line-height: 1.6;">
+                You can check their full availability or book a time further out:
+              </p>
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" bgcolor="#8b5cf6" style="background-color: #8b5cf6; border-radius: 8px;">
+                    <a href="${bookingBaseUrl}/${user.username}" target="_blank" style="display: block; padding: 16px 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none; text-align: center;">
+                      View ${user.name}'s Calendar
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 24px; background-color: #fafafa; border-top: 1px solid #e4e4e7;">
+              <p style="margin: 0; font-size: 12px; color: #a1a1aa; text-align: center;">
+                Powered by <span style="color: #71717a; font-weight: 600;">TruCal</span>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
-</html>
-  `;
+</html>`;
 }
 
 /**
@@ -524,9 +603,55 @@ async function handleTimeSelection(thread, user, intent) {
   const guest = participants.find(p => p.email !== user.email);
 
   if (!guest) {
+    const bookingBaseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
     return {
       subject: `Re: ${thread.subject}`,
-      body: `<p>Sorry, I couldn't identify the guest for this booking. Please book directly at the link provided.</p>`
+      body: `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unable to Book</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f4f5;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 500px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <tr>
+            <td align="center" bgcolor="#f59e0b" style="background-color: #f59e0b; padding: 32px 24px;">
+              <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #ffffff;">Unable to Book</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 32px 24px;">
+              <p style="margin: 0 0 24px 0; font-size: 16px; color: #71717a; line-height: 1.6;">
+                Sorry, I couldn't identify the guest for this booking. Please book directly using the link below.
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" bgcolor="#8b5cf6" style="background-color: #8b5cf6; border-radius: 8px;">
+                    <a href="${bookingBaseUrl}/${user.username}" target="_blank" style="display: block; padding: 16px 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none; text-align: center;">
+                      Book Directly
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 24px; background-color: #fafafa; border-top: 1px solid #e4e4e7;">
+              <p style="margin: 0; font-size: 12px; color: #a1a1aa; text-align: center;">
+                Powered by <span style="color: #71717a; font-weight: 600;">TruCal</span>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
     };
   }
 
@@ -565,38 +690,94 @@ async function handleTimeSelection(thread, user, intent) {
 
   // Generate confirmation email
   const bookingBaseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+  const formattedDate = selectedTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const formattedTime = selectedTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
   return {
-    subject: `✅ Confirmed: ${thread.subject}`,
-    body: `
-<!DOCTYPE html>
-<html>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
-  <div style="background: linear-gradient(135deg, #8b5cf6, #ec4899); padding: 24px; border-radius: 16px 16px 0 0; text-align: center;">
-    <h1 style="color: white; margin: 0; font-size: 24px;">Meeting Confirmed! ✅</h1>
-  </div>
-
-  <div style="background: #f9fafb; padding: 24px; border-radius: 0 0 16px 16px;">
-    <p>Great news! Your meeting has been scheduled.</p>
-
-    <div style="background: white; border-radius: 12px; padding: 20px; margin: 20px 0; border: 1px solid #e5e7eb;">
-      <p style="margin: 8px 0;"><strong>📅 Date:</strong> ${selectedTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
-      <p style="margin: 8px 0;"><strong>🕐 Time:</strong> ${selectedTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</p>
-      <p style="margin: 8px 0;"><strong>⏱️ Duration:</strong> ${duration} minutes</p>
-      <p style="margin: 8px 0;"><strong>👥 With:</strong> ${user.name} & ${guest.name || guest.email}</p>
-    </div>
-
-    <p style="text-align: center;">
-      <a href="${bookingBaseUrl}/manage/${manageToken}" style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">
-        Manage Booking
-      </a>
-    </p>
-  </div>
-
-  <p style="color: #888; font-size: 12px; margin-top: 20px; text-align: center;">Powered by TruCal</p>
+    subject: `Confirmed: ${thread.subject}`,
+    body: `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meeting Confirmed</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f4f5;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 500px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <tr>
+            <td align="center" bgcolor="#10b981" style="background-color: #10b981; padding: 32px 24px;">
+              <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #ffffff;">Meeting Confirmed!</h1>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px 24px;">
+              <p style="margin: 0 0 24px 0; font-size: 16px; color: #71717a; line-height: 1.6;">
+                Great news! Your meeting has been scheduled.
+              </p>
+              <!-- Meeting Details Card -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fafafa; border-radius: 8px; border: 1px solid #e4e4e7;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding: 8px 0;">
+                          <span style="font-size: 14px; color: #71717a;">Date</span><br />
+                          <span style="font-size: 16px; font-weight: 600; color: #18181b;">${formattedDate}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0;">
+                          <span style="font-size: 14px; color: #71717a;">Time</span><br />
+                          <span style="font-size: 16px; font-weight: 600; color: #18181b;">${formattedTime}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0;">
+                          <span style="font-size: 14px; color: #71717a;">Duration</span><br />
+                          <span style="font-size: 16px; font-weight: 600; color: #18181b;">${duration} minutes</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0;">
+                          <span style="font-size: 14px; color: #71717a;">Participants</span><br />
+                          <span style="font-size: 16px; font-weight: 600; color: #18181b;">${user.name} &amp; ${guest.name || guest.email}</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 24px;">
+                <tr>
+                  <td align="center" bgcolor="#8b5cf6" style="background-color: #8b5cf6; border-radius: 8px;">
+                    <a href="${bookingBaseUrl}/manage/${manageToken}" target="_blank" style="display: block; padding: 16px 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none; text-align: center;">
+                      Manage Booking
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 24px; background-color: #fafafa; border-top: 1px solid #e4e4e7;">
+              <p style="margin: 0; font-size: 12px; color: #a1a1aa; text-align: center;">
+                Powered by <span style="color: #71717a; font-weight: 600;">TruCal</span>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
-</html>
-    `
+</html>`
   };
 }
 
@@ -615,14 +796,85 @@ async function handleAlreadyBooked(thread, user) {
 
   const b = booking.rows[0];
   const bookingBaseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+  const formattedDate = new Date(b.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const formattedTime = new Date(b.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
   return {
     subject: `Re: ${thread.subject}`,
-    body: `
-<p>This meeting has already been scheduled for:</p>
-<p><strong>${new Date(b.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at ${new Date(b.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</strong></p>
-<p>Need to make changes? <a href="${bookingBaseUrl}/manage/${b.manage_token}">Manage booking</a></p>
-    `
+    body: `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Already Scheduled</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f4f5;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 500px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <tr>
+            <td align="center" bgcolor="#3b82f6" style="background-color: #3b82f6; padding: 32px 24px;">
+              <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #ffffff;">Already Scheduled</h1>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px 24px;">
+              <p style="margin: 0 0 24px 0; font-size: 16px; color: #71717a; line-height: 1.6;">
+                This meeting has already been scheduled:
+              </p>
+              <!-- Meeting Details Card -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fafafa; border-radius: 8px; border: 1px solid #e4e4e7;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding: 8px 0;">
+                          <span style="font-size: 14px; color: #71717a;">Date</span><br />
+                          <span style="font-size: 16px; font-weight: 600; color: #18181b;">${formattedDate}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0;">
+                          <span style="font-size: 14px; color: #71717a;">Time</span><br />
+                          <span style="font-size: 16px; font-weight: 600; color: #18181b;">${formattedTime}</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin: 24px 0 24px 0; font-size: 15px; color: #71717a; text-align: center;">
+                Need to make changes?
+              </p>
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" bgcolor="#8b5cf6" style="background-color: #8b5cf6; border-radius: 8px;">
+                    <a href="${bookingBaseUrl}/manage/${b.manage_token}" target="_blank" style="display: block; padding: 16px 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none; text-align: center;">
+                      Manage Booking
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 24px; background-color: #fafafa; border-top: 1px solid #e4e4e7;">
+              <p style="margin: 0; font-size: 12px; color: #a1a1aa; text-align: center;">
+                Powered by <span style="color: #71717a; font-weight: 600;">TruCal</span>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
   };
 }
 
@@ -656,13 +908,63 @@ async function handleCancelRequest(thread, user) {
     [thread.id]
   );
 
+  const bookingBaseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
+
   return {
     subject: `Re: ${thread.subject}`,
-    body: `
-<p>The meeting has been cancelled as requested.</p>
-<p>If you'd like to schedule a new time in the future, just reply to this thread or CC me again!</p>
-<p style="color: #888; font-size: 12px; margin-top: 20px;">Powered by TruCal</p>
-    `
+    body: `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meeting Cancelled</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f4f5;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 500px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <tr>
+            <td align="center" bgcolor="#ef4444" style="background-color: #ef4444; padding: 32px 24px;">
+              <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #ffffff;">Meeting Cancelled</h1>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px 24px;">
+              <p style="margin: 0 0 16px 0; font-size: 16px; color: #71717a; line-height: 1.6;">
+                The meeting has been cancelled as requested.
+              </p>
+              <p style="margin: 0 0 24px 0; font-size: 16px; color: #71717a; line-height: 1.6;">
+                If you'd like to schedule a new time in the future, just reply to this thread or CC me again!
+              </p>
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" bgcolor="#8b5cf6" style="background-color: #8b5cf6; border-radius: 8px;">
+                    <a href="${bookingBaseUrl}/${user.username}" target="_blank" style="display: block; padding: 16px 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none; text-align: center;">
+                      Schedule New Meeting
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 24px; background-color: #fafafa; border-top: 1px solid #e4e4e7;">
+              <p style="margin: 0; font-size: 12px; color: #a1a1aa; text-align: center;">
+                Powered by <span style="color: #71717a; font-weight: 600;">TruCal</span>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
   };
 }
 

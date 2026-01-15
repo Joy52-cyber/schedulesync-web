@@ -127,10 +127,32 @@ function parseSendGridEmail(body) {
  * Parse Mailgun format
  */
 function parseMailgunEmail(body) {
+  // Parse all To recipients (Mailgun sends the full To header)
+  const parseAddressList = (str) => {
+    if (!str) return [];
+    return str.split(',').map(addr => {
+      const trimmed = addr.trim();
+      const match = trimmed.match(/^(.+?)\s*<(.+?)>$/);
+      if (match) {
+        return { name: match[1].trim().replace(/"/g, ''), email: match[2].trim() };
+      }
+      return { name: '', email: trimmed };
+    }).filter(a => a.email);
+  };
+
+  // Mailgun sends To/Cc headers as well as recipient
+  const toRecipients = parseAddressList(body.To || body.to);
+  const ccRecipients = parseAddressList(body.Cc || body.cc);
+
+  // If no To header, fall back to recipient
+  if (toRecipients.length === 0 && body.recipient) {
+    toRecipients.push({ email: body.recipient, name: '' });
+  }
+
   return {
     from: { email: body.sender, name: body.from?.split('<')[0]?.trim() },
-    to: [{ email: body.recipient }],
-    cc: [],
+    to: toRecipients,
+    cc: ccRecipients,
     subject: body.subject,
     text: body['body-plain'],
     html: body['body-html'],
@@ -165,7 +187,8 @@ function parseGenericEmail(body) {
   const normalizeAddressList = (list) => {
     if (!list) return [];
     if (typeof list === 'string') {
-      return [normalizeAddress(list)].filter(Boolean);
+      // Handle comma-separated string of emails
+      return list.split(',').map(addr => normalizeAddress(addr.trim())).filter(Boolean);
     }
     if (Array.isArray(list)) {
       return list.map(normalizeAddress).filter(Boolean);
