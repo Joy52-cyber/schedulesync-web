@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Clock, Mail, Link as LinkIcon, Check, ArrowRight, ArrowLeft, Sparkles } from 'lucide-react';
 import api from '../utils/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TIMES = [
@@ -14,6 +15,7 @@ const TIMES = [
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const { updateUser } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -106,18 +108,27 @@ export default function Onboarding() {
         workDays
       };
 
-      await api.post('/users/onboarding', onboardingData);
+      const response = await api.post('/users/onboarding', onboardingData);
 
-      // Update local storage user object
+      // Update user in AuthContext and localStorage
+      if (updateUser) {
+        updateUser({
+          onboarded: true,
+          username: username,
+          timezone: timezone
+        });
+      }
+
+      // Also set the legacy onboardingCompleted key that ProtectedRoute checks
       const userStr = localStorage.getItem('user');
       if (userStr) {
         const user = JSON.parse(userStr);
-        user.onboarded = true;
-        user.username = username;
-        localStorage.setItem('user', JSON.stringify(user));
+        const localKey = `onboardingCompleted:${user.id || user.email}`;
+        localStorage.setItem(localKey, 'true');
       }
 
-      navigate('/dashboard');
+      console.log('✅ Onboarding completed, navigating to dashboard');
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       console.error('Onboarding error:', err);
       setError(err.response?.data?.error || 'Failed to complete onboarding. Please try again.');

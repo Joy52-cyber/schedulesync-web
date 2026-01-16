@@ -32,8 +32,13 @@ export default function ProtectedRoute({ children }) {
   const localCompleted =
     localKey && localStorage.getItem(localKey) === "true";
 
+  // Check both new 'onboarded' field and legacy 'hasCompletedOnboarding'
+  // Also infer from username existence
   const hasCompletedOnboarding =
-    user?.hasCompletedOnboarding === true || localCompleted;
+    user?.onboarded === true ||
+    user?.hasCompletedOnboarding === true ||
+    localCompleted ||
+    !!user?.username;
 
   const onOnboardingPage = location.pathname === "/onboarding";
 
