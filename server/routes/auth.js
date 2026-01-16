@@ -89,7 +89,8 @@ router.post('/google', async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        name: user.name || data.name
+        name: user.name || data.name,
+        onboarded: user.onboarded || false
       }
     });
 
@@ -172,8 +173,8 @@ router.post('/register', async (req, res) => {
 
     // Create user
     const result = await pool.query(
-      `INSERT INTO users (email, name, password_hash, provider, email_verified, reset_token, reset_token_expires)
-       VALUES ($1, $2, $3, 'email', false, $4, $5) RETURNING id, email, name`,
+      `INSERT INTO users (email, name, password_hash, provider, email_verified, reset_token, reset_token_expires, onboarded)
+       VALUES ($1, $2, $3, 'email', false, $4, $5, false) RETURNING id, email, name, onboarded`,
       [email.toLowerCase(), name, passwordHash, verificationToken, verificationExpires]
     );
 
@@ -210,7 +211,13 @@ router.post('/register', async (req, res) => {
 
     res.json({
       success: true,
-      user: { id: user.id, email: user.email, name: user.name, emailVerified: false },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        emailVerified: false,
+        onboarded: user.onboarded || false
+      },
       token,
       message: 'Registration successful! Please check your email to verify your account.'
     });
@@ -381,7 +388,9 @@ router.post('/login', async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        calendar_sync_enabled: user.calendar_sync_enabled
+        username: user.username,
+        calendar_sync_enabled: user.calendar_sync_enabled,
+        onboarded: user.onboarded !== false
       },
       token
     });

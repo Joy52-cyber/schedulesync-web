@@ -152,8 +152,8 @@ router.post('/google/callback', async (req, res) => {
     if (userResult.rows.length === 0) {
       console.log('Creating new user');
       const insertResult = await pool.query(
-        `INSERT INTO users (google_id, email, name, google_access_token, google_refresh_token, calendar_sync_enabled, provider)
-         VALUES ($1, $2, $3, $4, $5, true, 'google') RETURNING *`,
+        `INSERT INTO users (google_id, email, name, google_access_token, google_refresh_token, calendar_sync_enabled, provider, onboarded)
+         VALUES ($1, $2, $3, $4, $5, true, 'google', false) RETURNING *`,
         [userInfo.id, userInfo.email, userInfo.name, tokens.access_token, tokens.refresh_token]
       );
       user = insertResult.rows[0];
@@ -185,7 +185,9 @@ router.post('/google/callback', async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        calendar_sync_enabled: user.calendar_sync_enabled
+        username: user.username,
+        calendar_sync_enabled: user.calendar_sync_enabled,
+        onboarded: user.onboarded !== false
       },
       token: jwtToken,
     });
@@ -303,7 +305,7 @@ router.post('/microsoft/callback', async (req, res) => {
       user = await pool.query(
         `INSERT INTO users (
           email, name, microsoft_id, microsoft_access_token,
-          microsoft_refresh_token, provider, onboarding_completed, calendar_sync_enabled
+          microsoft_refresh_token, provider, onboarded, calendar_sync_enabled
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
         [
           email,
@@ -356,8 +358,9 @@ router.post('/microsoft/callback', async (req, res) => {
         id: finalUser.id,
         email: finalUser.email,
         name: finalUser.name,
+        username: finalUser.username,
         calendar_sync_enabled: finalUser.calendar_sync_enabled,
-        onboarding_completed: finalUser.onboarding_completed || false
+        onboarded: finalUser.onboarded !== false
       },
       token: jwtToken,
     });
