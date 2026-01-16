@@ -7,7 +7,6 @@ const { sendBookingEmail } = require('../services/email');
 const { generateICS } = require('../utils/icsGenerator');
 const { applySchedulingRules, recordBookingPattern } = require('../services/scheduling');
 const { notifyPaymentReceived } = require('../services/notifications');
-const emailTemplates = require('../emailTemplates');
 
 // GET /api/payments/config - Get Stripe publishable key
 router.get('/config', (req, res) => {
