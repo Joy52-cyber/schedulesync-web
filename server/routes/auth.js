@@ -18,7 +18,16 @@ const oauth2Client = new google.auth.OAuth2(
 // GET /api/auth/google/url - Get Google OAuth URL
 router.get('/google/url', (req, res) => {
   try {
-    const authUrl = oauth2Client.generateAuthUrl({
+    const redirectUri = req.query.redirect_uri || `${process.env.FRONTEND_URL}/oauth/callback`;
+
+    // Create a temporary OAuth client with the provided redirect URI
+    const tempOAuthClient = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      redirectUri
+    );
+
+    const authUrl = tempOAuthClient.generateAuthUrl({
       access_type: 'offline',
       scope: [
         'https://www.googleapis.com/auth/userinfo.profile',
@@ -38,14 +47,24 @@ router.get('/google/url', (req, res) => {
 router.post('/google', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { code } = req.body;
+    const { code, redirect_uri } = req.body;
+
+    // Use provided redirect_uri or default to website callback
+    const redirectUri = redirect_uri || `${process.env.FRONTEND_URL}/oauth/callback`;
+
+    // Create OAuth client with the same redirect URI used for authorization
+    const tempOAuthClient = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      redirectUri
+    );
 
     // Exchange code for tokens
-    const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
+    const { tokens } = await tempOAuthClient.getToken(code);
+    tempOAuthClient.setCredentials(tokens);
 
     // Get user info from Google
-    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+    const oauth2 = google.oauth2({ version: 'v2', auth: tempOAuthClient });
     const { data } = await oauth2.userinfo.get();
 
     // Check if user exists
@@ -85,11 +104,13 @@ router.post('/google', async (req, res) => {
     );
 
     res.json({
+      success: true,
       token: jwtToken,
       user: {
         id: user.id,
         email: user.email,
         name: user.name || data.name,
+        username: user.username,
         // If onboarded column doesn't exist, infer from username existence
         onboarded: user.onboarded !== undefined ? user.onboarded || false : !!user.username
       }

@@ -339,13 +339,20 @@ export default function Dashboard() {
   const usage = user?.usage || { ai_queries_used: 0, ai_queries_limit: 10 };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30">
+    <div className="min-h-screen w-full bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
+      <header className="bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-lg relative z-10">
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
+              <div className="h-12 w-12 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center shadow-xl">
                 <Calendar className="h-6 w-6 text-white" />
               </div>
               <div>
@@ -361,7 +368,7 @@ export default function Dashboard() {
                   const event = new CustomEvent('openAIChat');
                   window.dispatchEvent(event);
                 }}
-                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-lg transition-all font-semibold flex items-center gap-2"
+                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 transition-all font-semibold flex items-center gap-2 hover:-translate-y-0.5"
               >
                 <Bot className="h-4 w-4" />
                 AI Scheduler
@@ -369,7 +376,7 @@ export default function Dashboard() {
 
               <button
                 onClick={() => navigate('/availability')}
-                className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all font-semibold flex items-center gap-2 shadow-sm"
+                className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:shadow-2xl hover:shadow-green-200/50 transition-all font-semibold flex items-center gap-2 hover:-translate-y-0.5"
               >
                 <Clock className="h-4 w-4" />
                 Availability
@@ -393,30 +400,30 @@ export default function Dashboard() {
             <LimitWarningBanner />
 
             {/* QUICK ACTIONS - NOW AT TOP */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
               <button
                 onClick={handleShareCalendar}
-                className="flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all text-left"
+                className="flex items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border-2 border-purple-200 rounded-2xl hover:border-purple-400 hover:shadow-xl hover:shadow-purple-100/50 transition-all text-left hover:-translate-y-1"
               >
-                <div className="w-12 h-12 bg-purple-600 rounded-xl flex items-center justify-center">
+                <div className="w-14 h-14 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
                   {copiedLink ? <Check className="w-6 h-6 text-white" /> : <Share2 className="w-6 h-6 text-white" />}
                 </div>
                 <div>
-                  <div className="font-bold text-gray-900">{copiedLink ? 'Copied!' : 'Your Booking Page'}</div>
-                  <div className="text-sm text-gray-500">Share with anyone</div>
+                  <div className="font-bold text-gray-900 text-lg">{copiedLink ? 'Copied!' : 'Your Booking Page'}</div>
+                  <div className="text-sm text-gray-600">Share with anyone</div>
                 </div>
               </button>
 
               <button
                 onClick={() => navigate('/my-links')}
-                className="flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-amber-300 hover:shadow-md transition-all text-left"
+                className="flex items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border-2 border-amber-200 rounded-2xl hover:border-amber-400 hover:shadow-xl hover:shadow-amber-100/50 transition-all text-left hover:-translate-y-1"
               >
-                <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center">
+                <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
                   <Sparkles className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <div className="font-bold text-gray-900">Quick Link</div>
-                  <div className="text-sm text-gray-500">Create instant booking link</div>
+                  <div className="font-bold text-gray-900 text-lg">Quick Link</div>
+                  <div className="text-sm text-gray-600">Create instant booking link</div>
                 </div>
               </button>
             </div>
@@ -433,7 +440,7 @@ export default function Dashboard() {
               <div className="lg:col-span-2 space-y-6">
                 
                 {/* Event Types Grid */}
-                <div className="bg-white rounded-xl p-6 border border-gray-200">
+                <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-white/20 shadow-xl relative z-10">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
                       <Calendar className="w-5 h-5 text-gray-600" />
@@ -441,7 +448,7 @@ export default function Dashboard() {
                     </div>
                     <button
                       onClick={() => navigate('/events/new')}
-                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700"
+                      className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-purple-200/50 transition-all hover:-translate-y-0.5"
                     >
                       <Plus className="w-4 h-4" />
                       Create Event Type
@@ -462,14 +469,16 @@ export default function Dashboard() {
                   ) : (
                     <div className="grid md:grid-cols-2 gap-4">
                       {eventTypes.map((event, idx) => (
-                        <div 
+                        <div
                           key={event.id}
-                          className="group p-4 border-2 border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all cursor-pointer"
+                          className="group p-5 border-2 border-gray-200 rounded-2xl hover:border-purple-400 hover:shadow-xl hover:shadow-purple-100/50 transition-all cursor-pointer hover:-translate-y-1 bg-gradient-to-br from-white to-purple-50/20"
                           onClick={() => navigate(`/events/${event.id}`)}
                         >
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center gap-3">
-                              <div className={`w-3 h-3 rounded-full ${colorMap[getEventColor(idx)]}`} />
+                              <div className={`w-10 h-10 rounded-xl ${colorMap[getEventColor(idx)]} flex items-center justify-center shadow-md`}>
+                                <Clock className="w-5 h-5 text-white" />
+                              </div>
                               <div>
                                 <h3 className="font-bold text-gray-900">{event.name}</h3>
                                 <p className="text-sm text-gray-500">{event.duration} min</p>
@@ -512,7 +521,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* MERGED: Bookings Section (Stats + List) */}
-                <div className="bg-white rounded-xl p-6 border border-gray-200">
+                <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-white/20 shadow-xl relative z-10">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
                       <BarChart3 className="w-5 h-5 text-gray-600" />
@@ -530,9 +539,9 @@ export default function Dashboard() {
                   <div className="flex items-center gap-2 mb-6">
                     <button
                       onClick={() => setBookingFilter('upcoming')}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                         bookingFilter === 'upcoming'
-                          ? 'bg-purple-100 text-purple-700'
+                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-200/50'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -540,9 +549,9 @@ export default function Dashboard() {
                     </button>
                     <button
                       onClick={() => setBookingFilter('past')}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                         bookingFilter === 'past'
-                          ? 'bg-purple-100 text-purple-700'
+                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-200/50'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -576,11 +585,11 @@ export default function Dashboard() {
                         {filteredBookings.slice(0, 5).map((booking) => (
                         <div
                           key={booking.id}
-                          className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-blue-300 transition-all cursor-pointer"
+                          className="flex items-center justify-between p-5 rounded-2xl border-2 border-gray-200 hover:border-purple-400 hover:shadow-xl hover:shadow-purple-100/50 transition-all cursor-pointer hover:-translate-y-1 bg-gradient-to-br from-white to-purple-50/20"
                           onClick={() => navigate('/bookings')}
                         >
                           <div className="flex items-center gap-4 flex-1 min-w-0">
-                            <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md">
+                            <div className="h-14 w-14 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg">
                               {booking.attendee_name?.charAt(0)?.toUpperCase() || 'G'}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -637,7 +646,7 @@ export default function Dashboard() {
                 
                 {/* This Week Calendar */}
                 {upcomingWeek.length > 0 && (
-                  <div className="bg-white rounded-xl p-6 border border-gray-200">
+                  <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-white/20 shadow-xl relative z-10">
                     <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                       <Calendar className="w-5 h-5" />
                       This Week
@@ -645,12 +654,12 @@ export default function Dashboard() {
 
                     <div className="space-y-3">
                       {upcomingWeek.map((day, idx) => (
-                        <div 
+                        <div
                           key={idx}
-                          className={`flex items-center justify-between p-3 rounded-lg ${
-                            day.isToday 
-                              ? 'bg-purple-50 border-2 border-purple-300' 
-                              : 'bg-gray-50'
+                          className={`flex items-center justify-between p-4 rounded-xl shadow-sm ${
+                            day.isToday
+                              ? 'bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300 shadow-purple-100'
+                              : 'bg-gray-50 border border-gray-200'
                           }`}
                         >
                           <div>
@@ -669,7 +678,7 @@ export default function Dashboard() {
                 )}
 
                 {/* Timezone */}
-                <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+                <div className="bg-white/80 backdrop-blur-xl rounded-2xl border border-white/20 px-5 py-4 shadow-xl relative z-10">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-50 rounded-lg">
                       <Globe className="h-4 w-4 text-blue-600" />
@@ -709,7 +718,7 @@ export default function Dashboard() {
 
             {/* Upgrade Card */}
             {currentTier === 'free' && !limitStatus.status?.inGracePeriod && !limitStatus.status?.overGraceLimit && eventTypes.length > 0 && (
-              <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-2xl p-6 shadow-lg">
+              <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-2xl p-8 shadow-2xl shadow-purple-200/50 relative z-10 border border-white/20">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-bold text-xl mb-2 flex items-center gap-2">
@@ -730,9 +739,9 @@ export default function Dashboard() {
                     <div className="text-sm text-purple-200">/month</div>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => navigate('/billing')}
-                  className="w-full bg-white text-purple-600 py-3 rounded-lg font-semibold hover:bg-gray-100 mt-4"
+                  className="w-full bg-white text-purple-600 py-3 rounded-xl font-bold hover:bg-gray-50 mt-4 shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5"
                 >
                   Upgrade Now
                 </button>

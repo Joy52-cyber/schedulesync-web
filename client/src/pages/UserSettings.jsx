@@ -70,6 +70,7 @@ export default function UserSettings() {
     hoursBefore: 24,
     sendToHost: true,
     sendToGuest: true,
+    customHours: [24, 1], // Multiple reminder times: 24h and 1h before
   });
   const [remindersLoading, setRemindersLoading] = useState(false);
 
@@ -159,7 +160,7 @@ export default function UserSettings() {
 
           try {
             setRemindersLoading(true);
-            const remRes = await remindersApi.getSettings(personalTeam.id);
+            const remRes = await remindersApi.getSettings();
             const s = remRes.data?.settings || remRes.data || {};
 
             setReminderSettings({
@@ -167,6 +168,7 @@ export default function UserSettings() {
               hoursBefore: s.hours_before ?? 24,
               sendToHost: s.send_to_host ?? true,
               sendToGuest: s.send_to_guest ?? true,
+              customHours: s.custom_hours || [24, 1],
             });
           } catch (err) {
             console.error('Error loading reminder settings:', err);
@@ -421,14 +423,14 @@ export default function UserSettings() {
 
       await timezoneApi.update(profile.timezone);
 
-      if (personalTeamId) {
-        await remindersApi.updateSettings(personalTeamId, {
-          enabled: reminderSettings.enabled,
-          hours_before: reminderSettings.hoursBefore,
-          send_to_host: reminderSettings.sendToHost,
-          send_to_guest: reminderSettings.sendToGuest,
-        });
-      }
+      // Save reminder settings
+      await remindersApi.updateSettings({
+        enabled: reminderSettings.enabled,
+        hours_before: reminderSettings.hoursBefore,
+        send_to_host: reminderSettings.sendToHost,
+        send_to_guest: reminderSettings.sendToGuest,
+        custom_hours: reminderSettings.customHours || [24, 1],
+      });
 
       // Save email notification preferences
       await api.put('/settings/email-preferences', emailPreferences);
@@ -468,14 +470,29 @@ export default function UserSettings() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <div className="relative z-10">
+          <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+      <div className="max-w-6xl mx-auto px-4 py-8 relative z-10">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Settings</h1>
@@ -485,7 +502,7 @@ export default function UserSettings() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="bg-blue-600 text-white px-4 sm:px-6 py-2.5 rounded-full hover:bg-blue-700 transition-all flex items-center justify-center gap-2 font-bold text-sm shadow-sm disabled:opacity-70 w-full sm:w-auto"
+            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 sm:px-6 py-2.5 rounded-full hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 font-bold text-sm shadow-lg disabled:opacity-70 w-full sm:w-auto"
           >
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -589,7 +606,7 @@ export default function UserSettings() {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm min-h-[400px] overflow-hidden">
+        <div className="flex-1 bg-white/80 backdrop-blur-xl rounded-xl border-2 border-white/20 shadow-xl min-h-[400px] overflow-hidden hover:shadow-2xl hover:shadow-purple-200/30 transition-all">
           {/* PROFILE TAB */}
           {activeTab === 'profile' && (
             <div className="p-4 sm:p-8 max-w-xl">
@@ -1239,8 +1256,8 @@ export default function UserSettings() {
 
       {/* Setup Instructions Modal */}
       {showInstructions && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 relative">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 relative border-2 border-white/20">
             <button onClick={() => setShowInstructions(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <X className="h-5 w-5 text-gray-500" />
             </button>
@@ -1334,6 +1351,7 @@ export default function UserSettings() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

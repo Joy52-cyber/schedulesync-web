@@ -185,9 +185,15 @@ const loadTeams = async () => {
 
   if (!hasTeamFeature()) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 text-center border-2 border-purple-200">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
+          <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 md:p-12 text-center border-2 border-white/20 hover:shadow-purple-200/30 transition-all">
             <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6">
               <Users className="h-10 w-10 text-white" />
             </div>
@@ -229,7 +235,7 @@ const loadTeams = async () => {
 
             <button
               onClick={() => showUpgradeModal('teams')}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-xl hover:shadow-lg transition-all font-semibold text-lg"
+              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all font-semibold text-lg shadow-lg"
             >
               Upgrade to Team Plan - $25/month
             </button>
@@ -345,9 +351,15 @@ const loadTeams = async () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <div className="text-center relative z-10">
+          <Loader2 className="h-12 w-12 animate-spin text-purple-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading teams...</p>
         </div>
       </div>
@@ -359,16 +371,25 @@ const loadTeams = async () => {
   // ========================================
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">Teams</h1>
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+              <Users className="h-8 w-8 text-purple-600" />
+              Teams
+            </h1>
             <p className="text-gray-600">Manage your scheduling teams and members</p>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 font-semibold"
+            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all flex items-center gap-2 font-semibold shadow-lg"
           >
             <Plus className="h-5 w-5" />
             <span className="hidden sm:inline">Create Team</span>
@@ -376,9 +397,9 @@ const loadTeams = async () => {
         </div>
 
         {teamsList.length === 0 ? (
-          <div className="bg-white rounded-3xl shadow-xl p-12 text-center border-2 border-gray-100">
-            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Users className="h-10 w-10 text-blue-600" />
+          <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-12 text-center border-2 border-white/20 hover:shadow-purple-200/30 transition-all">
+            <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <Users className="h-10 w-10 text-white" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">No teams yet</h2>
             <p className="text-gray-600 mb-6 max-w-md mx-auto">
@@ -386,7 +407,7 @@ const loadTeams = async () => {
             </p>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-xl hover:shadow-lg transition-all inline-flex items-center gap-2 font-semibold"
+              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-3 rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all inline-flex items-center gap-2 font-semibold shadow-lg"
             >
               <Plus className="h-5 w-5" />
               Create Your First Team
@@ -402,7 +423,7 @@ const loadTeams = async () => {
               return (
                 <div
                   key={team.id}
-                  className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all border-2 border-gray-100 overflow-hidden"
+                  className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl hover:shadow-2xl hover:shadow-purple-200/30 transition-all border-2 border-white/20 overflow-hidden hover:-translate-y-1"
                 >
                   <div
                     className={`p-6 relative ${
@@ -461,7 +482,7 @@ const loadTeams = async () => {
                     <div className="space-y-2">
                       <button
                         onClick={() => navigate(`/teams/${team.id}/members`)}
-                        className="w-full bg-blue-600 text-white px-4 py-3 rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 font-semibold"
+                        className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-3 rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 font-semibold shadow-lg"
                       >
                         <Settings className="h-4 w-4" />
                         Manage Team
@@ -470,12 +491,12 @@ const loadTeams = async () => {
                       <button
                         onClick={() => handleCopyLink(team)}
                         disabled={!hasLink}
-                        className={`w-full px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-2 font-semibold ${
+                        className={`w-full px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-2 font-semibold shadow-lg ${
                           !hasLink
                             ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                             : copiedId === linkInfo?.token
-                            ? 'bg-green-100 text-green-700 border-2 border-green-300'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-white/80 text-gray-700 hover:bg-white hover:shadow-xl hover:-translate-y-0.5 border-2 border-gray-200'
                         }`}
                       >
                         {!hasLink ? (
@@ -506,8 +527,8 @@ const loadTeams = async () => {
 
       {/* Create Team Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/95 backdrop-blur-xl rounded-3xl max-w-md w-full p-8 shadow-2xl border-2 border-white/20">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Create New Team</h2>
               <button
@@ -543,13 +564,13 @@ const loadTeams = async () => {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 hover:-translate-y-0.5 font-semibold transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg font-semibold transition-all"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 font-semibold transition-all shadow-lg"
                 >
                   Create
                 </button>
@@ -561,8 +582,8 @@ const loadTeams = async () => {
 
       {/* Edit Team Modal */}
       {editingTeam && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/95 backdrop-blur-xl rounded-3xl max-w-md w-full p-8 shadow-2xl border-2 border-white/20">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Edit Team</h2>
               <button
@@ -599,14 +620,14 @@ const loadTeams = async () => {
                   type="button"
                   onClick={() => setEditingTeam(null)}
                   disabled={actionLoading}
-                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors disabled:opacity-50"
+                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 hover:-translate-y-0.5 font-semibold transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg"
                 >
                   {actionLoading ? (
                     <>
@@ -625,8 +646,8 @@ const loadTeams = async () => {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/95 backdrop-blur-xl rounded-3xl max-w-md w-full p-8 shadow-2xl border-2 border-white/20">
             <div className="text-center">
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Trash2 className="h-8 w-8 text-red-600" />
@@ -640,14 +661,14 @@ const loadTeams = async () => {
                 <button
                   onClick={() => setDeleteConfirm(null)}
                   disabled={actionLoading}
-                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors disabled:opacity-50"
+                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 hover:-translate-y-0.5 font-semibold transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => handleDeleteTeam(deleteConfirm.id)}
                   disabled={actionLoading}
-                  className="flex-1 px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 hover:shadow-2xl hover:shadow-red-200/50 hover:-translate-y-0.5 font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg"
                 >
                   {actionLoading ? (
                     <>

@@ -240,9 +240,15 @@ export default function MyLinks() {
 
   if (loading) {
     return (
-      <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto mb-4" />
+      <div className="min-h-screen w-full bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <div className="text-center relative z-10">
+          <Loader2 className="h-10 w-10 animate-spin text-purple-600 mx-auto mb-4" />
           <p className="text-gray-600 font-medium">Loading your links...</p>
         </div>
       </div>
@@ -250,26 +256,35 @@ export default function MyLinks() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30">
-      <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-8">
-        
+    <div className="min-h-screen w-full bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+      <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-8 relative z-10">
+
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Booking Links</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+            <Link2 className="h-8 w-8 text-purple-600" />
+            Booking Links
+          </h1>
           <p className="text-gray-600">Share your profile link or create quick links for specific meetings</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
           {/* Permanent Profile Link */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-blue-900 flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                <Link2 className="h-5 w-5 text-blue-600" />
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl border-2 border-white/20 p-6 shadow-lg hover:shadow-2xl hover:shadow-blue-200/30 transition-all hover:-translate-y-1">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Link2 className="h-5 w-5 text-white" />
               </div>
               Your Profile Link
             </h2>
-            <p className="text-blue-700 text-sm mb-4">
+            <p className="text-gray-600 text-sm mb-4">
               Your permanent link - share it anywhere
             </p>
 
@@ -285,10 +300,10 @@ export default function MyLinks() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => handleCopyLink(`${window.location.origin}/${user.username}`, 'permanent')}
-                    className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-sm ${
+                    className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-lg ${
                       copied === 'permanent'
                         ? 'bg-green-600 text-white'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-2xl hover:shadow-blue-200/50 hover:-translate-y-0.5'
                     }`}
                   >
                     {copied === 'permanent' ? (
@@ -305,7 +320,7 @@ export default function MyLinks() {
                   </button>
                   <button
                     onClick={() => window.open(`/${user.username}`, '_blank')}
-                    className="px-4 py-3 bg-white text-blue-600 border border-blue-300 rounded-xl hover:bg-blue-50 transition-colors"
+                    className="px-4 py-3 bg-white/80 text-blue-600 border-2 border-blue-300 rounded-xl hover:bg-blue-50 hover:-translate-y-0.5 transition-all shadow-lg"
                     title="Preview booking page"
                   >
                     <ExternalLink className="h-5 w-5" />
@@ -325,7 +340,7 @@ export default function MyLinks() {
                   </p>
                   <button
                     onClick={() => navigate('/settings')}
-                    className="w-full px-6 py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                    className="w-full px-6 py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-xl font-bold hover:shadow-2xl hover:shadow-orange-200/50 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
                   >
                     <Settings2 className="h-5 w-5" />
                     Go to Settings
@@ -336,17 +351,17 @@ export default function MyLinks() {
           </div>
 
           {/* Quick Links */}
-          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border border-purple-200 p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-purple-900 flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-purple-600" />
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl border-2 border-white/20 p-6 shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 transition-all hover:-translate-y-1">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Sparkles className="h-5 w-5 text-white" />
               </div>
               Quick Links
               {!hasProFeature() && (
                 <span className="ml-2 px-2 py-0.5 bg-purple-200 text-purple-700 text-xs font-bold rounded-full">PRO</span>
               )}
             </h2>
-            <p className="text-purple-700 text-sm mb-4">
+            <p className="text-gray-600 text-sm mb-4">
               Create instant booking links for specific meetings
             </p>
 
@@ -357,7 +372,7 @@ export default function MyLinks() {
                 placeholder="Link name (e.g., 'Sales Demo with John')"
                 value={linkName}
                 onChange={(e) => setLinkName(e.target.value)}
-                className="w-full px-4 py-3 bg-white border border-purple-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="w-full px-4 py-3 bg-white border-2 border-purple-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent hover:border-purple-300 transition-all focus:shadow-lg focus:shadow-purple-100/50"
                 maxLength={100}
               />
               
@@ -600,7 +615,7 @@ export default function MyLinks() {
               <button
                 onClick={handleGenerateMagicLink}
                 disabled={generatingMagicLink}
-                className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg"
               >
                 {generatingMagicLink ? (
                   <>
@@ -629,12 +644,15 @@ export default function MyLinks() {
 
         {/* Recent Quick Links */}
         {magicLinks.length > 0 && (
-          <div className="mt-8 bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+          <div className="mt-8 bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl p-6 border-2 border-white/20 hover:shadow-2xl hover:shadow-purple-200/30 transition-all">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-900">Recent Quick Links</h3>
+              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-600" />
+                Recent Quick Links
+              </h3>
               <button
                 onClick={loadMagicLinks}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-purple-100 rounded-lg transition-all hover:-translate-y-0.5"
                 title="Refresh"
               >
                 <RefreshCw className="h-4 w-4" />
@@ -652,10 +670,10 @@ export default function MyLinks() {
                 return (
                   <div
                     key={link.id}
-                    className={`p-4 rounded-xl border ${
-                      isActive 
-                        ? 'bg-purple-50 border-purple-200' 
-                        : 'bg-gray-50 border-gray-200'
+                    className={`p-4 rounded-xl border-2 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all ${
+                      isActive
+                        ? 'bg-white/80 backdrop-blur-sm border-purple-300 hover:border-purple-400 hover:shadow-purple-200/30'
+                        : 'bg-gray-50/80 border-gray-300'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -716,10 +734,10 @@ export default function MyLinks() {
                         {isActive && (
                           <button
                             onClick={() => handleCopyLink(link.url, link.token)}
-                            className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-1 ${
+                            className={`px-3 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-1 shadow-lg ${
                               copied === link.token
                                 ? 'bg-green-600 text-white'
-                                : 'bg-purple-600 text-white hover:bg-purple-700'
+                                : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5'
                             }`}
                           >
                             {copied === link.token ? (
@@ -737,7 +755,7 @@ export default function MyLinks() {
                         )}
                         <button
                           onClick={() => handleDeleteMagicLink(link.id)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all hover:-translate-y-0.5"
                           title="Delete link"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -753,10 +771,10 @@ export default function MyLinks() {
 
         {/* Empty state */}
         {magicLinks.length === 0 && (
-          <div className="mt-8 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300 p-8 text-center">
-            <Sparkles className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-            <h3 className="font-semibold text-gray-700 mb-1">No quick links yet</h3>
-            <p className="text-sm text-gray-500">
+          <div className="mt-8 bg-white/60 backdrop-blur-xl rounded-2xl border-2 border-dashed border-purple-300 p-8 text-center shadow-lg">
+            <Sparkles className="h-12 w-12 text-purple-400 mx-auto mb-3" />
+            <h3 className="font-semibold text-gray-900 mb-1">No quick links yet</h3>
+            <p className="text-sm text-gray-600">
               Create your first quick link above for specific clients or team meetings
             </p>
           </div>

@@ -538,15 +538,27 @@ export default function BookingPage() {
   if (error && !teamInfo) return <ErrorScreen error={error} />;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 md:p-6 font-sans">
-      <div className="bg-white w-full max-w-6xl rounded-[2rem] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] border border-slate-100">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center p-4 md:p-6 font-sans relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+
+      <div className="bg-white/80 backdrop-blur-xl w-full max-w-6xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] border border-white/20 relative z-10">
         
         {/* Left Sidebar */}
-        <div className="md:w-1/3 bg-slate-50 border-r border-slate-200 p-8 flex flex-col relative">
+        <div className="md:w-1/3 bg-gradient-to-br from-slate-50 to-purple-50/30 border-r border-purple-100/50 p-8 flex flex-col relative backdrop-blur-sm">
+          {/* Decorative circles */}
+          <div className="absolute top-5 right-5 w-24 h-24 border-2 border-purple-200/30 rounded-full"></div>
+          <div className="absolute bottom-5 left-5 w-16 h-16 border-2 border-pink-200/30 rounded-full"></div>
 
           {isReschedule && (
-            <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-3 items-start">
-              <RefreshCw className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="mb-6 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/50 rounded-2xl p-4 flex gap-3 items-start shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-md">
+                <RefreshCw className="h-5 w-5 text-white" />
+              </div>
               <div>
                 <p className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-1">Rescheduling</p>
                 <p className="text-sm text-amber-700 leading-tight">Your original booking will be cancelled once you confirm a new time.</p>
@@ -555,14 +567,16 @@ export default function BookingPage() {
           )}
           
           {isMagicLink && (
-            <div className="mb-6 bg-purple-50 border border-purple-200 rounded-xl p-3 flex gap-3 items-start">
-              <Sparkles className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
+            <div className="mb-6 bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200/50 rounded-2xl p-4 flex gap-3 items-start shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-md">
+                <Sparkles className="h-5 w-5 text-white" />
+              </div>
               <div>
                 <p className="text-xs font-bold text-purple-800 uppercase tracking-wide mb-1">
                   {magicLinkData?.name || 'Quick Link'}
                 </p>
                 <p className="text-sm text-purple-700 leading-tight">
-                  {magicLinkData?.scheduling_mode === 'collective' 
+                  {magicLinkData?.scheduling_mode === 'collective'
                     ? 'Group meeting - all participants required'
                     : 'Single-use booking link'}
                 </p>
@@ -572,25 +586,27 @@ export default function BookingPage() {
           
           {/* Show all participants for multi-member magic links */}
           {participants.length > 1 && (
-            <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-xl p-4">
-              <p className="text-xs font-bold text-indigo-800 uppercase tracking-wide mb-3">
-                <User className="h-3 w-3 inline mr-1" />
+            <div className="mb-6 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200/50 rounded-2xl p-5 shadow-sm">
+              <p className="text-xs font-bold text-indigo-800 uppercase tracking-wide mb-4 flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                  <User className="h-3 w-3 text-white" />
+                </div>
                 Meeting Participants
               </p>
               <div className="space-y-2">
                 {participants.map((participant, index) => (
-                  <div key={participant.id} className="flex items-center gap-2">
-                    <div 
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold"
+                  <div key={participant.id} className="flex items-center gap-3 bg-white/60 backdrop-blur-sm px-3 py-2 rounded-xl">
+                    <div
+                      className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-md"
                       style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}
                     >
                       {participant.name?.[0]?.toUpperCase() || 'U'}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-indigo-900 truncate">
+                      <p className="text-sm font-semibold text-indigo-900 truncate">
                         {participant.name}
                         {participant.is_host && (
-                          <span className="ml-2 text-xs bg-indigo-200 text-indigo-700 px-1.5 py-0.5 rounded">Host</span>
+                          <span className="ml-2 text-xs bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-2 py-1 rounded-lg font-bold">Host</span>
                         )}
                       </p>
                     </div>
@@ -598,7 +614,7 @@ export default function BookingPage() {
                 ))}
               </div>
               {magicLinkData?.scheduling_mode === 'collective' && (
-                <p className="text-xs text-indigo-600 mt-3">
+                <p className="text-xs text-indigo-600 mt-3 font-medium">
                   All participants' calendars will be checked
                 </p>
               )}
@@ -699,15 +715,15 @@ export default function BookingPage() {
                   <button
                     key={et.id}
                     onClick={() => handleSelectEventType(et)}
-                    className="group relative flex items-center gap-4 p-5 rounded-2xl border border-slate-200 hover:shadow-lg transition-all text-left bg-white"
+                    className="group relative flex items-center gap-4 p-6 rounded-2xl border-2 border-slate-200 hover:shadow-xl hover:shadow-purple-100/50 transition-all text-left bg-white hover:-translate-y-0.5"
                     onMouseEnter={(e) => { e.currentTarget.style.borderColor = branding.primary_color; }}
                     onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; }}
                   >
-                    <div 
-                      className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"
-                      style={{ backgroundColor: branding.primary_color + '20', color: branding.primary_color }}
+                    <div
+                      className="w-14 h-14 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-md"
+                      style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}
                     >
-                      <Clock className="h-6 w-6" />
+                      <Clock className="h-6 w-6 text-white" />
                     </div>
                     <div className="flex-1">
                       <h3 className="font-bold text-slate-900 text-lg">{et.title}</h3>
@@ -731,9 +747,9 @@ export default function BookingPage() {
               </div>
 
               <div className="space-y-4">
-                <button 
+                <button
                   onClick={() => handleCalendarConnect('google')}
-                  className="w-full flex items-center p-4 rounded-xl border border-slate-200 hover:border-red-200 hover:bg-red-50/30 transition-all group"
+                  className="w-full flex items-center p-5 rounded-xl border-2 border-slate-200 hover:border-red-300 hover:bg-gradient-to-br hover:from-red-50 hover:to-orange-50 transition-all group hover:shadow-lg hover:-translate-y-0.5"
                 >
                   <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" className="h-6 w-6 mr-4" />
                   <div className="text-left flex-1">
@@ -743,9 +759,9 @@ export default function BookingPage() {
                   <ArrowRight className="h-5 w-5 text-slate-300 group-hover:text-red-500 transition-colors" />
                 </button>
 
-                <button 
+                <button
                   onClick={() => handleCalendarConnect('microsoft')}
-                  className="w-full flex items-center p-4 rounded-xl border border-slate-200 hover:border-blue-200 hover:bg-blue-50/30 transition-all group"
+                  className="w-full flex items-center p-5 rounded-xl border-2 border-slate-200 hover:border-blue-300 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 transition-all group hover:shadow-lg hover:-translate-y-0.5"
                 >
                   <div className="h-6 w-6 mr-4 grid grid-cols-2 gap-0.5">
                     <div className="bg-[#f35325]"></div>
@@ -765,7 +781,10 @@ export default function BookingPage() {
                   <div className="relative flex justify-center"><span className="bg-white px-2 text-xs text-slate-400 uppercase tracking-wide">Or</span></div>
                 </div>
 
-                <button onClick={() => setStep('form')} className="w-full py-4 text-slate-600 font-medium hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-colors">
+                <button
+                  onClick={() => setStep('form')}
+                  className="w-full py-4 text-slate-600 font-medium hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-all hover:shadow-md"
+                >
                   Skip and select time manually
                 </button>
               </div>
@@ -775,14 +794,14 @@ export default function BookingPage() {
           {step === 'form' && (
             <FadeIn className="h-full flex flex-col">
               {guestCalendar?.signedIn && (
-                <div className="mb-3 inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-sm font-medium self-start">
-                  <div className="w-2 h-2 bg-green-500 rounded-full" />
+                <div className="mb-4 inline-flex items-center gap-3 px-4 py-2.5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200/50 text-green-700 rounded-xl text-sm font-semibold self-start shadow-sm">
+                  <div className="w-3 h-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full animate-pulse shadow-md" />
                   Using your calendar: {guestCalendar.email}
                 </div>
               )}
 
               {guestTimezone && (
-                <div className="mb-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium self-start" style={{ backgroundColor: branding.primary_color + '15', color: branding.primary_color }}>
+                <div className="mb-6 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold self-start shadow-sm border" style={{ background: `linear-gradient(135deg, ${branding.primary_color}15, ${branding.accent_color}15)`, color: branding.primary_color, borderColor: branding.primary_color + '30' }}>
                   <Clock className="h-4 w-4" />
                   Your timezone: {guestTimezone}
                 </div>
@@ -806,41 +825,48 @@ export default function BookingPage() {
 
               {selectedSlot && (
                 <div className="max-w-lg mx-auto w-full animate-in slide-in-from-right-8 duration-300">
-                  <div className="rounded-xl p-4 mb-6 flex justify-between items-center border" style={{ backgroundColor: branding.primary_color + '15', borderColor: branding.primary_color + '30' }}>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide" style={{ color: branding.primary_color }}>Selected Time</p>
-                      <p className="font-semibold mt-1" style={{ color: branding.primary_color }}>
-                        {new Date(selectedSlot.start).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-                      </p>
-                      <p className="text-sm" style={{ color: branding.primary_color + 'cc' }}>
-                        {new Date(selectedSlot.start).toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' })} - {new Date(selectedSlot.end).toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' })}
-                      </p>
+                  <div className="rounded-2xl p-5 mb-6 flex justify-between items-center border-2 shadow-lg shadow-purple-100/50" style={{ background: `linear-gradient(135deg, ${branding.primary_color}15, ${branding.accent_color}15)`, borderColor: branding.primary_color + '30' }}>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md" style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}>
+                        <CheckCircle className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: branding.primary_color }}>Selected Time</p>
+                        <p className="font-semibold" style={{ color: branding.primary_color }}>
+                          {new Date(selectedSlot.start).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                        </p>
+                        <p className="text-sm" style={{ color: branding.primary_color + 'cc' }}>
+                          {new Date(selectedSlot.start).toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' })} - {new Date(selectedSlot.end).toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' })}
+                        </p>
+                      </div>
                     </div>
-                    <button onClick={() => setSelectedSlot(null)} className="text-sm font-medium underline" style={{ color: branding.primary_color }}>Change</button>
+                    <button onClick={() => setSelectedSlot(null)} className="text-sm font-semibold px-4 py-2 rounded-lg hover:bg-white/50 transition-all" style={{ color: branding.primary_color }}>Change</button>
                   </div>
 
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Your Name</label>
-                      <input 
-                        type="text" 
-                        required 
-                        value={formData.attendee_name} 
-                        onChange={(e) => setFormData({ ...formData, attendee_name: e.target.value })} 
-                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all" 
-                        placeholder="John Doe" 
+                      <input
+                        type="text"
+                        required
+                        value={formData.attendee_name}
+                        onChange={(e) => setFormData({ ...formData, attendee_name: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:ring-2 focus:border-transparent outline-none transition-all hover:border-slate-300 focus:shadow-lg focus:shadow-purple-100/50"
+                        placeholder="John Doe"
+                        style={{ '--tw-ring-color': branding.primary_color }}
                       />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-                      <input 
-                        type="email" 
-                        required 
-                        value={formData.attendee_email} 
-                        onChange={(e) => setFormData({ ...formData, attendee_email: e.target.value })} 
-                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all" 
-                        placeholder="john@example.com" 
+                      <input
+                        type="email"
+                        required
+                        value={formData.attendee_email}
+                        onChange={(e) => setFormData({ ...formData, attendee_email: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:ring-2 focus:border-transparent outline-none transition-all hover:border-slate-300 focus:shadow-lg focus:shadow-purple-100/50"
+                        placeholder="john@example.com"
+                        style={{ '--tw-ring-color': branding.primary_color }}
                       />
                     </div>
 
@@ -850,8 +876,9 @@ export default function BookingPage() {
                         value={formData.notes}
                         onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                         rows="3"
-                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all resize-none"
+                        className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:ring-2 focus:border-transparent outline-none transition-all resize-none hover:border-slate-300 focus:shadow-lg focus:shadow-purple-100/50"
                         placeholder="Anything specific you want to discuss?"
+                        style={{ '--tw-ring-color': branding.primary_color }}
                       />
                     </div>
 
@@ -874,8 +901,9 @@ export default function BookingPage() {
                                 })}
                                 required={q.required}
                                 rows="3"
-                                className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all resize-none"
+                                className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:ring-2 focus:border-transparent outline-none transition-all resize-none hover:border-slate-300 focus:shadow-lg focus:shadow-purple-100/50"
                                 placeholder={q.placeholder || ''}
+                                style={{ '--tw-ring-color': branding.primary_color }}
                               />
                             ) : q.type === 'select' ? (
                               <select
@@ -885,7 +913,8 @@ export default function BookingPage() {
                                   custom_answers: { ...formData.custom_answers, [q.id]: e.target.value }
                                 })}
                                 required={q.required}
-                                className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all bg-white"
+                                className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:ring-2 focus:border-transparent outline-none transition-all bg-white hover:border-slate-300 focus:shadow-lg focus:shadow-purple-100/50"
+                                style={{ '--tw-ring-color': branding.primary_color }}
                               >
                                 <option value="">Select an option</option>
                                 {q.options?.map((opt, i) => (
@@ -901,8 +930,9 @@ export default function BookingPage() {
                                   custom_answers: { ...formData.custom_answers, [q.id]: e.target.value }
                                 })}
                                 required={q.required}
-                                className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all"
+                                className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:ring-2 focus:border-transparent outline-none transition-all hover:border-slate-300 focus:shadow-lg focus:shadow-purple-100/50"
                                 placeholder={q.placeholder || ''}
+                                style={{ '--tw-ring-color': branding.primary_color }}
                               />
                             )}
                           </div>
@@ -916,12 +946,14 @@ export default function BookingPage() {
                       {additionalAttendees.length > 0 && (
                         <div className="space-y-2 mb-3">
                           {additionalAttendees.map((email, index) => (
-                            <div key={index} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg">
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4 text-slate-400" />
-                                <span className="text-sm text-slate-700">{email}</span>
+                            <div key={index} className="flex items-center justify-between bg-gradient-to-r from-slate-50 to-purple-50/30 px-4 py-3 rounded-xl border border-slate-200 shadow-sm">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: branding.primary_color + '20' }}>
+                                  <User className="h-4 w-4" style={{ color: branding.primary_color }} />
+                                </div>
+                                <span className="text-sm text-slate-700 font-medium">{email}</span>
                               </div>
-                              <button type="button" onClick={() => handleRemoveAttendee(email)} className="text-slate-400 hover:text-red-600 transition-colors">
+                              <button type="button" onClick={() => handleRemoveAttendee(email)} className="text-slate-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-lg">
                                 <X className="h-4 w-4" />
                               </button>
                             </div>
@@ -930,26 +962,32 @@ export default function BookingPage() {
                       )}
 
                       <div className="flex gap-2">
-                        <input 
-                          type="email" 
-                          value={newAttendeeEmail} 
-                          onChange={(e) => setNewAttendeeEmail(e.target.value)} 
-                          onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttendee(); } }} 
-                          className="flex-1 px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:border-transparent outline-none transition-all text-sm" 
-                          placeholder="colleague@example.com" 
+                        <input
+                          type="email"
+                          value={newAttendeeEmail}
+                          onChange={(e) => setNewAttendeeEmail(e.target.value)}
+                          onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttendee(); } }}
+                          className="flex-1 px-4 py-2 rounded-lg border-2 border-slate-200 focus:ring-2 focus:border-transparent outline-none transition-all text-sm hover:border-slate-300 focus:shadow-md focus:shadow-purple-100/50"
+                          placeholder="colleague@example.com"
+                          style={{ '--tw-ring-color': branding.primary_color }}
                         />
-                        <button type="button" onClick={handleAddAttendee} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium text-sm flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={handleAddAttendee}
+                          className="px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-1 text-white shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5"
+                          style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}
+                        >
                           <Plus className="h-4 w-4" />Add
                         </button>
                       </div>
                       <p className="text-xs text-slate-500 mt-2">Additional attendees will receive calendar invites and meeting details</p>
                     </div>
 
-                    <button 
-                      type="submit" 
-                      disabled={submitting} 
-                      className="w-full mt-4 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2" 
-                      style={{ backgroundColor: branding.primary_color }}
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="w-full mt-6 text-white py-4 rounded-xl font-bold text-lg hover:shadow-2xl hover:shadow-purple-200/50 transition-all disabled:opacity-50 flex items-center justify-center gap-2 hover:-translate-y-0.5 active:translate-y-0"
+                      style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}
                     >
                       {submitting ? (
                         <>

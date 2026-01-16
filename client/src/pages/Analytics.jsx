@@ -34,14 +34,29 @@ export default function Analytics() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <div className="relative z-10">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+      <div className="p-6 space-y-6 animate-fade-in relative z-10">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -97,7 +112,7 @@ export default function Analytics() {
       {/* Charts Row */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Bookings Over Time */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl border-2 border-white/20 p-6 shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 transition-all">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-purple-600" />
             Bookings Over Time
@@ -108,7 +123,7 @@ export default function Analytics() {
         </div>
 
         {/* Popular Times */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl border-2 border-white/20 p-6 shadow-lg hover:shadow-2xl hover:shadow-blue-200/30 transition-all">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Clock className="w-5 h-5 text-blue-600" />
             Popular Booking Times
@@ -122,7 +137,7 @@ export default function Analytics() {
       {/* Bottom Row */}
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Top Event Types */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl border-2 border-white/20 p-6 shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 transition-all">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Top Event Types</h3>
           <div className="space-y-3">
             {(stats?.topEventTypes || []).map((event, i) => (
@@ -150,7 +165,7 @@ export default function Analytics() {
         </div>
 
         {/* Popular Days */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl border-2 border-white/20 p-6 shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 transition-all">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Bookings by Day</h3>
           <div className="space-y-3">
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => {
@@ -178,7 +193,7 @@ export default function Analytics() {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl border-2 border-white/20 p-6 shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 transition-all">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Recent Bookings</h3>
           <div className="space-y-3">
             {(stats?.recentBookings || []).slice(0, 5).map((booking, i) => (
@@ -212,6 +227,7 @@ export default function Analytics() {
         </div>
       </div>
     </div>
+    </div>
   );
 }
 
@@ -219,14 +235,14 @@ function StatCard({ title, value, change, icon: Icon, color, invertChange = fals
   const isPositive = invertChange ? change < 0 : change > 0;
 
   const colorClasses = {
-    purple: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
-    green: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
-    red: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
-    blue: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+    purple: 'bg-gradient-to-br from-purple-500 to-pink-500 text-white',
+    green: 'bg-gradient-to-br from-green-500 to-emerald-500 text-white',
+    red: 'bg-gradient-to-br from-red-500 to-pink-500 text-white',
+    blue: 'bg-gradient-to-br from-blue-500 to-indigo-500 text-white'
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow">
+    <div className="bg-white/80 backdrop-blur-xl rounded-xl border-2 border-white/20 p-6 shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 hover:-translate-y-1 transition-all">
       <div className="flex items-center justify-between mb-4">
         <div className={`w-12 h-12 rounded-xl ${colorClasses[color]} flex items-center justify-center`}>
           <Icon className="w-6 h-6" />

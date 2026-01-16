@@ -144,8 +144,15 @@ export default function Bookings() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">Bookings</h1>
@@ -153,7 +160,7 @@ export default function Bookings() {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border-2 border-gray-100">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl p-6 mb-6 border-2 border-white/20">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             {/* Search */}
             <div className="relative">
@@ -163,7 +170,7 @@ export default function Bookings() {
                 placeholder="Search by name or email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
+                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none hover:border-gray-300 transition-all"
               />
             </div>
 
@@ -173,7 +180,7 @@ export default function Bookings() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none text-sm sm:text-base appearance-none"
+                className="w-full pl-11 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none text-sm sm:text-base appearance-none hover:border-gray-300 transition-all"
               >
                 <option value="all">All Status</option>
                 <option value="confirmed">Confirmed</option>
@@ -191,7 +198,7 @@ export default function Bookings() {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none text-sm sm:text-base"
+                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none text-sm sm:text-base hover:border-gray-300 transition-all"
                 placeholder="From date"
               />
               {!dateFrom && (
@@ -206,7 +213,7 @@ export default function Bookings() {
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none text-sm sm:text-base"
+                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none text-sm sm:text-base hover:border-gray-300 transition-all"
                 placeholder="To date"
               />
               {!dateTo && (
@@ -226,7 +233,7 @@ export default function Bookings() {
                 setDateFrom('');
                 setDateTo('');
               }}
-              className="mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+              className="mt-4 text-sm text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-1 hover:underline transition-all"
             >
               <X className="h-4 w-4" />
               Clear all filters
@@ -236,7 +243,7 @@ export default function Bookings() {
 
         {/* Booking list */}
         {filteredBookings.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-lg p-12 text-center border-2 border-gray-100">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl p-12 text-center border-2 border-white/20">
             <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 text-lg">
               {searchTerm || statusFilter !== 'all' || dateFrom || dateTo
@@ -249,16 +256,16 @@ export default function Bookings() {
             {filteredBookings.map((booking) => (
               <div
                 key={booking.id}
-                className={`bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all border-2 border-gray-100 overflow-hidden ${
+                className={`bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl hover:shadow-2xl hover:shadow-purple-200/30 transition-all border-2 border-white/20 overflow-hidden hover:-translate-y-1 ${
                   isPastBooking(booking) ? 'opacity-75' : ''
                 }`}
               >
-                <div className="p-6">
+                <div className="p-6 bg-gradient-to-br from-white to-purple-50/10">
                   {/* Top row */}
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-3">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                        <User className="h-6 w-6 text-blue-600" />
+                      <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
+                        <User className="h-6 w-6 text-white" />
                       </div>
                       <div>
                         <h3 className="text-lg font-bold text-gray-900">
@@ -275,7 +282,7 @@ export default function Bookings() {
                       <div className="relative">
                         <button
                           onClick={() => setActionMenuOpen(actionMenuOpen === booking.id ? null : booking.id)}
-                          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                          className="p-2 hover:bg-purple-100 rounded-xl transition-all shadow-sm hover:shadow-md"
                         >
                           <MoreVertical className="h-5 w-5 text-gray-600" />
                         </button>
@@ -286,7 +293,7 @@ export default function Bookings() {
                               className="fixed inset-0 z-10" 
                               onClick={() => setActionMenuOpen(null)}
                             />
-                            <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-20">
+                            <div className="absolute right-0 top-full mt-1 w-48 bg-white/95 backdrop-blur-xl rounded-xl shadow-2xl border border-purple-200 py-2 z-20">
                               <button
                                 onClick={() => {
                                   setSelectedBooking(booking);
@@ -389,8 +396,8 @@ export default function Bookings() {
 
                   {/* Notes */}
                   {booking.notes && (
-                    <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-600 italic line-clamp-2">{booking.notes}</p>
+                    <div className="mt-4 p-4 bg-gradient-to-r from-gray-50 to-purple-50/30 rounded-xl border border-gray-200 shadow-sm">
+                      <p className="text-sm text-gray-700 italic line-clamp-2">{booking.notes}</p>
                     </div>
                   )}
                   
@@ -410,14 +417,14 @@ export default function Bookings() {
 
       {/* Booking details modal */}
       {selectedBooking && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/95 backdrop-blur-xl rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-white/20">
             {/* Modal header */}
-            <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-purple-600 p-6 flex items-center justify-between">
+            <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-pink-600 p-6 flex items-center justify-between shadow-lg">
               <h2 className="text-2xl font-bold text-white">Booking Details</h2>
               <button
                 onClick={() => setSelectedBooking(null)}
-                className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center hover:bg-white/30"
+                className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center hover:bg-white/30 transition-all hover:scale-110"
               >
                 <X className="h-5 w-5 text-white" />
               </button>
@@ -425,16 +432,20 @@ export default function Bookings() {
 
             {/* Modal content */}
             <div className="p-6 space-y-4">
-              <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-xl">
-                <User className="h-6 w-6 text-blue-600" />
+              <div className="flex items-center gap-4 p-5 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border border-purple-100 shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-md">
+                  <User className="h-6 w-6 text-white" />
+                </div>
                 <div>
                   <p className="font-semibold text-gray-900">{selectedBooking.attendee_name}</p>
                   <p className="text-sm text-gray-600">{selectedBooking.attendee_email}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 p-4 bg-purple-50 rounded-xl">
-                <Calendar className="h-6 w-6 text-purple-600" />
+              <div className="flex items-center gap-4 p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+                  <Calendar className="h-6 w-6 text-white" />
+                </div>
                 <div>
                   <p className="font-semibold text-gray-900">
                     {new Date(selectedBooking.start_time).toLocaleDateString('en-US', {
@@ -461,8 +472,10 @@ export default function Bookings() {
               </div>
 
               {selectedBooking.meet_link && (
-                <div className="flex items-start gap-4 p-4 bg-green-50 rounded-xl">
-                  <Video className="h-6 w-6 text-green-600 mt-1" />
+                <div className="flex items-start gap-4 p-5 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border border-green-100 shadow-sm">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-md flex-shrink-0">
+                    <Video className="h-6 w-6 text-white" />
+                  </div>
                   <div className="flex-1">
                     <p className="font-semibold text-gray-900 mb-1">Video Conference</p>
                     <a
@@ -478,9 +491,9 @@ export default function Bookings() {
               )}
 
               {selectedBooking.notes && (
-                <div className="p-4 bg-gray-50 rounded-xl">
-                  <p className="font-semibold text-gray-900 mb-2">Notes</p>
-                  <p className="text-gray-700">{selectedBooking.notes}</p>
+                <div className="p-5 bg-gradient-to-br from-gray-50 to-purple-50/30 rounded-2xl border border-gray-200 shadow-sm">
+                  <p className="font-bold text-gray-900 mb-2">Notes</p>
+                  <p className="text-gray-700 leading-relaxed">{selectedBooking.notes}</p>
                 </div>
               )}
 
@@ -490,7 +503,7 @@ export default function Bookings() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => handleCopyManageLink(selectedBooking)}
-                      className="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-xl hover:bg-gray-200 font-semibold flex items-center justify-center gap-2"
+                      className="flex-1 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 px-6 py-3 rounded-xl hover:shadow-lg font-semibold flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
                     >
                       <Copy className="h-4 w-4" />
                       {copiedId === selectedBooking.id ? 'Copied!' : 'Copy Link'}
@@ -499,7 +512,7 @@ export default function Bookings() {
                       href={`/manage/${selectedBooking.manage_token}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-semibold flex items-center justify-center gap-2"
+                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 font-semibold flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
                     >
                       <ExternalLink className="h-4 w-4" />
                       Manage
@@ -511,7 +524,7 @@ export default function Bookings() {
                   <button
                     onClick={() => handleCancelBooking(selectedBooking)}
                     disabled={cancellingId === selectedBooking.id}
-                    className="w-full bg-red-50 text-red-600 px-6 py-3 rounded-xl hover:bg-red-100 font-semibold flex items-center justify-center gap-2"
+                    className="w-full bg-gradient-to-r from-red-50 to-red-100 text-red-600 px-6 py-3 rounded-xl hover:shadow-lg font-semibold flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 border border-red-200"
                   >
                     {cancellingId === selectedBooking.id ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

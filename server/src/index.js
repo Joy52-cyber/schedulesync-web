@@ -55,6 +55,8 @@ const subscriptionRoutes = require('../routes/subscription');
 const analyticsRoutes = require('../routes/analytics');
 const emailWebhookRoutes = require('../routes/emailWebhook');
 const usersRoutes = require('../routes/users');
+const extensionRoutes = require('../routes/extension');
+const remindersRoutes = require('../routes/reminders');
 
 // Register core routes
 app.use('/api/auth', authRoutes);
@@ -94,6 +96,8 @@ app.use('/api/invitations', invitationsRoutes);  // Team invitations
 app.use('/api/team-members', teamMembersRoutes);  // Team member availability
 app.use('/api/analytics', analyticsRoutes);  // Booking analytics
 app.use('/api/email', emailWebhookRoutes);  // Email Bot Webhooks (inbound emails)
+app.use('/api/extension', extensionRoutes);  // Chrome Extension API
+app.use('/api/reminders', remindersRoutes);  // Email Reminders
 
 console.log('Routes registered:');
 console.log('  - /api/auth/*');

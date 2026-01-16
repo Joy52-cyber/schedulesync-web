@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "TruCal - Insert Available Times",
+  "description": "Insert your available meeting times directly into Gmail",
+  "version": "1.0.0",
+  "permissions": ["storage", "activeTab", "identity"],
+  "host_permissions": [
+    "https://mail.google.com/*",
+    "https://trucal.xyz/*",
+    "https://www.trucal.xyz/*",
+    "https://schedulesync-web-production.up.railway.app/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["content.js"],
+      "css": ["styles/gmail.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

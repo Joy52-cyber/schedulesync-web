@@ -197,15 +197,29 @@ export default function Availability() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50/30">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <div className="relative z-10">
+          <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+    <div className="min-h-screen w-full bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 relative z-10">
         {/* Page Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
@@ -219,7 +233,7 @@ export default function Availability() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="bg-blue-600 text-white px-6 py-2.5 rounded-full hover:bg-blue-700 transition-all flex items-center gap-2 font-semibold text-sm shadow-sm disabled:opacity-70"
+            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-2.5 rounded-full hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all flex items-center gap-2 font-semibold text-sm shadow-lg disabled:opacity-70"
           >
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -233,7 +247,7 @@ export default function Availability() {
         </div>
 
         {/* Timezone Card */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl border-2 border-white/20 shadow-lg p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 hover:shadow-2xl hover:shadow-purple-200/30 transition-all">
           <div>
             <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wide flex items-center gap-2 mb-1">
               <Globe className="h-4 w-4 text-gray-400" /> Timezone
@@ -262,7 +276,7 @@ export default function Availability() {
         </div>
 
         {/* Working Hours */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl border-2 border-white/20 shadow-lg overflow-hidden hover:shadow-2xl hover:shadow-purple-200/30 transition-all">
           <div className="p-5 sm:p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-gray-900">

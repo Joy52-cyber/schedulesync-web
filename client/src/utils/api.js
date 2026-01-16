@@ -154,9 +154,9 @@ export const bookings = {
 // REMINDERS
 // ============================================
 export const reminders = {
-  getSettings: (teamId) => api.get(`/teams/${teamId}/reminder-settings`),
-  updateSettings: (teamId, data) =>
-    api.put(`/teams/${teamId}/reminder-settings`, data),
+  getSettings: () => api.get('/reminders/settings'),
+  updateSettings: (data) => api.put('/reminders/settings', data),
+  getHistory: (params) => api.get('/reminders/history', { params }),
   getStatus: () => api.get('/reminders/status'),
 };
 

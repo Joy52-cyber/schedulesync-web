@@ -127,7 +127,15 @@ export default function EventTypes() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 py-8 relative z-10">
       
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
@@ -159,12 +167,12 @@ export default function EventTypes() {
         </div>
         
         {/* ✅ UPDATED: Use handleCreateEventType with visual feedback */}
-        <button 
+        <button
           onClick={handleCreateEventType}
           className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold shadow-lg transition-all ${
             isAtLimit('event_types')
               ? 'bg-gray-400 text-white cursor-not-allowed'
-              : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-xl'
+              : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5'
           }`}
         >
           <Plus className="h-5 w-5" /> New Event Type
@@ -176,7 +184,7 @@ export default function EventTypes() {
 
       {/* ✅ NEW: Upgrade banner when at limit */}
       {isAtLimit('event_types') && (
-        <div className="mb-8 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-6">
+        <div className="mb-8 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-6 shadow-lg">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
@@ -202,7 +210,7 @@ export default function EventTypes() {
       {/* Stats Overview */}
       {eventTypesList.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-4 border border-blue-200">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-5 border border-blue-200 shadow-lg hover:shadow-xl transition-shadow">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-blue-600 font-medium">Total Event Types</p>
@@ -212,7 +220,7 @@ export default function EventTypes() {
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-4 border border-green-200">
+          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-5 border border-green-200 shadow-lg hover:shadow-xl transition-shadow">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-green-600 font-medium">Active</p>
@@ -224,7 +232,7 @@ export default function EventTypes() {
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-4 border border-purple-200">
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-5 border border-purple-200 shadow-lg hover:shadow-xl transition-shadow">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-purple-600 font-medium">Avg Duration</p>
@@ -243,14 +251,14 @@ export default function EventTypes() {
 
       {/* Event Types Grid */}
       {eventTypesList.length === 0 ? (
-        <div className="text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300">
+        <div className="text-center py-16 bg-white/80 backdrop-blur-xl rounded-2xl border-2 border-dashed border-gray-300 shadow-xl">
           <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-900 mb-2">No Event Types Yet</h3>
           <p className="text-gray-600 mb-6">Create your first event type to start accepting bookings.</p>
           {/* ✅ UPDATED: Use handleCreateEventType */}
-          <button 
+          <button
             onClick={handleCreateEventType}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-purple-200/50 transition-all"
           >
             <Plus className="h-5 w-5" /> Create Event Type
           </button>
@@ -262,10 +270,10 @@ export default function EventTypes() {
             const colorClass = getColorClass(event.color);
             
             return (
-              <div 
+              <div
                 key={event.id}
                 onClick={() => navigate(`/events/${event.id}`, { state: { event } })}
-                className={`group bg-white rounded-2xl shadow-sm border-2 border-gray-200 overflow-hidden hover:shadow-xl hover:border-blue-300 transition-all cursor-pointer ${
+                className={`group bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border-2 border-gray-200 overflow-hidden hover:shadow-2xl hover:shadow-purple-200/30 hover:border-purple-400 transition-all cursor-pointer hover:-translate-y-1 ${
                   !event.is_active ? 'opacity-60' : ''
                 }`}
               >
@@ -387,6 +395,7 @@ export default function EventTypes() {
           })}
         </div>
       )}
+    </div>
     </div>
   );
 }
