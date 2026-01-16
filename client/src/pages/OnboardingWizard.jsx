@@ -235,19 +235,33 @@ export default function OnboardingWizard() {
   // While we're checking if onboarding should show, show nothing or a loader
   if (!user || !ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <div className="relative z-10">
+          <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center px-4 font-sans">
-      <div className="w-full max-w-lg bg-white/90 backdrop-blur-xl border border-purple-100 shadow-2xl rounded-3xl overflow-hidden transition-all duration-500">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center px-4 font-sans relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+      <div className="w-full max-w-lg bg-white/90 backdrop-blur-xl border-2 border-white/20 shadow-2xl rounded-3xl overflow-hidden transition-all duration-500 relative z-10">
         {/* Progress Bar */}
         <div className="bg-gray-100 h-1.5 w-full">
           <div
-            className="h-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-500 ease-out"
+            className="h-full bg-gradient-to-r from-purple-500 to-pink-600 transition-all duration-500 ease-out"
             style={{ width: `${(step / totalSteps) * 100}%` }}
           />
         </div>
@@ -641,7 +655,7 @@ export default function OnboardingWizard() {
                 <button
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="flex-1 py-4 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold text-lg hover:shadow-xl hover:scale-[1.02] transition-all disabled:opacity-70 disabled:cursor-wait flex items-center justify-center gap-3"
+                  className="flex-1 py-4 px-6 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all disabled:opacity-70 disabled:cursor-wait flex items-center justify-center gap-3"
                 >
                   {loading ? (
                     <>
