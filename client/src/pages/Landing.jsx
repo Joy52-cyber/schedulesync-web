@@ -497,7 +497,7 @@ export default function Landing() {
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900">Send booking link</p>
-                      <p className="text-sm text-gray-600">Copy-paste your Calendly link</p>
+                      <p className="text-sm text-gray-600">Copy-paste your booking link</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
@@ -761,67 +761,6 @@ export default function Landing() {
                 </li>
               </ul>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= FEATURE COMPARISON vs CALENDLY ================= */}
-      <section className="py-24 bg-gray-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
-              TruCal vs Calendly
-            </h2>
-            <p className="text-xl text-gray-600">
-              See why teams are switching
-            </p>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-gray-200">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-sm font-bold text-gray-900">Pain Point</th>
-                  <th className="px-6 py-4 text-center text-sm font-bold text-gray-500">Calendly</th>
-                  <th className="px-6 py-4 text-center text-sm font-bold bg-gradient-to-r from-purple-600 to-pink-600 text-white">TruCal</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                <tr>
-                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">Schedule via email</td>
-                  <td className="px-6 py-4 text-center text-gray-500">❌ Send link</td>
-                  <td className="px-6 py-4 text-center text-green-600 font-semibold">✅ Just CC</td>
-                </tr>
-                <tr className="bg-gray-50">
-                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">Set up rules</td>
-                  <td className="px-6 py-4 text-center text-gray-500">Complex UI</td>
-                  <td className="px-6 py-4 text-center text-green-600 font-semibold">Simple settings</td>
-                </tr>
-                <tr>
-                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">Handle conflicts</td>
-                  <td className="px-6 py-4 text-center text-gray-500">Manual</td>
-                  <td className="px-6 py-4 text-center text-green-600 font-semibold">Conflict detection</td>
-                </tr>
-                <tr className="bg-gray-50">
-                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">Team routing</td>
-                  <td className="px-6 py-4 text-center text-gray-500">Extra $$$</td>
-                  <td className="px-6 py-4 text-center text-green-600 font-semibold">Built-in</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* Calendly Exit Plan */}
-          <div className="mt-8 text-center">
-            <p className="text-gray-700 mb-2">
-              Switching from Calendly? <span className="font-bold text-purple-600">Get 3 months Pro free + migration help.</span>
-            </p>
-            <button
-              onClick={() => navigate('/contact')}
-              className="text-purple-600 hover:text-purple-700 text-sm font-medium underline"
-            >
-              Learn more
-            </button>
           </div>
         </div>
       </section>
