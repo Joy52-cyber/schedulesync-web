@@ -102,7 +102,6 @@ export default function Landing() {
         'Everything in Starter',
         'Natural language rules',
         'Auto-rescheduling suggestions',
-        'Inbox assistant',
         '1 guest seat included',
       ],
       cta: 'Go Pro',

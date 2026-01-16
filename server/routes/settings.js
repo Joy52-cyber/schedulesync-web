@@ -47,7 +47,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
 // PUT /api/user/profile - Update user profile (name, username, bio, timezone, etc.)
 router.put('/profile', authenticateToken, async (req, res) => {
   try {
-    const { name, username, bio, timezone, availability, inbox_assistant_enabled, has_completed_onboarding } = req.body;
+    const { name, username, bio, timezone, availability, has_completed_onboarding } = req.body;
     const updates = [];
     const values = [req.user.id];
     let paramIndex = 2;
@@ -95,21 +95,16 @@ router.put('/profile', authenticateToken, async (req, res) => {
       values.push(has_completed_onboarding);
     }
 
-    // Log received availability and inbox settings for debugging (stored separately)
+    // Log received availability for debugging (stored separately)
     if (availability !== undefined) {
       console.log(`Onboarding availability for user ${req.user.id}:`, availability);
       // Note: Availability is stored in availability_rules table, not users table
       // This can be implemented later to create default availability rules
     }
 
-    if (inbox_assistant_enabled !== undefined) {
-      console.log(`Inbox assistant setting for user ${req.user.id}:`, inbox_assistant_enabled);
-      // Note: This feature flag can be added as a column later if needed
-    }
-
     if (updates.length === 0) {
-      // If only availability or inbox_assistant_enabled were provided, return success anyway
-      if (availability !== undefined || inbox_assistant_enabled !== undefined) {
+      // If only availability was provided, return success anyway
+      if (availability !== undefined) {
         const result = await pool.query(
           'SELECT id, name, email, username, timezone, bio, profile_photo, onboarding_completed FROM users WHERE id = $1',
           [req.user.id]

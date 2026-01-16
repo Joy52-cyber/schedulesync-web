@@ -70,7 +70,6 @@ export default function OnboardingWizard() {
     availableFrom: '09:00',
     availableTo: '17:00',
     workDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
-    enableInboxAssistant: true, // NEW: Inbox Assistant opt-in
   });
 
   const daysOption = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -197,7 +196,6 @@ export default function OnboardingWizard() {
           end: formData.availableTo,
           days: formData.workDays,
         },
-        inbox_assistant_enabled: formData.enableInboxAssistant,
         has_completed_onboarding: true,
       });
 
@@ -542,60 +540,6 @@ export default function OnboardingWizard() {
                 </p>
               </div>
 
-              {/* Inbox Assistant Feature Card */}
-              <div
-                onClick={() =>
-                  setFormData({
-                    ...formData,
-                    enableInboxAssistant: !formData.enableInboxAssistant,
-                  })
-                }
-                className={`border-2 rounded-2xl p-5 cursor-pointer transition-all ${
-                  formData.enableInboxAssistant
-                    ? 'border-purple-500 bg-purple-50/50 shadow-md'
-                    : 'border-gray-200 hover:border-purple-300'
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="mt-0.5">
-                    <input
-                      type="checkbox"
-                      checked={formData.enableInboxAssistant}
-                      readOnly
-                      className="w-5 h-5 text-purple-600 rounded-md border-gray-300 focus:ring-purple-500"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Mail className="w-5 h-5 text-purple-600" />
-                      <h3 className="font-bold text-gray-900">AI Inbox Assistant</h3>
-                      <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs px-2 py-0.5 rounded-full font-bold">
-                        NEW
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-3">
-                      AI monitors your email, detects scheduling requests, and
-                      auto-drafts replies with your booking links. Save 2-3
-                      hours every week.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="inline-flex items-center gap-1 text-xs bg-purple-100 text-purple-700 px-2.5 py-1 rounded-lg">
-                        <Zap size={12} />
-                        Auto-detects meeting requests
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-xs bg-purple-100 text-purple-700 px-2.5 py-1 rounded-lg">
-                        <Calendar size={12} />
-                        Generates smart replies
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-xs bg-purple-100 text-purple-700 px-2.5 py-1 rounded-lg">
-                        <Bot size={12} />
-                        Works with Gmail & Outlook
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               {/* Info Banner */}
               <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
                 <p className="text-sm text-blue-800">
@@ -684,21 +628,6 @@ export default function OnboardingWizard() {
                       </p>
                     </div>
                   </div>
-                  {formData.enableInboxAssistant && (
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-purple-100 rounded-lg">
-                        <Mail size={16} className="text-purple-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wider font-bold">
-                          AI Features
-                        </p>
-                        <p className="text-sm font-medium text-gray-900">
-                          Inbox Assistant enabled
-                        </p>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 

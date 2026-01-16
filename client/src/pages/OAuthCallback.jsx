@@ -87,41 +87,7 @@ export default function OAuthCallback({ onLogin }) {
       return;
     }
 
-    // 2. Email connect flow (inbox integration)
-    if (state?.startsWith('email-connect:')) {
-      console.log('Email connect OAuth flow');
-
-      const parts = state.split(':');
-      const emailProvider = parts[2]; // gmail or outlook
-
-      (async () => {
-        try {
-          const endpoint = emailProvider === 'gmail'
-            ? '/email/gmail/callback'
-            : '/email/outlook/callback';
-
-          console.log(`Calling backend ${endpoint}...`);
-          const res = await api.post(endpoint, { code, state });
-
-          console.log('Email connected:', res.data);
-          isProcessing = false;
-
-          // Redirect to inbox assistant with success
-          navigate(`/inbox-assistant?connected=${emailProvider}`, { replace: true });
-        } catch (err) {
-          console.error('Email connect failed:', err);
-          isProcessing = false;
-          processedCodes.delete(code);
-
-          const errorMsg = err.response?.data?.error || 'Failed to connect email';
-          navigate(`/inbox-assistant?error=${encodeURIComponent(errorMsg)}`, { replace: true });
-        }
-      })();
-
-      return;
-    }
-
-    // 3. Dashboard login / account connect flow
+    // 2. Dashboard login / account connect flow
     console.log('Dashboard OAuth flow - processing login for:', provider);
 
     (async () => {
