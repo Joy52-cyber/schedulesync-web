@@ -265,13 +265,42 @@ export default function MemberAvailability() {
 
   if (loading)
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 flex items-center justify-center">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto" />
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <Loader2 className="h-10 w-10 animate-spin text-purple-600 mx-auto relative z-10" />
       </div>
     );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 p-4 sm:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 p-4 sm:p-8 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <style>{`
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+      `}</style>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
       {/* Notification Toast */}
       {notification && (
         <div className="fixed top-4 right-4 z-50 animate-slide-in">
@@ -292,7 +321,7 @@ export default function MemberAvailability() {
         </div>
       )}
 
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-6 relative z-10">
         {/* Header */}
         <div className="flex items-center justify-between">
           <button
@@ -304,7 +333,7 @@ export default function MemberAvailability() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-2 rounded-lg hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 disabled:opacity-50 flex items-center gap-2 transition-all"
           >
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -316,19 +345,19 @@ export default function MemberAvailability() {
         </div>
 
         {/* Timezone Selector */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+        <div className="bg-white/80 backdrop-blur-xl p-6 rounded-xl shadow-lg border-2 border-white/20">
           <TimezoneSelector value={timezone} onChange={setTimezone} />
         </div>
 
         {/* Availability Grid */}
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Buffer Time */}
-          <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex items-center gap-3">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border-2 border-white/20 overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4 flex items-center gap-3">
               <Clock className="h-6 w-6 text-white" />
               <div>
                 <h2 className="text-lg font-bold text-white">Buffer Time</h2>
-                <p className="text-blue-100 text-sm">Gap between meetings</p>
+                <p className="text-purple-100 text-sm">Gap between meetings</p>
               </div>
             </div>
             <div className="p-6">
@@ -339,8 +368,8 @@ export default function MemberAvailability() {
                     onClick={() => setBufferTime(option.value)}
                     className={`p-3 rounded-xl border-2 text-left transition-all ${
                       bufferTime === option.value
-                        ? 'border-blue-500 bg-blue-50 shadow-md'
-                        : 'border-gray-200 bg-white hover:border-blue-300'
+                        ? 'border-purple-500 bg-purple-50 shadow-md'
+                        : 'border-gray-200 bg-white hover:border-purple-300'
                     }`}
                   >
                     <p className="font-bold text-gray-900">{option.label}</p>
@@ -352,7 +381,7 @@ export default function MemberAvailability() {
           </div>
 
           {/* Lead Time */}
-          <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 overflow-hidden">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border-2 border-white/20 overflow-hidden">
             <div className="bg-gradient-to-r from-green-600 to-emerald-700 px-6 py-4 flex items-center gap-3">
               <Zap className="h-6 w-6 text-white" />
               <div>
@@ -383,7 +412,7 @@ export default function MemberAvailability() {
           </div>
 
           {/* Horizon */}
-          <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 overflow-hidden">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border-2 border-white/20 overflow-hidden">
             <div className="bg-gradient-to-r from-purple-600 to-indigo-700 px-6 py-4 flex items-center gap-3">
               <TrendingUp className="h-6 w-6 text-white" />
               <div>
@@ -414,7 +443,7 @@ export default function MemberAvailability() {
           </div>
 
           {/* Daily Cap */}
-          <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 overflow-hidden">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border-2 border-white/20 overflow-hidden">
             <div className="bg-gradient-to-r from-orange-500 to-red-500 px-6 py-4 flex items-center gap-3">
               <Shield className="h-6 w-6 text-white" />
               <div>
@@ -449,7 +478,7 @@ export default function MemberAvailability() {
         </div>
 
         {/* Working Hours */}
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border-2 border-white/20 overflow-hidden">
           <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-white" />
@@ -520,7 +549,7 @@ export default function MemberAvailability() {
         </div>
 
         {/* Blocked Times */}
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border-2 border-white/20 overflow-hidden">
           <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-gray-600" />
