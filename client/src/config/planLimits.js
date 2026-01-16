@@ -15,7 +15,7 @@ export const PLAN_LIMITS = {
     price: 0,
     name: 'Free'
   },
-  starter: {
+  plus: {
     ai_queries: 50,
     bookings_per_month: 200,
     event_types: 5,
@@ -28,7 +28,7 @@ export const PLAN_LIMITS = {
     email_assistant: false,
     autonomous_mode: false,
     price: 8,
-    name: 'Starter'
+    name: 'Plus'
   },
   pro: {
     ai_queries: 250,
@@ -82,7 +82,7 @@ export const PLAN_LIMITS = {
   }
 };
 
-export const PLAN_ORDER = ['free', 'starter', 'pro', 'team', 'enterprise'];
+export const PLAN_ORDER = ['free', 'plus', 'pro', 'team', 'enterprise'];
 
 // Helper to check if a limit is "unlimited"
 export const isUnlimited = (limit) => limit === Infinity || limit >= 999999;

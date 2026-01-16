@@ -67,7 +67,7 @@ export default function Terms() {
             </p>
             <ul className="list-disc pl-6 text-gray-600 mb-6 space-y-2">
               <li><strong>Free:</strong> Unlimited bookings, basic AI features, Google & Outlook sync</li>
-              <li><strong>Starter ($8/month):</strong> Advanced AI features, buffer times, custom email templates</li>
+              <li><strong>Plus ($8/month):</strong> Advanced AI features, buffer times, custom email templates</li>
               <li><strong>Pro ($15/month):</strong> Unlimited AI queries, smart rules, email assistant, priority support</li>
               <li><strong>Team ($25/month):</strong> Everything in Pro plus team collaboration and round-robin scheduling</li>
               <li><strong>Enterprise:</strong> Custom pricing for large organizations with SSO and dedicated support</li>

@@ -28,8 +28,8 @@ const PLANS = [
     popular: false
   },
   {
-    id: 'starter',
-    name: 'Starter',
+    id: 'plus',
+    name: 'Plus',
     price: 8,
     period: '/month',
     description: 'For individuals who need more',

@@ -150,7 +150,7 @@ const handleUpdateBilling = async () => {
   // Updated pricing to match PRD
   const getPlanPrice = (tier) => {
     switch(tier) {
-      case 'starter': return '$8';
+      case 'plus': return '$8';
       case 'pro': return '$15';
       case 'team': return '$20';
       case 'enterprise': return 'Custom';

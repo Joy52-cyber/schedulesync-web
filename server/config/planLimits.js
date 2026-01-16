@@ -21,7 +21,7 @@ const PLAN_LIMITS = {
     price: 0,
     name: 'Free'
   },
-  starter: {
+  plus: {
     ai_queries_limit: 50,
     bookings_limit: 200,
     event_types_limit: 5,
@@ -40,7 +40,7 @@ const PLAN_LIMITS = {
     advanced_reminders_enabled: true,
     remove_branding_enabled: false,
     price: 8,
-    name: 'Starter'
+    name: 'Plus'
   },
   pro: {
     ai_queries_limit: 250,
@@ -112,7 +112,7 @@ const PLAN_LIMITS = {
   }
 };
 
-const PLAN_ORDER = ['free', 'starter', 'pro', 'team', 'enterprise'];
+const PLAN_ORDER = ['free', 'plus', 'pro', 'team', 'enterprise'];
 
 // Helper to check if a limit is "unlimited"
 const isUnlimited = (limit) => limit >= 1000;

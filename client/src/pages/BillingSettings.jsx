@@ -225,7 +225,7 @@ export default function BillingSettings() {
                     AI Features
                   </span>
                   <span className="text-sm font-medium">
-                    {currentTier === 'free' ? 'Basic' : currentTier === 'starter' ? 'Advanced' : 'Unlimited'}
+                    {currentTier === 'free' ? 'Basic' : currentTier === 'plus' ? 'Advanced' : 'Unlimited'}
                   </span>
                 </div>
               </div>

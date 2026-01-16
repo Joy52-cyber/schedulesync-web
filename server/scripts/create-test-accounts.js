@@ -10,7 +10,7 @@ const testAccounts = [
   { email: 'test1@schedulesync.test', name: 'Test User One', username: 'testuser1', tier: 'pro' },
   { email: 'test2@schedulesync.test', name: 'Test User Two', username: 'testuser2', tier: 'team' },
   { email: 'test3@schedulesync.test', name: 'Test User Three', username: 'testuser3', tier: 'free' },
-  { email: 'test4@schedulesync.test', name: 'Test User Four', username: 'testuser4', tier: 'starter' },
+  { email: 'test4@schedulesync.test', name: 'Test User Four', username: 'testuser4', tier: 'plus' },
 ];
 
 const TEST_PASSWORD = 'Test123!';

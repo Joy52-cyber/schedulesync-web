@@ -11,9 +11,9 @@ if (process.env.STRIPE_SECRET_KEY) {
 
 // Plan configuration
 const PLANS = {
-  starter: {
+  plus: {
     price: 8,
-    name: 'Starter Plan',
+    name: 'Plus Plan',
     ai_queries_limit: 50,
     bookings_limit: 200,
     event_types_limit: 5,
@@ -50,7 +50,7 @@ const PLANS = {
 };
 
 const STRIPE_PRICES = {
-  starter: process.env.STRIPE_STARTER_PRICE_ID,
+  plus: process.env.STRIPE_PLUS_PRICE_ID,
   pro: process.env.STRIPE_PRO_PRICE_ID,
   team: process.env.STRIPE_TEAM_PRICE_ID
 };

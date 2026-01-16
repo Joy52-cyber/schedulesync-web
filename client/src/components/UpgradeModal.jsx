@@ -45,7 +45,7 @@ const UpgradeModal = () => {
         'Prevent back-to-back meetings',
         'Better work-life balance',
       ],
-      requiredTier: 'starter',
+      requiredTier: 'plus',
       icon: Calendar,
       color: 'blue'
     },
@@ -58,7 +58,7 @@ const UpgradeModal = () => {
         'Cancellation notifications',
         'Personalized messaging',
       ],
-      requiredTier: 'starter',
+      requiredTier: 'plus',
       icon: Mail,
       color: 'blue'
     },
@@ -141,7 +141,7 @@ const UpgradeModal = () => {
     templates: {
       title: 'Email Templates',
       description: 'Create custom email templates for confirmations, reminders, and follow-ups.',
-      requiredTier: 'starter',
+      requiredTier: 'plus',
       icon: Zap,
       color: 'blue'
     },
@@ -159,8 +159,8 @@ const UpgradeModal = () => {
 
   // Plan details for display
   const planDetails = {
-    starter: {
-      name: 'Starter',
+    plus: {
+      name: 'Plus',
       price: 8,
       color: 'blue',
       icon: Sparkles,

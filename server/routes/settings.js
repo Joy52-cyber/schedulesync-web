@@ -221,7 +221,7 @@ router.get('/usage', authenticateToken, async (req, res) => {
 
     const planLimits = {
       free: { ai_queries: 10 },
-      starter: { ai_queries: 50 },
+      plus: { ai_queries: 50 },
       pro: { ai_queries: 250 },
       team: { ai_queries: 750 },
       enterprise: { ai_queries: Infinity }
@@ -263,7 +263,7 @@ router.get('/limits', authenticateToken, async (req, res) => {
 
     const planLimits = {
       free: { ai_queries: 10, bookings: 50, event_types: 2, quick_links: 3 },
-      starter: { ai_queries: 50, bookings: 200, event_types: 5, quick_links: 10 },
+      plus: { ai_queries: 50, bookings: 200, event_types: 5, quick_links: 10 },
       pro: { ai_queries: 250, bookings: Infinity, event_types: Infinity, quick_links: Infinity },
       team: { ai_queries: 750, bookings: Infinity, event_types: Infinity, quick_links: Infinity },
       enterprise: { ai_queries: Infinity, bookings: Infinity, event_types: Infinity, quick_links: Infinity }

@@ -19,7 +19,7 @@ const defaultContextValue = {
   closeUpgradeModal: () => {},
   isAtLimit: () => false,
   requiresUpgrade: () => false,
-  hasStarterFeature: () => false,
+  hasPlusFeature: () => false,
   hasProFeature: () => false,
   hasTeamFeature: () => false,
   hasEnterpriseFeature: () => false,
@@ -151,12 +151,12 @@ export const UpgradeProvider = ({ children }) => {
 
   // Check if a feature requires upgrade based on tier
   const requiresUpgrade = useCallback((featureName) => {
-    const starterFeatures = ['buffer_times', 'email_templates', 'templates'];
+    const plusFeatures = ['buffer_times', 'email_templates', 'templates'];
     const proFeatures = ['branding', 'smart_rules', 'email_assistant', 'email'];
     const teamFeatures = ['teams', 'autonomous', 'round_robin'];
 
-    if (starterFeatures.includes(featureName)) {
-      return !['starter', 'pro', 'team', 'enterprise'].includes(currentTier);
+    if (plusFeatures.includes(featureName)) {
+      return !['plus', 'pro', 'team', 'enterprise'].includes(currentTier);
     }
     if (proFeatures.includes(featureName)) {
       return !['pro', 'team', 'enterprise'].includes(currentTier);
@@ -185,7 +185,7 @@ export const UpgradeProvider = ({ children }) => {
       case 'templates':
       case 'buffer_times':
       case 'email_templates':
-        return !['starter', 'pro', 'team', 'enterprise'].includes(currentTier);
+        return !['plus', 'pro', 'team', 'enterprise'].includes(currentTier);
       case 'branding':
       case 'smart_rules':
       case 'email_assistant':
@@ -195,9 +195,9 @@ export const UpgradeProvider = ({ children }) => {
     }
   }, [usage, currentTier]);
 
-  // Check if user has access to Starter features (Starter, Pro, Team, or Enterprise)
-  const hasStarterFeature = useCallback(() => {
-    return ['starter', 'pro', 'team', 'enterprise'].includes(currentTier);
+  // Check if user has access to Plus features (Plus, Pro, Team, or Enterprise)
+  const hasPlusFeature = useCallback(() => {
+    return ['plus', 'pro', 'team', 'enterprise'].includes(currentTier);
   }, [currentTier]);
 
   // Check if user has access to Pro features (Pro, Team, or Enterprise)
@@ -218,8 +218,8 @@ export const UpgradeProvider = ({ children }) => {
   // Get recommended tier based on feature
   const getRecommendedTier = useCallback((feature) => {
     const featureTiers = {
-      'buffer_times': 'starter',
-      'email_templates': 'starter',
+      'buffer_times': 'plus',
+      'email_templates': 'plus',
       'smart_rules': 'pro',
       'email_assistant': 'pro',
       'email': 'pro',
@@ -227,10 +227,10 @@ export const UpgradeProvider = ({ children }) => {
       'teams': 'team',
       'autonomous': 'team',
       'round_robin': 'team',
-      'ai_queries': currentTier === 'free' ? 'starter' : 'pro',
-      'bookings': currentTier === 'free' ? 'starter' : 'pro',
-      'event_types': currentTier === 'free' ? 'starter' : 'pro',
-      'magic_links': currentTier === 'free' ? 'starter' : 'pro',
+      'ai_queries': currentTier === 'free' ? 'plus' : 'pro',
+      'bookings': currentTier === 'free' ? 'plus' : 'pro',
+      'event_types': currentTier === 'free' ? 'plus' : 'pro',
+      'magic_links': currentTier === 'free' ? 'plus' : 'pro',
     };
     return featureTiers[feature] || 'pro';
   }, [currentTier]);
@@ -277,7 +277,7 @@ export const UpgradeProvider = ({ children }) => {
     closeUpgradeModal,
     isAtLimit,
     requiresUpgrade,
-    hasStarterFeature,
+    hasPlusFeature,
     hasProFeature,
     hasTeamFeature,
     hasEnterpriseFeature,
