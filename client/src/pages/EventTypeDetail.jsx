@@ -135,8 +135,14 @@ export default function EventTypeDetail() {
 
   if (loading || !event) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-blue-600 h-8 w-8" />
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <Loader2 className="animate-spin text-purple-600 h-8 w-8 relative z-10" />
       </div>
     );
   }
@@ -144,7 +150,31 @@ export default function EventTypeDetail() {
   const colorClass = colorClasses[event.color] || colorClasses.blue;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 overflow-x-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <style>{`
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+      `}</style>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+      <div className="max-w-5xl mx-auto px-4 py-8 overflow-x-hidden relative z-10">
       {/* Header */}
       <div className="mb-6">
         <button
@@ -208,9 +238,9 @@ export default function EventTypeDetail() {
         {/* Main Details */}
         <div className="lg:col-span-2 space-y-6 min-w-0">
           {/* Overview Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 border-2 border-white/20 transition-all p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-blue-600" />
+              <Sparkles className="h-5 w-5 text-purple-600" />
               Event Overview
             </h2>
 
@@ -222,8 +252,8 @@ export default function EventTypeDetail() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-lg">
-                  <Clock className="h-5 w-5 text-blue-600" />
+                <div className="p-2 bg-purple-50 rounded-lg">
+                  <Clock className="h-5 w-5 text-purple-600" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs text-gray-500">Duration</p>
@@ -234,8 +264,8 @@ export default function EventTypeDetail() {
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-50 rounded-lg">
-                  <LocationIcon className="h-5 w-5 text-purple-600" />
+                <div className="p-2 bg-pink-50 rounded-lg">
+                  <LocationIcon className="h-5 w-5 text-pink-600" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs text-gray-500">Location</p>
@@ -252,9 +282,9 @@ export default function EventTypeDetail() {
             event.buffer_after > 0 ||
             event.max_bookings_per_day ||
             event.require_approval) && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 border-2 border-white/20 transition-all p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Shield className="h-5 w-5 text-gray-600" />
+                <Shield className="h-5 w-5 text-purple-600" />
                 Booking Rules
               </h2>
 
@@ -302,18 +332,18 @@ export default function EventTypeDetail() {
         {/* Sidebar */}
         <div className="space-y-6 min-w-0">
           {/* ✅ FIXED: Share Card with proper mobile overflow handling */}
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border border-blue-200 p-4 sm:p-6 overflow-hidden">
-            <h2 className="text-lg font-semibold text-blue-900 mb-2 flex items-center gap-2">
-              <Globe className="h-5 w-5 flex-shrink-0" /> Share Event
+          <div className="bg-gradient-to-br from-purple-50 to-pink-100 rounded-2xl border-2 border-purple-200 shadow-lg hover:shadow-2xl hover:shadow-purple-200/50 transition-all p-4 sm:p-6 overflow-hidden">
+            <h2 className="text-lg font-semibold text-purple-900 mb-2 flex items-center gap-2">
+              <Globe className="h-5 w-5 flex-shrink-0 text-purple-600" /> Share Event
             </h2>
-            <p className="text-xs sm:text-sm text-blue-700 mb-4">
+            <p className="text-xs sm:text-sm text-purple-700 mb-4">
               Share this link to let people book this specific event type.
             </p>
 
             <div className="space-y-3">
               <button
                 onClick={handleCopyLink}
-                className="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-white border border-blue-200 rounded-xl hover:border-blue-300 transition-all text-blue-800 font-medium shadow-sm text-sm min-w-0"
+                className="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-2 border-purple-200 rounded-xl hover:border-purple-400 hover:shadow-lg hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all text-purple-800 font-medium shadow-sm text-sm min-w-0"
               >
                 <span className="truncate flex-1 text-left">{copied ? 'Copied!' : 'Copy Link'}</span>
                 {copied ? (
@@ -327,7 +357,7 @@ export default function EventTypeDetail() {
                 href={getBookingLink()}
                 target="_blank"
                 rel="noreferrer"
-                className="w-full flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium shadow-md transition-colors text-sm"
+                className="w-full flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 font-medium shadow-md transition-all text-sm"
               >
                 <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span>Preview Page</span>
@@ -335,10 +365,10 @@ export default function EventTypeDetail() {
             </div>
 
             {/* ✅ FIXED: Better mobile URL display with proper wrapping and overflow handling */}
-            <div className="mt-4 pt-4 border-t border-blue-200 min-w-0">
+            <div className="mt-4 pt-4 border-t border-purple-200 min-w-0">
               <div className="bg-white rounded-lg p-2 overflow-hidden">
-                <p 
-                  className="text-[10px] sm:text-xs text-blue-600 leading-relaxed"
+                <p
+                  className="text-[10px] sm:text-xs text-purple-600 leading-relaxed"
                   style={{
                     wordBreak: 'break-all',
                     overflowWrap: 'anywhere',
@@ -352,9 +382,9 @@ export default function EventTypeDetail() {
           </div>
 
           {/* Stats Card (Future) */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 border-2 border-white/20 transition-all p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-gray-600" />
+              <Calendar className="h-5 w-5 text-purple-600" />
               Booking Stats
             </h2>
             <div className="space-y-3">
@@ -372,6 +402,7 @@ export default function EventTypeDetail() {
             </p>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

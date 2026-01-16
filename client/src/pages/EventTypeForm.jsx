@@ -226,8 +226,14 @@ export default function EventTypeForm() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-blue-600 h-8 w-8" />
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <Loader2 className="animate-spin text-purple-600 h-8 w-8 relative z-10" />
       </div>
     );
   }
@@ -235,7 +241,31 @@ export default function EventTypeForm() {
   const selectedLocationType = locationTypes.find((t) => t.value === formData.location_type);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 overflow-x-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <style>{`
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+      `}</style>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+      <div className="max-w-4xl mx-auto px-4 py-8 overflow-x-hidden relative z-10">
       {/* Header */}
       <div className="mb-8 min-w-0">
         <button
@@ -254,9 +284,9 @@ export default function EventTypeForm() {
 
       {/* Quick Templates (only for new events) */}
       {!isEditing && (
-        <div className="bg-blue-50 rounded-2xl border border-blue-200 p-4 sm:p-6 mb-6 overflow-hidden">
-          <h3 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
-            <Zap className="h-4 w-4" />
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl border-2 border-white/20 shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 transition-all p-4 sm:p-6 mb-6 overflow-hidden">
+          <h3 className="text-sm font-semibold text-purple-900 mb-3 flex items-center gap-2">
+            <Zap className="h-4 w-4 text-purple-600" />
             Quick Start Templates
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
@@ -265,7 +295,7 @@ export default function EventTypeForm() {
                 key={idx}
                 type="button"
                 onClick={() => applyTemplate(template)}
-                className="p-3 bg-white border border-blue-200 rounded-xl hover:border-blue-400 hover:shadow-sm transition-all text-left min-w-0"
+                className="p-3 bg-white border-2 border-purple-200 rounded-xl hover:border-purple-400 hover:shadow-lg hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all text-left min-w-0"
               >
                 <p className="font-semibold text-gray-900 text-sm truncate">{template.name}</p>
                 <p className="text-xs text-gray-500 mt-1">{template.duration} min</p>
@@ -277,9 +307,9 @@ export default function EventTypeForm() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Basic Information */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6 overflow-hidden">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 border-2 border-white/20 transition-all p-4 sm:p-6 overflow-hidden">
           <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-            <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
+            <FileText className="h-5 w-5 text-purple-600 flex-shrink-0" />
             Basic Information
           </h2>
 
@@ -293,7 +323,7 @@ export default function EventTypeForm() {
                 type="text"
                 value={formData.title}
                 onChange={handleTitleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 placeholder="e.g., 30-Minute Strategy Session"
                 required
               />
@@ -313,7 +343,7 @@ export default function EventTypeForm() {
                   type="text"
                   value={formData.slug}
                   onChange={(e) => setFormData({ ...formData, slug: slugify(e.target.value) })}
-                  className="flex-1 min-w-0 px-4 py-3 border border-gray-300 rounded-xl sm:rounded-r-xl sm:rounded-l-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="flex-1 min-w-0 px-4 py-3 border border-gray-300 rounded-xl sm:rounded-r-xl sm:rounded-l-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   placeholder="strategy-session"
                   required
                 />
@@ -327,7 +357,7 @@ export default function EventTypeForm() {
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 rows={3}
                 placeholder="What should invitees know about this meeting?"
               />
@@ -359,7 +389,7 @@ export default function EventTypeForm() {
         </div>
 
         {/* Meeting Details */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 border-2 border-white/20 transition-all p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
             <Clock className="h-5 w-5 text-purple-600 flex-shrink-0" />
             Meeting Details
@@ -375,7 +405,7 @@ export default function EventTypeForm() {
               <select
                 value={formData.duration}
                 onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               >
                 <option value={15}>15 minutes</option>
                 <option value={30}>30 minutes</option>
@@ -395,7 +425,7 @@ export default function EventTypeForm() {
               <select
                 value={formData.location_type}
                 onChange={(e) => setFormData({ ...formData, location_type: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               >
                 {locationTypes.map((type) => (
                   <option key={type.value} value={type.value}>
@@ -414,7 +444,7 @@ export default function EventTypeForm() {
                 type="text"
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 placeholder={
                   formData.location_type === 'phone' ? 'Phone number or instructions' :
                   formData.location_type === 'zoom' ? 'Zoom meeting link' :
@@ -434,7 +464,7 @@ export default function EventTypeForm() {
             <button
               type="button"
               onClick={() => setShowAdvanced((prev) => !prev)}
-              className="text-sm font-medium text-blue-600 hover:text-blue-700"
+              className="text-sm font-medium text-purple-600 hover:text-purple-700"
             >
               {showAdvanced ? 'Hide' : 'Show'}
             </button>
@@ -443,9 +473,9 @@ export default function EventTypeForm() {
 
         {/* Advanced Settings */}
         {showAdvanced && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 border-2 border-white/20 transition-all p-4 sm:p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Shield className="h-5 w-5 text-gray-600 flex-shrink-0" />
+              <Shield className="h-5 w-5 text-purple-600 flex-shrink-0" />
               Advanced Booking Rules
             </h2>
 
@@ -459,7 +489,7 @@ export default function EventTypeForm() {
                   max="60"
                   value={formData.buffer_before}
                   onChange={(e) => setFormData({ ...formData, buffer_before: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                   placeholder="0"
                 />
                 <p className="text-xs text-gray-500 mt-1.5">Time before the meeting starts.</p>
@@ -474,7 +504,7 @@ export default function EventTypeForm() {
                   max="60"
                   value={formData.buffer_after}
                   onChange={(e) => setFormData({ ...formData, buffer_after: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                   placeholder="0"
                 />
                 <p className="text-xs text-gray-500 mt-1.5">Time after the meeting ends.</p>
@@ -490,7 +520,7 @@ export default function EventTypeForm() {
                   min="1"
                   value={formData.max_bookings_per_day || ''}
                   onChange={(e) => setFormData({ ...formData, max_bookings_per_day: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                   placeholder="Unlimited"
                 />
                 <p className="text-xs text-gray-500 mt-1.5">Leave empty for unlimited bookings.</p>
@@ -504,7 +534,7 @@ export default function EventTypeForm() {
                     type="checkbox"
                     checked={formData.require_approval}
                     onChange={(e) => setFormData({ ...formData, require_approval: e.target.checked })}
-                    className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                    className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-purple-500"
                   />
                   <span className="text-sm text-gray-700">Require manual approval</span>
                 </label>
@@ -519,7 +549,7 @@ export default function EventTypeForm() {
                 <select
                   value={formData.min_notice_hours}
                   onChange={(e) => setFormData({ ...formData, min_notice_hours: parseInt(e.target.value) })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                 >
                   <option value={1}>1 hour</option>
                   <option value={2}>2 hours</option>
@@ -538,7 +568,7 @@ export default function EventTypeForm() {
                 <select
                   value={formData.max_days_ahead}
                   onChange={(e) => setFormData({ ...formData, max_days_ahead: parseInt(e.target.value) })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
                 >
                   <option value={7}>1 week</option>
                   <option value={14}>2 weeks</option>
@@ -553,11 +583,11 @@ export default function EventTypeForm() {
             </div>
 
             {/* Info Box */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3 mt-5">
-              <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex gap-3 mt-5">
+              <AlertCircle className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
               <div className="min-w-0">
-                <p className="text-sm font-medium text-blue-900">Advanced Settings Info</p>
-                <p className="text-xs text-blue-700 mt-1">
+                <p className="text-sm font-medium text-purple-900">Advanced Settings Info</p>
+                <p className="text-xs text-purple-700 mt-1">
                   Buffer times prevent back-to-back meetings. Booking limits help manage your availability.
                 </p>
               </div>
@@ -566,7 +596,7 @@ export default function EventTypeForm() {
         )}
 
         {/* Custom Questions */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 border-2 border-white/20 transition-all p-4 sm:p-6">
           <CustomQuestionsEditor
             questions={formData.custom_questions}
             onChange={(questions) => setFormData({ ...formData, custom_questions: questions })}
@@ -574,9 +604,9 @@ export default function EventTypeForm() {
         </div>
 
         {/* Pre-Meeting Instructions & Confirmation Message */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 border-2 border-white/20 transition-all p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-green-600 flex-shrink-0" />
+            <MessageSquare className="h-5 w-5 text-purple-600 flex-shrink-0" />
             Guest Communication
           </h2>
 
@@ -587,7 +617,7 @@ export default function EventTypeForm() {
               <textarea
                 value={formData.pre_meeting_instructions}
                 onChange={(e) => setFormData({ ...formData, pre_meeting_instructions: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 rows={3}
                 placeholder="Instructions guests should follow before the meeting (e.g., 'Please prepare a brief summary of your project')"
               />
@@ -600,7 +630,7 @@ export default function EventTypeForm() {
               <textarea
                 value={formData.confirmation_message}
                 onChange={(e) => setFormData({ ...formData, confirmation_message: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 rows={3}
                 placeholder="Custom message shown after booking (e.g., 'Looking forward to our call! I'll send the agenda 24 hours before.')"
               />
@@ -621,7 +651,7 @@ export default function EventTypeForm() {
           <button
             type="submit"
             disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             {saving ? (
               <>
@@ -637,6 +667,7 @@ export default function EventTypeForm() {
           </button>
         </div>
       </form>
+      </div>
     </div>
   );
 }
