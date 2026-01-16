@@ -157,8 +157,31 @@ export default function Pricing() {
   const isLoggedIn = !!localStorage.getItem('token');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50 py-12 px-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 py-12 px-4 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <style>{`
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+      `}</style>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+      <div className="max-w-7xl mx-auto relative z-10">
         {/* Back link */}
         <Link
           to={isLoggedIn ? "/dashboard" : "/"}
@@ -188,10 +211,10 @@ export default function Pricing() {
             return (
               <div
                 key={plan.id}
-                className={`relative bg-white rounded-2xl border-2 p-6 flex flex-col ${
+                className={`relative bg-white/80 backdrop-blur-xl rounded-2xl border-2 p-6 flex flex-col transition-all ${
                   plan.popular
-                    ? 'border-purple-500 shadow-xl shadow-purple-500/20'
-                    : colors.border
+                    ? 'border-purple-500 shadow-xl shadow-purple-500/20 hover:shadow-2xl hover:shadow-purple-500/30'
+                    : colors.border + ' hover:shadow-xl hover:shadow-purple-200/20'
                 }`}
               >
                 {plan.popular && (
@@ -240,7 +263,7 @@ export default function Pricing() {
                     isCurrent
                       ? 'bg-gray-100 text-gray-500 cursor-default'
                       : plan.popular
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:shadow-lg'
+                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5'
                       : 'bg-gray-900 text-white hover:bg-gray-800'
                   }`}
                 >

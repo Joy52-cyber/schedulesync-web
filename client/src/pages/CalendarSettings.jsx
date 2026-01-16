@@ -69,16 +69,45 @@ export default function CalendarSettings() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <Loader2 className="h-12 w-12 animate-spin text-purple-600 relative z-10" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <style>{`
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+      `}</style>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">Calendar Settings</h1>
@@ -86,8 +115,8 @@ export default function CalendarSettings() {
         </div>
 
         {/* Connected Calendars */}
-        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-gray-100 mb-6">
-          <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6">
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl hover:shadow-purple-200/30 overflow-hidden border-2 border-white/20 mb-6 transition-all">
+          <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6">
             <h2 className="text-2xl font-bold text-white flex items-center gap-2">
               <Calendar className="h-6 w-6" />
               Connected Calendars
@@ -102,7 +131,7 @@ export default function CalendarSettings() {
   <p className="text-sm sm:text-base text-gray-600 mb-6">Connect your calendar to sync availability</p>
   <button
     onClick={handleConnectGoogle}
-    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl hover:shadow-lg transition-all inline-flex items-center gap-2 font-semibold text-sm sm:text-base"
+    className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl hover:shadow-lg transition-all inline-flex items-center gap-2 font-semibold text-sm sm:text-base"
   >
                   <svg className="h-5 w-5" viewBox="0 0 24 24">
                     <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -121,14 +150,14 @@ export default function CalendarSettings() {
       className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 sm:p-6 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
     >
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                      <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center">
                         <Calendar className="h-6 w-6 text-white" />
                       </div>
                       <div>
                         <h3 className="font-bold text-gray-900 flex items-center gap-2">
                           {calendar.calendar_name || 'Primary Calendar'}
                           {calendar.is_primary && (
-                            <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-semibold">
+                            <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-semibold">
                               Primary
                             </span>
                           )}
@@ -159,7 +188,7 @@ export default function CalendarSettings() {
   <button
     onClick={() => handleSync(calendar.id)}
     disabled={syncing}
-    className="p-2 sm:p-2.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50"
+    className="p-2 sm:p-2.5 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-200 transition-colors disabled:opacity-50"
                     title="Sync now"
                       >
                         <RefreshCw className={`h-5 w-5 ${syncing ? 'animate-spin' : ''}`} />
@@ -177,7 +206,7 @@ export default function CalendarSettings() {
 
                 <button
                   onClick={handleConnectGoogle}
-                  className="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all text-gray-600 hover:text-blue-600 font-semibold flex items-center justify-center gap-2"
+                  className="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-gray-600 hover:text-purple-600 font-semibold flex items-center justify-center gap-2"
                 >
                   <Plus className="h-5 w-5" />
                   Add Another Calendar
@@ -188,12 +217,12 @@ export default function CalendarSettings() {
         </div>
 
         {/* Info Card */}
-        <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-6">
-          <h3 className="font-bold text-blue-900 mb-3 flex items-center gap-2">
-            <AlertCircle className="h-5 w-5" />
+        <div className="bg-purple-50 border-2 border-purple-200 rounded-2xl p-6">
+          <h3 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
+            <AlertCircle className="h-5 w-5 text-purple-600" />
             How Calendar Sync Works
           </h3>
-          <ul className="space-y-2 text-sm text-blue-800">
+          <ul className="space-y-2 text-sm text-purple-800">
             <li className="flex items-start gap-2">
               <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
               <span>We only check if you're free or busy - event details stay private</span>

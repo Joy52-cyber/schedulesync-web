@@ -86,8 +86,31 @@ export default function UserProfilePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50 flex items-center justify-center px-4">
-        <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 text-center max-w-md w-full">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center px-4 relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <style>{`
+          @keyframes blob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+          }
+          .animate-blob {
+            animation: blob 7s infinite;
+          }
+          .animation-delay-2000 {
+            animation-delay: 2s;
+          }
+          .animation-delay-4000 {
+            animation-delay: 4s;
+          }
+        `}</style>
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl border-2 border-white/20 p-8 md:p-12 text-center max-w-md w-full relative z-10">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <AlertCircle className="h-8 w-8 text-red-600" />
           </div>
@@ -99,7 +122,7 @@ export default function UserProfilePage() {
           </p>
           <button
             onClick={() => navigate('/')}
-            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all"
           >
             Go to Homepage
           </button>
