@@ -66,7 +66,7 @@ export default function Landing() {
       description: 'Free forever',
       features: [
         'Unlimited bookings',
-        'Limited AI use',
+        'Basic AI features',
         'Google & Outlook sync',
         'Email reminders',
         'Custom URL',
@@ -98,9 +98,9 @@ export default function Landing() {
       features: [
         'Unlimited AI',
         'Everything in Plus',
-        'Natural language rules',
-        'Auto-rescheduling',
-        'Guest seats',
+        'Custom email templates',
+        'Priority support',
+        'Advanced analytics',
       ],
       cta: 'Go Pro',
       popular: false,
@@ -111,28 +111,13 @@ export default function Landing() {
       period: '/user/month',
       description: 'For growing teams',
       features: [
-        'Round-robin distribution',
-        'Team availability pooling',
-        'Routing & load balancing',
+        'Team scheduling',
         'Admin controls',
+        'Team analytics',
+        'Shared event types',
         'Team onboarding',
       ],
       cta: 'Start Team Trial',
-      popular: false,
-    },
-    {
-      name: 'Enterprise',
-      price: 'Custom',
-      period: '',
-      description: 'For large organizations',
-      features: [
-        'Unlimited AI',
-        'Full autonomous mode',
-        'SSO, SCIM, audit logs',
-        'Calendly migration assistance',
-        'Dedicated support',
-      ],
-      cta: 'Contact Sales',
       popular: false,
     },
   ];
@@ -272,19 +257,42 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* Hero Demo/Screenshot */}
+          {/* Hero Demo/Screenshot - Email Bot Flow */}
           <div className="relative max-w-5xl mx-auto">
             <div className="relative rounded-2xl overflow-hidden shadow-2xl border-8 border-white">
-              <div className="bg-gradient-to-br from-purple-100 to-pink-100 aspect-video flex items-center justify-center">
-                <div className="space-y-4 w-full max-w-2xl mx-4">
-                  <div className="flex justify-end">
-                    <div className="bg-purple-600 text-white rounded-2xl rounded-tr-sm px-6 py-4 max-w-sm shadow-lg">
-                      Book meeting with john@email.com tomorrow at 2pm
+              <div className="bg-gradient-to-br from-purple-100 to-pink-100 aspect-video flex items-center justify-center p-8">
+                <div className="w-full max-w-3xl bg-white rounded-xl shadow-2xl overflow-hidden">
+                  {/* Email Header */}
+                  <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Mail className="w-5 h-5 text-gray-400" />
+                      <span className="font-semibold text-gray-900">Email: Partnership Discussion</span>
+                    </div>
+                    <div className="text-sm space-y-1">
+                      <div><span className="text-gray-500">From:</span> <span className="text-gray-900">you@company.com</span></div>
+                      <div><span className="text-gray-500">To:</span> <span className="text-gray-900">john@client.com</span></div>
+                      <div><span className="text-gray-500">CC:</span> <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-mono text-xs font-bold">schedule@mg.trucal.xyz</span></div>
                     </div>
                   </div>
-                  <div className="flex justify-start">
-                    <div className="bg-white text-gray-900 rounded-2xl rounded-tl-sm px-6 py-4 max-w-sm shadow-lg">
-                      ✅ Done! Meeting scheduled with john@email.com for tomorrow at 2:00 PM. Confirmation emails sent.
+
+                  {/* Bot Response */}
+                  <div className="p-6">
+                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border-2 border-purple-200">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center">
+                          <Bot className="w-5 h-5 text-white" />
+                        </div>
+                        <span className="font-bold text-gray-900 text-sm">TruCal Assistant</span>
+                      </div>
+                      <p className="text-sm text-gray-700 mb-3">Pick a time for your meeting:</p>
+                      <div className="space-y-2">
+                        <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg px-4 py-3 text-sm font-semibold cursor-pointer hover:shadow-lg transition-shadow">
+                          ✓ Tomorrow at 2:00 PM
+                        </div>
+                        <div className="bg-white text-gray-900 rounded-lg px-4 py-3 text-sm border border-gray-200 cursor-pointer hover:bg-gray-50">
+                          Friday at 10:00 AM
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -309,22 +317,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ================= COMPARE SECTION ================= */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-8">
-              A smarter alternative to
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-12 opacity-60">
-              <div className="text-2xl font-bold text-gray-400">Other Calendars</div>
-              <div className="text-2xl font-bold text-gray-400">Cal.com</div>
-              <div className="text-2xl font-bold text-gray-400">HubSpot</div>
-              <div className="text-2xl font-bold text-gray-400">Acuity</div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* ================= HOW IT WORKS - EMAIL BOT ================= */}
       <section className="py-24 bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50">
@@ -667,7 +659,7 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 max-w-7xl mx-auto">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
             {pricingTiers.map((tier, idx) => (
               <div
                 key={idx}
@@ -724,6 +716,22 @@ export default function Landing() {
             ))}
           </div>
 
+          {/* Enterprise Contact */}
+          <div className="mt-12 text-center">
+            <p className="text-gray-700 text-lg mb-2">
+              Need Enterprise features?
+            </p>
+            <p className="text-gray-600 mb-4">
+              SSO, SCIM, audit logs, dedicated support, and custom pricing.
+            </p>
+            <button
+              onClick={() => navigate('/contact')}
+              className="px-8 py-3 bg-gray-900 text-white rounded-full font-bold hover:bg-gray-800 transition-all"
+            >
+              Contact Sales
+            </button>
+          </div>
+
           {/* AI Features Explainer */}
           <div className="mt-16 max-w-3xl mx-auto">
             <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-8 border-2 border-purple-200">
@@ -737,19 +745,19 @@ export default function Landing() {
               <ul className="space-y-2 text-gray-700">
                 <li className="flex items-start gap-2">
                   <span className="text-purple-600">•</span>
-                  <span>Suggests optimal times based on your calendar</span>
+                  <span>Suggests optimal times based on your calendar availability</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-purple-600">•</span>
-                  <span>Automatically reschedules when conflicts arise</span>
+                  <span>Detects conflicts and prevents double-bookings</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-purple-600">•</span>
-                  <span>Drafts professional email replies</span>
+                  <span>Sends professional scheduling emails automatically</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-purple-600">•</span>
-                  <span>Applies your scheduling rules in natural language</span>
+                  <span>Applies your buffer times and booking caps</span>
                 </li>
               </ul>
             </div>
@@ -787,12 +795,12 @@ export default function Landing() {
                 <tr className="bg-gray-50">
                   <td className="px-6 py-4 text-sm text-gray-900 font-medium">Set up rules</td>
                   <td className="px-6 py-4 text-center text-gray-500">Complex UI</td>
-                  <td className="px-6 py-4 text-center text-green-600 font-semibold">Natural language</td>
+                  <td className="px-6 py-4 text-center text-green-600 font-semibold">Simple settings</td>
                 </tr>
                 <tr>
                   <td className="px-6 py-4 text-sm text-gray-900 font-medium">Handle conflicts</td>
                   <td className="px-6 py-4 text-center text-gray-500">Manual</td>
-                  <td className="px-6 py-4 text-center text-green-600 font-semibold">AI auto-reschedule</td>
+                  <td className="px-6 py-4 text-center text-green-600 font-semibold">Conflict detection</td>
                 </tr>
                 <tr className="bg-gray-50">
                   <td className="px-6 py-4 text-sm text-gray-900 font-medium">Team routing</td>
