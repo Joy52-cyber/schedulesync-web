@@ -71,15 +71,29 @@ export default function TeamSettings() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <div className="relative z-10">
+          <Loader2 className="h-12 w-12 animate-spin text-purple-600" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
         
         <div className="mb-8">
           <button
@@ -93,9 +107,9 @@ export default function TeamSettings() {
           <p className="text-gray-600">Configure your team's booking preferences</p>
         </div>
 
-        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-gray-100">
-          
-          <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-8">
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border-2 border-white/20 hover:shadow-purple-200/30 transition-all">
+
+          <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-8">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
                 <Settings className="h-8 w-8 text-white" />
@@ -221,7 +235,7 @@ export default function TeamSettings() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2 font-bold disabled:opacity-50"
+            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 font-bold disabled:opacity-50 shadow-lg"
           >
             {saving ? (
               <>
@@ -243,7 +257,7 @@ export default function TeamSettings() {
 
           <button
             onClick={handleDelete}
-            className="bg-white border-2 border-red-500 text-red-600 px-8 py-4 rounded-xl hover:bg-red-50 transition-all flex items-center justify-center gap-2 font-bold"
+            className="bg-white/80 border-2 border-red-500 text-red-600 px-8 py-4 rounded-xl hover:bg-red-50 hover:shadow-2xl hover:shadow-red-200/50 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 font-bold shadow-lg"
           >
             <Trash2 className="h-5 w-5" />
             Delete Team

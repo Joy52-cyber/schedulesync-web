@@ -152,15 +152,29 @@ export default function TeamMembers() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <div className="relative z-10">
+          <Loader2 className="h-12 w-12 animate-spin text-purple-600" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
         {/* Header */}
         <div className="mb-8">
           <button
@@ -189,7 +203,7 @@ export default function TeamMembers() {
               </button>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-5 py-2.5 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 font-semibold"
+                className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-5 py-2.5 rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all flex items-center gap-2 font-semibold shadow-lg"
               >
                 <Plus className="h-5 w-5" />
                 Add Member
@@ -200,7 +214,7 @@ export default function TeamMembers() {
 
         {/* Load Balancing Stats */}
         {bookingStats && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-xl border-2 border-white/20 p-6 mb-6 shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 transition-all">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-blue-600" />
@@ -267,7 +281,7 @@ export default function TeamMembers() {
                     </div>
                     <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
                       <div
-                        className="bg-gradient-to-r from-blue-500 to-purple-500 h-full rounded-full flex items-center justify-end px-2 transition-all duration-500"
+                        className="bg-gradient-to-r from-purple-500 to-pink-500 h-full rounded-full flex items-center justify-end px-2 transition-all duration-500"
                         style={{ width: `${Math.max(percentage, 5)}%` }}
                       >
                         <span className="text-xs font-bold text-white">
@@ -287,7 +301,7 @@ export default function TeamMembers() {
 
         {/* Members grid */}
         {members.length === 0 ? (
-          <div className="bg-white rounded-3xl shadow-xl p-12 text-center border-2 border-gray-100">
+          <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-12 text-center border-2 border-white/20 hover:shadow-purple-200/30 transition-all">
             <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
               No members yet
@@ -297,7 +311,7 @@ export default function TeamMembers() {
             </p>
             <button
               onClick={() => setShowAddModal(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-xl hover:shadow-lg transition-all inline-flex items-center gap-2 font-semibold"
+              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-3 rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all inline-flex items-center gap-2 font-semibold shadow-lg"
             >
               <Plus className="h-5 w-5" />
               Add Your First Member
@@ -308,12 +322,12 @@ export default function TeamMembers() {
             {members.map((member) => (
               <div
                 key={member.id}
-                className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow border-2 border-gray-100 overflow-hidden"
+                className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 transition-all border-2 border-white/20 overflow-hidden hover:-translate-y-1"
               >
                 {/* Card Header */}
                 <div className="p-5 border-b border-gray-100">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+                    <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center text-white font-bold text-xl flex-shrink-0 shadow-lg">
                       {member.user_name?.charAt(0) || member.name?.charAt(0) || 'U'}
                     </div>
                     <div className="flex-1 min-w-0">
