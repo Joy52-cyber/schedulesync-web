@@ -25,6 +25,7 @@ import ResetPassword from './pages/ResetPassword';
 import VerifyEmail from './pages/VerifyEmail';
 import OAuthCallback from './pages/OAuthCallback';
 import OnboardingWizard from './pages/OnboardingWizard';
+import Onboarding from './pages/Onboarding';
 import AdminPanel from './pages/AdminPanel';
 import AcceptInvite from './pages/AcceptInvite';
 
@@ -78,13 +79,20 @@ function LoginWrapper({ Component }) {
   const navigate = useNavigate();
 
   const handleLogin = (token, user) => {
-    console.log('🔐 LoginWrapper received:', { 
-      token: token?.substring(0, 20) + '...', 
-      user: user?.email 
+    console.log('🔐 LoginWrapper received:', {
+      token: token?.substring(0, 20) + '...',
+      user: user?.email,
+      onboarded: user?.onboarded
     });
-    
+
     login(token, user);
-    navigate('/dashboard', { replace: true });
+
+    // Check if user needs to complete onboarding
+    if (user?.onboarded === false) {
+      navigate('/onboarding', { replace: true });
+    } else {
+      navigate('/dashboard', { replace: true });
+    }
   };
 
   return <Component onLogin={handleLogin} />;
@@ -127,7 +135,7 @@ function InnerApp() {
               {/* Onboarding */}
               <Route path="/onboarding" element={
                 <ProtectedRoute>
-                  <OnboardingWizard />
+                  <Onboarding />
                 </ProtectedRoute>
               } />
 

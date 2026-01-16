@@ -54,6 +54,7 @@ const teamMembersRoutes = require('../routes/team-members');
 const subscriptionRoutes = require('../routes/subscription');
 const analyticsRoutes = require('../routes/analytics');
 const emailWebhookRoutes = require('../routes/emailWebhook');
+const usersRoutes = require('../routes/users');
 
 // Register core routes
 app.use('/api/auth', authRoutes);
@@ -77,6 +78,7 @@ app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/user', settingsRoutes);  // User settings share settings router
 app.use('/api/user', subscriptionRoutes);  // User subscription routes
+app.use('/api/users', usersRoutes);  // User onboarding and management
 app.use('/api/autonomous-settings', settingsRoutes);  // Autonomous settings
 app.use('/api/admin', adminRoutes);
 app.use('/api/scheduling-rules', rulesRoutes);

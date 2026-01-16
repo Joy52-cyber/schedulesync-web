@@ -62,7 +62,13 @@ export default function AuthPage() {
           saveLoginMethod('email');
           localStorage.setItem('token', response.data.token);
           localStorage.setItem('user', JSON.stringify(response.data.user));
-          navigate('/dashboard');
+
+          // Check if user needs to complete onboarding
+          if (response.data.user?.onboarded === false) {
+            navigate('/onboarding');
+          } else {
+            navigate('/dashboard');
+          }
         }
       } else {
         if (!agreeTerms) {
@@ -75,7 +81,13 @@ export default function AuthPage() {
           saveLoginMethod('email');
           localStorage.setItem('token', response.data.token);
           localStorage.setItem('user', JSON.stringify(response.data.user));
-          navigate('/dashboard');
+
+          // New users should go through onboarding
+          if (response.data.user?.onboarded === false) {
+            navigate('/onboarding');
+          } else {
+            navigate('/dashboard');
+          }
         } else {
           setSuccess('Account created! Please check your email to verify.');
           setActiveTab('login');
