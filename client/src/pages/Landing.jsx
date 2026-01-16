@@ -215,7 +215,7 @@ export default function Landing() {
           </h1>
 
           <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto mb-12 leading-relaxed">
-            While Calendly adds more settings, TruCal just works.
+            While other calendars add more settings, TruCal just works.
           </p>
 
           {/* Email Bot Highlight */}
