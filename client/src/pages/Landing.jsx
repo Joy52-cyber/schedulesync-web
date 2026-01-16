@@ -44,7 +44,7 @@ export default function Landing() {
       icon: Clock,
       title: 'Smart Availability',
       description: 'Set buffer times, booking caps, and custom hours. Your calendar, your rules—without the complexity.',
-      stat: 'Starter+',
+      stat: 'Plus+',
       color: 'from-blue-500 to-cyan-500',
       demo: 'Simple controls that just work'
     },
@@ -75,7 +75,7 @@ export default function Landing() {
       popular: false,
     },
     {
-      name: 'Starter',
+      name: 'Plus',
       price: '$8',
       period: '/month',
       description: 'For active professionals',
@@ -86,7 +86,7 @@ export default function Landing() {
         'Buffer times & booking caps',
         'Multiple event types',
       ],
-      cta: 'Upgrade to Starter',
+      cta: 'Upgrade to Plus',
       popular: true,
       badge: 'MOST POPULAR'
     },
@@ -97,7 +97,7 @@ export default function Landing() {
       description: 'For power users',
       features: [
         'Unlimited AI',
-        'Everything in Starter',
+        'Everything in Plus',
         'Natural language rules',
         'Auto-rescheduling',
         'Guest seats',
@@ -276,27 +276,15 @@ export default function Landing() {
           <div className="relative max-w-5xl mx-auto">
             <div className="relative rounded-2xl overflow-hidden shadow-2xl border-8 border-white">
               <div className="bg-gradient-to-br from-purple-100 to-pink-100 aspect-video flex items-center justify-center">
-                <div className="w-full max-w-2xl bg-white rounded-xl shadow-xl p-6 mx-4">
-                  <div className="flex items-center gap-3 mb-6 pb-4 border-b">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center">
-                      <Bot className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <div className="font-bold text-gray-900">AI Scheduler</div>
-                      <div className="text-xs text-gray-500">Always ready to help</div>
+                <div className="space-y-4 w-full max-w-2xl mx-4">
+                  <div className="flex justify-end">
+                    <div className="bg-purple-600 text-white rounded-2xl rounded-tr-sm px-6 py-4 max-w-sm shadow-lg">
+                      Book meeting with john@email.com tomorrow at 2pm
                     </div>
                   </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex justify-end">
-                      <div className="bg-purple-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 max-w-sm text-sm">
-                        Book meeting with john@email.com tomorrow at 2pm
-                      </div>
-                    </div>
-                    <div className="flex justify-start">
-                      <div className="bg-gray-100 text-gray-900 rounded-2xl rounded-tl-sm px-4 py-3 max-w-sm text-sm">
-                        ✅ Done! Meeting scheduled with john@email.com for tomorrow at 2:00 PM. Confirmation emails sent.
-                      </div>
+                  <div className="flex justify-start">
+                    <div className="bg-white text-gray-900 rounded-2xl rounded-tl-sm px-6 py-4 max-w-sm shadow-lg">
+                      ✅ Done! Meeting scheduled with john@email.com for tomorrow at 2:00 PM. Confirmation emails sent.
                     </div>
                   </div>
                 </div>
@@ -329,7 +317,7 @@ export default function Landing() {
               A smarter alternative to
             </p>
             <div className="flex flex-wrap items-center justify-center gap-12 opacity-60">
-              <div className="text-2xl font-bold text-gray-400">Calendly</div>
+              <div className="text-2xl font-bold text-gray-400">Other Calendars</div>
               <div className="text-2xl font-bold text-gray-400">Cal.com</div>
               <div className="text-2xl font-bold text-gray-400">HubSpot</div>
               <div className="text-2xl font-bold text-gray-400">Acuity</div>
@@ -402,7 +390,7 @@ export default function Landing() {
                   onClick={() => navigate('/register')}
                   className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-lg font-bold hover:shadow-xl transition-all transform hover:scale-105 flex items-center gap-2"
                 >
-                  Try it now - CC schedule@mg.trucal.xyz
+                  Try it now
                   <ArrowRight className="w-5 h-5" />
                 </button>
               </div>
@@ -480,7 +468,7 @@ export default function Landing() {
               <div className="absolute -top-4 -right-4 px-4 py-2 bg-green-500 text-white rounded-full font-bold text-sm shadow-lg transform rotate-6">
                 ✓ Zero apps
               </div>
-              <div className="absolute -bottom-4 -left-4 px-4 py-2 bg-yellow-400 text-yellow-900 rounded-full font-bold text-sm shadow-lg transform -rotate-6">
+              <div className="absolute -bottom-4 -left-4 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full font-bold text-sm shadow-xl transform -rotate-6 animate-pulse">
                 ⚡ Instant
               </div>
             </div>
@@ -605,7 +593,7 @@ export default function Landing() {
               onClick={() => navigate('/register')}
               className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-lg font-bold hover:shadow-xl transition-all transform hover:scale-105"
             >
-              Try it now - CC schedule@mg.trucal.xyz
+              Try it now
             </button>
             <p className="text-sm text-gray-500 mt-4">
               Free forever • No credit card • 30-second setup
@@ -865,11 +853,8 @@ export default function Landing() {
           <h2 className="text-4xl md:text-6xl font-extrabold mb-6">
             Ready to schedule smarter?
           </h2>
-          <p className="text-xl text-purple-100 mb-4 max-w-2xl mx-auto">
+          <p className="text-xl text-purple-100 mb-8 max-w-2xl mx-auto">
             Join professionals who've ditched the back-and-forth emails.
-          </p>
-          <p className="text-lg text-white/90 font-semibold mb-8 max-w-2xl mx-auto">
-            Just CC <span className="bg-white/20 px-3 py-1 rounded-lg font-mono">schedule@mg.trucal.xyz</span> on your next email.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
