@@ -90,7 +90,8 @@ router.post('/google', async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name || data.name,
-        onboarded: user.onboarded || false
+        // If onboarded column doesn't exist, infer from username existence
+        onboarded: user.onboarded !== undefined ? user.onboarded || false : !!user.username
       }
     });
 
@@ -216,7 +217,8 @@ router.post('/register', async (req, res) => {
         email: user.email,
         name: user.name,
         emailVerified: false,
-        onboarded: user.onboarded || false
+        // If onboarded column doesn't exist, infer from username existence
+        onboarded: user.onboarded !== undefined ? user.onboarded || false : !!user.username
       },
       token,
       message: 'Registration successful! Please check your email to verify your account.'
@@ -390,7 +392,8 @@ router.post('/login', async (req, res) => {
         name: user.name,
         username: user.username,
         calendar_sync_enabled: user.calendar_sync_enabled,
-        onboarded: user.onboarded !== false
+        // If onboarded column doesn't exist, infer from username existence
+        onboarded: user.onboarded !== undefined ? user.onboarded !== false : !!user.username
       },
       token
     });

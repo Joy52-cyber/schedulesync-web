@@ -187,7 +187,8 @@ router.post('/google/callback', async (req, res) => {
         name: user.name,
         username: user.username,
         calendar_sync_enabled: user.calendar_sync_enabled,
-        onboarded: user.onboarded !== false
+        // If onboarded column doesn't exist, infer from username existence
+        onboarded: user.onboarded !== undefined ? user.onboarded !== false : !!user.username
       },
       token: jwtToken,
     });
@@ -360,7 +361,8 @@ router.post('/microsoft/callback', async (req, res) => {
         name: finalUser.name,
         username: finalUser.username,
         calendar_sync_enabled: finalUser.calendar_sync_enabled,
-        onboarded: finalUser.onboarded !== false
+        // If onboarded column doesn't exist, infer from username existence
+        onboarded: finalUser.onboarded !== undefined ? finalUser.onboarded !== false : !!finalUser.username
       },
       token: jwtToken,
     });

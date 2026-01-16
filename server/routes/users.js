@@ -30,27 +30,43 @@ router.post('/onboarding', authenticateToken, async (req, res) => {
     }
 
     // Update user with onboarding data
-    await pool.query(
-      `UPDATE users
-       SET username = $1,
-           timezone = $2,
-           available_from = $3,
-           available_to = $4,
-           work_days = $5,
-           onboarded = true
-       WHERE id = $6`,
-      [username, timezone, availableFrom, availableTo, JSON.stringify(workDays), req.user.id]
-    );
+    // Try with all columns first, fallback to basic update if columns don't exist
+    try {
+      await pool.query(
+        `UPDATE users
+         SET username = $1,
+             timezone = $2,
+             available_from = $3,
+             available_to = $4,
+             work_days = $5,
+             onboarded = true
+         WHERE id = $6`,
+        [username, timezone, availableFrom, availableTo, JSON.stringify(workDays), req.user.id]
+      );
+    } catch (dbError) {
+      // If columns don't exist yet, just update username and timezone
+      console.warn('Some onboarding columns missing, using fallback update:', dbError.message);
+      await pool.query(
+        `UPDATE users
+         SET username = $1,
+             timezone = $2
+         WHERE id = $3`,
+        [username, timezone, req.user.id]
+      );
+    }
 
     // Get updated user data
     const result = await pool.query(
-      'SELECT id, name, email, username, timezone, onboarded FROM users WHERE id = $1',
+      'SELECT id, name, email, username, timezone FROM users WHERE id = $1',
       [req.user.id]
     );
 
     res.json({
       success: true,
-      user: result.rows[0],
+      user: {
+        ...result.rows[0],
+        onboarded: true  // Always return true since they just completed onboarding
+      },
       message: 'Onboarding completed successfully'
     });
   } catch (error) {
