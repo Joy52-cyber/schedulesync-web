@@ -25,7 +25,7 @@ export default function Landing() {
     {
       icon: Mail,
       title: 'Email Bot',
-      description: 'CC yourname@mg.trucal.xyz on any email thread. Our AI proposes times, handles replies, and books automatically. Works with Gmail, Outlook, Apple Mail—any email client.',
+      description: 'CC schedule@mg.trucal.xyz on any email thread. Our AI proposes times, handles replies, and books automatically. Works with Gmail, Outlook, Apple Mail—any email client.',
       stat: 'All plans',
       color: 'from-purple-500 to-pink-500',
       demo: 'Zero apps to install • AI handles back-and-forth • One-click booking',
@@ -230,7 +230,7 @@ export default function Landing() {
                 <h3 className="text-xl font-bold text-gray-900">Email Bot</h3>
               </div>
               <p className="text-gray-700 mb-2">
-                Just CC <span className="bg-purple-100 px-2 py-1 rounded font-mono text-purple-700 font-semibold">yourname@mg.trucal.xyz</span> on any email
+                Just CC <span className="bg-purple-100 px-2 py-1 rounded font-mono text-purple-700 font-semibold">schedule@mg.trucal.xyz</span> on any email
               </p>
               <p className="text-sm text-gray-600">
                 AI proposes times, handles replies, books automatically
@@ -350,8 +350,8 @@ export default function Landing() {
                   1
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">CC yourname@mg.trucal.xyz on any email</h3>
-                  <p className="text-gray-600">Works with Gmail, Outlook, Apple Mail, or any email client. Just add your personalized bot email to CC.</p>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">CC schedule@mg.trucal.xyz on any email</h3>
+                  <p className="text-gray-600">Works with Gmail, Outlook, Apple Mail, or any email client. Just add the bot to CC.</p>
                 </div>
               </div>
 
@@ -414,7 +414,7 @@ export default function Landing() {
                       <span className="text-gray-500 w-12">CC:</span>
                       <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-lg font-mono text-xs font-bold inline-flex items-center gap-2">
                         <Sparkles className="w-3 h-3" />
-                        yourname@mg.trucal.xyz
+                        schedule@mg.trucal.xyz
                       </span>
                     </div>
                     <div className="flex items-start gap-2">
@@ -438,7 +438,7 @@ export default function Landing() {
                       </div>
                       <div>
                         <p className="font-bold text-gray-900 text-sm">TruCal Scheduling Assistant</p>
-                        <p className="text-xs text-gray-500">via yourname@mg.trucal.xyz</p>
+                        <p className="text-xs text-gray-500">via schedule@mg.trucal.xyz</p>
                       </div>
                     </div>
                     <p className="text-sm text-gray-700 mb-3">
@@ -553,7 +553,7 @@ export default function Landing() {
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900">Just CC the bot</p>
-                      <p className="text-sm text-gray-600">yourname@mg.trucal.xyz</p>
+                      <p className="text-sm text-gray-600">schedule@mg.trucal.xyz</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
