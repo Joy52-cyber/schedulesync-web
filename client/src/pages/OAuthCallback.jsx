@@ -1,8 +1,8 @@
 // client/src/pages/OAuthCallback.jsx
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
 import { oauth, api } from '../utils/api';
+import SigningYouInScreen from '../components/SigningYouInScreen';
 
 // CRITICAL: Module-level guard survives component re-renders
 const processedCodes = new Set();
@@ -185,17 +185,7 @@ export default function OAuthCallback({ onLogin }) {
     };
   }, [navigate, searchParams, location, onLogin]);
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
-      <div className="text-center">
-        <Loader2 className="h-12 w-12 text-white animate-spin mx-auto mb-4" />
-        <p className="text-white text-lg font-medium">Signing you in...</p>
-        <p className="text-white text-sm mt-2 opacity-80">
-          This should only take a moment
-        </p>
-      </div>
-    </div>
-  );
+  return <SigningYouInScreen />;
 }
 
 
