@@ -5,9 +5,31 @@ export default function About() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      <style>{`
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+      `}</style>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
+      <header className="bg-white/80 backdrop-blur-xl border-b border-white/20 relative z-10">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <button 
             onClick={() => navigate('/')}
@@ -20,7 +42,7 @@ export default function About() {
       </header>
 
       {/* Hero */}
-      <section className="bg-gradient-to-br from-purple-600 to-pink-600 text-white py-20">
+      <section className="bg-gradient-to-br from-purple-600 to-pink-600 text-white py-20 relative z-10">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <div className="flex items-center justify-center gap-3 mb-6">
             <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
@@ -29,18 +51,18 @@ export default function About() {
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold mb-4">About ScheduleSync</h1>
           <p className="text-xl text-purple-100 max-w-2xl mx-auto">
-            We're building the future of scheduling—where AI handles the back-and-forth so you can focus on what matters.
+            We're building the future of schedulingï¿½where AI handles the back-and-forth so you can focus on what matters.
           </p>
         </div>
       </section>
 
       {/* Content */}
-      <main className="max-w-4xl mx-auto px-4 py-16">
+      <main className="max-w-4xl mx-auto px-4 py-16 relative z-10">
         
         {/* Our Story */}
         <section className="mb-16">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Our Story</h2>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border-2 border-white/20 p-8">
             <p className="text-gray-600 mb-4 leading-relaxed">
               ScheduleSync was born from a simple frustration: scheduling meetings shouldn't require 10 emails back and forth. 
               We believed there had to be a better way.
@@ -51,7 +73,7 @@ export default function About() {
             </p>
             <p className="text-gray-600 leading-relaxed">
               We asked: <strong>What if you could just tell an AI what you need, and it would handle the rest?</strong> 
-              That's why we built ScheduleSync with AI at its core—not as an afterthought, but as the foundation.
+              That's why we built ScheduleSync with AI at its coreï¿½not as an afterthought, but as the foundation.
             </p>
           </div>
         </section>
@@ -60,7 +82,7 @@ export default function About() {
         <section className="mb-16">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">What Makes Us Different</h2>
           <div className="grid md:grid-cols-2 gap-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border-2 border-white/20 p-6">
               <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mb-4">
                 <Bot className="w-6 h-6 text-white" />
               </div>
@@ -71,7 +93,7 @@ export default function About() {
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border-2 border-white/20 p-6">
               <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mb-4">
                 <Zap className="w-6 h-6 text-white" />
               </div>
@@ -82,7 +104,7 @@ export default function About() {
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border-2 border-white/20 p-6">
               <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mb-4">
                 <Shield className="w-6 h-6 text-white" />
               </div>
@@ -93,13 +115,13 @@ export default function About() {
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border-2 border-white/20 p-6">
               <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center mb-4">
                 <Users className="w-6 h-6 text-white" />
               </div>
               <h3 className="font-bold text-gray-900 mb-2">Built for Teams</h3>
               <p className="text-gray-600 text-sm">
-                Round-robin assignments, collective availability, team booking pages—we've got you covered 
+                Round-robin assignments, collective availability, team booking pagesï¿½we've got you covered 
                 whether you're solo or a growing team.
               </p>
             </div>
@@ -109,7 +131,7 @@ export default function About() {
         {/* Our Values */}
         <section className="mb-16">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Our Values</h2>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border-2 border-white/20 p-8">
             <ul className="space-y-4">
               <li className="flex items-start gap-4">
                 <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">

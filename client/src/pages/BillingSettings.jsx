@@ -159,8 +159,31 @@ export default function BillingSettings() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <style>{`
+          @keyframes blob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+          }
+          .animate-blob {
+            animation: blob 7s infinite;
+          }
+          .animation-delay-2000 {
+            animation-delay: 2s;
+          }
+          .animation-delay-4000 {
+            animation-delay: 4s;
+          }
+        `}</style>
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <div className="text-center relative z-10">
           <RefreshCw className="h-8 w-8 animate-spin text-purple-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading billing information...</p>
         </div>
@@ -173,14 +196,38 @@ export default function BillingSettings() {
   const isCancelled = subscription?.status === 'cancelled';
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <style>{`
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+      `}</style>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white/80 backdrop-blur-xl shadow-sm border-b border-white/20 relative z-10">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/settings')}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-purple-100 rounded-lg transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
@@ -192,10 +239,10 @@ export default function BillingSettings() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8 relative z-10">
         
         {/* Current Plan Status */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border-2 border-white/20">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900">Current Plan</h2>
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${
@@ -291,7 +338,7 @@ export default function BillingSettings() {
             {currentTier === 'free' && (
               <button
                 onClick={() => handleUpgrade('pro')}
-                className="bg-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors flex items-center gap-2"
+                className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-2 rounded-lg font-medium hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all flex items-center gap-2"
               >
                 <Zap className="h-4 w-4" />
                 Upgrade to Pro - $15/month
@@ -301,7 +348,7 @@ export default function BillingSettings() {
             {currentTier === 'pro' && (
               <button
                 onClick={() => handleUpgrade('team')}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+                className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-2 rounded-lg font-medium hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all flex items-center gap-2"
               >
                 <Users className="h-4 w-4" />
                 Upgrade to Team - $20/user/month
@@ -340,7 +387,7 @@ export default function BillingSettings() {
 
         {/* Available Plans */}
         {currentTier === 'free' && (
-          <div className="bg-white rounded-2xl p-6 shadow-sm border">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border-2 border-white/20">
             <h2 className="text-xl font-bold text-gray-900 mb-6">Available Plans</h2>
             
             <div className="grid md:grid-cols-2 gap-6">
@@ -373,16 +420,16 @@ export default function BillingSettings() {
                 
                 <button
                   onClick={() => handleUpgrade('pro')}
-                  className="w-full bg-purple-600 text-white py-3 rounded-lg font-medium hover:bg-purple-700 transition-colors"
+                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-medium hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all"
                 >
                   Upgrade to Pro
                 </button>
               </div>
 
               {/* Team Plan */}
-              <div className="border-2 border-blue-200 rounded-xl p-6 hover:border-blue-300 transition-colors">
+              <div className="border-2 border-pink-200 rounded-xl p-6 hover:border-pink-300 transition-colors">
                 <div className="text-center mb-6">
-                  <h3 className="text-xl font-bold text-blue-600 mb-2">👑 Team Plan</h3>
+                  <h3 className="text-xl font-bold text-pink-600 mb-2">👑 Team Plan</h3>
                   <div className="text-3xl font-bold text-gray-900 mb-2">$25<span className="text-lg text-gray-600">/month</span></div>
                   <p className="text-gray-600">For teams and organizations</p>
                 </div>
@@ -408,7 +455,7 @@ export default function BillingSettings() {
                 
                 <button
                   onClick={() => handleUpgrade('team')}
-                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-medium hover:shadow-2xl hover:shadow-purple-200/50 hover:-translate-y-0.5 transition-all"
                 >
                   Upgrade to Team
                 </button>
@@ -418,7 +465,7 @@ export default function BillingSettings() {
         )}
 
         {/* Billing History */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border-2 border-white/20">
           <h2 className="text-xl font-bold text-gray-900 mb-6">Billing History</h2>
           
           {invoices.length === 0 ? (
@@ -479,8 +526,8 @@ export default function BillingSettings() {
 
       {/* Cancel Subscription Modal */}
       {showCancelModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md mx-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white/90 backdrop-blur-xl rounded-2xl p-6 max-w-md mx-4 shadow-2xl border-2 border-white/20">
             <div className="text-center">
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <AlertTriangle className="h-8 w-8 text-red-600" />

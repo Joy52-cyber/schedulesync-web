@@ -206,9 +206,31 @@ This is a demo with simulated responses. Sign up to connect your real calendar!`
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
+      <style>{`
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+      `}</style>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-600 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob animation-delay-4000"></div>
+      </div>
       {/* Header */}
-      <div className="border-b border-white/10 backdrop-blur-sm bg-black/20">
+      <div className="border-b border-white/10 backdrop-blur-sm bg-black/20 relative z-10">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <button onClick={() => navigate('/')} className="flex items-center gap-2 text-white hover:opacity-80 transition-opacity">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
@@ -231,7 +253,7 @@ This is a demo with simulated responses. Sign up to connect your real calendar!`
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
+      <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8 relative z-10">
         {/* Chat Container */}
         <div className="bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
           {/* Chat Header */}
