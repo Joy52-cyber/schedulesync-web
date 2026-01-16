@@ -63,14 +63,13 @@ export default function Landing() {
       name: 'Free',
       price: '$0',
       period: '',
-      description: 'Perfect to get started',
+      description: 'Free forever',
       features: [
-        '10 AI actions/month',
-        '1 booking page',
-        '2 temporary links/month',
+        'Unlimited bookings',
+        'Limited AI use',
         'Google & Outlook sync',
         'Email reminders',
-        'Custom URL (trucal.xyz/you)',
+        'Custom URL',
       ],
       cta: 'Start Free',
       popular: false,
@@ -81,12 +80,11 @@ export default function Landing() {
       period: '/month',
       description: 'For active professionals',
       features: [
-        '50 AI actions/month',
-        'Unlimited temporary links',
         'Email Bot (CC to schedule)',
-        'AI time suggestions',
-        'Email draft suggestions',
+        'Unlimited temporary links',
+        'Advanced AI features',
         'Buffer times & booking caps',
+        'Multiple event types',
       ],
       cta: 'Upgrade to Starter',
       popular: true,
@@ -98,11 +96,11 @@ export default function Landing() {
       period: '/month',
       description: 'For power users',
       features: [
-        '250 AI actions/month',
+        'Unlimited AI',
         'Everything in Starter',
         'Natural language rules',
-        'Auto-rescheduling suggestions',
-        '1 guest seat included',
+        'Auto-rescheduling',
+        'Guest seats',
       ],
       cta: 'Go Pro',
       popular: false,
@@ -113,7 +111,6 @@ export default function Landing() {
       period: '/user/month',
       description: 'For growing teams',
       features: [
-        '750 AI actions pooled (per 5 users)',
         'Round-robin distribution',
         'Team availability pooling',
         'Routing & load balancing',
@@ -129,7 +126,7 @@ export default function Landing() {
       period: '',
       description: 'For large organizations',
       features: [
-        'Unlimited AI actions',
+        'Unlimited AI',
         'Full autonomous mode',
         'SSO, SCIM, audit logs',
         'Calendly migration assistance',
@@ -739,32 +736,32 @@ export default function Landing() {
             ))}
           </div>
 
-          {/* What are AI Actions Explainer */}
+          {/* AI Features Explainer */}
           <div className="mt-16 max-w-3xl mx-auto">
             <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-8 border-2 border-purple-200">
               <h3 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <Sparkles className="w-6 h-6 text-purple-600" />
-                What are AI Actions?
+                What does TruCal AI do for you?
               </h3>
               <p className="text-gray-700 mb-4">
-                AI Actions count when TruCal works for you:
+                TruCal's AI handles scheduling so you don't have to:
               </p>
               <ul className="space-y-2 text-gray-700">
                 <li className="flex items-start gap-2">
                   <span className="text-purple-600">•</span>
-                  <span>Suggesting optimal times across calendars</span>
+                  <span>Suggests optimal times based on your calendar</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-purple-600">•</span>
-                  <span>Auto-rescheduling conflicts</span>
+                  <span>Automatically reschedules when conflicts arise</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-purple-600">•</span>
-                  <span>Drafting email replies</span>
+                  <span>Drafts professional email replies</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-purple-600">•</span>
-                  <span>Applying your scheduling rules</span>
+                  <span>Applies your scheduling rules in natural language</span>
                 </li>
               </ul>
             </div>
