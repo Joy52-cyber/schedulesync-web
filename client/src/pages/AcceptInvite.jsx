@@ -142,9 +142,32 @@ export default function AcceptInvite() {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-indigo-600 mx-auto mb-4" />
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center relative overflow-hidden">
+        {/* Animated Background Blobs */}
+        <style>{`
+          @keyframes blob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+          }
+          .animate-blob {
+            animation: blob 7s infinite;
+          }
+          .animation-delay-2000 {
+            animation-delay: 2s;
+          }
+          .animation-delay-4000 {
+            animation-delay: 4s;
+          }
+        `}</style>
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+        <div className="text-center relative z-10">
+          <Loader2 className="h-12 w-12 animate-spin text-purple-600 mx-auto mb-4" />
           <p className="text-gray-600 font-medium">Loading invitation...</p>
         </div>
       </div>
@@ -154,7 +177,7 @@ export default function AcceptInvite() {
   // Error states
   if (error && !invitation) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             {errorCode === 'EXPIRED' ? (
@@ -188,14 +211,14 @@ export default function AcceptInvite() {
   // Success state
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="h-10 w-10 text-green-600" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome to the Team! 🎉</h1>
           <p className="text-gray-600 mb-4">{successMessage}</p>
-          <div className="flex items-center justify-center gap-2 text-indigo-600">
+          <div className="flex items-center justify-center gap-2 text-purple-600">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span>Redirecting to dashboard...</span>
           </div>
@@ -206,11 +229,11 @@ export default function AcceptInvite() {
 
   // Main invitation view
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden max-w-lg w-full">
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-8 text-center text-white">
+        <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-8 text-center text-white">
           <div className="w-16 h-16 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Users className="h-8 w-8" />
           </div>
@@ -225,7 +248,7 @@ export default function AcceptInvite() {
           <div className="bg-indigo-50 rounded-xl p-4 mb-6">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Building2 className="h-6 w-6 text-indigo-600" />
+                <Building2 className="h-6 w-6 text-purple-600" />
               </div>
               <div>
                 <h2 className="font-bold text-gray-900 text-lg">{invitation.team.name}</h2>
@@ -271,7 +294,7 @@ export default function AcceptInvite() {
               <button
                 onClick={handleAcceptLoggedIn}
                 disabled={accepting}
-                className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {accepting ? (
                   <>
@@ -314,7 +337,7 @@ export default function AcceptInvite() {
               
               <Link
                 to={`/login?redirect=/invite/${token}`}
-                className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2"
               >
                 Log In to Accept
                 <ArrowRight className="h-5 w-5" />
@@ -404,7 +427,7 @@ export default function AcceptInvite() {
               <button
                 type="submit"
                 disabled={accepting}
-                className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {accepting ? (
                   <>
