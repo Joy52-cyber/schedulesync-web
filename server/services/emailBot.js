@@ -22,9 +22,9 @@ const mg = mailgun.client({
   key: process.env.MAILGUN_API_KEY || ''
 });
 
-// Main bot email address
-const BOT_EMAIL = process.env.BOT_EMAIL || 'schedule@mg.trucal.xyz';
+// Bot name (email will be dynamic per user)
 const BOT_NAME = 'TruCal Scheduling Assistant';
+const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || 'mg.trucal.xyz';
 
 /**
  * Process an inbound email to the bot
@@ -111,39 +111,38 @@ async function processInboundEmail(emailData) {
 
 /**
  * Identify which TruCal user this email is for
- * Looks for bot email in To/CC and matches other recipients to users
+ * Looks for {username}@mg.trucal.xyz in To/CC and looks up user by username
  */
 async function identifyTruCalUser(to, cc) {
   const allRecipients = [...(to || []), ...(cc || [])];
 
-  // Check if our bot email is in recipients
-  const hasBotEmail = allRecipients.some(r =>
-    r.email.toLowerCase().includes('schedule@') ||
-    r.email.toLowerCase().includes('trucal')
-  );
+  // Find email matching our domain and extract username
+  for (const recipient of allRecipients) {
+    const email = recipient.email?.toLowerCase();
+    if (email?.endsWith('@mg.trucal.xyz')) {
+      // Extract username from email (e.g., joylacaba@mg.trucal.xyz -> joylacaba)
+      const username = email.split('@')[0];
 
-  if (!hasBotEmail) {
-    return null;
+      console.log(`🔍 Extracted username from bot email: ${username}`);
+
+      // Look up user by username
+      const result = await pool.query(`
+        SELECT id, email, name, username, timezone
+        FROM users
+        WHERE LOWER(username) = $1
+        LIMIT 1
+      `, [username]);
+
+      if (result.rows[0]) {
+        console.log(`✅ Found user by username: ${result.rows[0].email}`);
+        return result.rows[0];
+      } else {
+        console.log(`❌ No user found with username: ${username}`);
+      }
+    }
   }
 
-  // Find TruCal user from other recipients
-  const otherEmails = allRecipients
-    .filter(r => !r.email.toLowerCase().includes('trucal'))
-    .map(r => r.email.toLowerCase());
-
-  if (otherEmails.length === 0) {
-    return null;
-  }
-
-  // Query for user
-  const result = await pool.query(`
-    SELECT id, email, name, username, timezone
-    FROM users
-    WHERE LOWER(email) = ANY($1)
-    LIMIT 1
-  `, [otherEmails]);
-
-  return result.rows[0] || null;
+  return null;
 }
 
 /**
@@ -781,34 +780,37 @@ async function sendBotResponse(thread, user, response, originalEmail) {
 
   // Also CC the TruCal user
   const ccList = [user.email];
-  const mailgunDomain = process.env.MAILGUN_DOMAIN || 'mg.trucal.xyz';
+
+  // Generate dynamic FROM email based on user's username
+  const fromEmail = `${user.username}@${MAILGUN_DOMAIN}`;
+  const fromName = BOT_NAME;
 
   try {
     // Send via Mailgun
     const messageData = {
-      from: `${BOT_NAME} <${BOT_EMAIL}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: recipients,
       cc: ccList,
       subject: response.subject,
       html: response.body,
-      'h:Reply-To': BOT_EMAIL,
+      'h:Reply-To': fromEmail,
       'h:In-Reply-To': originalEmail.messageId || '',
       'h:References': originalEmail.messageId || ''
     };
 
-    const result = await mg.messages.create(mailgunDomain, messageData);
+    const result = await mg.messages.create(MAILGUN_DOMAIN, messageData);
     console.log(`📤 Mailgun response:`, result);
 
     // Store outbound message
     await storeMessage(thread.id, 'outbound', {
-      from: { email: BOT_EMAIL, name: BOT_NAME },
+      from: { email: fromEmail, name: fromName },
       to: recipients.map(e => ({ email: e })),
       subject: response.subject,
       html: response.body,
-      messageId: result.id || `bot-${Date.now()}@${mailgunDomain}`
+      messageId: result.id || `bot-${Date.now()}@${MAILGUN_DOMAIN}`
     });
 
-    console.log(`📤 Sent bot response to: ${recipients.join(', ')}`);
+    console.log(`📤 Sent bot response from ${fromEmail} to: ${recipients.join(', ')}`);
   } catch (error) {
     console.error('❌ Failed to send bot response:', error);
     throw error;
@@ -819,6 +821,6 @@ module.exports = {
   processInboundEmail,
   getBotSettings,
   updateBotSettings,
-  BOT_EMAIL,
-  BOT_NAME
+  BOT_NAME,
+  MAILGUN_DOMAIN
 };

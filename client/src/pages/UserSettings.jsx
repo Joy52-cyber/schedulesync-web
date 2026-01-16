@@ -108,7 +108,7 @@ export default function UserSettings() {
     max_slots_to_show: 5,
     intro_message: "I'm helping {{hostName}} find a time for your meeting.",
     signature: 'Powered by TruCal',
-    bot_email: 'schedule@mg.trucal.xyz'
+    bot_email: 'yourname@mg.trucal.xyz'
   });
   const [emailBotLoading, setEmailBotLoading] = useState(false);
   const [emailBotCopied, setEmailBotCopied] = useState(false);
@@ -245,7 +245,7 @@ export default function UserSettings() {
   };
 
   const copyBotEmail = () => {
-    navigator.clipboard.writeText(emailBotSettings.bot_email || 'schedule@mg.trucal.xyz');
+    navigator.clipboard.writeText(emailBotSettings.bot_email || 'yourname@mg.trucal.xyz');
     setEmailBotCopied(true);
     setTimeout(() => setEmailBotCopied(false), 2000);
   };
@@ -1109,7 +1109,7 @@ export default function UserSettings() {
                 <p className="text-sm text-gray-600 mb-2">Your scheduling email:</p>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 px-4 py-2 bg-white rounded-lg font-mono text-green-700 text-sm border border-green-200">
-                    {emailBotSettings.bot_email || 'schedule@mg.trucal.xyz'}
+                    {emailBotSettings.bot_email || 'yourname@mg.trucal.xyz'}
                   </code>
                   <button
                     onClick={copyBotEmail}
@@ -1130,7 +1130,7 @@ export default function UserSettings() {
                 <ol className="space-y-2 text-sm text-gray-600">
                   <li className="flex items-start gap-2">
                     <span className="w-5 h-5 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">1</span>
-                    CC <span className="font-mono text-green-700">schedule@mg.trucal.xyz</span> in an email thread
+                    CC <span className="font-mono text-green-700">{emailBotSettings.bot_email || 'yourname@mg.trucal.xyz'}</span> in an email thread
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="w-5 h-5 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">2</span>

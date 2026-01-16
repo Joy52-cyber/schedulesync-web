@@ -373,8 +373,13 @@ router.get('/email-bot', authenticateToken, async (req, res) => {
 
     const settings = result.rows[0];
 
-    // Get the bot email address
-    const botEmail = process.env.BOT_EMAIL || 'schedule@mg.trucal.xyz';
+    // Get user's username for personalized bot email
+    const userResult = await pool.query(
+      'SELECT username FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    const username = userResult.rows[0]?.username || 'schedule';
+    const botEmail = `${username}@mg.trucal.xyz`;
 
     res.json({
       success: true,
