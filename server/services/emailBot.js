@@ -8,6 +8,7 @@ const { sendEmail, sendTemplatedEmail } = require('./email');
 const crypto = require('crypto');
 const FormData = require('form-data');
 const Mailgun = require('mailgun.js');
+const { DateTime } = require('luxon');
 const {
   generatePickATimeEmail,
   generateConfirmationEmail,
@@ -392,38 +393,38 @@ async function proposeAvailableTimes(thread, user, settings, intent) {
  */
 async function getAvailableSlots(userId, duration, preferences, maxSlots = 5) {
   const slots = [];
-  const now = new Date();
 
   // Get user timezone
   const userResult = await pool.query('SELECT timezone FROM users WHERE id = $1', [userId]);
   const userTimezone = userResult.rows[0]?.timezone || 'America/New_York';
 
+  // Get current time in user's timezone
+  const nowInUserTz = DateTime.now().setZone(userTimezone);
+
   // Look at next 14 days
   for (let day = 0; day < 14 && slots.length < maxSlots; day++) {
-    const date = new Date(now);
-    date.setDate(date.getDate() + day);
+    // Create date in user's timezone
+    const dateInUserTz = nowInUserTz.plus({ days: day }).startOf('day');
 
     // Skip weekends by default
-    if (date.getDay() === 0 || date.getDay() === 6) continue;
+    if (dateInUserTz.weekday === 6 || dateInUserTz.weekday === 7) continue;
 
     // Check day preferences
-    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const dayName = dateInUserTz.toFormat('EEEE').toLowerCase();
     if (preferences.includes('this_week') && day > 7) continue;
     if (preferences.includes('next_week') && day < 7) continue;
     if (preferences.some(p => ['monday','tuesday','wednesday','thursday','friday'].includes(p))) {
       if (!preferences.includes(dayName)) continue;
     }
 
-    // Get existing bookings for this day
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date);
-    dayEnd.setHours(23, 59, 59, 999);
+    // Get existing bookings for this day (in UTC for database query)
+    const dayStart = dateInUserTz.toUTC().toJSDate();
+    const dayEnd = dateInUserTz.plus({ days: 1 }).toUTC().toJSDate();
 
     const bookings = await pool.query(`
       SELECT start_time, end_time FROM bookings
       WHERE user_id = $1 AND status = 'confirmed'
-        AND start_time >= $2 AND start_time <= $3
+        AND start_time >= $2 AND start_time < $3
     `, [userId, dayStart, dayEnd]);
 
     const bookedSlots = bookings.rows;
@@ -444,30 +445,32 @@ async function getAvailableSlots(userId, duration, preferences, maxSlots = 5) {
     }
 
     for (let hour = startHour; hour < endHour && slots.length < maxSlots; hour++) {
-      const slotStart = new Date(date);
-      slotStart.setHours(hour, 0, 0, 0);
+      // Create slot start time in user's timezone
+      const slotStart = dateInUserTz.set({ hour, minute: 0, second: 0, millisecond: 0 });
+      const slotEnd = slotStart.plus({ minutes: duration });
 
-      const slotEnd = new Date(slotStart);
-      slotEnd.setMinutes(slotEnd.getMinutes() + duration);
+      // Skip if in the past (compare in user's timezone)
+      if (slotStart <= nowInUserTz) continue;
 
-      // Skip if in the past
-      if (slotStart < now) continue;
+      // Convert to UTC for conflict checking
+      const slotStartUTC = slotStart.toUTC().toJSDate();
+      const slotEndUTC = slotEnd.toUTC().toJSDate();
 
       // Skip if conflicts with existing booking
       const hasConflict = bookedSlots.some(b => {
         const bStart = new Date(b.start_time);
         const bEnd = new Date(b.end_time);
-        return slotStart < bEnd && slotEnd > bStart;
+        return slotStartUTC < bEnd && slotEndUTC > bStart;
       });
 
       if (!hasConflict) {
-        // Calculate day label (Today, Tomorrow, or day name)
-        const dayLabel = getDayLabel(slotStart, now);
+        // Calculate day label (Today, Tomorrow, or day name) in user's timezone
+        const dayLabel = getDayLabelLuxon(slotStart, nowInUserTz);
 
         slots.push({
-          start: slotStart.toISOString(),
-          end: slotEnd.toISOString(),
-          formatted: formatSlotForEmail(slotStart, duration),
+          start: slotStart.toUTC().toISO(), // Store as UTC ISO
+          end: slotEnd.toUTC().toISO(),     // Store as UTC ISO
+          formatted: formatSlotForEmailLuxon(slotStart, duration), // Format in user's timezone
           dayLabel: dayLabel
         });
       }
@@ -478,7 +481,7 @@ async function getAvailableSlots(userId, duration, preferences, maxSlots = 5) {
 }
 
 /**
- * Format a time slot for display in email
+ * Format a time slot for display in email (DEPRECATED - use Luxon version)
  */
 function formatSlotForEmail(date, duration) {
   const options = {
@@ -493,7 +496,15 @@ function formatSlotForEmail(date, duration) {
 }
 
 /**
- * Get day label for a time slot (Today, Tomorrow, or day name)
+ * Format a time slot for display in email using Luxon (timezone-aware)
+ */
+function formatSlotForEmailLuxon(dateTime, duration) {
+  // dateTime is already a Luxon DateTime in the user's timezone
+  return dateTime.toFormat('MMM d, h:mm a');
+}
+
+/**
+ * Get day label for a time slot (Today, Tomorrow, or day name) (DEPRECATED - use Luxon version)
  */
 function getDayLabel(slotDate, now) {
   const slotDay = new Date(slotDate);
@@ -514,6 +525,26 @@ function getDayLabel(slotDate, now) {
   } else {
     // Return day name (Monday, Tuesday, etc.)
     return slotDate.toLocaleDateString('en-US', { weekday: 'long' });
+  }
+}
+
+/**
+ * Get day label for a time slot using Luxon (timezone-aware)
+ */
+function getDayLabelLuxon(slotDateTime, nowDateTime) {
+  // Both are Luxon DateTime objects in the same timezone
+  const slotDay = slotDateTime.startOf('day');
+  const nowDay = nowDateTime.startOf('day');
+
+  const daysDiff = Math.floor(slotDay.diff(nowDay, 'days').days);
+
+  if (daysDiff === 0) {
+    return 'Today';
+  } else if (daysDiff === 1) {
+    return 'Tomorrow';
+  } else {
+    // Return day name (Monday, Tuesday, etc.)
+    return slotDateTime.toFormat('EEEE');
   }
 }
 
