@@ -3,10 +3,9 @@ const router = express.Router();
 const crypto = require('crypto');
 const { google } = require('googleapis');
 const pool = require('../config/database');
-const { generateICS } = require('../../icsGenerator');
+const { generateICS } = require('../utils/icsGenerator');
 const { sendTemplatedEmail, buildEmailVariables } = require('../services/email');
 const { applySchedulingRules, shouldAutoConfirm, recordBookingPattern } = require('../services/scheduling');
-const { createCalendarEvent } = require('../../utils/calendar');
 
 // GET /api/public/user/:username - Get user profile and event types for booking page
 router.get('/user/:username', async (req, res) => {
