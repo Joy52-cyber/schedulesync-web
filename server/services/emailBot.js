@@ -111,34 +111,48 @@ async function processInboundEmail(emailData) {
 
 /**
  * Identify which TruCal user this email is for
- * Looks for {username}@mg.trucal.xyz in To/CC and looks up user by username
+ * Looks for {prefix}@mg.trucal.xyz in To/CC and looks up user by bot_email_prefix or username
  */
 async function identifyTruCalUser(to, cc) {
   const allRecipients = [...(to || []), ...(cc || [])];
 
-  // Find email matching our domain and extract username
+  // Find email matching our domain and extract prefix
   for (const recipient of allRecipients) {
     const email = recipient.email?.toLowerCase();
     if (email?.endsWith('@mg.trucal.xyz')) {
-      // Extract username from email (e.g., joylacaba@mg.trucal.xyz -> joylacaba)
-      const username = email.split('@')[0];
+      // Extract prefix from email (e.g., joylacaba@mg.trucal.xyz -> joylacaba)
+      const prefix = email.split('@')[0];
 
-      console.log(`🔍 Extracted username from bot email: ${username}`);
+      console.log(`🔍 Extracted prefix from bot email: ${prefix}`);
 
-      // Look up user by username
-      const result = await pool.query(`
+      // Strategy 1: Look up by bot_email_prefix in settings
+      let result = await pool.query(`
+        SELECT u.id, u.email, u.name, u.username, u.timezone
+        FROM users u
+        JOIN email_bot_settings ebs ON ebs.user_id = u.id
+        WHERE LOWER(ebs.bot_email_prefix) = $1
+        LIMIT 1
+      `, [prefix]);
+
+      if (result.rows[0]) {
+        console.log(`✅ Found user by bot_email_prefix: ${result.rows[0].email}`);
+        return result.rows[0];
+      }
+
+      // Strategy 2: Fall back to username lookup (for backwards compatibility)
+      result = await pool.query(`
         SELECT id, email, name, username, timezone
         FROM users
         WHERE LOWER(username) = $1
         LIMIT 1
-      `, [username]);
+      `, [prefix]);
 
       if (result.rows[0]) {
         console.log(`✅ Found user by username: ${result.rows[0].email}`);
         return result.rows[0];
-      } else {
-        console.log(`❌ No user found with username: ${username}`);
       }
+
+      console.log(`❌ No user found with prefix or username: ${prefix}`);
     }
   }
 
@@ -155,12 +169,35 @@ async function getBotSettings(userId) {
   );
 
   if (result.rows.length === 0) {
-    // Create default settings
+    // Get user's username to use as default bot_email_prefix
+    const userResult = await pool.query(
+      'SELECT username FROM users WHERE id = $1',
+      [userId]
+    );
+    const username = userResult.rows[0]?.username;
+
+    // Create default settings with bot_email_prefix = username
     result = await pool.query(`
-      INSERT INTO email_bot_settings (user_id)
-      VALUES ($1)
+      INSERT INTO email_bot_settings (user_id, bot_email_prefix)
+      VALUES ($1, $2)
       RETURNING *
-    `, [userId]);
+    `, [userId, username]);
+  } else if (!result.rows[0].bot_email_prefix) {
+    // If settings exist but bot_email_prefix is not set, set it to username
+    const userResult = await pool.query(
+      'SELECT username FROM users WHERE id = $1',
+      [userId]
+    );
+    const username = userResult.rows[0]?.username;
+
+    if (username) {
+      result = await pool.query(`
+        UPDATE email_bot_settings
+        SET bot_email_prefix = $1, updated_at = NOW()
+        WHERE user_id = $2
+        RETURNING *
+      `, [username, userId]);
+    }
   }
 
   return result.rows[0];
