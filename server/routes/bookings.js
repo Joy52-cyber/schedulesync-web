@@ -6,7 +6,6 @@ const { applySchedulingRules, shouldBlockBooking } = require('../utils/schedulin
 const { sendBookingEmail, sendTemplatedEmail, buildEmailVariables } = require('../services/email');
 const { generateICS } = require('../utils/icsGenerator');
 const { notifyBookingCancelled, notifyBookingRescheduled } = require('../services/notifications');
-const emailTemplates = require('../emailTemplates');
 
 // GET all bookings for the user
 router.get('/', authenticateToken, async (req, res) => {
