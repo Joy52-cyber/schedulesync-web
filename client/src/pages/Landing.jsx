@@ -23,14 +23,15 @@ export default function Landing() {
 
   const features = [
     {
-      icon: Inbox,
-      title: 'AI Inbox Assistant',
-      description: 'AI monitors your Gmail or Outlook, detects scheduling requests, and auto-drafts replies with your booking link.',
-      stat: 'Save 3hrs/week',
+      icon: Mail,
+      title: 'Email Scheduling Assistant',
+      description: 'CC our AI on any email thread. It proposes times, handles replies, and books automatically. Works with any email client (Gmail, Outlook, Apple Mail).',
+      stat: '✨ Just CC to schedule',
       color: 'from-purple-500 to-pink-500',
-      demo: 'Auto-detects "Can we meet next week?" emails',
+      demo: 'Zero apps to install • AI handles back-and-forth • One-click booking',
       isNew: true,
-      isPro: true
+      isPro: false,
+      badge: 'NEW'
     },
     {
       icon: Bot,
@@ -222,8 +223,12 @@ export default function Landing() {
             <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">in seconds with AI</span>
           </h1>
 
-          <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto mb-12 leading-relaxed">
+          <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto mb-4 leading-relaxed">
             Say goodbye to back-and-forth emails. Our AI assistant books meetings for you instantly—just tell it what you need.
+          </p>
+
+          <p className="text-lg md:text-xl text-purple-600 font-semibold max-w-3xl mx-auto mb-12 leading-relaxed">
+            Just CC <span className="bg-purple-100 px-3 py-1 rounded-lg font-mono">schedule@mg.trucal.xyz</span> on any email. AI handles the rest.
           </p>
 
           {/* CTA Buttons */}
@@ -322,6 +327,282 @@ export default function Landing() {
               <div className="text-2xl font-bold text-gray-400">HubSpot</div>
               <div className="text-2xl font-bold text-gray-400">Acuity</div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= HOW IT WORKS - EMAIL BOT ================= */}
+      <section className="py-24 bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-bold mb-6">
+              <Sparkles className="w-4 h-4" />
+              HOW IT WORKS
+            </div>
+            <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
+              Schedule meetings without leaving your inbox
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Just CC our AI assistant on any email. No apps, no browser tabs, no context switching.
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Left: Steps */}
+            <div className="space-y-6">
+              <div className="flex gap-4 items-start">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+                  1
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">CC schedule@mg.trucal.xyz on any email</h3>
+                  <p className="text-gray-600">Works with Gmail, Outlook, Apple Mail, or any email client. Just add the bot to CC.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 items-start">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+                  2
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">AI proposes available times</h3>
+                  <p className="text-gray-600">Our AI instantly checks your calendar and sends beautifully formatted time options to everyone in the thread.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 items-start">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+                  3
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Recipient clicks to book</h3>
+                  <p className="text-gray-600">They pick a time right from their email. One click, instant booking. No links to open.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 items-start">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+                  4
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Meeting confirmed automatically</h3>
+                  <p className="text-gray-600">Calendar invites sent, confirmations delivered. Zero back-and-forth required.</p>
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <button
+                  onClick={() => navigate('/register')}
+                  className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-lg font-bold hover:shadow-xl transition-all transform hover:scale-105 flex items-center gap-2"
+                >
+                  Try it now - CC schedule@mg.trucal.xyz
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Right: Email Mockup */}
+            <div className="relative">
+              <div className="bg-white rounded-2xl shadow-2xl border-2 border-gray-200 overflow-hidden">
+                {/* Email Header */}
+                <div className="bg-gray-50 p-4 border-b border-gray-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Mail className="w-5 h-5 text-gray-400" />
+                    <span className="font-semibold text-gray-900">New Email</span>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-start gap-2">
+                      <span className="text-gray-500 w-12">To:</span>
+                      <span className="text-gray-900">john@company.com</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="text-gray-500 w-12">CC:</span>
+                      <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-lg font-mono text-xs font-bold inline-flex items-center gap-2">
+                        <Sparkles className="w-3 h-3" />
+                        schedule@mg.trucal.xyz
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="text-gray-500 w-12">Subject:</span>
+                      <span className="text-gray-900">Partnership Discussion</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Email Body */}
+                <div className="p-6">
+                  <p className="text-gray-700 mb-6">
+                    Hey John,<br /><br />
+                    Let's find a time to chat about the partnership opportunity!
+                  </p>
+
+                  <div className="bg-purple-50 rounded-xl p-4 border-2 border-purple-200">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center">
+                        <Bot className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-900 text-sm">TruCal Scheduling Assistant</p>
+                        <p className="text-xs text-gray-500">via schedule@mg.trucal.xyz</p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-700 mb-3">
+                      Hi John! 👋 I'm helping schedule your meeting. Pick a time:
+                    </p>
+
+                    {/* Time Slot Buttons */}
+                    <div className="space-y-2">
+                      <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg p-3 text-sm font-semibold flex items-center justify-between cursor-pointer hover:shadow-lg transition-shadow">
+                        <span>✓ Today - Jan 15 at 4:00 PM</span>
+                        <span>→</span>
+                      </div>
+                      <div className="bg-gray-100 text-gray-900 rounded-lg p-3 text-sm font-medium cursor-pointer hover:bg-gray-200 transition-colors">
+                        <span className="text-gray-500 text-xs block mb-1">Tomorrow</span>
+                        Jan 16 at 10:00 AM
+                      </div>
+                      <div className="bg-gray-100 text-gray-900 rounded-lg p-3 text-sm font-medium cursor-pointer hover:bg-gray-200 transition-colors">
+                        <span className="text-gray-500 text-xs block mb-1">Friday</span>
+                        Jan 19 at 2:00 PM
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Floating Badges */}
+              <div className="absolute -top-4 -right-4 px-4 py-2 bg-green-500 text-white rounded-full font-bold text-sm shadow-lg transform rotate-6">
+                ✓ Zero apps
+              </div>
+              <div className="absolute -bottom-4 -left-4 px-4 py-2 bg-yellow-400 text-yellow-900 rounded-full font-bold text-sm shadow-lg transform -rotate-6">
+                ⚡ Instant
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= COMPARISON: CC VS BOOKING LINKS ================= */}
+      <section className="py-24 bg-white">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
+              Why CC beats booking links
+            </h2>
+            <p className="text-xl text-gray-600">
+              Stay in your email. Let AI handle the coordination.
+            </p>
+          </div>
+
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-8 border-2 border-gray-200">
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Old Way */}
+              <div>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 bg-gray-300 rounded-xl flex items-center justify-center">
+                    <span className="text-2xl">😓</span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900">Old Way</h3>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                      <span className="text-red-600 text-sm font-bold">✗</span>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">Send booking link</p>
+                      <p className="text-sm text-gray-600">Copy-paste your Calendly link</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                      <span className="text-red-600 text-sm font-bold">✗</span>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">Recipient visits page</p>
+                      <p className="text-sm text-gray-600">Opens new tab, leaves email</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                      <span className="text-red-600 text-sm font-bold">✗</span>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">Back-and-forth</p>
+                      <p className="text-sm text-gray-600">"None of these times work..."</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                      <span className="text-red-600 text-sm font-bold">✗</span>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">Impersonal</p>
+                      <p className="text-sm text-gray-600">Generic booking page</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* TruCal Way */}
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-200">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center">
+                    <Sparkles className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900">TruCal Way</h3>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                      <Check className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">Just CC the bot</p>
+                      <p className="text-sm text-gray-600">schedule@mg.trucal.xyz</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                      <Check className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">Stays in email</p>
+                      <p className="text-sm text-gray-600">Click button, done. No tabs.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                      <Check className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">AI handles it</p>
+                      <p className="text-sm text-gray-600">Smart replies, auto-booking</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                      <Check className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">Conversational</p>
+                      <p className="text-sm text-gray-600">Feels natural, human</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center mt-12">
+            <button
+              onClick={() => navigate('/register')}
+              className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-lg font-bold hover:shadow-xl transition-all transform hover:scale-105"
+            >
+              Try it now - CC schedule@mg.trucal.xyz
+            </button>
+            <p className="text-sm text-gray-500 mt-4">
+              Free forever • No credit card • 30-second setup
+            </p>
           </div>
         </div>
       </section>
@@ -790,8 +1071,11 @@ export default function Landing() {
           <h2 className="text-4xl md:text-6xl font-extrabold mb-6">
             Ready to schedule smarter?
           </h2>
-          <p className="text-xl text-purple-100 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-purple-100 mb-4 max-w-2xl mx-auto">
             Join professionals who've ditched the back-and-forth emails.
+          </p>
+          <p className="text-lg text-white/90 font-semibold mb-8 max-w-2xl mx-auto">
+            Just CC <span className="bg-white/20 px-3 py-1 rounded-lg font-mono">schedule@mg.trucal.xyz</span> on your next email.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">

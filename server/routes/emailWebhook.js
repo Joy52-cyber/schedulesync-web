@@ -6,10 +6,30 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const crypto = require('crypto');
 const { processInboundEmail } = require('../services/emailBot');
 
-// Multer for parsing multipart form data (SendGrid format)
+// Multer for parsing multipart form data (SendGrid/Mailgun format)
 const upload = multer();
+
+/**
+ * Verify Mailgun webhook signature
+ * Mailgun signs webhooks using HMAC-SHA256
+ */
+function verifyMailgunSignature(timestamp, token, signature) {
+  // Skip verification in development if no signing key is set
+  if (!process.env.MAILGUN_WEBHOOK_SIGNING_KEY) {
+    console.warn('⚠️  MAILGUN_WEBHOOK_SIGNING_KEY not set, skipping signature verification');
+    return true;
+  }
+
+  const encodedToken = crypto
+    .createHmac('sha256', process.env.MAILGUN_WEBHOOK_SIGNING_KEY)
+    .update(timestamp + token)
+    .digest('hex');
+
+  return encodedToken === signature;
+}
 
 /**
  * POST /api/email/inbound
@@ -24,6 +44,22 @@ router.post('/inbound', upload.any(), async (req, res) => {
   console.log('📨 Received inbound email webhook');
 
   try {
+    // Verify Mailgun signature if present
+    if (req.body.signature && req.body.timestamp && req.body.token) {
+      const isValid = verifyMailgunSignature(
+        req.body.timestamp,
+        req.body.token,
+        req.body.signature
+      );
+
+      if (!isValid) {
+        console.error('❌ Invalid Mailgun signature');
+        return res.status(403).json({ error: 'Invalid signature' });
+      }
+
+      console.log('✅ Mailgun signature verified');
+    }
+
     // Parse based on provider
     let emailData;
 

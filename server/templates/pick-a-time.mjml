@@ -1,0 +1,102 @@
+<mjml>
+  <mj-head>
+    <mj-title>📅 Pick a Time - TruCal</mj-title>
+    <mj-attributes>
+      <mj-all font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" />
+      <mj-text font-size="15px" color="#52525b" line-height="1.6" />
+      <mj-button font-weight="600" border-radius="14px" font-size="15px" inner-padding="14px 20px" />
+    </mj-attributes>
+    <mj-style>
+      .compact-header {
+        background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%) !important;
+        border-radius: 16px !important;
+      }
+      .icon-badge {
+        width: 34px;
+        height: 34px;
+        background: rgba(255, 255, 255, 0.25);
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        margin-bottom: 6px;
+      }
+      .meta-pill {
+        display: inline-block;
+        border: 1px solid #E5E7EB;
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 13px;
+        color: #6B7280;
+        background: #ffffff;
+        margin: 12px 0 20px 0;
+      }
+    </mj-style>
+  </mj-head>
+
+  <mj-body background-color="#f9fafb">
+    <mj-section padding="20px">
+      <mj-column>
+
+        <!-- COMPACT Header (100px height) -->
+        <mj-wrapper css-class="compact-header" padding="0" border-radius="16px">
+          <mj-section padding="20px 16px">
+            <mj-column>
+              <mj-text align="center" padding="0">
+                <div class="icon-badge">📅</div>
+              </mj-text>
+              <mj-text align="center" font-size="24px" font-weight="700" color="#ffffff" line-height="1.2" padding="0">
+                Pick a Time
+              </mj-text>
+            </mj-column>
+          </mj-section>
+        </mj-wrapper>
+
+        <!-- Body Content (immediately visible) -->
+        <mj-wrapper background-color="#ffffff" border-radius="16px" padding="24px 20px">
+
+          <!-- Greeting -->
+          <mj-section padding="0">
+            <mj-column>
+              <mj-text font-size="20px" font-weight="600" color="#18181b" padding-bottom="8px">
+                Hi {{guestName}}! 👋
+              </mj-text>
+
+              <!-- Context Message -->
+              <mj-text color="#6B7280" font-size="14px" padding-bottom="4px">
+                I'm helping {{hostName}} schedule your meeting.
+              </mj-text>
+
+              <!-- Metadata Pill -->
+              <mj-text align="center" padding="12px 0 4px 0">
+                <span class="meta-pill">🕒 {{duration}} min • 🎥 Video call</span>
+              </mj-text>
+
+              <!-- Time Slots (injected HTML table) -->
+              <mj-raw>
+                {{slotsHtml}}
+              </mj-raw>
+
+              <!-- Helper Text -->
+              <mj-text font-size="14px" color="#8b5cf6" align="center" padding-top="8px" font-weight="600">
+                <a href="{{calendarUrl}}" style="color: #8b5cf6; text-decoration: none;">View full calendar →</a>
+              </mj-text>
+            </mj-column>
+          </mj-section>
+
+        </mj-wrapper>
+
+        <!-- Footer -->
+        <mj-section padding="16px 0">
+          <mj-column>
+            <mj-text font-size="12px" color="#9CA3AF" align="center">
+              Powered by TruCal
+            </mj-text>
+          </mj-column>
+        </mj-section>
+
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

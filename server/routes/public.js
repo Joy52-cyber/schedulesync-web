@@ -6,6 +6,7 @@ const pool = require('../config/database');
 const { generateICS } = require('../../icsGenerator');
 const { sendTemplatedEmail, buildEmailVariables } = require('../services/email');
 const { applySchedulingRules, shouldAutoConfirm, recordBookingPattern } = require('../services/scheduling');
+const { createCalendarEvent } = require('../../utils/calendar');
 
 // GET /api/public/user/:username - Get user profile and event types for booking page
 router.get('/user/:username', async (req, res) => {
@@ -647,9 +648,12 @@ router.post('/quick-book', async (req, res) => {
   try {
     const { username, time, threadId } = req.body;
 
-    // Find user
+    // Find user with calendar tokens
     const user = await pool.query(
-      'SELECT * FROM users WHERE username = $1',
+      `SELECT id, email, name, username, timezone,
+              google_access_token, google_refresh_token,
+              microsoft_access_token, microsoft_refresh_token
+       FROM users WHERE username = $1`,
       [username]
     );
 
@@ -740,6 +744,32 @@ router.post('/quick-book', async (req, res) => {
         SET status = 'booked', booking_id = $1, updated_at = NOW()
         WHERE id = $2
       `, [booking.rows[0].id, threadId]);
+    }
+
+    // Create calendar event
+    let calendarEventId = null;
+    try {
+      const calendarEvent = await createCalendarEvent(host, {
+        summary: booking.rows[0].title,
+        description: `Meeting with ${guestName || 'Guest'}\n\nManage booking: ${process.env.FRONTEND_URL || 'https://trucal.xyz'}/manage/${manageToken}`,
+        start: startTime.toISOString(),
+        end: endTime.toISOString(),
+        timeZone: host.timezone || 'UTC',
+        attendees: guestEmail ? [guestEmail] : []
+      });
+
+      calendarEventId = calendarEvent.eventId;
+
+      // Update booking with calendar event ID
+      await pool.query(
+        'UPDATE bookings SET calendar_event_id = $1 WHERE id = $2',
+        [calendarEventId, booking.rows[0].id]
+      );
+
+      console.log('✅ Calendar event created:', calendarEventId);
+    } catch (calendarError) {
+      console.error('⚠️ Failed to create calendar event:', calendarError.message);
+      // Don't fail the booking if calendar creation fails
     }
 
     // Send confirmation emails
