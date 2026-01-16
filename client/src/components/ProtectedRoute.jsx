@@ -5,17 +5,7 @@ export default function ProtectedRoute({ children }) {
   const { isAuthenticated, user, loading } = useAuth();
   const location = useLocation();
 
-  console.log('🔒 ProtectedRoute:', {
-    loading,
-    isAuthenticated,
-    user: user?.email,
-    onboarded: user?.onboarded,
-    username: user?.username,
-    path: location.pathname
-  });
-
   if (loading) {
-    console.log('⏳ ProtectedRoute: Still loading...');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -51,17 +41,6 @@ export default function ProtectedRoute({ children }) {
     !!user?.username;
 
   const onOnboardingPage = location.pathname === "/onboarding";
-
-  console.log('📋 Onboarding check:', {
-    localKey,
-    localCompleted,
-    userOnboarded: user?.onboarded,
-    hasCompletedOnboarding,
-    onOnboardingPage,
-    willRedirect: !hasCompletedOnboarding && !onOnboardingPage ? 'to /onboarding' :
-                  hasCompletedOnboarding && onOnboardingPage ? 'to /dashboard' :
-                  'no redirect'
-  });
 
   /** A: User NOT onboarded -> redirect to onboarding */
   if (!hasCompletedOnboarding && !onOnboardingPage) {

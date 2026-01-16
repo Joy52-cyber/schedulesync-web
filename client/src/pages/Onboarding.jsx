@@ -108,13 +108,10 @@ export default function Onboarding() {
         workDays
       };
 
-      console.log('📤 Submitting onboarding data:', onboardingData);
       const response = await api.post('/users/onboarding', onboardingData);
-      console.log('📥 Onboarding response:', response.data);
 
       // Update user in AuthContext and localStorage
       if (updateUser) {
-        console.log('🔄 Updating user via AuthContext...');
         updateUser({
           onboarded: true,
           username: username,
@@ -128,17 +125,8 @@ export default function Onboarding() {
         const user = JSON.parse(userStr);
         const localKey = `onboardingCompleted:${user.id || user.email}`;
         localStorage.setItem(localKey, 'true');
-        console.log(`💾 Set ${localKey} = true`);
       }
 
-      const finalUser = JSON.parse(localStorage.getItem('user'));
-      console.log('✅ Onboarding completed! Final user state:', {
-        onboarded: finalUser.onboarded,
-        username: finalUser.username,
-        userId: finalUser.id
-      });
-
-      console.log('🚀 Navigating to /dashboard...');
       navigate('/dashboard', { replace: true });
     } catch (err) {
       console.error('Onboarding error:', err);
