@@ -22,7 +22,7 @@ const mg = mailgun.client({
   key: process.env.MAILGUN_API_KEY || ''
 });
 
-const BOT_NAME = 'TruCal Scheduling Assistant';
+const BOT_NAME = 'TruCal Assistant';
 const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || 'mg.trucal.xyz';
 
 /**
