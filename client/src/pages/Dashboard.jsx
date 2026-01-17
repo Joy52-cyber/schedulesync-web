@@ -433,6 +433,26 @@ export default function Dashboard() {
     );
   }
 
+  // EMERGENCY MINIMAL DASHBOARD - TESTING ONLY
+  return (
+    <div className="min-h-screen w-full bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 p-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-2xl p-8 shadow-xl">
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">✅ Dashboard Loaded Successfully!</h1>
+          <div className="space-y-2 text-gray-700">
+            <p>User: {user?.name || 'Unknown'}</p>
+            <p>Email: {user?.email || 'Unknown'}</p>
+            <p>Total Bookings: {stats.totalBookings}</p>
+            <p>Upcoming Bookings: {stats.upcomingBookings}</p>
+            <p>Current Time: {new Date().toLocaleString()}</p>
+            <p className="text-green-600 font-semibold mt-4">If you see this and it stays for more than 10 seconds, the dashboard route works!</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ORIGINAL FULL DASHBOARD DISABLED FOR DEBUGGING
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
       {/* Animated Background Blobs */}
