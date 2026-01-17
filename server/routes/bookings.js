@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { applySchedulingRules, shouldBlockBooking } = require('../utils/schedulingRules');
@@ -96,9 +97,12 @@ router.post('/', async (req, res) => {
       finalEndTime = new Date(startDate.getTime() + finalData.duration * 60000).toISOString();
     }
 
+    // Generate manage token for guest access
+    const manageToken = crypto.randomBytes(32).toString('hex');
+
     const result = await client.query(
-      `INSERT INTO bookings (attendee_name, attendee_email, start_time, end_time, user_id, team_id, status, title, notes, additional_guests, guest_timezone, custom_answers)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO bookings (attendee_name, attendee_email, start_time, end_time, user_id, team_id, status, title, notes, additional_guests, guest_timezone, custom_answers, manage_token)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         finalData.attendee_name,
@@ -112,18 +116,87 @@ router.post('/', async (req, res) => {
         finalData.notes,
         JSON.stringify(finalData.additional_guests || []),
         finalData.guest_timezone || 'UTC',
-        JSON.stringify(finalData.custom_answers || {})
+        JSON.stringify(finalData.custom_answers || {}),
+        manageToken
       ]
     );
 
+    const booking = result.rows[0];
+
     // Include applied rules in response
     const response = {
-      ...result.rows[0],
+      ...booking,
       appliedRules: ruleResults.appliedRules.length > 0 ? ruleResults.appliedRules : undefined,
       autoApproved: ruleResults.autoApproved || undefined
     };
 
+    // Get organizer info before releasing client
+    const organizerResult = await client.query(
+      'SELECT name, email FROM users WHERE id = $1',
+      [user_id]
+    );
+    const organizer = organizerResult.rows[0] || { name: 'Host', email: '' };
+
     res.json(response);
+
+    // Send emails in background (don't block response)
+    setImmediate(async () => {
+      try {
+        console.log('Sending booking confirmation emails...');
+
+        // Create ICS file
+        const icsContent = generateICS({
+          id: booking.id,
+          start_time: booking.start_time,
+          end_time: booking.end_time,
+          attendee_name: booking.attendee_name,
+          attendee_email: booking.attendee_email,
+          organizer_name: organizer.name,
+          organizer_email: organizer.email,
+          team_name: 'Meeting',
+          notes: booking.notes || '',
+        });
+
+        // Primary attendee email
+        const manageUrl = `${process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app'}/manage/${booking.manage_token || ''}`;
+        const emailVars = buildEmailVariables(booking, organizer, {
+          guestName: booking.attendee_name,
+          guestEmail: booking.attendee_email,
+          duration: duration || 30,
+          notes: booking.notes || '',
+          additionalAttendees: finalData.additional_guests?.join(', ') || '',
+          manageLink: manageUrl,
+          meetingLink: booking.meet_link || '',
+          eventTitle: booking.title
+        });
+
+        await sendTemplatedEmail(booking.attendee_email, user_id, 'confirmation', emailVars, {
+          from: 'ScheduleSync <bookings@trucal.xyz>',
+          attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }]
+        });
+        console.log('Email sent to primary attendee:', booking.attendee_email);
+
+        // Additional attendees
+        if (finalData.additional_guests && Array.isArray(finalData.additional_guests) && finalData.additional_guests.length > 0) {
+          console.log(`Sending to ${finalData.additional_guests.length} additional attendees...`);
+          for (const additionalEmail of finalData.additional_guests) {
+            const additionalVars = {
+              ...emailVars,
+              guestName: additionalEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+              invitedBy: `${booking.attendee_name} (${booking.attendee_email})`
+            };
+            await sendTemplatedEmail(additionalEmail, user_id, 'confirmation', additionalVars, {
+              from: 'ScheduleSync <bookings@trucal.xyz>',
+              attachments: [{ filename: 'meeting.ics', content: Buffer.from(icsContent).toString('base64') }]
+            });
+            console.log(`Email sent to additional attendee: ${additionalEmail}`);
+          }
+        }
+      } catch (emailError) {
+        console.error('Failed to send booking emails:', emailError);
+      }
+    })();
+
   } catch (error) {
     console.error('Error creating booking:', error);
     res.status(500).json({ error: 'Failed to create booking' });
