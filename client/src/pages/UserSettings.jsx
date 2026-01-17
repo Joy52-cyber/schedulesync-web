@@ -46,7 +46,7 @@ export default function UserSettings() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const notify = useNotification();
-  const { hasProFeature, hasTeamFeature } = useUpgrade();
+  const { hasProFeature, hasTeamFeature, currentTier } = useUpgrade();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -606,7 +606,7 @@ export default function UserSettings() {
           </nav>
 
           {/* Premium Upgrade Card in Sidebar */}
-          {currentPlan === 'free' && (
+          {currentTier === 'free' && (
             <div className="mt-4">
               <UpgradeCard variant="ai" compact={true} />
             </div>
