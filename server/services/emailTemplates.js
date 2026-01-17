@@ -211,6 +211,89 @@ function generateNoSlotsEmail(data) {
   });
 }
 
+/**
+ * Generate "Follow-up Reminder" email
+ */
+function generateReminderEmail(data) {
+  const {
+    guestName = 'there',
+    hostName,
+    slots,
+    baseUrl,
+    username,
+    threadId,
+    calendarUrl,
+    signature = 'Powered by <span style="color: #71717a; font-weight: 600;">TruCal</span>'
+  } = data;
+
+  // Transform slots to include bookUrl and timeFormatted
+  const transformedSlots = slots.map(slot => ({
+    bookUrl: `${baseUrl}/quick-book?user=${username}&time=${encodeURIComponent(slot.start)}&thread=${threadId}`,
+    dayLabel: slot.dayLabel || 'Available',
+    timeFormatted: slot.formatted
+  }));
+
+  const slotsHtml = generateSlotsHtml(transformedSlots);
+
+  return compileTemplate('reminder', {
+    guestName,
+    hostName,
+    slotsHtml,
+    calendarUrl,
+    signature
+  });
+}
+
+/**
+ * Generate "Expired Slots - New Times" email
+ */
+function generateExpiredSlotsEmail(data) {
+  const {
+    guestName = 'there',
+    hostName,
+    slots,
+    baseUrl,
+    username,
+    threadId,
+    calendarUrl,
+    signature = 'Powered by <span style="color: #71717a; font-weight: 600;">TruCal</span>'
+  } = data;
+
+  // Transform slots to include bookUrl and timeFormatted
+  const transformedSlots = slots.map(slot => ({
+    bookUrl: `${baseUrl}/quick-book?user=${username}&time=${encodeURIComponent(slot.start)}&thread=${threadId}`,
+    dayLabel: slot.dayLabel || 'Available',
+    timeFormatted: slot.formatted
+  }));
+
+  const slotsHtml = generateSlotsHtml(transformedSlots);
+
+  return compileTemplate('expired-slots', {
+    guestName,
+    hostName,
+    slotsHtml,
+    calendarUrl,
+    signature
+  });
+}
+
+/**
+ * Generate "Thread Closed" email
+ */
+function generateThreadClosedEmail(data) {
+  const {
+    guestName = 'there',
+    hostName,
+    calendarUrl
+  } = data;
+
+  return compileTemplate('thread-closed', {
+    guestName,
+    hostName,
+    calendarUrl
+  });
+}
+
 module.exports = {
   compileTemplate,
   generateSlotHtml,
@@ -218,5 +301,8 @@ module.exports = {
   generatePickATimeEmail,
   generateConfirmationEmail,
   generateCancelledEmail,
-  generateNoSlotsEmail
+  generateNoSlotsEmail,
+  generateReminderEmail,
+  generateExpiredSlotsEmail,
+  generateThreadClosedEmail
 };
