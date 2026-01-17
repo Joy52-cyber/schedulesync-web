@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { applySchedulingRules } = require('../utils/schedulingRules');
+const { checkBookingConflicts, findAlternativeSlots, formatConflictMessage } = require('../services/conflictDetection');
 
 // Intent detection helpers
 const detectIntent = (message) => {
@@ -1424,7 +1425,67 @@ router.post('/schedule', authenticateToken, async (req, res) => {
         });
       }
 
-      // All details present, proceed with booking
+      // All details present, check for conflicts before proceeding
+      // Parse the date and time to check for conflicts
+      const parsedDate = parseNaturalDate(bookingDetails.date);
+      const parsedTime = parseNaturalTime(bookingDetails.time);
+
+      if (parsedDate && parsedTime) {
+        const startDateTime = new Date(parsedDate.date);
+        startDateTime.setHours(parsedTime.hours, parsedTime.minutes, 0, 0);
+        const endDateTime = new Date(startDateTime.getTime() + (bookingDetails.duration || 30) * 60000);
+
+        // Check for conflicts
+        const conflictCheck = await checkBookingConflicts(
+          userId,
+          startDateTime,
+          endDateTime,
+          {
+            eventTypeId: null,
+            includeBuffer: true
+          }
+        );
+
+        if (conflictCheck?.hasConflict) {
+          // Find alternative times
+          const alternatives = await findAlternativeSlots(
+            userId,
+            startDateTime,
+            bookingDetails.duration || 30,
+            {
+              maxSlots: 5,
+              maxDaysAhead: 14
+            }
+          );
+
+          // Format alternatives for display
+          const altList = alternatives.slice(0, 3).map((alt, i) => {
+            const altDate = new Date(alt.start);
+            const dateStr = altDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            const timeStr = altDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            return `**${i + 1}.** ${dateStr} at ${timeStr}`;
+          }).join('\n');
+
+          const conflictTitle = conflictCheck.conflicts[0]?.title || 'another meeting';
+
+          return res.json({
+            type: 'conflict_warning',
+            message: `⚠️ **Conflict Detected**\n\nI found that ${bookingDetails.date} at ${bookingDetails.time} conflicts with your existing "${conflictTitle}" meeting.\n\nHere are some alternative times:\n\n${altList}\n\n**Reply with the number** (1, 2, or 3) to book that time, or suggest a different time!`,
+            data: {
+              originalBooking: bookingDetails,
+              conflicts: conflictCheck.conflicts,
+              alternatives: alternatives.slice(0, 3).map((alt, i) => ({
+                number: i + 1,
+                start: alt.start,
+                end: alt.end,
+                formatted: alt.startFormatted
+              }))
+            }
+          });
+        }
+      }
+
+      // No conflicts, proceed with booking
       return res.json({
         type: 'booking_ready',
         message: `Great! I'll book this meeting:\n\n📅 **${bookingDetails.title}**\n🗓️ ${bookingDetails.date} at ${bookingDetails.time}\n👤 ${bookingDetails.attendeeEmail}\n⏱️ ${bookingDetails.duration} minutes\n\nShall I confirm this booking?`,

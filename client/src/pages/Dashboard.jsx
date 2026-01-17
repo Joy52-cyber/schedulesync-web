@@ -19,6 +19,8 @@ import {
   Share2,
   Check,
   Video,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 
 import api, {
@@ -66,6 +68,8 @@ export default function Dashboard() {
 
   const [chatgptConfigured, setChatgptConfigured] = useState(false);
   const [bookingFilter, setBookingFilter] = useState('upcoming');
+  const [conflicts, setConflicts] = useState({ hasConflicts: false, count: 0, conflicts: [] });
+  const [showConflictBanner, setShowConflictBanner] = useState(true);
 
   useEffect(() => {
     loadAllData();
@@ -80,8 +84,18 @@ export default function Dashboard() {
       loadUserProfile(),
       loadLimitStatus(),
       checkChatGptStatus(),
+      loadConflicts(),
     ]);
     setLoading(false);
+  };
+
+  const loadConflicts = async () => {
+    try {
+      const response = await api.get('/conflicts/upcoming');
+      setConflicts(response.data);
+    } catch (error) {
+      console.error('Failed to load conflicts:', error);
+    }
   };
 
   const loadDashboardData = async () => {
@@ -325,6 +339,57 @@ export default function Dashboard() {
     return null;
   };
 
+  const ConflictWarningBanner = () => {
+    if (!conflicts.hasConflicts || !showConflictBanner) return null;
+
+    const firstConflict = conflicts.conflicts[0];
+    const firstConflictTime = new Date(firstConflict.booking1.startTime).toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    return (
+      <div className="bg-gradient-to-r from-red-500 to-orange-500 text-white p-4 rounded-xl mb-6 border-2 border-red-300 shadow-lg">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-white/20 rounded-lg">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg mb-1">⚠️ Scheduling Conflicts Detected</h3>
+              <p className="text-red-100 mb-2">
+                You have {conflicts.count} double-booked time {conflicts.count === 1 ? 'slot' : 'slots'} in the next 7 days.
+              </p>
+              <div className="bg-white/10 rounded-lg p-3 mb-3">
+                <p className="text-sm font-semibold mb-1">Next conflict: {firstConflictTime}</p>
+                <p className="text-xs text-red-100">
+                  "{firstConflict.booking1.title}" conflicts with "{firstConflict.booking2.title}"
+                </p>
+              </div>
+              <button
+                onClick={() => navigate('/bookings')}
+                className="bg-white text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-50 transition-colors text-sm"
+              >
+                View & Resolve Conflicts
+              </button>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowConflictBanner(false)}
+            className="p-1 hover:bg-white/20 rounded transition-colors"
+            aria-label="Dismiss"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 to-blue-50/30 flex items-center justify-center">
@@ -399,6 +464,7 @@ export default function Dashboard() {
             )}
             
             <LimitWarningBanner />
+            <ConflictWarningBanner />
 
             {/* QUICK ACTIONS - NOW AT TOP */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
