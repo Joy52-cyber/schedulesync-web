@@ -98,23 +98,23 @@ export default function EmptyState({
   const color = config.color || 'gray';
 
   const colorClasses = {
-    purple: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
-    blue: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-    green: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
-    orange: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400',
-    pink: 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400',
-    indigo: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400',
-    gray: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+    purple: 'bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-300/50',
+    blue: 'bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-300/50',
+    green: 'bg-gradient-to-br from-green-500 to-emerald-500 text-white shadow-lg shadow-green-300/50',
+    orange: 'bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-300/50',
+    pink: 'bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-300/50',
+    indigo: 'bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-300/50',
+    gray: 'bg-gradient-to-br from-gray-400 to-gray-500 text-white shadow-lg shadow-gray-300/50'
   };
 
   const bgGlowClasses = {
-    purple: 'bg-purple-200 dark:bg-purple-800',
-    blue: 'bg-blue-200 dark:bg-blue-800',
-    green: 'bg-green-200 dark:bg-green-800',
-    orange: 'bg-orange-200 dark:bg-orange-800',
-    pink: 'bg-pink-200 dark:bg-pink-800',
-    indigo: 'bg-indigo-200 dark:bg-indigo-800',
-    gray: 'bg-gray-200 dark:bg-gray-700'
+    purple: 'bg-gradient-to-br from-purple-200 to-pink-200 dark:from-purple-900/50 dark:to-pink-900/50',
+    blue: 'bg-gradient-to-br from-blue-200 to-cyan-200 dark:from-blue-900/50 dark:to-cyan-900/50',
+    green: 'bg-gradient-to-br from-green-200 to-emerald-200 dark:from-green-900/50 dark:to-emerald-900/50',
+    orange: 'bg-gradient-to-br from-orange-200 to-amber-200 dark:from-orange-900/50 dark:to-amber-900/50',
+    pink: 'bg-gradient-to-br from-pink-200 to-rose-200 dark:from-pink-900/50 dark:to-rose-900/50',
+    indigo: 'bg-gradient-to-br from-indigo-200 to-purple-200 dark:from-indigo-900/50 dark:to-purple-900/50',
+    gray: 'bg-gradient-to-br from-gray-200 to-slate-200 dark:from-gray-800/50 dark:to-slate-800/50'
   };
 
   const handleAction = () => {
@@ -126,30 +126,34 @@ export default function EmptyState({
   };
 
   return (
-    <div className={`flex flex-col items-center justify-center py-12 px-4 text-center animate-fade-in ${className}`}>
-      {/* Decorative background circles */}
-      <div className="relative mb-6">
-        <div className={`absolute inset-0 ${bgGlowClasses[color]} rounded-full opacity-30 scale-150 blur-xl`} />
-        <div className={`relative w-20 h-20 ${colorClasses[color]} rounded-2xl flex items-center justify-center`}>
-          <Icon className="w-10 h-10" />
+    <div className={`flex flex-col items-center justify-center py-16 sm:py-20 px-4 text-center animate-fade-in ${className}`}>
+      {/* Premium Decorative Background with Multiple Layers */}
+      <div className="relative mb-8">
+        {/* Outer glow */}
+        <div className={`absolute inset-0 ${bgGlowClasses[color]} rounded-full opacity-20 scale-[2.5] blur-3xl animate-pulse`} />
+        {/* Middle glow */}
+        <div className={`absolute inset-0 ${bgGlowClasses[color]} rounded-full opacity-30 scale-[1.8] blur-2xl`} />
+        {/* Icon container with premium gradient */}
+        <div className={`relative w-20 h-20 sm:w-24 sm:h-24 ${colorClasses[color]} rounded-3xl flex items-center justify-center transform hover:scale-110 transition-transform duration-300`}>
+          <Icon className="w-10 h-10 sm:w-12 sm:h-12 animate-bounce" style={{ animationDuration: '3s' }} />
         </div>
       </div>
 
-      {/* Text */}
-      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+      {/* Premium Text with Better Typography */}
+      <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-3 bg-clip-text">
         {displayTitle}
       </h3>
-      <p className="text-gray-500 dark:text-gray-400 max-w-sm mb-6">
+      <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 max-w-md mb-8 leading-relaxed">
         {displayDescription}
       </p>
 
-      {/* Action */}
+      {/* Premium Action Button */}
       {displayAction && (
         <button
           onClick={handleAction}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-medium hover:shadow-lg transition-all btn-hover"
+          className="group inline-flex items-center gap-2 px-6 py-3 sm:px-7 sm:py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover:shadow-2xl hover:shadow-purple-500/50 hover:scale-105 transition-all duration-300 text-sm sm:text-base"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
           {displayAction}
         </button>
       )}

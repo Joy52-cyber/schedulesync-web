@@ -26,25 +26,25 @@ export const NOTIFICATION_TYPES = {
   WARNING: 'warning',
 };
 
-// Toast Component - Mobile Responsive
+// Toast Component - Premium Design with Mobile Responsiveness
 const Toast = ({ notification, onClose }) => {
   const icons = {
-    success: <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />,
-    error: <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />,
-    info: <Info className="w-5 h-5 text-blue-500 flex-shrink-0" />,
-    warning: <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0" />,
+    success: <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 flex-shrink-0" />,
+    error: <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-600 flex-shrink-0" />,
+    info: <Info className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 flex-shrink-0" />,
+    warning: <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600 flex-shrink-0" />,
   };
 
-  const bgColors = {
-    success: 'bg-green-50 border-green-200',
-    error: 'bg-red-50 border-red-200',
-    info: 'bg-blue-50 border-blue-200',
-    warning: 'bg-yellow-50 border-yellow-200',
+  const styles = {
+    success: 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300/50 shadow-green-100/50',
+    error: 'bg-gradient-to-br from-red-50 to-rose-50 border-red-300/50 shadow-red-100/50',
+    info: 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-300/50 shadow-blue-100/50',
+    warning: 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-300/50 shadow-amber-100/50',
   };
 
   useEffect(() => {
     if (notification.duration === Infinity) return;
-    
+
     const timer = setTimeout(() => {
       onClose(notification.id);
     }, notification.duration || 5000);
@@ -54,20 +54,22 @@ const Toast = ({ notification, onClose }) => {
 
   return (
     <div
-      className={`flex items-start gap-3 p-3 sm:p-4 rounded-lg border shadow-lg ${
-        bgColors[notification.type]
-      } animate-in slide-in-from-right duration-300 max-w-[calc(100vw-2rem)] sm:max-w-sm`}
+      className={`flex items-start gap-3 p-3 sm:p-4 rounded-xl border-2 backdrop-blur-xl shadow-2xl ${
+        styles[notification.type]
+      } animate-in slide-in-from-right duration-500 max-w-[calc(100vw-2rem)] sm:max-w-sm hover:scale-105 transition-transform`}
     >
-      {icons[notification.type]}
+      <div className="flex-shrink-0 mt-0.5">
+        {icons[notification.type]}
+      </div>
       <div className="flex-1 min-w-0">
         {notification.title && (
-          <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{notification.title}</h4>
+          <h4 className="font-bold text-gray-900 text-sm sm:text-base truncate mb-0.5">{notification.title}</h4>
         )}
-        <p className="text-xs sm:text-sm text-gray-600 line-clamp-2">{notification.message}</p>
+        <p className="text-xs sm:text-sm text-gray-700 line-clamp-2 leading-relaxed">{notification.message}</p>
       </div>
       <button
         onClick={() => onClose(notification.id)}
-        className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+        className="text-gray-400 hover:text-gray-700 hover:bg-white/50 rounded-lg p-1 flex-shrink-0 transition-all"
       >
         <X className="w-4 h-4" />
       </button>
@@ -430,14 +432,14 @@ export function NotificationBell() {
 
   return (
     <div className="relative">
-      {/* Bell Button */}
+      {/* Premium Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+        className="relative p-2 text-gray-600 hover:text-purple-600 hover:bg-gradient-to-br hover:from-purple-50 hover:to-pink-50 rounded-xl transition-all duration-300 group"
       >
-        <Bell className="w-5 h-5" />
+        <Bell className="w-5 h-5 group-hover:scale-110 transition-transform" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 bg-gradient-to-br from-red-500 to-pink-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -452,22 +454,27 @@ export function NotificationBell() {
             onClick={() => setIsOpen(false)}
           />
 
-          {/* ✅ Mobile-Responsive Notification Panel */}
-          <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-14 sm:top-auto sm:mt-2 w-auto sm:w-80 md:w-96 bg-white rounded-lg shadow-xl border z-50 max-h-[70vh] sm:max-h-[600px] flex flex-col">
-            {/* Header */}
-            <div className="p-3 sm:p-4 border-b flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 text-sm sm:text-base">
-                Notifications
-                {notifications.length > 0 && (
-                  <span className="ml-2 text-xs sm:text-sm text-gray-500 font-normal">
-                    ({notifications.length})
-                  </span>
-                )}
-              </h3>
+          {/* Premium Mobile-Responsive Notification Panel */}
+          <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-14 sm:top-auto sm:mt-2 w-auto sm:w-80 md:w-96 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border-2 border-purple-100/50 z-50 max-h-[70vh] sm:max-h-[600px] flex flex-col overflow-hidden">
+            {/* Premium Header with Gradient */}
+            <div className="p-4 sm:p-5 bg-gradient-to-br from-purple-50 to-pink-50 border-b-2 border-purple-100/50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center shadow-lg">
+                  <Bell className="w-4 h-4 text-white" />
+                </div>
+                <h3 className="font-bold text-gray-900 text-sm sm:text-base">
+                  Notifications
+                  {notifications.length > 0 && (
+                    <span className="ml-2 text-xs sm:text-sm text-gray-600 font-medium">
+                      ({notifications.length})
+                    </span>
+                  )}
+                </h3>
+              </div>
               {notifications.length > 0 && unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllAsRead}
-                  className="text-xs sm:text-sm text-blue-600 hover:text-blue-800"
+                  className="text-xs sm:text-sm text-purple-600 hover:text-purple-800 font-semibold px-3 py-1.5 rounded-lg hover:bg-white/50 transition-all"
                 >
                   Mark all read
                 </button>
@@ -478,49 +485,60 @@ export function NotificationBell() {
             <div className="flex-1 overflow-y-auto">
               {loading ? (
                 <div className="flex items-center justify-center p-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 animate-spin text-white" />
+                  </div>
                 </div>
               ) : notifications.length === 0 ? (
-                <div className="p-6 sm:p-8 text-center text-gray-500">
-                  <Bell className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 text-gray-300" />
-                  <p className="font-medium text-sm sm:text-base">No notifications yet</p>
-                  <p className="text-xs sm:text-sm text-gray-400 mt-1">
+                <div className="p-8 sm:p-12 text-center">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl flex items-center justify-center">
+                    <Bell className="w-8 h-8 sm:w-10 sm:h-10 text-purple-400" />
+                  </div>
+                  <p className="font-bold text-gray-900 text-sm sm:text-base mb-1">No notifications yet</p>
+                  <p className="text-xs sm:text-sm text-gray-500">
                     We'll notify you when something happens
                   </p>
                 </div>
               ) : (
-                <div className="divide-y">
+                <div className="divide-y divide-purple-100/30">
                   {displayedNotifications.map((notification) => (
                     <div
                       key={notification.id}
-                      className={`p-3 sm:p-4 hover:bg-gray-50 transition-colors ${
-                        !notification.is_read ? 'bg-blue-50' : ''
+                      className={`p-3 sm:p-4 hover:bg-gradient-to-r hover:from-purple-50/50 hover:to-pink-50/50 transition-all duration-300 cursor-pointer group ${
+                        !notification.is_read ? 'bg-gradient-to-r from-blue-50/80 to-indigo-50/80 border-l-4 border-blue-400' : ''
                       }`}
                     >
                       <div className="flex gap-2 sm:gap-3">
-                        {/* ✅ Use Lucide icon instead of emoji */}
+                        {/* Premium Icon with Background */}
                         <div className="flex-shrink-0 mt-0.5">
-                          <NotificationIcon type={notification.type} />
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                            !notification.is_read
+                              ? 'bg-gradient-to-br from-blue-500 to-indigo-500 shadow-lg'
+                              : 'bg-gray-100 group-hover:bg-gradient-to-br group-hover:from-purple-100 group-hover:to-pink-100'
+                          } transition-all`}>
+                            <div className={!notification.is_read ? 'text-white' : ''}>
+                              <NotificationIcon type={notification.type} />
+                            </div>
+                          </div>
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
-                              {/* ✅ Clean the title text */}
-                              <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">
+                              <p className="text-xs sm:text-sm font-bold text-gray-900 truncate">
                                 {cleanText(notification.title) || 'New Notification'}
                               </p>
-                              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 line-clamp-2">
+                              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 line-clamp-2 leading-relaxed">
                                 {cleanText(notification.message)}
                               </p>
-                              <p className="text-xs text-gray-400 mt-1">
+                              <p className="text-xs text-gray-500 mt-1.5 font-medium">
                                 {formatTimeAgo(notification.created_at)}
                               </p>
                             </div>
-                            <div className="flex items-center gap-1 flex-shrink-0">
+                            <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                               {!notification.is_read && (
                                 <button
                                   onClick={(e) => handleMarkAsRead(e, notification)}
-                                  className="p-1 text-blue-600 hover:bg-blue-100 rounded"
+                                  className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-all"
                                   title="Mark as read"
                                 >
                                   <CheckCircle className="w-4 h-4" />
@@ -528,7 +546,7 @@ export function NotificationBell() {
                               )}
                               <button
                                 onClick={(e) => handleDelete(e, notification.id)}
-                                className="p-1 text-gray-400 hover:bg-gray-200 rounded"
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                                 title="Delete"
                               >
                                 <X className="w-4 h-4" />
@@ -543,24 +561,24 @@ export function NotificationBell() {
               )}
             </div>
 
-            {/* Footer - Show More Button */}
+            {/* Premium Footer - Show More Button */}
             {hasMore && (
-              <div className="p-2 sm:p-3 border-t bg-gray-50">
+              <div className="p-3 sm:p-4 border-t-2 border-purple-100/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50">
                 <button
                   onClick={() => setShowAll(true)}
-                  className="block w-full text-center text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium py-1"
+                  className="block w-full text-center text-xs sm:text-sm text-purple-600 hover:text-purple-800 font-bold py-2 rounded-lg hover:bg-white/80 transition-all"
                 >
-                  Show {notifications.length - displayLimit} more
+                  Show {notifications.length - displayLimit} more notifications
                 </button>
               </div>
             )}
 
-            {/* Footer - Collapse Button */}
+            {/* Premium Footer - Collapse Button */}
             {showAll && notifications.length > displayLimit && (
-              <div className="p-2 sm:p-3 border-t bg-gray-50">
+              <div className="p-3 sm:p-4 border-t-2 border-purple-100/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50">
                 <button
                   onClick={() => setShowAll(false)}
-                  className="block w-full text-center text-xs sm:text-sm text-gray-600 hover:text-gray-800 font-medium py-1"
+                  className="block w-full text-center text-xs sm:text-sm text-gray-600 hover:text-gray-900 font-semibold py-2 rounded-lg hover:bg-white/80 transition-all"
                 >
                   Show less
                 </button>
