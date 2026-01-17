@@ -1,6 +1,6 @@
 const pool = require('../config/database');
 const Anthropic = require('@anthropic-ai/sdk');
-const { sendEmail } = require('./emailService');
+const { sendEmail } = require('./email');
 const { DateTime } = require('luxon');
 const mjml2html = require('mjml');
 const fs = require('fs').promises;
