@@ -513,6 +513,7 @@ async function getAvailableSlots(userId, duration, preferences, maxSlots = 5, gu
   const workingHours = workingHoursData.hours;
   const bufferMinutes = workingHoursData.buffer || 0;
   const leadTimeHours = workingHoursData.leadTime || 0;
+  const bookingHorizonDays = workingHoursData.bookingHorizon || 14;
 
   // Get current time in user's timezone
   const nowInUserTz = DateTime.now().setZone(userTimezone);
@@ -520,7 +521,7 @@ async function getAvailableSlots(userId, duration, preferences, maxSlots = 5, gu
   // Calculate minimum start time based on lead time
   const minStartTime = nowInUserTz.plus({ hours: leadTimeHours });
 
-  console.log(`📅 Generating slots with ${bufferMinutes}min buffer, ${leadTimeHours}hr lead time`);
+  console.log(`📅 Generating slots with ${bufferMinutes}min buffer, ${leadTimeHours}hr lead time, ${bookingHorizonDays}-day horizon`);
 
   // Get blocked times for this user
   let blockedTimes = [];
@@ -543,8 +544,8 @@ async function getAvailableSlots(userId, duration, preferences, maxSlots = 5, gu
     blockedTimes = [];
   }
 
-  // Look at next 14 days
-  for (let day = 0; day < 14 && slots.length < maxSlots; day++) {
+  // Look ahead based on booking horizon setting (default 14 days)
+  for (let day = 0; day < bookingHorizonDays && slots.length < maxSlots; day++) {
     // Create date in user's timezone
     const dateInUserTz = nowInUserTz.plus({ days: day }).startOf('day');
 
