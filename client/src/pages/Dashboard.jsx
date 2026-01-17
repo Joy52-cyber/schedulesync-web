@@ -787,7 +787,8 @@ export default function Dashboard() {
                 )}
 
                 {/* Action Items Widget */}
-                <ActionItemsWidget />
+                {/* TEMPORARILY DISABLED FOR DEBUGGING */}
+                {/* <ActionItemsWidget /> */}
 
                 {/* Timezone */}
                 <div className="bg-white/80 backdrop-blur-xl rounded-2xl border border-white/20 px-5 py-4 shadow-xl relative z-10">
