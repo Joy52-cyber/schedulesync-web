@@ -440,6 +440,129 @@ async function parseEmailIntent(subject, body, from) {
 }
 
 /**
+ * Identify TruCal users among thread participants
+ */
+async function identifyTruCalParticipants(participants, hostUserId) {
+  const trucalParticipants = [];
+
+  for (const participant of participants) {
+    if (!participant.email) continue;
+
+    // Look up in users table
+    const result = await pool.query(
+      'SELECT id, email, name, timezone FROM users WHERE LOWER(email) = LOWER($1)',
+      [participant.email]
+    );
+
+    if (result.rows.length > 0 && result.rows[0].id !== hostUserId) {
+      trucalParticipants.push(result.rows[0]);
+      console.log(`👥 Found TruCal participant: ${result.rows[0].email}`);
+    }
+  }
+
+  return trucalParticipants;
+}
+
+/**
+ * Get mutual available slots across multiple users
+ */
+async function getMutualAvailableSlots(userIds, duration, preferences, maxSlots = 5, guestTimezone = null) {
+  console.log(`🔍 Finding mutual availability for ${userIds.length} participants`);
+
+  // Get slots for the primary user (host)
+  const primarySlots = await getAvailableSlots(userIds[0], duration, preferences, maxSlots * 3, guestTimezone);
+
+  if (userIds.length === 1) {
+    // No other TruCal participants, return primary user's slots
+    return primarySlots.slice(0, maxSlots);
+  }
+
+  // Filter slots to only those where all participants are free
+  const mutualSlots = [];
+
+  for (const slot of primarySlots) {
+    const slotStartUTC = new Date(slot.start);
+    const slotEndUTC = new Date(slot.end);
+
+    let allFree = true;
+
+    // Check each additional participant's calendar
+    for (let i = 1; i < userIds.length; i++) {
+      const userId = userIds[i];
+
+      // Get user's timezone
+      const userResult = await pool.query('SELECT timezone FROM users WHERE id = $1', [userId]);
+      const userTimezone = userResult.rows[0]?.timezone || 'America/New_York';
+
+      // Check if slot falls within working hours
+      const workingHoursData = await getUserWorkingHours(userId);
+      const workingHours = workingHoursData.hours;
+
+      const { DateTime } = require('luxon');
+      const slotStart = DateTime.fromJSDate(slotStartUTC).setZone(userTimezone);
+      const dayName = slotStart.toFormat('EEEE').toLowerCase();
+
+      // Check if day is enabled
+      if (!workingHours[dayName]?.enabled) {
+        allFree = false;
+        console.log(`  ❌ ${slotStart.toFormat('MMM d, h:mm a')} - Outside ${userId}'s working hours (day disabled)`);
+        break;
+      }
+
+      // Check if within working hours time range
+      const dayHours = workingHours[dayName];
+      const [startHour, startMinute] = dayHours.start.split(':').map(Number);
+      const [endHour, endMinute] = dayHours.end.split(':').map(Number);
+
+      const workStart = slotStart.set({ hour: startHour, minute: startMinute });
+      const workEnd = slotStart.set({ hour: endHour, minute: endMinute });
+
+      if (slotStart < workStart || slotStart >= workEnd) {
+        allFree = false;
+        console.log(`  ❌ ${slotStart.toFormat('MMM d, h:mm a')} - Outside ${userId}'s working hours`);
+        break;
+      }
+
+      // Check for booking conflicts
+      const dayStart = slotStart.startOf('day').toUTC().toJSDate();
+      const dayEnd = slotStart.plus({ days: 1 }).startOf('day').toUTC().toJSDate();
+
+      const bookings = await pool.query(`
+        SELECT start_time, end_time FROM bookings
+        WHERE user_id = $1 AND status = 'confirmed'
+          AND start_time >= $2 AND start_time < $3
+      `, [userId, dayStart, dayEnd]);
+
+      const hasConflict = bookings.rows.some(b => {
+        const bStart = new Date(b.start_time);
+        const bEnd = new Date(b.end_time);
+
+        // Check overlap
+        return slotStartUTC < bEnd && slotEndUTC > bStart;
+      });
+
+      if (hasConflict) {
+        allFree = false;
+        console.log(`  ❌ ${slotStart.toFormat('MMM d, h:mm a')} - Conflict for user ${userId}`);
+        break;
+      }
+    }
+
+    if (allFree) {
+      mutualSlots.push(slot);
+      console.log(`  ✅ ${slot.formatted} - Available for all participants`);
+    }
+
+    if (mutualSlots.length >= maxSlots) {
+      break;
+    }
+  }
+
+  console.log(`🎯 Found ${mutualSlots.length} mutual slots out of ${primarySlots.length} primary slots`);
+  return mutualSlots;
+}
+
+/**
  * Propose available times to the thread participants
  */
 async function proposeAvailableTimes(thread, user, settings, intent) {
@@ -454,7 +577,21 @@ async function proposeAvailableTimes(thread, user, settings, intent) {
     console.log(`🎯 Meeting type detected: ${meetingType} (${duration}min, ${locationType || 'any location'})`);
   }
 
-  const slots = await getAvailableSlots(user.id, duration, intent.preferences, settings.max_slots_to_show, guestTimezone);
+  // Check for multi-participant scheduling
+  const participants = thread.participants || [];
+  const trucalParticipants = await identifyTruCalParticipants(participants, user.id);
+
+  let slots;
+
+  if (trucalParticipants.length > 0) {
+    // Multi-participant scheduling: find mutual availability
+    const allUserIds = [user.id, ...trucalParticipants.map(p => p.id)];
+    console.log(`👥 Multi-participant scheduling for ${allUserIds.length} TruCal users`);
+    slots = await getMutualAvailableSlots(allUserIds, duration, intent.preferences, settings.max_slots_to_show, guestTimezone);
+  } else {
+    // Single-participant: only check host's availability
+    slots = await getAvailableSlots(user.id, duration, intent.preferences, settings.max_slots_to_show, guestTimezone);
+  }
 
   if (slots.length === 0) {
     return {
@@ -463,14 +600,15 @@ async function proposeAvailableTimes(thread, user, settings, intent) {
     };
   }
 
-  // Store proposed slots, guest timezone, and meeting metadata in thread
+  // Store proposed slots, guest timezone, meeting metadata, and participant info in thread
   await pool.query(
     'UPDATE email_bot_threads SET proposed_slots = $1, updated_at = NOW() WHERE id = $2',
     [JSON.stringify({
       slots: slots,
       meetingType: meetingType,
       locationType: locationType,
-      duration: duration
+      duration: duration,
+      trucalParticipants: trucalParticipants.map(p => ({ id: p.id, email: p.email, name: p.name }))
     }), thread.id]
   );
 
