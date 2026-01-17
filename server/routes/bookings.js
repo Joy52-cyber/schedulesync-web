@@ -8,6 +8,8 @@ const { sendBookingEmail, sendTemplatedEmail, buildEmailVariables } = require('.
 const { generateICS } = require('../utils/icsGenerator');
 const { notifyBookingCancelled, notifyBookingRescheduled } = require('../services/notifications');
 const { checkBookingConflicts, findAlternativeSlots, formatConflictMessage } = require('../services/conflictDetection');
+const { updateAttendeeProfile } = require('../services/attendeeProfileService');
+const { generateAgendaFromEmail } = require('../services/agendaService');
 
 // GET all bookings for the user
 router.get('/', authenticateToken, async (req, res) => {
@@ -237,6 +239,20 @@ router.post('/', async (req, res) => {
         }
       } catch (emailError) {
         console.error('Failed to send booking emails:', emailError);
+      }
+
+      // Update attendee profile with meeting history
+      try {
+        await updateAttendeeProfile(user_id, booking.attendee_email, booking.id);
+      } catch (profileError) {
+        console.error('Failed to update attendee profile:', profileError);
+      }
+
+      // Generate agenda from email thread (if exists)
+      try {
+        await generateAgendaFromEmail(booking.id);
+      } catch (agendaError) {
+        console.error('Failed to generate agenda:', agendaError);
       }
     })();
 
