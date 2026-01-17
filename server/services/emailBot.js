@@ -7,6 +7,7 @@ const pool = require('../config/database');
 const { sendEmail, sendTemplatedEmail } = require('./email');
 const { createCalendarEvent } = require('./calendarService');
 const { parseRecurrenceFromNaturalLanguage, generateRRule, formatRecurrenceText } = require('./recurrenceService');
+const { checkBookingConflicts, findAlternativeSlots, formatConflictMessage } = require('./conflictDetection');
 const crypto = require('crypto');
 const FormData = require('form-data');
 const Mailgun = require('mailgun.js');
@@ -1280,6 +1281,54 @@ async function handleTimeSelection(thread, user, intent) {
   const isRecurring = proposedData.isRecurring || false;
   const recurrence = proposedData.recurrence || null;
 
+  // Check for booking conflicts BEFORE creating the booking
+  const conflictCheck = await checkBookingConflicts(
+    user.id,
+    selectedTime,
+    endTime,
+    {
+      eventTypeId: null,
+      includeBuffer: true
+    }
+  );
+
+  if (conflictCheck?.hasConflict) {
+    // Find alternative time slots
+    const alternatives = await findAlternativeSlots(
+      user.id,
+      selectedTime,
+      duration,
+      {
+        maxSlots: 5,
+        maxDaysAhead: 14
+      }
+    );
+
+    console.log('⚠️ Email Bot detected conflict - sending alternatives');
+
+    // Send conflict email with alternative times
+    const conflictEmail = await buildConflictEmail(
+      user,
+      guest,
+      {
+        originalTime: selectedTime,
+        duration,
+        conflicts: conflictCheck.conflicts,
+        alternatives,
+        thread
+      }
+    );
+
+    // Send the conflict email via Mailgun
+    await sendConflictEmailViaMailgun(user, guest.email, thread.subject, conflictEmail);
+
+    return {
+      success: false,
+      reason: 'conflict_detected',
+      sentAlternatives: true
+    };
+  }
+
   // Create booking in database first
   const manageToken = crypto.randomBytes(32).toString('hex');
 
@@ -1618,6 +1667,151 @@ async function sendBotResponse(thread, user, response, originalEmail) {
       console.error('⚠️ Could not log email failure (table may not exist):', dbError.message);
     }
 
+    throw error;
+  }
+}
+
+/**
+ * Build conflict email HTML with alternative times
+ */
+async function buildConflictEmail(user, guest, data) {
+  const { originalTime, duration, conflicts, alternatives, thread } = data;
+
+  const formattedOriginalTime = DateTime.fromJSDate(originalTime)
+    .setZone(user.timezone || 'America/New_York')
+    .toFormat('EEE, MMM d \'at\' h:mm a');
+
+  // Build slots HTML for alternative times
+  const slotsHtml = alternatives.map((alt, index) => {
+    const altStart = DateTime.fromJSDate(alt.start).setZone(user.timezone || 'America/New_York');
+    const selectionUrl = `${process.env.FRONTEND_URL || 'https://trucal.xyz'}/book/select?thread=${thread.id}&time=${alt.start.toISOString()}`;
+
+    return `
+      <tr>
+        <td style="padding: 8px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-radius: 8px; overflow: hidden; border: 1px solid #E5E7EB;">
+            <tr>
+              <td style="padding: 12px 16px; background-color: #ffffff;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="width: 70%;">
+                      <p style="margin: 0; font-size: 15px; font-weight: 600; color: #18181b;">
+                        ${altStart.toFormat('EEE, MMM d')}
+                      </p>
+                      <p style="margin: 4px 0 0 0; font-size: 14px; color: #71717a;">
+                        ${altStart.toFormat('h:mm a')} - ${altStart.plus({ minutes: duration }).toFormat('h:mm a')}
+                      </p>
+                    </td>
+                    <td style="width: 30%; text-align: right;">
+                      <a href="${selectionUrl}" style="display: inline-block; background-color: #8b5cf6; color: #ffffff; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 600;">
+                        Select
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  const conflictTitle = conflicts[0]?.title || 'another meeting';
+
+  return `
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Time Conflict - Pick Another Time</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f9fafb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f9fafb;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 500px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+
+          <!-- Header -->
+          <tr>
+            <td align="center" style="background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%); padding: 24px;">
+              <div style="width: 40px; height: 40px; background: rgba(255, 255, 255, 0.25); border-radius: 50%; display: inline-flex; align-items: center; justify-center; margin-bottom: 8px;">
+                <span style="font-size: 20px;">⚠️</span>
+              </div>
+              <h1 style="margin: 0; font-size: 24px; font-weight: 700; color: #ffffff;">Time Conflict</h1>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding: 24px 20px;">
+              <p style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #18181b;">
+                Hi ${guest.name || guest.email.split('@')[0]}! 👋
+              </p>
+
+              <p style="margin: 0 0 16px 0; font-size: 15px; color: #52525b; line-height: 1.6;">
+                Unfortunately, <strong>${formattedOriginalTime}</strong> is no longer available because it conflicts with "${conflictTitle}".
+              </p>
+
+              <p style="margin: 0 0 20px 0; font-size: 15px; color: #52525b; line-height: 1.6;">
+                Here are some alternative times that work:
+              </p>
+
+              <!-- Alternative Slots -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                ${slotsHtml}
+              </table>
+
+              <p style="margin: 20px 0 0 0; font-size: 14px; color: #8b5cf6; text-align: center; font-weight: 600;">
+                <a href="${process.env.FRONTEND_URL || 'https://trucal.xyz'}/${user.username}" style="color: #8b5cf6; text-decoration: none;">View full calendar →</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 16px; background-color: #fafafa; border-top: 1px solid #e4e4e7;">
+              <p style="margin: 0; font-size: 12px; color: #9CA3AF; text-align: center;">
+                Powered by <span style="color: #71717a; font-weight: 600;">TruCal</span>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+}
+
+/**
+ * Send conflict email via Mailgun
+ */
+async function sendConflictEmailViaMailgun(user, guestEmail, subject, htmlContent) {
+  const fromEmail = `${user.username}@${MAILGUN_DOMAIN}`;
+  const fromName = BOT_NAME;
+
+  const messageData = {
+    from: `${fromName} <${fromEmail}>`,
+    to: [guestEmail],
+    cc: [user.email],
+    subject: `Re: ${subject}`,
+    html: htmlContent,
+    'h:Reply-To': fromEmail
+  };
+
+  try {
+    const result = await sendEmailWithRetry(async () => {
+      return await mg.messages.create(MAILGUN_DOMAIN, messageData);
+    });
+
+    console.log(`📤 Conflict email sent from ${fromEmail} to ${guestEmail}`);
+    return result;
+  } catch (error) {
+    console.error('❌ Failed to send conflict email:', error);
     throw error;
   }
 }

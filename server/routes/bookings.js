@@ -7,6 +7,7 @@ const { applySchedulingRules, shouldBlockBooking } = require('../utils/schedulin
 const { sendBookingEmail, sendTemplatedEmail, buildEmailVariables } = require('../services/email');
 const { generateICS } = require('../utils/icsGenerator');
 const { notifyBookingCancelled, notifyBookingRescheduled } = require('../services/notifications');
+const { checkBookingConflicts, findAlternativeSlots, formatConflictMessage } = require('../services/conflictDetection');
 
 // GET all bookings for the user
 router.get('/', authenticateToken, async (req, res) => {
@@ -95,6 +96,48 @@ router.post('/', async (req, res) => {
     if (ruleResults.appliedRules.some(r => r.action.includes('set_duration'))) {
       const startDate = new Date(start_time);
       finalEndTime = new Date(startDate.getTime() + finalData.duration * 60000).toISOString();
+    }
+
+    // Check for booking conflicts
+    const conflictCheck = await checkBookingConflicts(
+      user_id,
+      new Date(finalData.start_time),
+      new Date(finalEndTime),
+      {
+        eventTypeId: null, // Will be added when event types are used
+        includeBuffer: true
+      }
+    );
+
+    if (conflictCheck?.hasConflict) {
+      // Find alternative time slots
+      const alternatives = await findAlternativeSlots(
+        user_id,
+        new Date(finalData.start_time),
+        finalData.duration || 30,
+        {
+          maxSlots: 5,
+          maxDaysAhead: 14
+        }
+      );
+
+      return res.status(409).json({
+        error: 'Booking conflict detected',
+        message: formatConflictMessage(conflictCheck),
+        conflicts: conflictCheck.conflicts.map(c => ({
+          title: c.title,
+          startTime: c.startTime,
+          endTime: c.endTime,
+          attendee: c.attendee,
+          isBufferViolation: c.isBufferViolation
+        })),
+        alternatives: alternatives.map(alt => ({
+          start: alt.start,
+          end: alt.end,
+          formatted: alt.startFormatted
+        })),
+        bufferRequired: conflictCheck.bufferRequired
+      });
     }
 
     // Generate manage token for guest access
@@ -466,6 +509,48 @@ router.post('/chatgpt/book-meeting', authenticateToken, async (req, res) => {
       finalEndTime = new Date(startDate.getTime() + finalData.duration * 60000).toISOString();
     }
 
+    // Check for booking conflicts
+    const conflictCheck = await checkBookingConflicts(
+      userId,
+      new Date(finalData.start_time),
+      new Date(finalEndTime),
+      {
+        eventTypeId: null,
+        includeBuffer: true
+      }
+    );
+
+    if (conflictCheck?.hasConflict) {
+      const alternatives = await findAlternativeSlots(
+        userId,
+        new Date(finalData.start_time),
+        finalData.duration || 30,
+        {
+          maxSlots: 5,
+          maxDaysAhead: 14
+        }
+      );
+
+      console.log('⚠️ AI Chat booking conflict detected');
+      return res.status(409).json({
+        error: 'Booking conflict detected',
+        message: formatConflictMessage(conflictCheck),
+        conflicts: conflictCheck.conflicts.map(c => ({
+          title: c.title,
+          startTime: c.startTime,
+          endTime: c.endTime,
+          attendee: c.attendee,
+          isBufferViolation: c.isBufferViolation
+        })),
+        alternatives: alternatives.map(alt => ({
+          start: alt.start,
+          end: alt.end,
+          formatted: alt.startFormatted
+        })),
+        bufferRequired: conflictCheck.bufferRequired
+      });
+    }
+
     const result = await client.query(
       `INSERT INTO bookings (attendee_name, attendee_email, start_time, end_time, user_id, team_id, status, title, notes)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -573,6 +658,45 @@ router.post('/public/booking/create', async (req, res) => {
     let finalEndTime = end_time;
     if (ruleResults.appliedRules.some(r => r.action.includes('set_duration'))) {
       finalEndTime = new Date(startDate.getTime() + finalData.duration * 60000).toISOString();
+    }
+
+    // Check for booking conflicts
+    const conflictCheck = await checkBookingConflicts(
+      userId,
+      new Date(finalData.start_time),
+      new Date(finalEndTime),
+      {
+        eventTypeId: null,
+        includeBuffer: true
+      }
+    );
+
+    if (conflictCheck?.hasConflict) {
+      const alternatives = await findAlternativeSlots(
+        userId,
+        new Date(finalData.start_time),
+        finalData.duration || 30,
+        {
+          maxSlots: 5,
+          maxDaysAhead: 14
+        }
+      );
+
+      console.log('⚠️ Public booking conflict detected');
+      return res.status(409).json({
+        error: 'Time slot no longer available',
+        message: 'Sorry, this time slot is no longer available. Please choose another time.',
+        conflicts: conflictCheck.conflicts.map(c => ({
+          title: c.title,
+          startTime: c.startTime,
+          endTime: c.endTime
+        })),
+        alternatives: alternatives.map(alt => ({
+          start: alt.start,
+          end: alt.end,
+          formatted: alt.startFormatted
+        }))
+      });
     }
 
     const result = await client.query(
