@@ -485,7 +485,8 @@ export default function Dashboard() {
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-8">
           <div className="space-y-6">
             
-            {showPrompt && (
+            {/* TEMPORARILY DISABLED FOR DEBUGGING */}
+            {false && showPrompt && (
               <WalkthroughPrompt 
                 onStart={startWalkthrough} 
                 onDismiss={dismissPrompt} 
@@ -826,28 +827,31 @@ export default function Dashboard() {
                 <PreferencesInsights />
 
                 {/* Premium Upgrade Card - Right Column */}
-                {currentTier === 'free' && (
+                {/* TEMPORARILY DISABLED FOR DEBUGGING */}
+                {/* {currentTier === 'free' && (
                   <UpgradeCard variant="default" />
-                )}
+                )} */}
 
               </div>
 
             </div>
 
             {/* Premium Upgrade Card - Bottom (for non-free users or as additional CTA) */}
-            {currentTier === 'free' && !limitStatus.status?.inGracePeriod && !limitStatus.status?.overGraceLimit && eventTypes.length > 0 && (
+            {/* TEMPORARILY DISABLED FOR DEBUGGING */}
+            {/* {currentTier === 'free' && !limitStatus.status?.inGracePeriod && !limitStatus.status?.overGraceLimit && eventTypes.length > 0 && (
               <UpgradeCard variant="power" className="relative z-10" />
-            )}
+            )} */}
 
           </div>
         </div>
       </main>
 
-      <SubscriptionUpgradeModal
+      {/* TEMPORARILY DISABLED FOR DEBUGGING */}
+      {/* <SubscriptionUpgradeModal
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
         currentTier={currentTier}
-      />
+      /> */}
 
       {showGroupScheduler && (
         <GroupScheduler
