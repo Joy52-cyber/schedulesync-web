@@ -181,7 +181,7 @@ export default function Landing() {
       </header>
 
       {/* ================= HERO SECTION ================= */}
-      <section className="relative bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 overflow-hidden pt-20 pb-32">
+      <section className="relative bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 overflow-hidden pt-12 pb-20 sm:pt-16 sm:pb-24 md:pt-20 md:pb-32">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
           <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
@@ -194,12 +194,12 @@ export default function Landing() {
             <span>AI-Powered Scheduling Platform</span>
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-extrabold text-gray-900 mb-6 tracking-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-extrabold text-gray-900 mb-6 tracking-tight">
             The AI scheduling assistant<br />
             <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">that deletes complexity</span>
           </h1>
 
-          <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto mb-12 leading-relaxed">
+          <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 max-w-3xl mx-auto mb-12 leading-relaxed">
             AI-powered scheduling with email bot, smart rules, and zero complexity.
           </p>
 
@@ -225,16 +225,16 @@ export default function Landing() {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-            <button 
+            <button
               onClick={() => navigate('/register')}
-              className="group px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-lg font-bold hover:shadow-2xl transition-all transform hover:scale-105 flex items-center gap-2"
+              className="group px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-base sm:text-lg font-bold hover:shadow-2xl transition-all transform hover:scale-105 flex items-center gap-2"
             >
               Start for Free
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
-            <button 
+            <button
               onClick={() => navigate('/demo')}
-              className="px-8 py-4 bg-white text-gray-900 rounded-full text-lg font-semibold border-2 border-gray-200 hover:border-purple-300 hover:shadow-lg transition-all flex items-center gap-2"
+              className="px-6 py-3 sm:px-8 sm:py-4 bg-white text-gray-900 rounded-full text-base sm:text-lg font-semibold border-2 border-gray-200 hover:border-purple-300 hover:shadow-lg transition-all flex items-center gap-2"
             >
               <Play className="w-5 h-5" />
               Try Live Demo
@@ -608,7 +608,7 @@ export default function Landing() {
 
           <div className="grid md:grid-cols-2 gap-8">
             {features.map((feature, idx) => (
-              <div key={idx} className={`group bg-white rounded-2xl p-8 shadow-sm border-2 hover:shadow-xl transition-all relative ${feature.isNew ? 'border-purple-300 hover:border-purple-400' : 'border-gray-100 hover:border-purple-200'}`}>
+              <div key={idx} className={`group bg-white rounded-2xl p-6 sm:p-8 shadow-sm border-2 hover:shadow-xl transition-all relative ${feature.isNew ? 'border-purple-300 hover:border-purple-400' : 'border-gray-100 hover:border-purple-200'}`}>
                 {feature.badge && (
                   <div className="absolute -top-3 right-4 px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold rounded-full flex items-center gap-1">
                     <Sparkles className="w-3 h-3" />
@@ -663,9 +663,9 @@ export default function Landing() {
             {pricingTiers.map((tier, idx) => (
               <div
                 key={idx}
-                className={`relative bg-white rounded-2xl p-8 border-2 transition-all ${
+                className={`relative bg-white rounded-2xl p-6 sm:p-8 border-2 transition-all ${
                   tier.popular
-                    ? 'border-purple-500 shadow-xl scale-105'
+                    ? 'border-purple-500 shadow-xl sm:scale-105'
                     : 'border-gray-200 hover:border-purple-200 hover:shadow-lg'
                 }`}
               >

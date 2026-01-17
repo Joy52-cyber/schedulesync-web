@@ -541,15 +541,15 @@ export default function BookingPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center p-4 md:p-6 font-sans relative overflow-hidden">
       {/* Animated Background Blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-20 left-10 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
       </div>
 
       <div className="bg-white/80 backdrop-blur-xl w-full max-w-6xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] border border-white/20 relative z-10">
         
         {/* Left Sidebar */}
-        <div className="md:w-1/3 bg-gradient-to-br from-slate-50 to-purple-50/30 border-r border-purple-100/50 p-8 flex flex-col relative backdrop-blur-sm">
+        <div className="md:w-1/3 bg-gradient-to-br from-slate-50 to-purple-50/30 border-r border-purple-100/50 p-4 sm:p-6 md:p-8 flex flex-col relative backdrop-blur-sm">
           {/* Decorative circles */}
           <div className="absolute top-5 right-5 w-24 h-24 border-2 border-purple-200/30 rounded-full"></div>
           <div className="absolute bottom-5 left-5 w-16 h-16 border-2 border-pink-200/30 rounded-full"></div>
@@ -703,7 +703,7 @@ export default function BookingPage() {
         </div>
 
         {/* Right Content Area */}
-        <div className="md:w-2/3 bg-white p-6 md:p-10 overflow-y-auto relative">
+        <div className="md:w-2/3 bg-white p-4 sm:p-6 md:p-10 overflow-y-auto relative">
           
           {step === 'event-select' && !isPublicEventType && (
             <FadeIn className="max-w-xl mx-auto">
@@ -967,14 +967,14 @@ export default function BookingPage() {
                           value={newAttendeeEmail}
                           onChange={(e) => setNewAttendeeEmail(e.target.value)}
                           onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttendee(); } }}
-                          className="flex-1 px-4 py-2 rounded-lg border-2 border-slate-200 focus:ring-2 focus:border-transparent outline-none transition-all text-sm hover:border-slate-300 focus:shadow-md focus:shadow-purple-100/50"
+                          className="flex-1 px-4 py-2.5 sm:py-3 rounded-lg border-2 border-slate-200 focus:ring-2 focus:border-transparent outline-none transition-all text-sm hover:border-slate-300 focus:shadow-md focus:shadow-purple-100/50"
                           placeholder="colleague@example.com"
                           style={{ '--tw-ring-color': branding.primary_color }}
                         />
                         <button
                           type="button"
                           onClick={handleAddAttendee}
-                          className="px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-1 text-white shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5"
+                          className="px-4 py-2.5 sm:py-3 rounded-lg font-medium text-sm flex items-center gap-1 text-white shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5"
                           style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}
                         >
                           <Plus className="h-4 w-4" />Add
@@ -986,7 +986,7 @@ export default function BookingPage() {
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="w-full mt-6 text-white py-4 rounded-xl font-bold text-lg hover:shadow-2xl hover:shadow-purple-200/50 transition-all disabled:opacity-50 flex items-center justify-center gap-2 hover:-translate-y-0.5 active:translate-y-0"
+                      className="w-full mt-6 text-white py-3 sm:py-4 rounded-xl font-bold text-base sm:text-lg hover:shadow-2xl hover:shadow-purple-200/50 transition-all disabled:opacity-50 flex items-center justify-center gap-2 hover:-translate-y-0.5 active:translate-y-0"
                       style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}
                     >
                       {submitting ? (
@@ -1031,9 +1031,9 @@ function LoadingScreen({ redirecting, memberName, branding }) {
         }
       `}</style>
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-20 left-10 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
       </div>
       <div className="text-center animate-pulse relative z-10">
         <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: primaryColor + '20' }}>
@@ -1066,9 +1066,9 @@ function ExpiredLinkScreen() {
         }
       `}</style>
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-20 left-10 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
       </div>
       <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 max-w-md w-full text-center border-2 border-white/20 relative z-10">
         <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6"><Ban className="h-10 w-10 text-red-500" /></div>
@@ -1101,9 +1101,9 @@ function ErrorScreen({ error }) {
         }
       `}</style>
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-20 left-10 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
       </div>
       <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 max-w-md w-full text-center border-2 border-white/20 relative z-10">
         <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6"><AlertTriangle className="h-10 w-10 text-red-500" /></div>

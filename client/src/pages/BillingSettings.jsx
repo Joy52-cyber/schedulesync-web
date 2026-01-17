@@ -179,9 +179,9 @@ export default function BillingSettings() {
           }
         `}</style>
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-          <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-          <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+          <div className="absolute top-20 left-10 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-40 right-10 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-32 left-1/2 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
         </div>
         <div className="text-center relative z-10">
           <RefreshCw className="h-8 w-8 animate-spin text-purple-600 mx-auto mb-4" />
@@ -216,9 +216,9 @@ export default function BillingSettings() {
         }
       `}</style>
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-20 left-10 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
       </div>
 
       {/* Header */}
@@ -259,7 +259,7 @@ export default function BillingSettings() {
           </div>
 
           {/* Plan Details */}
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             {/* Current Usage */}
             <div className="space-y-4">
               <h3 className="font-semibold text-gray-900">Usage This Month</h3>
@@ -390,12 +390,12 @@ export default function BillingSettings() {
           <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border-2 border-white/20">
             <h2 className="text-xl font-bold text-gray-900 mb-6">Available Plans</h2>
             
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               {/* Pro Plan */}
               <div className="border-2 border-purple-200 rounded-xl p-6 hover:border-purple-300 transition-colors">
                 <div className="text-center mb-6">
-                  <h3 className="text-xl font-bold text-purple-600 mb-2">⚡ Pro Plan</h3>
-                  <div className="text-3xl font-bold text-gray-900 mb-2">$15<span className="text-lg text-gray-600">/month</span></div>
+                  <h3 className="text-lg sm:text-xl font-bold text-purple-600 mb-2">⚡ Pro Plan</h3>
+                  <div className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">$15<span className="text-base sm:text-lg text-gray-600">/month</span></div>
                   <p className="text-gray-600">Perfect for busy professionals</p>
                 </div>
                 
@@ -429,8 +429,8 @@ export default function BillingSettings() {
               {/* Team Plan */}
               <div className="border-2 border-pink-200 rounded-xl p-6 hover:border-pink-300 transition-colors">
                 <div className="text-center mb-6">
-                  <h3 className="text-xl font-bold text-pink-600 mb-2">👑 Team Plan</h3>
-                  <div className="text-3xl font-bold text-gray-900 mb-2">$25<span className="text-lg text-gray-600">/month</span></div>
+                  <h3 className="text-lg sm:text-xl font-bold text-pink-600 mb-2">👑 Team Plan</h3>
+                  <div className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">$25<span className="text-base sm:text-lg text-gray-600">/month</span></div>
                   <p className="text-gray-600">For teams and organizations</p>
                 </div>
                 
