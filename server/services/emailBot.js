@@ -16,6 +16,13 @@ const {
   generateNoSlotsEmail
 } = require('./emailTemplates');
 
+// OpenAI for AI-powered intent parsing
+let openai = null;
+if (process.env.OPENAI_API_KEY) {
+  const OpenAI = require('openai');
+  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
+
 // Initialize Mailgun client
 const mailgun = new Mailgun(FormData);
 const mg = mailgun.client({
@@ -78,7 +85,7 @@ async function processInboundEmail(emailData) {
     await storeMessage(thread.id, 'inbound', emailData);
 
     // 5. Parse intent from the email
-    const intent = parseEmailIntent(subject, text, from);
+    const intent = await parseEmailIntent(subject, text, from);
     console.log('🧠 Parsed intent:', intent);
 
     // 6. Handle based on intent
@@ -306,9 +313,60 @@ async function storeMessage(threadId, direction, emailData) {
 }
 
 /**
- * Parse intent from email content
+ * Parse intent from email content using AI (OpenAI GPT-4)
  */
-function parseEmailIntent(subject, body, from) {
+async function parseEmailIntentWithAI(subject, body, from) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{
+        role: 'system',
+        content: `You are a scheduling assistant. Parse the user's email to extract scheduling intent. Return JSON with:
+{
+  "action": "schedule" | "select_time" | "reschedule" | "cancel",
+  "duration": <number in minutes, or null>,
+  "preferences": <array of strings like "morning", "afternoon", "evening", "monday", "tuesday", etc., or specific dates>,
+  "timeSlot": <ISO datetime string if selecting a specific time, or null>,
+  "timezone": <detected timezone like "America/New_York" or null>
+}
+
+Examples:
+- "Let's meet next Tuesday afternoon" → {"action": "schedule", "preferences": ["tuesday", "afternoon"]}
+- "Can we do 30 minutes instead?" → {"action": "schedule", "duration": 30}
+- "I'm free after 2pm on Thursdays" → {"action": "schedule", "preferences": ["thursday", "14:00+"]}
+- "Any morning slot next week works" → {"action": "schedule", "preferences": ["next_week", "morning"]}
+- "confirm: 2024-01-22T10:00" → {"action": "select_time", "timeSlot": "2024-01-22T10:00"}
+- "I need to cancel" → {"action": "cancel"}
+- "Can we reschedule?" → {"action": "reschedule"}`
+      }, {
+        role: 'user',
+        content: `Subject: ${subject}\n\nBody: ${body}`
+      }],
+      response_format: { type: 'json_object' },
+      temperature: 0.1
+    });
+
+    const parsed = JSON.parse(response.choices[0].message.content);
+    console.log('🤖 AI parsed intent:', parsed);
+
+    return {
+      action: parsed.action || 'schedule',
+      duration: parsed.duration || null,
+      preferences: parsed.preferences || [],
+      timeSlot: parsed.timeSlot || null,
+      timezone: parsed.timezone || null
+    };
+  } catch (error) {
+    console.error('AI intent parsing error:', error.message);
+    // Fall back to regex parsing
+    return parseEmailIntentRegex(subject, body, from);
+  }
+}
+
+/**
+ * Parse intent from email content using regex (fallback)
+ */
+function parseEmailIntentRegex(subject, body, from) {
   const text = `${subject} ${body}`.toLowerCase();
 
   const intent = {
@@ -362,12 +420,26 @@ function parseEmailIntent(subject, body, from) {
 }
 
 /**
+ * Parse intent from email content (main entry point)
+ */
+async function parseEmailIntent(subject, body, from) {
+  // Use AI parsing if OpenAI is configured, otherwise fall back to regex
+  if (openai) {
+    return await parseEmailIntentWithAI(subject, body, from);
+  } else {
+    console.log('ℹ️  OpenAI not configured, using regex intent parsing');
+    return parseEmailIntentRegex(subject, body, from);
+  }
+}
+
+/**
  * Propose available times to the thread participants
  */
 async function proposeAvailableTimes(thread, user, settings, intent) {
   // Get user's availability
   const duration = intent.duration || settings.default_duration || 30;
-  const slots = await getAvailableSlots(user.id, duration, intent.preferences, settings.max_slots_to_show);
+  const guestTimezone = intent.timezone || null; // From AI parsing
+  const slots = await getAvailableSlots(user.id, duration, intent.preferences, settings.max_slots_to_show, guestTimezone);
 
   if (slots.length === 0) {
     return {
@@ -376,7 +448,7 @@ async function proposeAvailableTimes(thread, user, settings, intent) {
     };
   }
 
-  // Store proposed slots
+  // Store proposed slots and guest timezone in thread
   await pool.query(
     'UPDATE email_bot_threads SET proposed_slots = $1, updated_at = NOW() WHERE id = $2',
     [JSON.stringify(slots), thread.id]
@@ -384,19 +456,60 @@ async function proposeAvailableTimes(thread, user, settings, intent) {
 
   return {
     subject: `Re: ${thread.subject}`,
-    body: generateProposalEmail(user, thread, slots, settings)
+    body: generateProposalEmail(user, thread, slots, settings, guestTimezone)
+  };
+}
+
+/**
+ * Get user's working hours from availability settings or use defaults
+ */
+async function getUserWorkingHours(userId) {
+  try {
+    // Try to get working hours from user's settings
+    // This could be from a user_settings table or availability_rules table
+    const result = await pool.query(`
+      SELECT working_hours, buffer_time
+      FROM users
+      WHERE id = $1
+    `, [userId]);
+
+    if (result.rows[0]?.working_hours) {
+      return {
+        hours: result.rows[0].working_hours,
+        buffer: result.rows[0].buffer_time || 0
+      };
+    }
+  } catch (error) {
+    console.log('No working_hours column, using defaults');
+  }
+
+  // Default working hours: 9 AM - 5 PM, Monday-Friday
+  return {
+    hours: {
+      monday: { enabled: true, start: '09:00', end: '17:00' },
+      tuesday: { enabled: true, start: '09:00', end: '17:00' },
+      wednesday: { enabled: true, start: '09:00', end: '17:00' },
+      thursday: { enabled: true, start: '09:00', end: '17:00' },
+      friday: { enabled: true, start: '09:00', end: '17:00' },
+      saturday: { enabled: false, start: '09:00', end: '17:00' },
+      sunday: { enabled: false, start: '09:00', end: '17:00' }
+    },
+    buffer: 0
   };
 }
 
 /**
  * Get available time slots for user
  */
-async function getAvailableSlots(userId, duration, preferences, maxSlots = 5) {
+async function getAvailableSlots(userId, duration, preferences, maxSlots = 5, guestTimezone = null) {
   const slots = [];
 
-  // Get user timezone
+  // Get user timezone and working hours
   const userResult = await pool.query('SELECT timezone FROM users WHERE id = $1', [userId]);
   const userTimezone = userResult.rows[0]?.timezone || 'America/New_York';
+
+  const workingHoursData = await getUserWorkingHours(userId);
+  const workingHours = workingHoursData.hours;
 
   // Get current time in user's timezone
   const nowInUserTz = DateTime.now().setZone(userTimezone);
@@ -406,11 +519,13 @@ async function getAvailableSlots(userId, duration, preferences, maxSlots = 5) {
     // Create date in user's timezone
     const dateInUserTz = nowInUserTz.plus({ days: day }).startOf('day');
 
-    // Skip weekends by default
-    if (dateInUserTz.weekday === 6 || dateInUserTz.weekday === 7) continue;
+    // Get day name (monday, tuesday, etc.)
+    const dayName = dateInUserTz.toFormat('EEEE').toLowerCase();
+
+    // Skip if day is disabled in working hours
+    if (!workingHours[dayName]?.enabled) continue;
 
     // Check day preferences
-    const dayName = dateInUserTz.toFormat('EEEE').toLowerCase();
     if (preferences.includes('this_week') && day > 7) continue;
     if (preferences.includes('next_week') && day < 7) continue;
     if (preferences.some(p => ['monday','tuesday','wednesday','thursday','friday'].includes(p))) {
@@ -429,25 +544,39 @@ async function getAvailableSlots(userId, duration, preferences, maxSlots = 5) {
 
     const bookedSlots = bookings.rows;
 
-    // Generate available slots (9 AM to 5 PM)
-    let startHour = 9;
-    let endHour = 17;
+    // Get working hours for this specific day
+    const dayWorkingHours = workingHours[dayName];
+    let startHour = parseInt(dayWorkingHours.start.split(':')[0]);
+    let startMinute = parseInt(dayWorkingHours.start.split(':')[1]);
+    let endHour = parseInt(dayWorkingHours.end.split(':')[0]);
+    let endMinute = parseInt(dayWorkingHours.end.split(':')[1]);
 
-    // Apply time preferences
+    // Apply time preferences to narrow down the range
     if (preferences.includes('morning')) {
-      endHour = 12;
+      endHour = Math.min(endHour, 12);
+      endMinute = 0;
     } else if (preferences.includes('afternoon')) {
-      startHour = 12;
-      endHour = 17;
+      startHour = Math.max(startHour, 12);
+      startMinute = 0;
+      endHour = Math.min(endHour, 17);
     } else if (preferences.includes('evening')) {
-      startHour = 17;
-      endHour = 20;
+      startHour = Math.max(startHour, 17);
+      startMinute = 0;
+      endHour = Math.min(endHour, 20);
     }
 
+    // Generate slots starting from working hours start time
     for (let hour = startHour; hour < endHour && slots.length < maxSlots; hour++) {
+      // Use startMinute for the first hour, otherwise start at :00
+      const minute = (hour === startHour) ? startMinute : 0;
+
       // Create slot start time in user's timezone
-      const slotStart = dateInUserTz.set({ hour, minute: 0, second: 0, millisecond: 0 });
+      const slotStart = dateInUserTz.set({ hour, minute, second: 0, millisecond: 0 });
       const slotEnd = slotStart.plus({ minutes: duration });
+
+      // Skip if slot end goes past working hours end time
+      const workingEndTime = dateInUserTz.set({ hour: endHour, minute: endMinute, second: 0 });
+      if (slotEnd > workingEndTime) continue;
 
       // Skip if in the past (compare in user's timezone)
       if (slotStart <= nowInUserTz) continue;
@@ -470,7 +599,7 @@ async function getAvailableSlots(userId, duration, preferences, maxSlots = 5) {
         slots.push({
           start: slotStart.toUTC().toISO(), // Store as UTC ISO
           end: slotEnd.toUTC().toISO(),     // Store as UTC ISO
-          formatted: formatSlotForEmailLuxon(slotStart, duration), // Format in user's timezone
+          formatted: formatSlotForEmailLuxon(slotStart, duration, guestTimezone), // Format with both timezones if available
           dayLabel: dayLabel
         });
       }
@@ -496,11 +625,56 @@ function formatSlotForEmail(date, duration) {
 }
 
 /**
- * Format a time slot for display in email using Luxon (timezone-aware)
+ * Detect guest timezone from email data
  */
-function formatSlotForEmailLuxon(dateTime, duration) {
-  // dateTime is already a Luxon DateTime in the user's timezone
-  return dateTime.toFormat('MMM d, h:mm a');
+function detectGuestTimezone(emailData) {
+  try {
+    // Try to parse timezone from email headers or date
+    if (emailData.headers && emailData.headers.date) {
+      const dateParts = emailData.headers.date.match(/([+-]\d{4})/);
+      if (dateParts) {
+        // Convert offset to timezone (approximate)
+        // This is a simple heuristic
+      }
+    }
+
+    // If AI detected timezone from content, use that
+    if (emailData.detectedTimezone) {
+      return emailData.detectedTimezone;
+    }
+
+    // Default: null (will use host timezone)
+    return null;
+  } catch (error) {
+    console.error('Timezone detection error:', error);
+    return null;
+  }
+}
+
+/**
+ * Format a time slot for display in email using Luxon (timezone-aware)
+ * Optionally shows both host and guest timezones
+ */
+function formatSlotForEmailLuxon(dateTime, duration, guestTimezone = null) {
+  // dateTime is already a Luxon DateTime in the user's (host) timezone
+  const hostTimeStr = dateTime.toFormat('MMM d, h:mm a');
+
+  // If guest timezone is different, show both
+  if (guestTimezone && guestTimezone !== dateTime.zoneName) {
+    try {
+      const guestTime = dateTime.setZone(guestTimezone);
+      const guestTimeStr = guestTime.toFormat('h:mm a');
+      const hostTz = dateTime.toFormat('ZZZZ'); // e.g., "EST"
+      const guestTz = guestTime.toFormat('ZZZZ');
+
+      return `${hostTimeStr} ${hostTz} (${guestTimeStr} ${guestTz})`;
+    } catch (error) {
+      // If timezone conversion fails, just show host time
+      return hostTimeStr;
+    }
+  }
+
+  return hostTimeStr;
 }
 
 /**
@@ -551,7 +725,7 @@ function getDayLabelLuxon(slotDateTime, nowDateTime) {
 /**
  * Generate the proposal email body
  */
-function generateProposalEmail(user, thread, slots, settings) {
+function generateProposalEmail(user, thread, slots, settings, guestTimezone = null) {
   const participants = thread.participants || [];
   const guestName = participants.find(p => p.email !== user.email)?.name?.split(' ')[0] || 'there';
   const bookingBaseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
@@ -560,9 +734,15 @@ function generateProposalEmail(user, thread, slots, settings) {
   const intro = (settings.intro_message || "I'm helping {{hostName}} schedule a meeting with you.")
     .replace('{{hostName}}', user.name);
 
+  // Add timezone note if guest timezone is detected
+  let timezoneNote = '';
+  if (guestTimezone) {
+    timezoneNote = `<p style="font-size: 12px; color: #71717a; margin-top: 12px;">Times shown in both your timezone and ${user.name}'s timezone for convenience.</p>`;
+  }
+
   return generatePickATimeEmail({
     guestName,
-    introMessage: intro,
+    introMessage: intro + (timezoneNote ? `\n${timezoneNote}` : ''),
     duration,
     slots,
     baseUrl: bookingBaseUrl,
@@ -587,6 +767,37 @@ function generateNoAvailabilityEmail(user, thread) {
     hostName: user.name,
     calendarUrl: `${bookingBaseUrl}/${user.username}`
   });
+}
+
+/**
+ * Generate a Google Meet link for the booking
+ * In production, this would use Google Calendar API to create actual Meet links
+ * For now, we create a deterministic link format
+ */
+async function generateMeetLink(user, startTime) {
+  try {
+    // Check if user has Google access token for Google Meet integration
+    const userResult = await pool.query(
+      'SELECT google_access_token FROM users WHERE id = $1',
+      [user.id]
+    );
+
+    if (userResult.rows[0]?.google_access_token) {
+      // TODO: Use Google Calendar API to create event with conferenceData
+      // For now, generate a placeholder Meet link
+      const meetCode = crypto.randomBytes(6).toString('hex').substring(0, 10);
+      return `https://meet.google.com/${meetCode}`;
+    }
+
+    // Fallback: Generate a generic video conferencing link
+    const meetCode = crypto.randomBytes(6).toString('hex').substring(0, 10);
+    return `https://meet.google.com/${meetCode}`;
+
+  } catch (error) {
+    console.error('Error generating meet link:', error);
+    // Return null if Meet link generation fails
+    return null;
+  }
 }
 
 /**
@@ -662,11 +873,14 @@ async function handleTimeSelection(thread, user, intent) {
   // Create booking
   const manageToken = crypto.randomBytes(32).toString('hex');
 
+  // Generate Google Meet link
+  const meetLink = await generateMeetLink(user, selectedTime);
+
   const booking = await pool.query(`
     INSERT INTO bookings (
       user_id, title, attendee_name, attendee_email,
-      start_time, end_time, status, manage_token, source
-    ) VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', $7, 'email_bot')
+      start_time, end_time, status, manage_token, source, meet_link
+    ) VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', $7, 'email_bot', $8)
     RETURNING *
   `, [
     user.id,
@@ -675,7 +889,8 @@ async function handleTimeSelection(thread, user, intent) {
     guest.email,
     selectedTime,
     endTime,
-    manageToken
+    manageToken,
+    meetLink
   ]);
 
   // Update thread status
@@ -697,7 +912,8 @@ async function handleTimeSelection(thread, user, intent) {
       formattedTime,
       duration,
       participants: `${user.name} & ${guest.name || guest.email}`,
-      manageUrl: `${bookingBaseUrl}/manage/${manageToken}`
+      manageUrl: `${bookingBaseUrl}/manage/${manageToken}`,
+      meetLink: meetLink || ''
     })
   };
 }
