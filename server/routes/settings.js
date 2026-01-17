@@ -220,29 +220,35 @@ router.get('/usage', authenticateToken, async (req, res) => {
     const tier = user.rows[0]?.subscription_tier || 'free';
 
     const planLimits = {
-      free: { ai_queries: 10 },
-      plus: { ai_queries: 50 },
-      pro: { ai_queries: 250 },
-      team: { ai_queries: 750 },
-      enterprise: { ai_queries: Infinity }
+      free: { ai_queries: 10, bookings: 50 },
+      plus: { ai_queries: 50, bookings: 200 },
+      pro: { ai_queries: 250, bookings: Infinity },
+      team: { ai_queries: 750, bookings: Infinity },
+      enterprise: { ai_queries: Infinity, bookings: Infinity }
     };
 
-    // Get current month's AI usage
+    // Get current month's usage
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const usage = await pool.query(`
-      SELECT COUNT(*) as ai_used
-      FROM ai_queries
-      WHERE user_id = $1 AND created_at >= $2
+      SELECT
+        (SELECT COUNT(*) FROM ai_queries WHERE user_id = $1 AND created_at >= $2) as ai_used,
+        (SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND created_at >= $2) as bookings_used
     `, [req.user.id, startOfMonth]);
 
     const aiUsed = parseInt(usage.rows[0]?.ai_used) || 0;
+    const bookingsUsed = parseInt(usage.rows[0]?.bookings_used) || 0;
     const aiLimit = planLimits[tier]?.ai_queries || 10;
+    const bookingsLimit = planLimits[tier]?.bookings || 50;
 
     res.json({
       ai_queries_used: aiUsed,
       ai_queries_limit: aiLimit === Infinity ? -1 : aiLimit,
+      bookings_used: bookingsUsed,
+      monthly_bookings: bookingsUsed, // Alias for compatibility
+      bookings_limit: bookingsLimit === Infinity ? -1 : bookingsLimit,
+      subscription_tier: tier,
       tier
     });
   } catch (error) {
