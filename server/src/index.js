@@ -61,6 +61,14 @@ const conflictsRoutes = require('../routes/conflicts');
 const actionItemsRoutes = require('../routes/actionItems');
 const meetingContextRoutes = require('../routes/meetingContext');
 const groupAvailabilityRoutes = require('../routes/groupAvailability');
+const meetingTemplatesRoutes = require('../routes/meetingTemplates');
+const smartSuggestionsRoutes = require('../routes/smartSuggestions');
+const calendarAnalyticsRoutes = require('../routes/calendarAnalytics');
+
+// API Routes - Integrations
+const slackRoutes = require('../routes/integrations/slack');
+const userWebhooksRoutes = require('../routes/integrations/webhooks');
+const hubspotRoutes = require('../routes/integrations/hubspot');
 
 // Register core routes
 app.use('/api/auth', authRoutes);
@@ -106,6 +114,14 @@ app.use('/api/conflicts', conflictsRoutes);  // Conflict Detection
 app.use('/api', actionItemsRoutes);  // Action Items (uses /api/bookings/:id/action-items and /api/action-items/* routes)
 app.use('/api', meetingContextRoutes);  // Meeting Context and Attendee Profiles
 app.use('/api', groupAvailabilityRoutes);  // Group Availability and Team Assignment
+app.use('/api/meeting-templates', meetingTemplatesRoutes);  // Meeting Templates
+app.use('/api/smart-suggestions', smartSuggestionsRoutes);  // Smart Scheduling Suggestions
+app.use('/api/calendar-analytics', calendarAnalyticsRoutes);  // Calendar Analytics
+
+// Register integration routes
+app.use('/api/integrations/slack', slackRoutes);  // Slack OAuth and Notifications
+app.use('/api/integrations/webhooks', userWebhooksRoutes);  // User Webhooks (Zapier/Make)
+app.use('/api/integrations/hubspot', hubspotRoutes);  // HubSpot CRM Integration
 
 console.log('Routes registered:');
 console.log('  - /api/auth/*');
@@ -131,6 +147,9 @@ console.log('  - /api/payments/*');
 console.log('  - /api/invitations/*');
 console.log('  - /api/team-members/*');
 console.log('  - /api/email/*');
+console.log('  - /api/integrations/slack/*');
+console.log('  - /api/integrations/webhooks/*');
+console.log('  - /api/integrations/hubspot/*');
 
 
 // Serve uploaded files (logos)
@@ -176,6 +195,10 @@ pool.query('SELECT NOW()', (err, res) => {
 // Initialize Email Bot cron jobs
 const { initializeEmailBotCron } = require('../services/emailBotCron');
 initializeEmailBotCron();
+
+// Initialize Follow-up Sequence cron jobs
+const { initializeFollowUpCron } = require('../services/followUpSequenceService');
+initializeFollowUpCron();
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {

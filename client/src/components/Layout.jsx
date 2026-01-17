@@ -15,6 +15,7 @@ import {
   Sparkles,
   ChevronDown,
   BarChart3,
+  Users2,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -66,6 +67,7 @@ export default function Layout() {
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, walkthrough: "dashboard-nav" },
     { name: "Event Types", path: "/events", icon: Clock, walkthrough: "events-nav" },
     { name: "Bookings", path: "/bookings", icon: Calendar, walkthrough: "bookings-nav" },
+    { name: "Relationships", path: "/relationships", icon: Users2, walkthrough: "relationships-nav" },
     { name: "Analytics", path: "/analytics", icon: BarChart3, walkthrough: "analytics-nav" },
     { name: "Booking Links", path: "/my-links", icon: Link2, walkthrough: "my-links-nav" },
     { name: "Teams", path: "/teams", icon: Users, walkthrough: "teams-nav" },

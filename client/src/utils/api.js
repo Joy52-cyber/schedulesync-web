@@ -121,6 +121,10 @@ export const teams = {
   updateMemberExternalLink: (teamId, memberId, data) =>
     api.put(`/teams/${teamId}/members/${memberId}/external-link`, data),
 
+  // Team availability and assignment features
+  getAvailability: (teamId, data) => api.post(`/teams/${teamId}/availability`, data),
+  getAssignmentStats: (teamId) => api.get(`/teams/${teamId}/assignment-stats`),
+
   // Alias for compatibility
   list: () => api.get('/teams'),
 };
@@ -332,6 +336,93 @@ export const user = {
   usage: () => api.get('/user/usage'),
   limits: () => api.get('/user/limits'), // ? ADD THIS LINE
 };
+
+// ============================================
+// ACTION ITEMS
+// ============================================
+export const actionItems = {
+  getMyTasks: () => api.get('/action-items/my-tasks'),
+  getForBooking: (bookingId) => api.get(`/bookings/${bookingId}/action-items`),
+  create: (bookingId, data) => api.post(`/bookings/${bookingId}/action-items`, data),
+  update: (itemId, data) => api.put(`/action-items/${itemId}`, data),
+  complete: (itemId) => api.put(`/action-items/${itemId}/complete`),
+  uncomplete: (itemId) => api.put(`/action-items/${itemId}/uncomplete`),
+  delete: (itemId) => api.delete(`/action-items/${itemId}`),
+};
+
+// ============================================
+// ATTENDEES & RELATIONSHIPS
+// ============================================
+export const attendees = {
+  getAll: (params) => api.get('/attendees', { params }),
+  getByEmail: (email) => api.get(`/attendees/${encodeURIComponent(email)}`),
+  updateNotes: (email, notes) => api.put(`/attendees/${encodeURIComponent(email)}/notes`, { notes }),
+  updateProfile: (email, data) => api.put(`/attendees/${encodeURIComponent(email)}/profile`, data),
+  getStats: () => api.get('/attendees-stats/summary'),
+};
+
+// ============================================
+// MEETING CONTEXT
+// ============================================
+export const meetingContext = {
+  get: (bookingId) => api.get(`/bookings/${bookingId}/context`),
+  generateAgenda: (bookingId) => api.post(`/bookings/${bookingId}/context/agenda`),
+  updateNotes: (bookingId, notes) => api.put(`/bookings/${bookingId}/context/notes`, { notes }),
+};
+
+// ============================================
+// GROUP AVAILABILITY
+// ============================================
+export const groupAvailability = {
+  find: (data) => api.post('/group-availability', data),
+  checkSlot: (data) => api.post('/group-availability/check-slot', data),
+};
+
+// ============================================
+// SMART FEATURES
+// ============================================
+export const smart = {
+  getSuggestions: (data) => api.post('/smart-suggestions', data),
+  getCalendarAnalytics: (timeRange) => api.get('/calendar-analytics', { params: { timeRange } }),
+};
+
+// ============================================
+// MEETING TEMPLATES
+// ============================================
+export const templates = {
+  getAll: () => api.get('/meeting-templates'),
+  create: (data) => api.post('/meeting-templates', data),
+  get: (id) => api.get(`/meeting-templates/${id}`),
+  update: (id, data) => api.put(`/meeting-templates/${id}`, data),
+  delete: (id) => api.delete(`/meeting-templates/${id}`),
+  createBooking: (templateId, data) => api.post(`/bookings/from-template/${templateId}`, data),
+};
+
+// ============================================
+// INTEGRATIONS
+// ============================================
+export const integrations = {
+  slack: {
+    connect: () => api.get('/integrations/slack/connect'),
+    disconnect: () => api.delete('/integrations/slack'),
+    getStatus: () => api.get('/integrations/slack/status'),
+    updateSettings: (data) => api.put('/integrations/slack/settings', data),
+  },
+  webhooks: {
+    getAll: () => api.get('/integrations/webhooks'),
+    create: (data) => api.post('/integrations/webhooks', data),
+    update: (id, data) => api.put(`/integrations/webhooks/${id}`, data),
+    delete: (id) => api.delete(`/integrations/webhooks/${id}`),
+    test: (id) => api.post(`/integrations/webhooks/${id}/test`),
+    getDeliveries: (id) => api.get(`/integrations/webhooks/${id}/deliveries`),
+  },
+  crm: {
+    connect: (provider) => api.get(`/integrations/${provider}/connect`),
+    disconnect: (provider) => api.delete(`/integrations/${provider}`),
+    sync: (provider) => api.post(`/integrations/${provider}/sync`),
+    getStatus: (provider) => api.get(`/integrations/${provider}/status`),
+  },
+};
 // ============================================
 // BACKWARDS COMPATIBILITY - DIRECT EXPORTS
 // ============================================
@@ -435,6 +526,13 @@ api.timezone = timezone;
 api.user = user;
 api.chatgptIntegration = chatgptIntegration;
 api.billing = billing;
+api.actionItems = actionItems;
+api.attendees = attendees;
+api.meetingContext = meetingContext;
+api.groupAvailability = groupAvailability;
+api.smart = smart;
+api.templates = templates;
+api.integrations = integrations;
 
 
 // Default export

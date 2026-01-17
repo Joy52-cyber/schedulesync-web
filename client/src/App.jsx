@@ -49,6 +49,7 @@ import MyLinks from './pages/MyLinks';
 import BillingSettings from './pages/BillingSettings';
 import BillingPage from './pages/BillingPage';
 import Pricing from './pages/Pricing';
+import AttendeeProfiles from './pages/AttendeeProfiles';
 
 // Team
 import Teams from './pages/Teams';
@@ -173,6 +174,8 @@ function InnerApp() {
                 <Route path="/autonomous" element={<AutonomousSettings />} />
                 <Route path="/my-links" element={<MyLinks />} />
                 <Route path="/billing" element={<BillingPage />} />
+                <Route path="/relationships" element={<AttendeeProfiles />} />
+                <Route path="/contacts" element={<AttendeeProfiles />} />
 
                 {/* Event Types */}
                 <Route path="/events" element={<EventTypes />} />

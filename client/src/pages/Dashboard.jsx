@@ -30,6 +30,8 @@ import api, {
 } from '../utils/api';
 import PreferencesInsights from '../components/PreferencesInsights';
 import RescheduleSuggestions from '../components/RescheduleSuggestions';
+import ActionItemsWidget from '../components/ActionItemsWidget';
+import GroupScheduler from '../components/GroupScheduler';
 import { useNotification } from '../contexts/NotificationContext';
 import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal';
 import { useWalkthrough } from '../context/WalkthroughContext';
@@ -70,6 +72,7 @@ export default function Dashboard() {
   const [bookingFilter, setBookingFilter] = useState('upcoming');
   const [conflicts, setConflicts] = useState({ hasConflicts: false, count: 0, conflicts: [] });
   const [showConflictBanner, setShowConflictBanner] = useState(true);
+  const [showGroupScheduler, setShowGroupScheduler] = useState(false);
 
   useEffect(() => {
     loadAllData();
@@ -467,7 +470,7 @@ export default function Dashboard() {
             <ConflictWarningBanner />
 
             {/* QUICK ACTIONS - NOW AT TOP */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 relative z-10">
               <button
                 onClick={handleShareCalendar}
                 className="flex items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border-2 border-purple-200 rounded-2xl hover:border-purple-400 hover:shadow-xl hover:shadow-purple-100/50 transition-all text-left hover:-translate-y-1"
@@ -491,6 +494,19 @@ export default function Dashboard() {
                 <div>
                   <div className="font-bold text-gray-900 text-lg">Quick Link</div>
                   <div className="text-sm text-gray-600">Create instant booking link</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setShowGroupScheduler(true)}
+                className="flex items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border-2 border-green-200 rounded-2xl hover:border-green-400 hover:shadow-xl hover:shadow-green-100/50 transition-all text-left hover:-translate-y-1"
+              >
+                <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <Users className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <div className="font-bold text-gray-900 text-lg">Group Meeting</div>
+                  <div className="text-sm text-gray-600">Schedule with multiple people</div>
                 </div>
               </button>
             </div>
@@ -744,6 +760,9 @@ export default function Dashboard() {
                   </div>
                 )}
 
+                {/* Action Items Widget */}
+                <ActionItemsWidget />
+
                 {/* Timezone */}
                 <div className="bg-white/80 backdrop-blur-xl rounded-2xl border border-white/20 px-5 py-4 shadow-xl relative z-10">
                   <div className="flex items-center gap-3">
@@ -802,6 +821,17 @@ export default function Dashboard() {
         onClose={() => setShowUpgradeModal(false)}
         currentTier={currentTier}
       />
+
+      {showGroupScheduler && (
+        <GroupScheduler
+          onClose={() => setShowGroupScheduler(false)}
+          onBookingCreated={(booking) => {
+            setShowGroupScheduler(false);
+            notify.success('Group meeting scheduled successfully!');
+            loadAllData(); // Reload dashboard data
+          }}
+        />
+      )}
     </div>
   );
 }

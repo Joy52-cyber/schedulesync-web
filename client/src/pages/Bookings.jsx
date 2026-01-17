@@ -20,6 +20,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { bookings } from '../utils/api';
+import BookingDetailModal from '../components/BookingDetailModal';
 
 export default function Bookings() {
   const navigate = useNavigate();
@@ -416,129 +417,12 @@ export default function Bookings() {
       </div>
 
       {/* Booking details modal */}
-      {selectedBooking && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white/95 backdrop-blur-xl rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-white/20">
-            {/* Modal header */}
-            <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-pink-600 p-6 flex items-center justify-between shadow-lg">
-              <h2 className="text-2xl font-bold text-white">Booking Details</h2>
-              <button
-                onClick={() => setSelectedBooking(null)}
-                className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center hover:bg-white/30 transition-all hover:scale-110"
-              >
-                <X className="h-5 w-5 text-white" />
-              </button>
-            </div>
-
-            {/* Modal content */}
-            <div className="p-6 space-y-4">
-              <div className="flex items-center gap-4 p-5 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border border-purple-100 shadow-sm">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-md">
-                  <User className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">{selectedBooking.attendee_name}</p>
-                  <p className="text-sm text-gray-600">{selectedBooking.attendee_email}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 shadow-sm">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
-                  <Calendar className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">
-                    {new Date(selectedBooking.start_time).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {new Date(selectedBooking.start_time).toLocaleTimeString('en-US', {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                      hour12: true,
-                    })}{' '}
-                    -{' '}
-                    {new Date(selectedBooking.end_time).toLocaleTimeString('en-US', {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                      hour12: true,
-                    })}
-                  </p>
-                </div>
-              </div>
-
-              {selectedBooking.meet_link && (
-                <div className="flex items-start gap-4 p-5 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border border-green-100 shadow-sm">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-md flex-shrink-0">
-                    <Video className="h-6 w-6 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-900 mb-1">Video Conference</p>
-                    <a
-                      href={selectedBooking.meet_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-700 text-sm break-all"
-                    >
-                      {selectedBooking.meet_link}
-                    </a>
-                  </div>
-                </div>
-              )}
-
-              {selectedBooking.notes && (
-                <div className="p-5 bg-gradient-to-br from-gray-50 to-purple-50/30 rounded-2xl border border-gray-200 shadow-sm">
-                  <p className="font-bold text-gray-900 mb-2">Notes</p>
-                  <p className="text-gray-700 leading-relaxed">{selectedBooking.notes}</p>
-                </div>
-              )}
-
-              {/* Action buttons */}
-              <div className="pt-4 space-y-3">
-                {selectedBooking.manage_token && (
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => handleCopyManageLink(selectedBooking)}
-                      className="flex-1 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 px-6 py-3 rounded-xl hover:shadow-lg font-semibold flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
-                    >
-                      <Copy className="h-4 w-4" />
-                      {copiedId === selectedBooking.id ? 'Copied!' : 'Copy Link'}
-                    </button>
-                    <a
-                      href={`/manage/${selectedBooking.manage_token}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 font-semibold flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      Manage
-                    </a>
-                  </div>
-                )}
-                
-                {selectedBooking.status === 'confirmed' && !isPastBooking(selectedBooking) && (
-                  <button
-                    onClick={() => handleCancelBooking(selectedBooking)}
-                    disabled={cancellingId === selectedBooking.id}
-                    className="w-full bg-gradient-to-r from-red-50 to-red-100 text-red-600 px-6 py-3 rounded-xl hover:shadow-lg font-semibold flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 border border-red-200"
-                  >
-                    {cancellingId === selectedBooking.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Ban className="h-4 w-4" />
-                    )}
-                    Cancel Booking
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <BookingDetailModal
+        booking={selectedBooking}
+        onClose={() => setSelectedBooking(null)}
+        onCancel={handleCancelBooking}
+        onCopyManageLink={handleCopyManageLink}
+      />
     </div>
   );
 }
