@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useNotification } from '../contexts/NotificationContext';
+import UpgradeCard from '../components/UpgradeCard';
 import {
   User,
   Mail,
@@ -603,6 +604,13 @@ export default function UserSettings() {
               )}
             </button>
           </nav>
+
+          {/* Premium Upgrade Card in Sidebar */}
+          {currentPlan === 'free' && (
+            <div className="mt-4">
+              <UpgradeCard variant="ai" compact={true} />
+            </div>
+          )}
         </div>
 
         {/* Content Area */}

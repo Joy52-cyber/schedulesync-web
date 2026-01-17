@@ -32,6 +32,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal';
 import { useWalkthrough } from '../context/WalkthroughContext';
 import { WalkthroughPrompt } from '../components/Walkthrough';
+import UpgradeCard from '../components/UpgradeCard';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -712,40 +713,18 @@ export default function Dashboard() {
                 {/* AI Preferences Insights */}
                 <PreferencesInsights />
 
+                {/* Premium Upgrade Card - Right Column */}
+                {currentTier === 'free' && (
+                  <UpgradeCard variant="default" />
+                )}
+
               </div>
 
             </div>
 
-            {/* Upgrade Card */}
+            {/* Premium Upgrade Card - Bottom (for non-free users or as additional CTA) */}
             {currentTier === 'free' && !limitStatus.status?.inGracePeriod && !limitStatus.status?.overGraceLimit && eventTypes.length > 0 && (
-              <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-2xl p-8 shadow-2xl shadow-purple-200/50 relative z-10 border border-white/20">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-bold text-xl mb-2 flex items-center gap-2">
-                      <Star className="h-5 w-5" />
-                      Upgrade to Pro
-                    </h3>
-                    <p className="text-purple-100 mb-4">
-                      Unlimited bookings, AI queries, and advanced features
-                    </p>
-                    <ul className="text-sm text-purple-100 space-y-1">
-                      <li>✨ Unlimited AI queries</li>
-                      <li>📅 Unlimited bookings</li>
-                      <li>📧 Advanced email templates</li>
-                    </ul>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">$15</div>
-                    <div className="text-sm text-purple-200">/month</div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => navigate('/billing')}
-                  className="w-full bg-white text-purple-600 py-3 rounded-xl font-bold hover:bg-gray-50 mt-4 shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5"
-                >
-                  Upgrade Now
-                </button>
-              </div>
+              <UpgradeCard variant="power" className="relative z-10" />
             )}
 
           </div>

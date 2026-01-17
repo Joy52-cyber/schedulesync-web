@@ -28,6 +28,7 @@ import {
 import api from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 import { useUpgrade } from '../context/UpgradeContext';
+import UpgradeCard from '../components/UpgradeCard';
 
 export default function MyLinks() {
   const navigate = useNavigate();
@@ -766,6 +767,13 @@ export default function MyLinks() {
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Premium Upgrade Card */}
+        {user?.tier === 'free' && (
+          <div className="mt-8">
+            <UpgradeCard variant="default" />
           </div>
         )}
 

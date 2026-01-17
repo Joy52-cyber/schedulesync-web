@@ -22,6 +22,7 @@ import {
 import api from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal';
+import UpgradeCard from '../components/UpgradeCard';
 
 export default function BillingSettings() {
   const navigate = useNavigate();
@@ -467,7 +468,7 @@ export default function BillingSettings() {
         {/* Billing History */}
         <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-xl border-2 border-white/20">
           <h2 className="text-xl font-bold text-gray-900 mb-6">Billing History</h2>
-          
+
           {invoices.length === 0 ? (
             <div className="text-center py-8">
               <Receipt className="h-12 w-12 text-gray-300 mx-auto mb-4" />
@@ -491,13 +492,13 @@ export default function BillingSettings() {
                         <XCircle className="h-4 w-4 text-red-600" />
                       )}
                     </div>
-                    
+
                     <div>
                       <p className="font-medium">${invoice.amount} - {invoice.description}</p>
                       <p className="text-sm text-gray-600">{new Date(invoice.date).toLocaleDateString()}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-3">
                     <span className={`text-sm font-medium ${
                       invoice.status === 'paid' ? 'text-green-600' :
@@ -506,7 +507,7 @@ export default function BillingSettings() {
                       {invoice.status === 'paid' ? 'Paid' :
                        invoice.status === 'pending' ? 'Pending' : 'Failed'}
                     </span>
-                    
+
                     {invoice.status === 'paid' && (
                       <button
                         onClick={() => downloadInvoice(invoice.id)}
@@ -522,6 +523,11 @@ export default function BillingSettings() {
             </div>
           )}
         </div>
+
+        {/* Premium Upgrade Card - Final CTA */}
+        {currentTier === 'free' && (
+          <UpgradeCard variant="power" />
+        )}
       </main>
 
       {/* Cancel Subscription Modal */}
