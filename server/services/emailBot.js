@@ -522,6 +522,27 @@ async function getAvailableSlots(userId, duration, preferences, maxSlots = 5, gu
 
   console.log(`📅 Generating slots with ${bufferMinutes}min buffer, ${leadTimeHours}hr lead time`);
 
+  // Get blocked times for this user
+  let blockedTimes = [];
+  try {
+    // Try to get blocked times - support both user_id and team_member_id
+    const blockedResult = await pool.query(`
+      SELECT start_time, end_time, reason FROM blocked_times
+      WHERE user_id = $1 OR team_member_id IN (
+        SELECT id FROM team_members WHERE user_id = $1
+      )
+    `, [userId]);
+    blockedTimes = blockedResult.rows;
+
+    if (blockedTimes.length > 0) {
+      console.log(`🚫 Found ${blockedTimes.length} blocked time periods for user`);
+    }
+  } catch (error) {
+    // Table might not have user_id column, that's okay
+    console.log('ℹ️  No blocked times configured or table schema doesn\'t support user_id');
+    blockedTimes = [];
+  }
+
   // Look at next 14 days
   for (let day = 0; day < 14 && slots.length < maxSlots; day++) {
     // Create date in user's timezone
@@ -618,7 +639,23 @@ async function getAvailableSlots(userId, duration, preferences, maxSlots = 5, gu
         return overlaps;
       });
 
-      if (!hasConflict) {
+      // BLOCKED TIME: Check if slot falls within any blocked time period
+      const isBlocked = blockedTimes.some(block => {
+        const blockStart = new Date(block.start_time);
+        const blockEnd = new Date(block.end_time);
+
+        // Check if slot overlaps with blocked time
+        const overlaps = slotStartUTC < blockEnd && slotEndUTC > blockStart;
+
+        if (overlaps) {
+          const reason = block.reason || 'Blocked';
+          console.log(`🚫 Blocked time: ${slotStart.toFormat('MMM d, h:mm a')} - ${reason}`);
+        }
+
+        return overlaps;
+      });
+
+      if (!hasConflict && !isBlocked) {
         // Calculate day label (Today, Tomorrow, or day name) in user's timezone
         const dayLabel = getDayLabelLuxon(slotStart, nowInUserTz);
 
