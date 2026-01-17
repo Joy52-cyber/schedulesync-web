@@ -10,6 +10,7 @@ const { notifyBookingCancelled, notifyBookingRescheduled } = require('../service
 const { checkBookingConflicts, findAlternativeSlots, formatConflictMessage } = require('../services/conflictDetection');
 const { updateAttendeeProfile } = require('../services/attendeeProfileService');
 const { generateAgendaFromEmail } = require('../services/agendaService');
+const { assignTeamMember } = require('../services/roundRobinService');
 
 // GET all bookings for the user
 router.get('/', authenticateToken, async (req, res) => {
@@ -142,12 +143,34 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Assign team member if this is a team booking
+    let assignedMember = null;
+    if (finalData.team_id) {
+      try {
+        assignedMember = await assignTeamMember(
+          finalData.team_id,
+          new Date(finalData.start_time),
+          new Date(finalEndTime),
+          {}
+        );
+
+        if (assignedMember) {
+          console.log(`✅ Assigned team member: ${assignedMember.name} (ID: ${assignedMember.memberId})`);
+        } else {
+          console.log(`⚠️ No team member could be assigned for team ${finalData.team_id}`);
+        }
+      } catch (assignError) {
+        console.error('Error assigning team member:', assignError);
+        // Continue with booking even if assignment fails
+      }
+    }
+
     // Generate manage token for guest access
     const manageToken = crypto.randomBytes(32).toString('hex');
 
     const result = await client.query(
-      `INSERT INTO bookings (attendee_name, attendee_email, start_time, end_time, user_id, team_id, status, title, notes, additional_guests, guest_timezone, custom_answers, manage_token)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `INSERT INTO bookings (attendee_name, attendee_email, start_time, end_time, user_id, team_id, status, title, notes, additional_guests, guest_timezone, custom_answers, manage_token, assigned_member_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
         finalData.attendee_name,
@@ -162,7 +185,8 @@ router.post('/', async (req, res) => {
         JSON.stringify(finalData.additional_guests || []),
         finalData.guest_timezone || 'UTC',
         JSON.stringify(finalData.custom_answers || {}),
-        manageToken
+        manageToken,
+        assignedMember ? assignedMember.memberId : null
       ]
     );
 

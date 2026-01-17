@@ -60,6 +60,7 @@ const remindersRoutes = require('../routes/reminders');
 const conflictsRoutes = require('../routes/conflicts');
 const actionItemsRoutes = require('../routes/actionItems');
 const meetingContextRoutes = require('../routes/meetingContext');
+const groupAvailabilityRoutes = require('../routes/groupAvailability');
 
 // Register core routes
 app.use('/api/auth', authRoutes);
@@ -104,6 +105,7 @@ app.use('/api/reminders', remindersRoutes);  // Email Reminders
 app.use('/api/conflicts', conflictsRoutes);  // Conflict Detection
 app.use('/api', actionItemsRoutes);  // Action Items (uses /api/bookings/:id/action-items and /api/action-items/* routes)
 app.use('/api', meetingContextRoutes);  // Meeting Context and Attendee Profiles
+app.use('/api', groupAvailabilityRoutes);  // Group Availability and Team Assignment
 
 console.log('Routes registered:');
 console.log('  - /api/auth/*');
