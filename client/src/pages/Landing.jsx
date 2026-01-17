@@ -23,6 +23,16 @@ export default function Landing() {
 
   const features = [
     {
+      icon: Sparkles,
+      title: 'AI Assistant',
+      description: 'Natural language scheduling with ChatGPT integration. Just tell it what you need: "Schedule lunch with John next Tuesday" or "Find time for a 30-min call this week." AI handles the rest.',
+      stat: 'All plans',
+      color: 'from-blue-500 to-cyan-500',
+      demo: 'Natural language • Smart rules • Intelligent suggestions',
+      isNew: true,
+      badge: 'FEATURED'
+    },
+    {
       icon: Mail,
       title: 'Email Bot',
       description: 'CC schedule@mg.trucal.xyz on any email thread. Our AI proposes times, handles replies, and books automatically. Works with Gmail, Outlook, Apple Mail—any email client.',
@@ -39,14 +49,6 @@ export default function Landing() {
       stat: '< 30 seconds',
       color: 'from-green-500 to-emerald-500',
       demo: 'One-click OAuth connection'
-    },
-    {
-      icon: Clock,
-      title: 'Smart Availability',
-      description: 'Set buffer times, booking caps, and custom hours. Your calendar, your rules—without the complexity.',
-      stat: 'Plus+',
-      color: 'from-blue-500 to-cyan-500',
-      demo: 'Simple controls that just work'
     },
     {
       icon: Users,
@@ -200,25 +202,44 @@ export default function Landing() {
           </h1>
 
           <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 max-w-3xl mx-auto mb-12 leading-relaxed">
-            AI-powered scheduling with email bot, smart rules, and zero complexity.
+            ChatGPT-powered AI assistant + email bot. Natural language scheduling meets zero-friction booking.
           </p>
 
-          {/* Email Bot Highlight */}
-          <div className="max-w-2xl mx-auto mb-12">
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-300 relative">
-              <div className="absolute -top-3 right-4 px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold rounded-full flex items-center gap-1">
+          {/* Dual Feature Highlight */}
+          <div className="grid md:grid-cols-2 gap-4 sm:gap-6 max-w-4xl mx-auto mb-12">
+            {/* AI Assistant Highlight */}
+            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-5 sm:p-6 border-2 border-blue-300 relative">
+              <div className="absolute -top-3 right-4 px-3 py-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold rounded-full flex items-center gap-1">
                 <Sparkles className="w-3 h-3" />
-                INCLUDED IN ALL PLANS
+                ALL PLANS
               </div>
               <div className="flex items-center gap-3 mb-3">
-                <Mail className="w-8 h-8 text-purple-600" />
-                <h3 className="text-xl font-bold text-gray-900">Email Bot</h3>
+                <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600" />
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900">AI Assistant</h3>
               </div>
-              <p className="text-gray-700 mb-2">
-                Just CC <span className="bg-purple-100 px-2 py-1 rounded font-mono text-purple-700 font-semibold">schedule@mg.trucal.xyz</span> on any email
+              <p className="text-sm sm:text-base text-gray-700 mb-2">
+                "Schedule lunch with John next Tuesday"
               </p>
-              <p className="text-sm text-gray-600">
-                AI proposes times, handles replies, books automatically
+              <p className="text-xs sm:text-sm text-gray-600">
+                ChatGPT integration • Natural language • Smart rules
+              </p>
+            </div>
+
+            {/* Email Bot Highlight */}
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-5 sm:p-6 border-2 border-purple-300 relative">
+              <div className="absolute -top-3 right-4 px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold rounded-full flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                ALL PLANS
+              </div>
+              <div className="flex items-center gap-3 mb-3">
+                <Mail className="w-7 h-7 sm:w-8 sm:h-8 text-purple-600" />
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Email Bot</h3>
+              </div>
+              <p className="text-sm sm:text-base text-gray-700 mb-2">
+                CC <span className="bg-purple-100 px-2 py-1 rounded font-mono text-purple-700 font-semibold text-xs sm:text-sm">schedule@mg.trucal.xyz</span>
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600">
+                AI proposes times • Handles replies • Books automatically
               </p>
             </div>
           </div>
@@ -318,13 +339,152 @@ export default function Landing() {
       </section>
 
 
+      {/* ================= HOW IT WORKS - AI ASSISTANT ================= */}
+      <section className="py-24 bg-gradient-to-br from-blue-50 via-cyan-50 to-indigo-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-sm font-bold mb-6">
+              <Sparkles className="w-4 h-4" />
+              AI ASSISTANT
+            </div>
+            <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
+              Talk to your calendar like it's a person
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Natural language scheduling powered by ChatGPT. Just ask, and AI figures out the rest.
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Left: ChatGPT Interface Mockup */}
+            <div className="relative">
+              <div className="bg-white rounded-2xl shadow-2xl border-2 border-blue-200 overflow-hidden">
+                {/* Chat Header */}
+                <div className="bg-gradient-to-r from-blue-600 to-cyan-600 p-4 text-white">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                      <Sparkles className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold">TruCal AI Assistant</h3>
+                      <p className="text-xs text-blue-100">ChatGPT-powered scheduling</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chat Messages */}
+                <div className="p-6 space-y-4 bg-gray-50 min-h-[400px]">
+                  {/* User Message */}
+                  <div className="flex justify-end">
+                    <div className="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 max-w-[80%]">
+                      <p className="text-sm">Schedule lunch with John next Tuesday around noon</p>
+                    </div>
+                  </div>
+
+                  {/* AI Response */}
+                  <div className="flex justify-start">
+                    <div className="bg-white border-2 border-blue-200 rounded-2xl rounded-tl-sm px-5 py-3 max-w-[85%]">
+                      <p className="text-sm text-gray-900 mb-3">I'll schedule lunch with John for next Tuesday at 12:00 PM. Let me check your availability...</p>
+                      <div className="space-y-2">
+                        <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg px-4 py-2.5 text-sm font-semibold">
+                          ✓ Tuesday, Jan 16 • 12:00 PM - 1:00 PM
+                        </div>
+                        <p className="text-xs text-gray-500">Duration: 1 hour • Location: TBD</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* User Confirmation */}
+                  <div className="flex justify-end">
+                    <div className="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 max-w-[80%]">
+                      <p className="text-sm">Perfect! Send the invite</p>
+                    </div>
+                  </div>
+
+                  {/* AI Confirmation */}
+                  <div className="flex justify-start">
+                    <div className="bg-white border-2 border-green-200 rounded-2xl rounded-tl-sm px-5 py-3 max-w-[85%]">
+                      <p className="text-sm text-gray-900 flex items-center gap-2">
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                        Done! Calendar invite sent to John. Meeting confirmed for Tuesday, Jan 16 at 12:00 PM.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Floating Badges */}
+              <div className="absolute -top-4 -right-4 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-full font-bold text-sm shadow-lg transform rotate-6 animate-pulse">
+                ⚡ ChatGPT
+              </div>
+              <div className="absolute -bottom-4 -left-4 px-4 py-2 bg-green-500 text-white rounded-full font-bold text-sm shadow-xl transform -rotate-6">
+                ✓ Smart
+              </div>
+            </div>
+
+            {/* Right: Features */}
+            <div className="space-y-6">
+              <div className="flex gap-4 items-start">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+                  1
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Ask in plain English</h3>
+                  <p className="text-gray-600">"Schedule a 30-min call with Sarah sometime this week" or "Find time for team standup every Monday at 9 AM"</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 items-start">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+                  2
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">AI understands context</h3>
+                  <p className="text-gray-600">Interprets your preferences, working hours, buffer times, and booking rules. Suggests optimal times automatically.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 items-start">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+                  3
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Instant booking</h3>
+                  <p className="text-gray-600">AI checks your calendar, proposes times, and books meetings. Sends invites, updates your calendar, and notifies everyone.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 items-start">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+                  4
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Smart rules & preferences</h3>
+                  <p className="text-gray-600">Set custom rules like "No meetings before 10 AM" or "Leave 15-min buffer between calls." AI enforces them automatically.</p>
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <button
+                  onClick={() => navigate('/register')}
+                  className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-full text-lg font-bold hover:shadow-xl transition-all transform hover:scale-105 flex items-center gap-2"
+                >
+                  Try AI Assistant
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ================= HOW IT WORKS - EMAIL BOT ================= */}
       <section className="py-24 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-bold mb-6">
-              <Sparkles className="w-4 h-4" />
-              HOW IT WORKS
+              <Mail className="w-4 h-4" />
+              EMAIL BOT
             </div>
             <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
               Schedule meetings without leaving your inbox
@@ -602,19 +762,23 @@ export default function Landing() {
               Everything you need. Nothing you don't.
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Focus on Email Bot as your key differentiator. The rest is built-in.
+              AI Assistant + Email Bot as your key differentiators. The rest is built-in.
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8">
-            {features.map((feature, idx) => (
-              <div key={idx} className={`group bg-white rounded-2xl p-6 sm:p-8 shadow-sm border-2 hover:shadow-xl transition-all relative ${feature.isNew ? 'border-purple-300 hover:border-purple-400' : 'border-gray-100 hover:border-purple-200'}`}>
-                {feature.badge && (
-                  <div className="absolute -top-3 right-4 px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold rounded-full flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" />
-                    {feature.badge}
-                  </div>
-                )}
+            {features.map((feature, idx) => {
+              const borderColor = idx === 0 ? 'border-blue-300 hover:border-blue-400' : idx === 1 ? 'border-purple-300 hover:border-purple-400' : 'border-gray-100 hover:border-purple-200';
+              const badgeGradient = idx === 0 ? 'from-blue-600 to-cyan-600' : 'from-purple-600 to-pink-600';
+
+              return (
+                <div key={idx} className={`group bg-white rounded-2xl p-6 sm:p-8 shadow-sm border-2 hover:shadow-xl transition-all relative ${feature.isNew ? borderColor : 'border-gray-100 hover:border-purple-200'}`}>
+                  {feature.badge && (
+                    <div className={`absolute -top-3 right-4 px-3 py-1 bg-gradient-to-r ${badgeGradient} text-white text-xs font-bold rounded-full flex items-center gap-1`}>
+                      <Sparkles className="w-3 h-3" />
+                      {feature.badge}
+                    </div>
+                  )}
                 <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
                   <feature.icon className="w-7 h-7 text-white" />
                 </div>
@@ -640,8 +804,9 @@ export default function Landing() {
                 <div className="text-sm text-purple-600 font-medium bg-purple-50 rounded-lg px-4 py-3 border border-purple-100">
                   💡 {feature.demo}
                 </div>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -733,33 +898,65 @@ export default function Landing() {
           </div>
 
           {/* AI Features Explainer */}
-          <div className="mt-16 max-w-3xl mx-auto">
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-8 border-2 border-purple-200">
-              <h3 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-purple-600" />
-                What does TruCal AI do for you?
-              </h3>
-              <p className="text-gray-700 mb-4">
-                TruCal's AI handles scheduling so you don't have to:
-              </p>
-              <ul className="space-y-2 text-gray-700">
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-600">•</span>
-                  <span>Suggests optimal times based on your calendar availability</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-600">•</span>
-                  <span>Detects conflicts and prevents double-bookings</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-600">•</span>
-                  <span>Sends professional scheduling emails automatically</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-600">•</span>
-                  <span>Applies your buffer times and booking caps</span>
-                </li>
-              </ul>
+          <div className="mt-16 max-w-4xl mx-auto">
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* AI Assistant */}
+              <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 sm:p-8 border-2 border-blue-200">
+                <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <Sparkles className="w-6 h-6 text-blue-600" />
+                  AI Assistant
+                </h3>
+                <p className="text-sm text-gray-700 mb-4">
+                  ChatGPT-powered scheduling:
+                </p>
+                <ul className="space-y-2 text-sm text-gray-700">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600">•</span>
+                    <span>Natural language: "Find time for lunch with John"</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600">•</span>
+                    <span>Smart rules: "No meetings before 10 AM"</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600">•</span>
+                    <span>Context-aware time suggestions</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600">•</span>
+                    <span>Instant booking with calendar sync</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Email Bot */}
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 sm:p-8 border-2 border-purple-200">
+                <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <Mail className="w-6 h-6 text-purple-600" />
+                  Email Bot
+                </h3>
+                <p className="text-sm text-gray-700 mb-4">
+                  AI-powered email scheduling:
+                </p>
+                <ul className="space-y-2 text-sm text-gray-700">
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-600">•</span>
+                    <span>CC schedule@mg.trucal.xyz on any email</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-600">•</span>
+                    <span>AI handles back-and-forth automatically</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-600">•</span>
+                    <span>One-click booking from email</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-600">•</span>
+                    <span>Works with any email client</span>
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
