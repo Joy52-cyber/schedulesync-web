@@ -6,6 +6,7 @@
 const pool = require('../config/database');
 const { sendEmail, sendTemplatedEmail } = require('./email');
 const { createCalendarEvent } = require('./calendarService');
+const { parseRecurrenceFromNaturalLanguage, generateRRule, formatRecurrenceText } = require('./recurrenceService');
 const crypto = require('crypto');
 const FormData = require('form-data');
 const Mailgun = require('mailgun.js');
@@ -329,7 +330,9 @@ async function parseEmailIntentWithAI(subject, body, from) {
   "timeSlot": <ISO datetime string if selecting a specific time, or null>,
   "timezone": <detected timezone like "America/New_York" or null>,
   "meetingType": <detected type: "coffee", "lunch", "call", "video", "zoom", "phone", "in-person", "quick", or null>,
-  "locationType": <"in-person" | "phone" | "video" | null>
+  "locationType": <"in-person" | "phone" | "video" | null>,
+  "isRecurring": <boolean, true if this is a recurring meeting>,
+  "recurrencePattern": <string describing the recurrence like "every Monday", "bi-weekly on Tuesdays", "monthly", or null>
 }
 
 Meeting Type Detection:
@@ -340,12 +343,19 @@ Meeting Type Detection:
 - "phone call" → {meetingType: "call", duration: 30, locationType: "phone"}
 - "in person" → {locationType: "in-person"}
 
+Recurring Meeting Detection:
+- "every Monday at 2pm" → {isRecurring: true, recurrencePattern: "every Monday", preferences: ["monday", "14:00"]}
+- "weekly standup on Tuesdays" → {isRecurring: true, recurrencePattern: "weekly on Tuesdays", preferences: ["tuesday"]}
+- "bi-weekly check-in" → {isRecurring: true, recurrencePattern: "bi-weekly"}
+- "monthly review on the 15th" → {isRecurring: true, recurrencePattern: "monthly on the 15th"}
+- "every weekday at 9am" → {isRecurring: true, recurrencePattern: "every weekday", preferences: ["monday","tuesday","wednesday","thursday","friday", "09:00"]}
+
 Examples:
-- "Let's grab coffee next Tuesday" → {"action": "schedule", "meetingType": "coffee", "duration": 30, "preferences": ["tuesday", "morning"]}
-- "Can we do a quick 15-min call?" → {"action": "schedule", "meetingType": "quick", "duration": 15, "locationType": "phone"}
-- "Lunch meeting on Thursday?" → {"action": "schedule", "meetingType": "lunch", "duration": 60, "preferences": ["thursday", "11:00-14:00"]}
-- "Zoom call next week" → {"action": "schedule", "meetingType": "zoom", "duration": 60, "locationType": "video"}
-- "confirm: 2024-01-22T10:00" → {"action": "select_time", "timeSlot": "2024-01-22T10:00"}`,
+- "Let's grab coffee next Tuesday" → {"action": "schedule", "meetingType": "coffee", "duration": 30, "preferences": ["tuesday", "morning"], "isRecurring": false}
+- "Can we do a quick 15-min call?" → {"action": "schedule", "meetingType": "quick", "duration": 15, "locationType": "phone", "isRecurring": false}
+- "Weekly team sync every Monday at 10am" → {"action": "schedule", "duration": 60, "isRecurring": true, "recurrencePattern": "every Monday", "preferences": ["monday", "10:00"]}
+- "Zoom call next week" → {"action": "schedule", "meetingType": "zoom", "duration": 60, "locationType": "video", "isRecurring": false}
+- "confirm: 2024-01-22T10:00" → {"action": "select_time", "timeSlot": "2024-01-22T10:00", "isRecurring": false}`,
       messages: [{
         role: 'user',
         content: `Subject: ${subject}\n\nBody: ${body}`
@@ -355,6 +365,15 @@ Examples:
     const parsed = JSON.parse(response.content[0].text);
     console.log('🤖 Claude parsed intent:', parsed);
 
+    // Parse recurrence pattern if detected
+    let recurrence = null;
+    if (parsed.isRecurring && parsed.recurrencePattern) {
+      recurrence = parseRecurrenceFromNaturalLanguage(parsed.recurrencePattern);
+      if (recurrence) {
+        console.log('🔄 Recurring pattern detected:', formatRecurrenceText(recurrence));
+      }
+    }
+
     return {
       action: parsed.action || 'schedule',
       duration: parsed.duration || null,
@@ -362,7 +381,9 @@ Examples:
       timeSlot: parsed.timeSlot || null,
       timezone: parsed.timezone || null,
       meetingType: parsed.meetingType || null,
-      locationType: parsed.locationType || null
+      locationType: parsed.locationType || null,
+      isRecurring: parsed.isRecurring || false,
+      recurrence: recurrence
     };
   } catch (error) {
     console.error('AI intent parsing error:', error.message);
@@ -578,6 +599,11 @@ async function proposeAvailableTimes(thread, user, settings, intent) {
     console.log(`🎯 Meeting type detected: ${meetingType} (${duration}min, ${locationType || 'any location'})`);
   }
 
+  // Log recurring meeting detection
+  if (intent.isRecurring && intent.recurrence) {
+    console.log(`🔄 Recurring meeting: ${formatRecurrenceText(intent.recurrence)}`);
+  }
+
   // Check for multi-participant scheduling
   const participants = thread.participants || [];
   const trucalParticipants = await identifyTruCalParticipants(participants, user.id);
@@ -601,7 +627,7 @@ async function proposeAvailableTimes(thread, user, settings, intent) {
     };
   }
 
-  // Store proposed slots, guest timezone, meeting metadata, and participant info in thread
+  // Store proposed slots, guest timezone, meeting metadata, participant info, and recurrence in thread
   await pool.query(
     'UPDATE email_bot_threads SET proposed_slots = $1, updated_at = NOW() WHERE id = $2',
     [JSON.stringify({
@@ -609,7 +635,9 @@ async function proposeAvailableTimes(thread, user, settings, intent) {
       meetingType: meetingType,
       locationType: locationType,
       duration: duration,
-      trucalParticipants: trucalParticipants.map(p => ({ id: p.id, email: p.email, name: p.name }))
+      trucalParticipants: trucalParticipants.map(p => ({ id: p.id, email: p.email, name: p.name })),
+      isRecurring: intent.isRecurring || false,
+      recurrence: intent.recurrence || null
     }), thread.id]
   );
 
@@ -1240,31 +1268,71 @@ async function handleTimeSelection(thread, user, intent) {
     };
   }
 
-  // Get default event type
+  // Get default event type and check for recurring info
   const settings = await getBotSettings(user.id);
   const duration = settings.default_duration || 30;
 
   const endTime = new Date(selectedTime);
   endTime.setMinutes(endTime.getMinutes() + duration);
 
+  // Check if this is a recurring meeting
+  const proposedData = thread.proposed_slots ? JSON.parse(thread.proposed_slots) : {};
+  const isRecurring = proposedData.isRecurring || false;
+  const recurrence = proposedData.recurrence || null;
+
   // Create booking in database first
   const manageToken = crypto.randomBytes(32).toString('hex');
 
-  const booking = await pool.query(`
-    INSERT INTO bookings (
-      user_id, title, attendee_name, attendee_email,
-      start_time, end_time, status, manage_token, source
-    ) VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', $7, 'email_bot')
-    RETURNING *
-  `, [
-    user.id,
-    `Meeting with ${guest.name || guest.email}`,
-    guest.name || guest.email.split('@')[0],
-    guest.email,
-    selectedTime,
-    endTime,
-    manageToken
-  ]);
+  let booking;
+  if (isRecurring && recurrence) {
+    // Create recurring booking series
+    const rrule = generateRRule(recurrence);
+    const recurrenceEndDate = recurrence.endDate || DateTime.fromJSDate(selectedTime).plus({ months: 6 }).toJSDate();
+
+    console.log(`🔄 Creating recurring booking: ${formatRecurrenceText(recurrence)}`);
+    console.log(`📅 RRULE: ${rrule}`);
+
+    booking = await pool.query(`
+      INSERT INTO bookings (
+        user_id, title, attendee_name, attendee_email,
+        start_time, end_time, status, manage_token, source,
+        is_recurring, recurrence_rule, recurrence_end_date,
+        recurrence_frequency, recurrence_interval, recurrence_days_of_week
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', $7, 'email_bot', $8, $9, $10, $11, $12, $13)
+      RETURNING *
+    `, [
+      user.id,
+      `Meeting with ${guest.name || guest.email}`,
+      guest.name || guest.email.split('@')[0],
+      guest.email,
+      selectedTime,
+      endTime,
+      manageToken,
+      true, // is_recurring
+      rrule, // recurrence_rule
+      recurrenceEndDate, // recurrence_end_date
+      recurrence.frequency, // recurrence_frequency
+      recurrence.interval || 1, // recurrence_interval
+      recurrence.daysOfWeek || [] // recurrence_days_of_week
+    ]);
+  } else {
+    // Create one-time booking
+    booking = await pool.query(`
+      INSERT INTO bookings (
+        user_id, title, attendee_name, attendee_email,
+        start_time, end_time, status, manage_token, source
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', $7, 'email_bot')
+      RETURNING *
+    `, [
+      user.id,
+      `Meeting with ${guest.name || guest.email}`,
+      guest.name || guest.email.split('@')[0],
+      guest.email,
+      selectedTime,
+      endTime,
+      manageToken
+    ]);
+  }
 
   const bookingRecord = booking.rows[0];
 
@@ -1278,7 +1346,9 @@ async function handleTimeSelection(thread, user, intent) {
     start_time: bookingRecord.start_time,
     end_time: bookingRecord.end_time,
     notes: thread.subject,
-    additional_guests: [] // Email Bot doesn't support additional guests yet
+    additional_guests: [], // Email Bot doesn't support additional guests yet
+    recurrence_rule: bookingRecord.recurrence_rule || null,
+    recurrence_end_date: bookingRecord.recurrence_end_date || null
   });
 
   // Update booking with calendar event info

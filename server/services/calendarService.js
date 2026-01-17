@@ -77,7 +77,7 @@ async function createGoogleCalendarEvent(user, bookingData) {
       });
     }
 
-    // Create event with Google Meet
+    // Build event object
     const event = {
       summary: bookingData.title,
       description: bookingData.notes || 'Meeting scheduled via TruCal',
@@ -104,6 +104,12 @@ async function createGoogleCalendarEvent(user, bookingData) {
         ]
       }
     };
+
+    // Add recurrence if this is a recurring event
+    if (bookingData.recurrence_rule) {
+      event.recurrence = [`RRULE:${bookingData.recurrence_rule}`];
+      console.log(`🔄 Creating recurring Google Calendar event: ${bookingData.recurrence_rule}`);
+    }
 
     console.log('Creating Google Calendar event...');
     const response = await calendar.events.insert({
@@ -185,6 +191,19 @@ async function createMicrosoftCalendarEvent(user, bookingData) {
       isOnlineMeeting: true,
       onlineMeetingProvider: 'teamsForBusiness'
     };
+
+    // Add recurrence if this is a recurring event
+    if (bookingData.recurrence_rule) {
+      event.recurrence = {
+        pattern: parseRRuleForMicrosoft(bookingData.recurrence_rule),
+        range: {
+          type: bookingData.recurrence_end_date ? 'endDate' : 'noEnd',
+          startDate: new Date(bookingData.start_time).toISOString().split('T')[0],
+          endDate: bookingData.recurrence_end_date ? new Date(bookingData.recurrence_end_date).toISOString().split('T')[0] : undefined
+        }
+      };
+      console.log(`🔄 Creating recurring Microsoft Calendar event: ${bookingData.recurrence_rule}`);
+    }
 
     console.log('Creating Microsoft Calendar event...');
     const response = await axios.post(
@@ -296,10 +315,47 @@ async function refreshMicrosoftToken(user) {
   }
 }
 
+/**
+ * Convert RRULE string to Microsoft Graph API recurrence pattern
+ * Example: "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE" → {type: 'weekly', interval: 2, daysOfWeek: ['monday', 'wednesday']}
+ */
+function parseRRuleForMicrosoft(rrule) {
+  const parts = rrule.split(';');
+  const pattern = {
+    type: 'daily',
+    interval: 1
+  };
+
+  parts.forEach(part => {
+    const [key, value] = part.split('=');
+
+    switch (key) {
+      case 'FREQ':
+        pattern.type = value.toLowerCase();
+        break;
+      case 'INTERVAL':
+        pattern.interval = parseInt(value);
+        break;
+      case 'BYDAY':
+        pattern.daysOfWeek = value.split(',').map(day => {
+          const dayMap = { 'MO': 'monday', 'TU': 'tuesday', 'WE': 'wednesday', 'TH': 'thursday', 'FR': 'friday', 'SA': 'saturday', 'SU': 'sunday' };
+          return dayMap[day] || day.toLowerCase();
+        });
+        break;
+      case 'BYMONTHDAY':
+        pattern.dayOfMonth = parseInt(value);
+        break;
+    }
+  });
+
+  return pattern;
+}
+
 module.exports = {
   createCalendarEvent,
   createGoogleCalendarEvent,
   createMicrosoftCalendarEvent,
   refreshGoogleToken,
-  refreshMicrosoftToken
+  refreshMicrosoftToken,
+  parseRRuleForMicrosoft
 };
