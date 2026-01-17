@@ -458,14 +458,13 @@ async function proposeAvailableTimes(thread, user, settings, intent) {
 }
 
 /**
- * Get user's working hours from availability settings or use defaults
+ * Get user's working hours and availability settings from database or use defaults
  */
 async function getUserWorkingHours(userId) {
   try {
-    // Try to get working hours from user's settings
-    // This could be from a user_settings table or availability_rules table
+    // Try to get working hours and availability settings from user's settings
     const result = await pool.query(`
-      SELECT working_hours, buffer_time
+      SELECT working_hours, buffer_time, lead_time_hours, booking_horizon_days
       FROM users
       WHERE id = $1
     `, [userId]);
@@ -473,7 +472,9 @@ async function getUserWorkingHours(userId) {
     if (result.rows[0]?.working_hours) {
       return {
         hours: result.rows[0].working_hours,
-        buffer: result.rows[0].buffer_time || 0
+        buffer: result.rows[0].buffer_time || 0,
+        leadTime: result.rows[0].lead_time_hours || 0,
+        bookingHorizon: result.rows[0].booking_horizon_days || 14
       };
     }
   } catch (error) {
@@ -481,6 +482,7 @@ async function getUserWorkingHours(userId) {
   }
 
   // Default working hours: 9 AM - 5 PM, Monday-Friday
+  // Default: 0 buffer, 0 lead time, 14 days horizon
   return {
     hours: {
       monday: { enabled: true, start: '09:00', end: '17:00' },
@@ -491,7 +493,9 @@ async function getUserWorkingHours(userId) {
       saturday: { enabled: false, start: '09:00', end: '17:00' },
       sunday: { enabled: false, start: '09:00', end: '17:00' }
     },
-    buffer: 0
+    buffer: 0,
+    leadTime: 0,
+    bookingHorizon: 14
   };
 }
 
@@ -507,9 +511,16 @@ async function getAvailableSlots(userId, duration, preferences, maxSlots = 5, gu
 
   const workingHoursData = await getUserWorkingHours(userId);
   const workingHours = workingHoursData.hours;
+  const bufferMinutes = workingHoursData.buffer || 0;
+  const leadTimeHours = workingHoursData.leadTime || 0;
 
   // Get current time in user's timezone
   const nowInUserTz = DateTime.now().setZone(userTimezone);
+
+  // Calculate minimum start time based on lead time
+  const minStartTime = nowInUserTz.plus({ hours: leadTimeHours });
+
+  console.log(`📅 Generating slots with ${bufferMinutes}min buffer, ${leadTimeHours}hr lead time`);
 
   // Look at next 14 days
   for (let day = 0; day < 14 && slots.length < maxSlots; day++) {
@@ -578,15 +589,33 @@ async function getAvailableSlots(userId, duration, preferences, maxSlots = 5, gu
       // Skip if in the past (compare in user's timezone)
       if (slotStart <= nowInUserTz) continue;
 
+      // LEAD TIME: Skip if slot is too soon (doesn't meet minimum notice requirement)
+      if (slotStart < minStartTime) {
+        console.log(`⏰ Skipping ${slotStart.toFormat('MMM d, h:mm a')} - within ${leadTimeHours}hr lead time`);
+        continue;
+      }
+
       // Convert to UTC for conflict checking
       const slotStartUTC = slotStart.toUTC().toJSDate();
       const slotEndUTC = slotEnd.toUTC().toJSDate();
 
-      // Skip if conflicts with existing booking
+      // BUFFER TIME: Check if conflicts with existing bookings (including buffer)
       const hasConflict = bookedSlots.some(b => {
         const bStart = new Date(b.start_time);
         const bEnd = new Date(b.end_time);
-        return slotStartUTC < bEnd && slotEndUTC > bStart;
+
+        // Add buffer time to both start and end
+        const bufferedSlotStart = new Date(slotStartUTC.getTime() - bufferMinutes * 60000);
+        const bufferedSlotEnd = new Date(slotEndUTC.getTime() + bufferMinutes * 60000);
+
+        // Check overlap with buffer zones
+        const overlaps = bufferedSlotStart < bEnd && bufferedSlotEnd > bStart;
+
+        if (overlaps && bufferMinutes > 0) {
+          console.log(`🚫 Buffer conflict: ${slotStart.toFormat('h:mm a')} conflicts with existing booking (${bufferMinutes}min buffer)`);
+        }
+
+        return overlaps;
       });
 
       if (!hasConflict) {
