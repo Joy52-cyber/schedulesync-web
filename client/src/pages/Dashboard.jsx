@@ -75,24 +75,29 @@ export default function Dashboard() {
   const [showGroupScheduler, setShowGroupScheduler] = useState(false);
 
   useEffect(() => {
+    console.log('[Dashboard] Component mounted, starting to load data...');
     loadAllData();
   }, []);
 
   const loadAllData = async () => {
+    console.log('[Dashboard] loadAllData started, setting loading=true');
     setLoading(true);
     try {
+      console.log('[Dashboard] Starting Promise.all with 7 API calls...');
       await Promise.all([
-        loadDashboardData().catch(err => console.error('Dashboard data failed:', err)),
-        loadEventTypes().catch(err => console.error('Event types failed:', err)),
-        loadUserTimezone().catch(err => console.error('Timezone failed:', err)),
-        loadUserProfile().catch(err => console.error('Profile failed:', err)),
-        loadLimitStatus().catch(err => console.error('Limits failed:', err)),
-        checkChatGptStatus().catch(err => console.error('ChatGPT status failed:', err)),
-        loadConflicts().catch(err => console.error('Conflicts failed:', err)),
+        loadDashboardData().catch(err => console.error('[Dashboard] ❌ Dashboard data failed:', err)),
+        loadEventTypes().catch(err => console.error('[Dashboard] ❌ Event types failed:', err)),
+        loadUserTimezone().catch(err => console.error('[Dashboard] ❌ Timezone failed:', err)),
+        loadUserProfile().catch(err => console.error('[Dashboard] ❌ Profile failed:', err)),
+        loadLimitStatus().catch(err => console.error('[Dashboard] ❌ Limits failed:', err)),
+        checkChatGptStatus().catch(err => console.error('[Dashboard] ❌ ChatGPT status failed:', err)),
+        loadConflicts().catch(err => console.error('[Dashboard] ❌ Conflicts failed:', err)),
       ]);
+      console.log('[Dashboard] ✅ All API calls completed');
     } catch (error) {
-      console.error('Error loading dashboard:', error);
+      console.error('[Dashboard] ❌ Fatal error loading dashboard:', error);
     } finally {
+      console.log('[Dashboard] Setting loading=false, should render content now');
       setLoading(false);
     }
   };
@@ -107,8 +112,10 @@ export default function Dashboard() {
   };
 
   const loadDashboardData = async () => {
+    console.log('[Dashboard] 📊 Loading dashboard stats...');
     try {
       const response = await api.get('/dashboard/stats');
+      console.log('[Dashboard] ✅ Dashboard stats loaded:', response.data);
       const data = response.data;
       setStats({
         totalBookings: data.stats?.totalBookings || 0,
@@ -411,6 +418,8 @@ export default function Dashboard() {
 
   const currentTier = limitStatus?.tier || user?.subscription_tier || user?.tier || 'free';
   const usage = user?.usage || { ai_queries_used: 0, ai_queries_limit: 10 };
+
+  console.log('[Dashboard] 🎨 Rendering dashboard. Loading:', loading, 'Stats:', stats, 'User:', user?.name);
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
