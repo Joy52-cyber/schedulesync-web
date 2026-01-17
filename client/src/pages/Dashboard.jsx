@@ -540,7 +540,8 @@ export default function Dashboard() {
 
             {/* Reschedule Suggestions */}
             <div className="mt-6">
-              <RescheduleSuggestions />
+              {/* TEMPORARILY DISABLED FOR DEBUGGING */}
+              {/* <RescheduleSuggestions /> */}
             </div>
 
             {/* Two Column Layout */}
@@ -824,7 +825,8 @@ export default function Dashboard() {
                 </div>
 
                 {/* AI Preferences Insights */}
-                <PreferencesInsights />
+                {/* TEMPORARILY DISABLED FOR DEBUGGING */}
+                {/* <PreferencesInsights /> */}
 
                 {/* Premium Upgrade Card - Right Column */}
                 {/* TEMPORARILY DISABLED FOR DEBUGGING */}
