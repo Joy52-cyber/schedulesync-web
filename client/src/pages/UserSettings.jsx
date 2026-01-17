@@ -48,6 +48,9 @@ export default function UserSettings() {
   const notify = useNotification();
   const { hasProFeature, hasTeamFeature, currentTier } = useUpgrade();
 
+  // Debug: Log currentTier to see what value we're getting
+  console.log('🔍 UserSettings - currentTier:', currentTier);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -606,7 +609,7 @@ export default function UserSettings() {
           </nav>
 
           {/* Premium Upgrade Card in Sidebar */}
-          {currentTier === 'free' && (
+          {!hasProFeature() && (
             <div className="mt-4">
               <UpgradeCard variant="ai" compact={true} />
             </div>
