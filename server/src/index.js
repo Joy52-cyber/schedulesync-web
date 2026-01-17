@@ -69,6 +69,7 @@ const calendarAnalyticsRoutes = require('../routes/calendarAnalytics');
 const slackRoutes = require('../routes/integrations/slack');
 const userWebhooksRoutes = require('../routes/integrations/webhooks');
 const hubspotRoutes = require('../routes/integrations/hubspot');
+const zoomRoutes = require('../routes/integrations/zoom');
 
 // Register core routes
 app.use('/api/auth', authRoutes);
@@ -122,6 +123,7 @@ app.use('/api/calendar-analytics', calendarAnalyticsRoutes);  // Calendar Analyt
 app.use('/api/integrations/slack', slackRoutes);  // Slack OAuth and Notifications
 app.use('/api/integrations/webhooks', userWebhooksRoutes);  // User Webhooks (Zapier/Make)
 app.use('/api/integrations/hubspot', hubspotRoutes);  // HubSpot CRM Integration
+app.use('/api/integrations/zoom', zoomRoutes);  // Zoom Webhooks
 
 console.log('Routes registered:');
 console.log('  - /api/auth/*');
@@ -150,6 +152,7 @@ console.log('  - /api/email/*');
 console.log('  - /api/integrations/slack/*');
 console.log('  - /api/integrations/webhooks/*');
 console.log('  - /api/integrations/hubspot/*');
+console.log('  - /api/integrations/zoom/*');
 
 
 // Serve uploaded files (logos)
