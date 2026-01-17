@@ -5,6 +5,7 @@
 
 const pool = require('../config/database');
 const { sendEmail, sendTemplatedEmail } = require('./email');
+const { createCalendarEvent } = require('./calendarService');
 const crypto = require('crypto');
 const FormData = require('form-data');
 const Mailgun = require('mailgun.js');
@@ -863,30 +864,174 @@ function formatSlotForEmail(date, duration) {
 }
 
 /**
- * Detect guest timezone from email data
+ * Detect guest timezone from email data with enhanced intelligence
  */
 function detectGuestTimezone(emailData) {
   try {
-    // Try to parse timezone from email headers or date
-    if (emailData.headers && emailData.headers.date) {
-      const dateParts = emailData.headers.date.match(/([+-]\d{4})/);
-      if (dateParts) {
-        // Convert offset to timezone (approximate)
-        // This is a simple heuristic
-      }
-    }
-
-    // If AI detected timezone from content, use that
+    // Priority 1: AI-detected timezone from email content
     if (emailData.detectedTimezone) {
+      console.log(`🌍 Timezone detected by AI: ${emailData.detectedTimezone}`);
       return emailData.detectedTimezone;
     }
 
-    // Default: null (will use host timezone)
+    // Priority 2: Parse timezone from email headers
+    if (emailData.headers) {
+      // Try X-Original-Time header (Outlook)
+      if (emailData.headers['x-original-time']) {
+        const timezone = parseTimezoneFromHeader(emailData.headers['x-original-time']);
+        if (timezone) {
+          console.log(`🌍 Timezone from X-Original-Time header: ${timezone}`);
+          return timezone;
+        }
+      }
+
+      // Try Date header
+      if (emailData.headers.date) {
+        const timezone = parseTimezoneFromDateHeader(emailData.headers.date);
+        if (timezone) {
+          console.log(`🌍 Timezone from Date header: ${timezone}`);
+          return timezone;
+        }
+      }
+    }
+
+    // Priority 3: Extract timezone from email signature
+    if (emailData.text) {
+      const timezone = extractTimezoneFromSignature(emailData.text);
+      if (timezone) {
+        console.log(`🌍 Timezone from email signature: ${timezone}`);
+        return timezone;
+      }
+    }
+
+    console.log('🌍 No timezone detected, using host timezone');
     return null;
   } catch (error) {
     console.error('Timezone detection error:', error);
     return null;
   }
+}
+
+/**
+ * Parse timezone from email Date header
+ * Example: "Mon, 15 Jan 2024 10:30:00 -0500" or "Mon, 15 Jan 2024 10:30:00 EST"
+ */
+function parseTimezoneFromDateHeader(dateHeader) {
+  try {
+    // Match timezone offset like -0500, +0800
+    const offsetMatch = dateHeader.match(/([+-])(\d{2})(\d{2})$/);
+    if (offsetMatch) {
+      const sign = offsetMatch[1];
+      const hours = parseInt(offsetMatch[2]);
+      const minutes = parseInt(offsetMatch[3]);
+
+      // Convert to timezone name (common ones)
+      const offsetMinutes = (hours * 60 + minutes) * (sign === '-' ? -1 : 1);
+      return offsetToTimezone(offsetMinutes);
+    }
+
+    // Match timezone abbreviation like EST, PST, GMT
+    const abbrevMatch = dateHeader.match(/\b([A-Z]{2,4})$/);
+    if (abbrevMatch) {
+      return abbrevToTimezone(abbrevMatch[1]);
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error parsing Date header timezone:', error);
+    return null;
+  }
+}
+
+/**
+ * Parse timezone from X-Original-Time header
+ */
+function parseTimezoneFromHeader(headerValue) {
+  try {
+    const match = headerValue.match(/([+-]\d{2}):?(\d{2})/);
+    if (match) {
+      const hours = parseInt(match[1]);
+      const minutes = parseInt(match[2]);
+      const offsetMinutes = hours * 60 + (hours < 0 ? -minutes : minutes);
+      return offsetToTimezone(offsetMinutes);
+    }
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Extract timezone from email signature
+ * Looks for patterns like "EST", "PST", "GMT+1", etc.
+ */
+function extractTimezoneFromSignature(emailText) {
+  try {
+    // Look for common timezone patterns in last 10 lines
+    const lines = emailText.split('\n').slice(-10);
+    const text = lines.join(' ');
+
+    // Match timezone abbreviations
+    const abbrevMatch = text.match(/\b(EST|EDT|PST|PDT|CST|CDT|MST|MDT|GMT|UTC|BST|IST|JST|AEST|AEDT)\b/);
+    if (abbrevMatch) {
+      return abbrevToTimezone(abbrevMatch[1]);
+    }
+
+    // Match GMT+/-N format
+    const gmtMatch = text.match(/GMT([+-]\d{1,2})/i);
+    if (gmtMatch) {
+      const offset = parseInt(gmtMatch[1]) * 60;
+      return offsetToTimezone(offset);
+    }
+
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Convert UTC offset (in minutes) to IANA timezone
+ */
+function offsetToTimezone(offsetMinutes) {
+  const timezoneMap = {
+    '-480': 'America/Los_Angeles',    // PST/PDT
+    '-420': 'America/Denver',          // MST/MDT
+    '-360': 'America/Chicago',         // CST/CDT
+    '-300': 'America/New_York',        // EST/EDT
+    '0': 'Europe/London',              // GMT/UTC
+    '60': 'Europe/Paris',              // CET
+    '330': 'Asia/Kolkata',             // IST
+    '540': 'Asia/Tokyo',               // JST
+    '600': 'Australia/Sydney',         // AEST/AEDT
+  };
+
+  return timezoneMap[offsetMinutes.toString()] || null;
+}
+
+/**
+ * Convert timezone abbreviation to IANA timezone
+ */
+function abbrevToTimezone(abbrev) {
+  const abbrevMap = {
+    'EST': 'America/New_York',
+    'EDT': 'America/New_York',
+    'CST': 'America/Chicago',
+    'CDT': 'America/Chicago',
+    'MST': 'America/Denver',
+    'MDT': 'America/Denver',
+    'PST': 'America/Los_Angeles',
+    'PDT': 'America/Los_Angeles',
+    'GMT': 'Europe/London',
+    'UTC': 'UTC',
+    'BST': 'Europe/London',
+    'IST': 'Asia/Kolkata',
+    'JST': 'Asia/Tokyo',
+    'AEST': 'Australia/Sydney',
+    'AEDT': 'Australia/Sydney'
+  };
+
+  return abbrevMap[abbrev] || null;
 }
 
 /**
@@ -1023,34 +1168,13 @@ function generateNoAvailabilityEmail(user, thread) {
 }
 
 /**
- * Generate a Google Meet link for the booking
- * In production, this would use Google Calendar API to create actual Meet links
- * For now, we create a deterministic link format
+ * Generate a Google Meet link for the booking (DEPRECATED - use createCalendarEvent instead)
+ * Kept for backwards compatibility
  */
 async function generateMeetLink(user, startTime) {
-  try {
-    // Check if user has Google access token for Google Meet integration
-    const userResult = await pool.query(
-      'SELECT google_access_token FROM users WHERE id = $1',
-      [user.id]
-    );
-
-    if (userResult.rows[0]?.google_access_token) {
-      // TODO: Use Google Calendar API to create event with conferenceData
-      // For now, generate a placeholder Meet link
-      const meetCode = crypto.randomBytes(6).toString('hex').substring(0, 10);
-      return `https://meet.google.com/${meetCode}`;
-    }
-
-    // Fallback: Generate a generic video conferencing link
-    const meetCode = crypto.randomBytes(6).toString('hex').substring(0, 10);
-    return `https://meet.google.com/${meetCode}`;
-
-  } catch (error) {
-    console.error('Error generating meet link:', error);
-    // Return null if Meet link generation fails
-    return null;
-  }
+  console.warn('⚠️ generateMeetLink is deprecated, use createCalendarEvent instead');
+  const meetCode = crypto.randomBytes(6).toString('hex').substring(0, 10);
+  return `https://meet.google.com/${meetCode}`;
 }
 
 /**
@@ -1123,17 +1247,14 @@ async function handleTimeSelection(thread, user, intent) {
   const endTime = new Date(selectedTime);
   endTime.setMinutes(endTime.getMinutes() + duration);
 
-  // Create booking
+  // Create booking in database first
   const manageToken = crypto.randomBytes(32).toString('hex');
-
-  // Generate Google Meet link
-  const meetLink = await generateMeetLink(user, selectedTime);
 
   const booking = await pool.query(`
     INSERT INTO bookings (
       user_id, title, attendee_name, attendee_email,
-      start_time, end_time, status, manage_token, source, meet_link
-    ) VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', $7, 'email_bot', $8)
+      start_time, end_time, status, manage_token, source
+    ) VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', $7, 'email_bot')
     RETURNING *
   `, [
     user.id,
@@ -1142,16 +1263,44 @@ async function handleTimeSelection(thread, user, intent) {
     guest.email,
     selectedTime,
     endTime,
-    manageToken,
-    meetLink
+    manageToken
   ]);
+
+  const bookingRecord = booking.rows[0];
+
+  // Create calendar event with Google Meet/Teams link
+  console.log('📅 Creating calendar event for booking:', bookingRecord.id);
+  const calendarEvent = await createCalendarEvent(user.id, {
+    id: bookingRecord.id,
+    title: bookingRecord.title,
+    attendee_name: bookingRecord.attendee_name,
+    attendee_email: bookingRecord.attendee_email,
+    start_time: bookingRecord.start_time,
+    end_time: bookingRecord.end_time,
+    notes: thread.subject,
+    additional_guests: [] // Email Bot doesn't support additional guests yet
+  });
+
+  // Update booking with calendar event info
+  let meetLink = null;
+  if (calendarEvent) {
+    meetLink = calendarEvent.meetLink;
+    await pool.query(`
+      UPDATE bookings
+      SET meet_link = $1, calendar_event_id = $2
+      WHERE id = $3
+    `, [calendarEvent.meetLink, calendarEvent.eventId, bookingRecord.id]);
+    console.log('✅ Calendar event created with Meet link:', meetLink);
+  } else {
+    console.log('⚠️ Calendar event creation failed, continuing without Meet link');
+  }
 
   // Update thread status
   await pool.query(`
     UPDATE email_bot_threads
     SET status = 'booked', booking_id = $1, updated_at = NOW()
     WHERE id = $2
-  `, [booking.rows[0].id, thread.id]);
+  `, [bookingRecord.id, thread.id]);
 
   // Generate confirmation email
   const bookingBaseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
@@ -1309,7 +1458,41 @@ async function handleCancelRequest(thread, user) {
 }
 
 /**
- * Send the bot's response email via Mailgun
+ * Send email with exponential backoff retry
+ */
+async function sendEmailWithRetry(sendFunction, maxRetries = 3) {
+  let lastError;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await sendFunction();
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry on certain errors
+      const errorMessage = error.message?.toLowerCase() || '';
+      if (errorMessage.includes('invalid') || errorMessage.includes('forbidden')) {
+        console.error(`❌ Non-retryable error: ${error.message}`);
+        throw error;
+      }
+
+      // Calculate exponential backoff delay
+      const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Max 10 seconds
+      console.warn(`⚠️ Email send attempt ${attempt + 1}/${maxRetries} failed: ${error.message}`);
+
+      if (attempt < maxRetries - 1) {
+        console.log(`⏳ Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  console.error(`❌ All ${maxRetries} email send attempts failed`);
+  throw lastError;
+}
+
+/**
+ * Send the bot's response email via Mailgun with retry logic
  */
 async function sendBotResponse(thread, user, response, originalEmail) {
   const participants = thread.participants || [];
@@ -1322,20 +1505,23 @@ async function sendBotResponse(thread, user, response, originalEmail) {
   const fromEmail = `${user.username}@${MAILGUN_DOMAIN}`;
   const fromName = BOT_NAME;
 
-  try {
-    // Send via Mailgun
-    const messageData = {
-      from: `${fromName} <${fromEmail}>`,
-      to: recipients,
-      cc: ccList,
-      subject: response.subject,
-      html: response.body,
-      'h:Reply-To': fromEmail,
-      'h:In-Reply-To': originalEmail.messageId || '',
-      'h:References': originalEmail.messageId || ''
-    };
+  const messageData = {
+    from: `${fromName} <${fromEmail}>`,
+    to: recipients,
+    cc: ccList,
+    subject: response.subject,
+    html: response.body,
+    'h:Reply-To': fromEmail,
+    'h:In-Reply-To': originalEmail.messageId || '',
+    'h:References': originalEmail.messageId || ''
+  };
 
-    const result = await mg.messages.create(MAILGUN_DOMAIN, messageData);
+  try {
+    // Send via Mailgun with retry
+    const result = await sendEmailWithRetry(async () => {
+      return await mg.messages.create(MAILGUN_DOMAIN, messageData);
+    });
+
     console.log(`📤 Mailgun response:`, result);
 
     // Store outbound message
@@ -1347,9 +1533,21 @@ async function sendBotResponse(thread, user, response, originalEmail) {
       messageId: result.id || `bot-${Date.now()}@${MAILGUN_DOMAIN}`
     });
 
-    console.log(`📤 Sent bot response from ${fromEmail} to: ${recipients.join(', ')}`);
+    console.log(`✅ Sent bot response from ${fromEmail} to: ${recipients.join(', ')}`);
   } catch (error) {
-    console.error('❌ Failed to send bot response:', error);
+    console.error('❌ Failed to send bot response after retries:', error);
+
+    // Store failure in database for monitoring
+    try {
+      await pool.query(`
+        INSERT INTO email_send_failures (thread_id, recipient, error_message, created_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT DO NOTHING
+      `, [thread.id, recipients.join(','), error.message]);
+    } catch (dbError) {
+      console.error('⚠️ Could not log email failure (table may not exist):', dbError.message);
+    }
+
     throw error;
   }
 }
