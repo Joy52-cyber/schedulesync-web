@@ -80,16 +80,21 @@ export default function Dashboard() {
 
   const loadAllData = async () => {
     setLoading(true);
-    await Promise.all([
-      loadDashboardData(),
-      loadEventTypes(),
-      loadUserTimezone(),
-      loadUserProfile(),
-      loadLimitStatus(),
-      checkChatGptStatus(),
-      loadConflicts(),
-    ]);
-    setLoading(false);
+    try {
+      await Promise.all([
+        loadDashboardData().catch(err => console.error('Dashboard data failed:', err)),
+        loadEventTypes().catch(err => console.error('Event types failed:', err)),
+        loadUserTimezone().catch(err => console.error('Timezone failed:', err)),
+        loadUserProfile().catch(err => console.error('Profile failed:', err)),
+        loadLimitStatus().catch(err => console.error('Limits failed:', err)),
+        checkChatGptStatus().catch(err => console.error('ChatGPT status failed:', err)),
+        loadConflicts().catch(err => console.error('Conflicts failed:', err)),
+      ]);
+    } catch (error) {
+      console.error('Error loading dashboard:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadConflicts = async () => {
