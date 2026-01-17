@@ -16,11 +16,11 @@ const {
   generateNoSlotsEmail
 } = require('./emailTemplates');
 
-// OpenAI for AI-powered intent parsing
-let openai = null;
-if (process.env.OPENAI_API_KEY) {
-  const OpenAI = require('openai');
-  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Claude (Anthropic) for AI-powered intent parsing
+let anthropic = null;
+if (process.env.ANTHROPIC_API_KEY) {
+  const Anthropic = require('@anthropic-ai/sdk');
+  anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 }
 
 // Initialize Mailgun client
@@ -313,15 +313,14 @@ async function storeMessage(threadId, direction, emailData) {
 }
 
 /**
- * Parse intent from email content using AI (OpenAI GPT-4)
+ * Parse intent from email content using AI (Claude)
  */
 async function parseEmailIntentWithAI(subject, body, from) {
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{
-        role: 'system',
-        content: `You are a scheduling assistant. Parse the user's email to extract scheduling intent. Return JSON with:
+    const response = await anthropic.messages.create({
+      model: 'claude-3-5-haiku-20241022',
+      max_tokens: 1024,
+      system: `You are a scheduling assistant. Parse the user's email to extract scheduling intent. Return ONLY valid JSON with no additional text:
 {
   "action": "schedule" | "select_time" | "reschedule" | "cancel",
   "duration": <number in minutes, or null>,
@@ -337,17 +336,15 @@ Examples:
 - "Any morning slot next week works" → {"action": "schedule", "preferences": ["next_week", "morning"]}
 - "confirm: 2024-01-22T10:00" → {"action": "select_time", "timeSlot": "2024-01-22T10:00"}
 - "I need to cancel" → {"action": "cancel"}
-- "Can we reschedule?" → {"action": "reschedule"}`
-      }, {
+- "Can we reschedule?" → {"action": "reschedule"}`,
+      messages: [{
         role: 'user',
         content: `Subject: ${subject}\n\nBody: ${body}`
-      }],
-      response_format: { type: 'json_object' },
-      temperature: 0.1
+      }]
     });
 
-    const parsed = JSON.parse(response.choices[0].message.content);
-    console.log('🤖 AI parsed intent:', parsed);
+    const parsed = JSON.parse(response.content[0].text);
+    console.log('🤖 Claude parsed intent:', parsed);
 
     return {
       action: parsed.action || 'schedule',
@@ -423,11 +420,11 @@ function parseEmailIntentRegex(subject, body, from) {
  * Parse intent from email content (main entry point)
  */
 async function parseEmailIntent(subject, body, from) {
-  // Use AI parsing if OpenAI is configured, otherwise fall back to regex
-  if (openai) {
+  // Use AI parsing if Claude is configured, otherwise fall back to regex
+  if (anthropic) {
     return await parseEmailIntentWithAI(subject, body, from);
   } else {
-    console.log('ℹ️  OpenAI not configured, using regex intent parsing');
+    console.log('ℹ️  Claude API not configured, using regex intent parsing');
     return parseEmailIntentRegex(subject, body, from);
   }
 }
