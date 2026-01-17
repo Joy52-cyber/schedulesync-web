@@ -1,6 +1,6 @@
 const pool = require('../config/database');
 const { DateTime } = require('luxon');
-const { sendEmail } = require('./emailService');
+const { sendEmail } = require('./email');
 const { findAlternativeSlots } = require('./conflictDetection');
 const mjml2html = require('mjml');
 

@@ -1,6 +1,6 @@
 const pool = require('../config/database');
 const cron = require('node-cron');
-const { sendEmail } = require('./emailService');
+const { sendEmail } = require('./email');
 
 /**
  * Start a follow-up sequence for a booking
