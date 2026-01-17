@@ -25,13 +25,20 @@ async function sendBookingReminders() {
         u.email as host_email,
         u.name as host_name,
         u.timezone as host_timezone,
+        u.logo_url,
+        u.accent_color,
         rs.enabled as reminders_enabled,
         rs.send_to_host,
         rs.send_to_guest,
-        rs.custom_hours
+        rs.custom_hours,
+        mc.generated_agenda,
+        ap.meeting_count,
+        ap.last_meeting_date
       FROM bookings b
       JOIN users u ON b.user_id = u.id
       LEFT JOIN reminder_settings rs ON rs.user_id = u.id
+      LEFT JOIN meeting_context mc ON mc.booking_id = b.id
+      LEFT JOIN attendee_profiles ap ON (ap.user_id = u.id AND ap.email = b.attendee_email)
       WHERE b.status = 'confirmed'
         AND b.start_time > $1
         AND b.start_time <= $2
@@ -81,10 +88,10 @@ async function processBookingReminders(booking) {
     }
 
     // Check if already sent to guest
-    if (booking.send_to_guest !== false && booking.guest_email) {
-      const guestSent = await hasReminderBeenSent(booking.id, booking.guest_email, hoursBefore);
+    if (booking.send_to_guest !== false && booking.attendee_email) {
+      const guestSent = await hasReminderBeenSent(booking.id, booking.attendee_email, hoursBefore);
       if (!guestSent) {
-        await sendReminderEmail(booking, booking.guest_email, 'guest', hoursBefore);
+        await sendReminderEmail(booking, booking.attendee_email, 'guest', hoursBefore);
       }
     }
   }
@@ -118,6 +125,43 @@ async function sendReminderEmail(booking, recipientEmail, recipientType, hoursBe
 
     const subject = `Reminder: Meeting ${timeLabel}`;
     const isHost = recipientType === 'host';
+
+    // Build meet link button if available
+    let meetLinkHtml = '';
+    if (booking.meet_link) {
+      meetLinkHtml = `
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="${booking.meet_link}"
+             style="display: inline-block; padding: 14px 32px; background: ${booking.accent_color || '#7c3aed'}; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);">
+            🎥 Join Meeting
+          </a>
+        </div>
+      `;
+    }
+
+    // Build agenda section if available
+    let agendaHtml = '';
+    if (booking.generated_agenda) {
+      agendaHtml = `
+        <div style="margin: 24px 0; padding: 16px; background: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 6px;">
+          <div style="font-size: 14px; font-weight: 600; color: #166534; margin-bottom: 8px;">📋 Meeting Agenda</div>
+          <div style="font-size: 14px; color: #15803d; line-height: 1.6; white-space: pre-wrap;">${booking.generated_agenda}</div>
+        </div>
+      `;
+    }
+
+    // Build attendee history section if applicable
+    let attendeeHistoryHtml = '';
+    if (!isHost && booking.meeting_count && booking.meeting_count > 1) {
+      const lastMeetingDate = DateTime.fromJSDate(booking.last_meeting_date).toFormat('MMM d, yyyy');
+      attendeeHistoryHtml = `
+        <div style="margin: 16px 0; padding: 12px; background: #eff6ff; border-radius: 6px; border-left: 4px solid #3b82f6;">
+          <div style="font-size: 13px; color: #1e40af;">
+            💼 You've met with ${booking.host_name} <strong>${booking.meeting_count} times</strong>. Last meeting: ${lastMeetingDate}
+          </div>
+        </div>
+      `;
+    }
 
     const html = `
       <!DOCTYPE html>
@@ -159,8 +203,8 @@ async function sendReminderEmail(booking, recipientEmail, recipientType, hoursBe
               ${isHost ? `
                 <div style="margin-bottom: 16px;">
                   <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">With</div>
-                  <div style="font-size: 16px; color: #111827; font-weight: 500;">${booking.guest_name || booking.guest_email}</div>
-                  <div style="font-size: 14px; color: #6b7280;">${booking.guest_email}</div>
+                  <div style="font-size: 16px; color: #111827; font-weight: 500;">${booking.attendee_name || booking.attendee_email}</div>
+                  <div style="font-size: 14px; color: #6b7280;">${booking.attendee_email}</div>
                 </div>
               ` : `
                 <div style="margin-bottom: 16px;">
@@ -189,6 +233,15 @@ async function sendReminderEmail(booking, recipientEmail, recipientType, hoursBe
                 </div>
               ` : ''}
             </div>
+
+            <!-- Attendee History (for guests only) -->
+            ${attendeeHistoryHtml}
+
+            <!-- Meeting Agenda (if generated) -->
+            ${agendaHtml}
+
+            <!-- Meet Link Button -->
+            ${meetLinkHtml}
 
             <!-- Action Button -->
             ${booking.manage_token ? `

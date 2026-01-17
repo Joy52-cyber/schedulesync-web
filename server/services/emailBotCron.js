@@ -14,6 +14,8 @@ const {
   generateExpiredSlotsEmail,
   generateThreadClosedEmail
 } = require('./emailTemplates');
+const { sendPostMeetingSummaries } = require('./meetingSummaryService');
+const { detectNoShows } = require('./noShowService');
 
 // Initialize Mailgun client
 const mailgun = new Mailgun(FormData);
@@ -44,7 +46,19 @@ function initializeEmailBotCron() {
     await closeInactiveThreads();
   });
 
-  console.log('✅ Email Bot cron jobs initialized');
+  // Run every 15 minutes to send post-meeting summaries
+  cron.schedule('*/15 * * * *', async () => {
+    console.log('⏰ Running post-meeting summary check...');
+    await sendPostMeetingSummaries();
+  });
+
+  // Run every 15 minutes to detect no-shows and send rescheduling emails
+  cron.schedule('*/15 * * * *', async () => {
+    console.log('⏰ Running no-show detection...');
+    await detectNoShows();
+  });
+
+  console.log('✅ Email Bot cron jobs initialized (including summaries and no-show detection)');
 }
 
 /**

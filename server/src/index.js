@@ -58,6 +58,7 @@ const usersRoutes = require('../routes/users');
 const extensionRoutes = require('../routes/extension');
 const remindersRoutes = require('../routes/reminders');
 const conflictsRoutes = require('../routes/conflicts');
+const actionItemsRoutes = require('../routes/actionItems');
 
 // Register core routes
 app.use('/api/auth', authRoutes);
@@ -100,6 +101,7 @@ app.use('/api/email', emailWebhookRoutes);  // Email Bot Webhooks (inbound email
 app.use('/api/extension', extensionRoutes);  // Chrome Extension API
 app.use('/api/reminders', remindersRoutes);  // Email Reminders
 app.use('/api/conflicts', conflictsRoutes);  // Conflict Detection
+app.use('/api', actionItemsRoutes);  // Action Items (uses /api/bookings/:id/action-items and /api/action-items/* routes)
 
 console.log('Routes registered:');
 console.log('  - /api/auth/*');
