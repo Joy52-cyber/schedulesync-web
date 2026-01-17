@@ -106,7 +106,7 @@ export default function UserSettings() {
   const [testingConnection, setTestingConnection] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
 
-  // 🤖 Email Bot Settings
+  // 🤖 TruCal Assistant (via email) Settings
   const [emailBotSettings, setEmailBotSettings] = useState({
     is_enabled: true,
     default_duration: 30,
@@ -228,7 +228,7 @@ export default function UserSettings() {
         setEmailBotSettings(response.data.settings);
       }
     } catch (error) {
-      console.error('Error loading email bot settings:', error);
+      console.error('Error loading TruCal Assistant (via email) settings:', error);
     } finally {
       setEmailBotLoading(false);
     }
@@ -243,7 +243,7 @@ export default function UserSettings() {
         notify.success('Email bot settings updated');
       }
     } catch (error) {
-      console.error('Error updating email bot settings:', error);
+      console.error('Error updating TruCal Assistant (via email) settings:', error);
       notify.error('Failed to update settings');
     } finally {
       setEmailBotLoading(false);
@@ -601,7 +601,7 @@ export default function UserSettings() {
                   : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
-              <Bot size={18} /> Email Bot
+              <Bot size={18} /> TruCal Assistant (via email)
               {!hasProFeature() && (
                 <span className="ml-auto text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold">PRO</span>
               )}
@@ -1244,7 +1244,7 @@ export default function UserSettings() {
                 {/* Enabled Toggle */}
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <div>
-                    <p className="font-medium text-gray-900">Email Bot Active</p>
+                    <p className="font-medium text-gray-900">TruCal Assistant (via email) Active</p>
                     <p className="text-sm text-gray-500">Automatically respond to CC'd emails</p>
                   </div>
                   <button

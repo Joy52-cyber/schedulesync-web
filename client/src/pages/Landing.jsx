@@ -24,7 +24,7 @@ export default function Landing() {
   const features = [
     {
       icon: Sparkles,
-      title: 'AI Assistant',
+      title: 'TruCal Assistant',
       description: 'Natural language scheduling with ChatGPT integration. Just tell it what you need: "Schedule lunch with John next Tuesday" or "Find time for a 30-min call this week." AI handles the rest.',
       stat: 'All plans',
       color: 'from-blue-500 to-cyan-500',
@@ -34,7 +34,7 @@ export default function Landing() {
     },
     {
       icon: Mail,
-      title: 'Email Bot',
+      title: 'TruCal Assistant (via email)',
       description: 'CC schedule@mg.trucal.xyz on any email thread. Our AI proposes times, handles replies, and books automatically. Works with Gmail, Outlook, Apple Mail—any email client.',
       stat: 'All plans',
       color: 'from-purple-500 to-pink-500',
@@ -82,7 +82,7 @@ export default function Landing() {
       period: '/month',
       description: 'For active professionals',
       features: [
-        'Email Bot (CC to schedule)',
+        'TruCal Assistant (via email)',
         'Unlimited temporary links',
         'Advanced AI features',
         'Buffer times & booking caps',
@@ -202,12 +202,12 @@ export default function Landing() {
           </h1>
 
           <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 max-w-3xl mx-auto mb-12 leading-relaxed">
-            ChatGPT-powered AI assistant + email bot. Natural language scheduling meets zero-friction booking.
+            ChatGPT-powered TruCal Assistant in your dashboard + TruCal Assistant via email. Natural language scheduling meets zero-friction booking.
           </p>
 
           {/* Dual Feature Highlight */}
           <div className="grid md:grid-cols-2 gap-4 sm:gap-6 max-w-4xl mx-auto mb-12">
-            {/* AI Assistant Highlight */}
+            {/* TruCal Assistant Highlight */}
             <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-5 sm:p-6 border-2 border-blue-300 relative">
               <div className="absolute -top-3 right-4 px-3 py-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold rounded-full flex items-center gap-1">
                 <Sparkles className="w-3 h-3" />
@@ -215,7 +215,7 @@ export default function Landing() {
               </div>
               <div className="flex items-center gap-3 mb-3">
                 <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600" />
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900">AI Assistant</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900">TruCal Assistant</h3>
               </div>
               <p className="text-sm sm:text-base text-gray-700 mb-2">
                 "Schedule lunch with John next Tuesday"
@@ -225,7 +225,7 @@ export default function Landing() {
               </p>
             </div>
 
-            {/* Email Bot Highlight */}
+            {/* TruCal Assistant (via email) Highlight */}
             <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-5 sm:p-6 border-2 border-purple-300 relative">
               <div className="absolute -top-3 right-4 px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold rounded-full flex items-center gap-1">
                 <Sparkles className="w-3 h-3" />
@@ -233,7 +233,7 @@ export default function Landing() {
               </div>
               <div className="flex items-center gap-3 mb-3">
                 <Mail className="w-7 h-7 sm:w-8 sm:h-8 text-purple-600" />
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Email Bot</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900">TruCal Assistant (via email)</h3>
               </div>
               <p className="text-sm sm:text-base text-gray-700 mb-2">
                 CC <span className="bg-purple-100 px-2 py-1 rounded font-mono text-purple-700 font-semibold text-xs sm:text-sm">schedule@mg.trucal.xyz</span>
@@ -345,7 +345,7 @@ export default function Landing() {
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-sm font-bold mb-6">
               <Sparkles className="w-4 h-4" />
-              AI ASSISTANT
+              TRUCAL ASSISTANT
             </div>
             <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
               Talk to your calendar like it's a person
@@ -366,7 +366,7 @@ export default function Landing() {
                       <Sparkles className="w-6 h-6" />
                     </div>
                     <div>
-                      <h3 className="font-bold">TruCal AI Assistant</h3>
+                      <h3 className="font-bold">TruCal TruCal Assistant</h3>
                       <p className="text-xs text-blue-100">ChatGPT-powered scheduling</p>
                     </div>
                   </div>
@@ -469,7 +469,7 @@ export default function Landing() {
                   onClick={() => navigate('/register')}
                   className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-full text-lg font-bold hover:shadow-xl transition-all transform hover:scale-105 flex items-center gap-2"
                 >
-                  Try AI Assistant
+                  Try TruCal Assistant
                   <ArrowRight className="w-5 h-5" />
                 </button>
               </div>
@@ -484,7 +484,7 @@ export default function Landing() {
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-bold mb-6">
               <Mail className="w-4 h-4" />
-              EMAIL BOT
+              TRUCAL ASSISTANT (VIA EMAIL)
             </div>
             <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
               Schedule meetings without leaving your inbox
@@ -762,7 +762,7 @@ export default function Landing() {
               Everything you need. Nothing you don't.
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              AI Assistant + Email Bot as your key differentiators. The rest is built-in.
+              TruCal Assistant as your key differentiator. The rest is built-in.
             </p>
           </div>
 
@@ -900,11 +900,11 @@ export default function Landing() {
           {/* AI Features Explainer */}
           <div className="mt-16 max-w-4xl mx-auto">
             <div className="grid md:grid-cols-2 gap-6">
-              {/* AI Assistant */}
+              {/* TruCal Assistant */}
               <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 sm:p-8 border-2 border-blue-200">
                 <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                   <Sparkles className="w-6 h-6 text-blue-600" />
-                  AI Assistant
+                  TruCal Assistant
                 </h3>
                 <p className="text-sm text-gray-700 mb-4">
                   ChatGPT-powered scheduling:
@@ -933,7 +933,7 @@ export default function Landing() {
               <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 sm:p-8 border-2 border-purple-200">
                 <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                   <Mail className="w-6 h-6 text-purple-600" />
-                  Email Bot
+                  TruCal Assistant (via email)
                 </h3>
                 <p className="text-sm text-gray-700 mb-4">
                   AI-powered email scheduling:
@@ -965,9 +965,13 @@ export default function Landing() {
       {/* ================= TRUST SECTION ================= */}
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-8">
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">Enterprise-grade security</h3>
-            <p className="text-gray-600">Your data is protected</p>
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
+              Everything you need. Nothing you don't.
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              TruCal Assistant in dashboard + TruCal Assistant (via email) as your key differentiators. The rest is built-in.
+            </p>
           </div>
           <div className="flex flex-wrap justify-center gap-8 text-gray-700">
             <div className="flex items-center gap-2">

@@ -372,7 +372,7 @@ export default function Dashboard() {
                 className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 transition-all font-semibold flex items-center gap-2 hover:-translate-y-0.5"
               >
                 <Bot className="h-4 w-4" />
-                AI Scheduler
+                TruCal Assistant
               </button>
 
               <button

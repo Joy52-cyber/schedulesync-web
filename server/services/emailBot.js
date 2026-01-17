@@ -33,7 +33,7 @@ const mg = mailgun.client({
 });
 
 // Bot name (email will be dynamic per user)
-const BOT_NAME = 'TruCal Scheduling Assistant';
+const BOT_NAME = 'TruCal Assistant';
 const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || 'mg.trucal.xyz';
 
 /**

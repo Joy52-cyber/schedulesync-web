@@ -1506,7 +1506,7 @@ export default function AISchedulerChat() {
             <Sparkles className="h-5 w-5" />
           </div>
           <div className="text-left pr-2">
-            <p className="font-bold text-sm">AI Assistant</p>
+            <p className="font-bold text-sm">TruCal Assistant</p>
             <p className="text-xs text-purple-200">Ask me anything</p>
           </div>
         </div>
@@ -1528,7 +1528,7 @@ export default function AISchedulerChat() {
               <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-white text-sm sm:text-base">AI Assistant</h3>
+              <h3 className="font-bold text-white text-sm sm:text-base">TruCal Assistant</h3>
               <p className="text-xs text-purple-200">{currentTier === 'free' ? 'Free' : currentTier === 'pro' ? 'Pro' : 'Team'}</p>
             </div>
           </div>
