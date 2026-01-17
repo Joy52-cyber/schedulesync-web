@@ -34,7 +34,7 @@ router.get('/google/url', (req, res) => {
         'https://www.googleapis.com/auth/userinfo.email',
         'https://www.googleapis.com/auth/calendar'
       ],
-      prompt: 'consent'
+      prompt: 'select_account' // Show account picker instead of forcing consent
     });
     res.json({ url: authUrl });
   } catch (error) {
