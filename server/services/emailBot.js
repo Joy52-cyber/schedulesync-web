@@ -326,17 +326,25 @@ async function parseEmailIntentWithAI(subject, body, from) {
   "duration": <number in minutes, or null>,
   "preferences": <array of strings like "morning", "afternoon", "evening", "monday", "tuesday", etc., or specific dates>,
   "timeSlot": <ISO datetime string if selecting a specific time, or null>,
-  "timezone": <detected timezone like "America/New_York" or null>
+  "timezone": <detected timezone like "America/New_York" or null>,
+  "meetingType": <detected type: "coffee", "lunch", "call", "video", "zoom", "phone", "in-person", "quick", or null>,
+  "locationType": <"in-person" | "phone" | "video" | null>
 }
 
+Meeting Type Detection:
+- "coffee" → {meetingType: "coffee", duration: 30, locationType: "in-person", preferences: ["morning", "afternoon"]}
+- "lunch" → {meetingType: "lunch", duration: 60, locationType: "in-person", preferences: ["11:00-14:00"]}
+- "quick call" → {meetingType: "quick", duration: 15, locationType: "phone"}
+- "zoom meeting" → {meetingType: "zoom", duration: 60, locationType: "video"}
+- "phone call" → {meetingType: "call", duration: 30, locationType: "phone"}
+- "in person" → {locationType: "in-person"}
+
 Examples:
-- "Let's meet next Tuesday afternoon" → {"action": "schedule", "preferences": ["tuesday", "afternoon"]}
-- "Can we do 30 minutes instead?" → {"action": "schedule", "duration": 30}
-- "I'm free after 2pm on Thursdays" → {"action": "schedule", "preferences": ["thursday", "14:00+"]}
-- "Any morning slot next week works" → {"action": "schedule", "preferences": ["next_week", "morning"]}
-- "confirm: 2024-01-22T10:00" → {"action": "select_time", "timeSlot": "2024-01-22T10:00"}
-- "I need to cancel" → {"action": "cancel"}
-- "Can we reschedule?" → {"action": "reschedule"}`,
+- "Let's grab coffee next Tuesday" → {"action": "schedule", "meetingType": "coffee", "duration": 30, "preferences": ["tuesday", "morning"]}
+- "Can we do a quick 15-min call?" → {"action": "schedule", "meetingType": "quick", "duration": 15, "locationType": "phone"}
+- "Lunch meeting on Thursday?" → {"action": "schedule", "meetingType": "lunch", "duration": 60, "preferences": ["thursday", "11:00-14:00"]}
+- "Zoom call next week" → {"action": "schedule", "meetingType": "zoom", "duration": 60, "locationType": "video"}
+- "confirm: 2024-01-22T10:00" → {"action": "select_time", "timeSlot": "2024-01-22T10:00"}`,
       messages: [{
         role: 'user',
         content: `Subject: ${subject}\n\nBody: ${body}`
@@ -351,7 +359,9 @@ Examples:
       duration: parsed.duration || null,
       preferences: parsed.preferences || [],
       timeSlot: parsed.timeSlot || null,
-      timezone: parsed.timezone || null
+      timezone: parsed.timezone || null,
+      meetingType: parsed.meetingType || null,
+      locationType: parsed.locationType || null
     };
   } catch (error) {
     console.error('AI intent parsing error:', error.message);
@@ -436,6 +446,14 @@ async function proposeAvailableTimes(thread, user, settings, intent) {
   // Get user's availability
   const duration = intent.duration || settings.default_duration || 30;
   const guestTimezone = intent.timezone || null; // From AI parsing
+  const meetingType = intent.meetingType || null;
+  const locationType = intent.locationType || null;
+
+  // Log meeting type detection
+  if (meetingType) {
+    console.log(`🎯 Meeting type detected: ${meetingType} (${duration}min, ${locationType || 'any location'})`);
+  }
+
   const slots = await getAvailableSlots(user.id, duration, intent.preferences, settings.max_slots_to_show, guestTimezone);
 
   if (slots.length === 0) {
@@ -445,15 +463,20 @@ async function proposeAvailableTimes(thread, user, settings, intent) {
     };
   }
 
-  // Store proposed slots and guest timezone in thread
+  // Store proposed slots, guest timezone, and meeting metadata in thread
   await pool.query(
     'UPDATE email_bot_threads SET proposed_slots = $1, updated_at = NOW() WHERE id = $2',
-    [JSON.stringify(slots), thread.id]
+    [JSON.stringify({
+      slots: slots,
+      meetingType: meetingType,
+      locationType: locationType,
+      duration: duration
+    }), thread.id]
   );
 
   return {
     subject: `Re: ${thread.subject}`,
-    body: generateProposalEmail(user, thread, slots, settings, guestTimezone)
+    body: generateProposalEmail(user, thread, slots, settings, guestTimezone, meetingType)
   };
 }
 
@@ -582,7 +605,20 @@ async function getAvailableSlots(userId, duration, preferences, maxSlots = 5, gu
     let endMinute = parseInt(dayWorkingHours.end.split(':')[1]);
 
     // Apply time preferences to narrow down the range
-    if (preferences.includes('morning')) {
+    // Check for specific time range preferences (e.g., "11:00-14:00" for lunch)
+    const timeRangePref = preferences.find(p => p.includes(':') && p.includes('-'));
+    if (timeRangePref) {
+      const [rangeStart, rangeEnd] = timeRangePref.split('-');
+      const [rangeStartHour, rangeStartMin] = rangeStart.trim().split(':').map(Number);
+      const [rangeEndHour, rangeEndMin] = rangeEnd.trim().split(':').map(Number);
+
+      startHour = Math.max(startHour, rangeStartHour);
+      startMinute = rangeStartMin || 0;
+      endHour = Math.min(endHour, rangeEndHour);
+      endMinute = rangeEndMin || 0;
+
+      console.log(`🍽️  Applying time range preference: ${timeRangePref}`);
+    } else if (preferences.includes('morning')) {
       endHour = Math.min(endHour, 12);
       endMinute = 0;
     } else if (preferences.includes('afternoon')) {
@@ -789,14 +825,29 @@ function getDayLabelLuxon(slotDateTime, nowDateTime) {
 /**
  * Generate the proposal email body
  */
-function generateProposalEmail(user, thread, slots, settings, guestTimezone = null) {
+function generateProposalEmail(user, thread, slots, settings, guestTimezone = null, meetingType = null) {
   const participants = thread.participants || [];
   const guestName = participants.find(p => p.email !== user.email)?.name?.split(' ')[0] || 'there';
   const bookingBaseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
   const duration = settings.default_duration || 30;
 
-  const intro = (settings.intro_message || "I'm helping {{hostName}} schedule a meeting with you.")
-    .replace('{{hostName}}', user.name);
+  // Customize intro based on meeting type
+  let intro = settings.intro_message || "I'm helping {{hostName}} schedule a meeting with you.";
+
+  if (meetingType && !settings.intro_message) {
+    // Use default message, but customize based on meeting type
+    const meetingTypeIntros = {
+      'coffee': "I'm helping {{hostName}} schedule a coffee chat with you. ☕",
+      'lunch': "I'm helping {{hostName}} schedule a lunch meeting with you. 🍽️",
+      'quick': "I'm helping {{hostName}} schedule a quick call with you. 📞",
+      'call': "I'm helping {{hostName}} schedule a call with you. 📞",
+      'video': "I'm helping {{hostName}} schedule a video meeting with you. 🎥",
+      'zoom': "I'm helping {{hostName}} schedule a Zoom call with you. 💻"
+    };
+    intro = meetingTypeIntros[meetingType] || intro;
+  }
+
+  intro = intro.replace('{{hostName}}', user.name);
 
   // Add timezone note if guest timezone is detected
   let timezoneNote = '';
