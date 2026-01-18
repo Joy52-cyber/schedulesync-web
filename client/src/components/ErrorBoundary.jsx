@@ -12,7 +12,26 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    console.error('='.repeat(80));
+    console.error('ERROR BOUNDARY CAUGHT AN ERROR:');
+    console.error('Error:', error);
+    console.error('Error Message:', error?.message);
+    console.error('Error Stack:', error?.stack);
+    console.error('Component Stack:', errorInfo?.componentStack);
+    console.error('='.repeat(80));
+
+    // Store error for debugging
+    try {
+      localStorage.setItem('last_error', JSON.stringify({
+        message: error?.message,
+        stack: error?.stack,
+        componentStack: errorInfo?.componentStack,
+        timestamp: new Date().toISOString()
+      }));
+    } catch (e) {
+      console.warn('Could not store error:', e);
+    }
+
     this.setState({
       error,
       errorInfo
@@ -41,9 +60,17 @@ class ErrorBoundary extends React.Component {
                 Oops! Something went wrong
               </h1>
 
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-600 mb-2">
                 The application encountered an unexpected error. Don't worry, your data is safe!
               </p>
+
+              {this.state.error && (
+                <div className="mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
+                  <p className="text-sm font-mono text-red-700">
+                    {this.state.error.message || 'Unknown error'}
+                  </p>
+                </div>
+              )}
 
               {process.env.NODE_ENV === 'development' && this.state.error && (
                 <details className="mb-6 w-full text-left">

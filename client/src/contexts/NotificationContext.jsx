@@ -93,8 +93,6 @@ export function NotificationProvider({ children }) {
     setToasts((prev) => [...prev, notification]);
   };
 
-  const notifications = useState([]);
-
   const removeToast = (id) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   };

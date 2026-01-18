@@ -57,13 +57,17 @@ const saveUsage = (usage) => {
 
 export const useUpgrade = () => {
   const context = useContext(UpgradeContext);
-  
+
   if (!context) {
     console.warn('useUpgrade called outside UpgradeProvider, using defaults');
     return defaultContextValue;
   }
-  
-  return context;
+
+  // Return context with safe fallbacks
+  return {
+    ...defaultContextValue,
+    ...context
+  };
 };
 
 export const UpgradeProvider = ({ children }) => {

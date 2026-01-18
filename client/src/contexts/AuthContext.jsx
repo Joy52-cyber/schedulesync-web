@@ -82,7 +82,17 @@ useEffect(() => {
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    console.warn("useAuth called outside AuthProvider, using defaults");
+    // Return safe defaults instead of throwing
+    return {
+      user: null,
+      token: null,
+      loading: false,
+      login: () => {},
+      logout: () => {},
+      updateUser: () => {},
+      isAuthenticated: false
+    };
   }
   return ctx;
 }

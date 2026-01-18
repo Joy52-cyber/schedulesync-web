@@ -45,7 +45,13 @@ export function ThemeProvider({ children }) {
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (!context) {
-    throw new Error('useTheme must be used within a ThemeProvider');
+    console.warn('useTheme called outside ThemeProvider, using defaults');
+    // Return safe defaults instead of throwing
+    return {
+      isDark: false,
+      toggleTheme: () => {},
+      setIsDark: () => {}
+    };
   }
   return context;
 };

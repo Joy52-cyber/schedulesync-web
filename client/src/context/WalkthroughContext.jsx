@@ -260,7 +260,25 @@ export function WalkthroughProvider({ children }) {
 export function useWalkthrough() {
   const context = useContext(WalkthroughContext);
   if (!context) {
-    throw new Error('useWalkthrough must be used within a WalkthroughProvider');
+    console.warn('useWalkthrough called outside WalkthroughProvider, using defaults');
+    // Return safe defaults instead of throwing
+    return {
+      isActive: false,
+      currentStep: 0,
+      totalSteps: 0,
+      hasCompleted: true,
+      showPrompt: false,
+      currentStepData: null,
+      startWalkthrough: () => {},
+      endWalkthrough: () => {},
+      dismissWalkthrough: () => {},
+      dismissPrompt: () => {},
+      nextStep: () => {},
+      prevStep: () => {},
+      goToStep: () => {},
+      resetWalkthrough: () => {},
+      isMobileView: false
+    };
   }
   return context;
 }

@@ -91,8 +91,15 @@ export default function Layout() {
   const isAiFeatureActive = aiFeatures.some(item => location.pathname === item.path);
 
   const handleLogout = () => {
-    logout();
-    navigate("/");
+    try {
+      logout();
+      // Use window.location for full page reload to clear all state
+      window.location.href = "/";
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Force redirect even if logout fails
+      window.location.href = "/";
+    }
   };
 
   const getUserInitials = () => {

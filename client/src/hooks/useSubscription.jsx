@@ -106,7 +106,36 @@ export function useSubscription() {
   const context = useContext(SubscriptionContext);
 
   if (!context) {
-    throw new Error('useSubscription must be used within a SubscriptionProvider');
+    console.warn('useSubscription called outside SubscriptionProvider, using defaults');
+    // Return safe defaults instead of throwing
+    return {
+      tier: TIERS.FREE,
+      tierInfo: TIER_DETAILS[TIERS.FREE],
+      loading: false,
+      error: null,
+      usage: {
+        bookings_this_month: 0,
+        event_types_count: 0,
+        team_members_count: 1,
+      },
+      billing: {
+        status: null,
+        current_period_end: null,
+        cancel_at_period_end: false,
+      },
+      isPaid: false,
+      canUse: () => false,
+      getLimit: () => 0,
+      getUsage: () => 0,
+      getUsageDisplay: () => 'Not available',
+      isAtLimit: () => true,
+      getRequiredTier: () => TIERS.PRO,
+      getUpgradeComparison: () => null,
+      isTier: () => false,
+      refresh: () => Promise.resolve(),
+      TIERS,
+      FEATURES,
+    };
   }
 
   const { tier, loading, error, usage, billing, refresh } = context;
