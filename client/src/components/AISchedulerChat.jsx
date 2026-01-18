@@ -534,7 +534,13 @@ export default function AISchedulerChat() {
   // Conversation context for memory
   const [conversationContext, setConversationContext] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('aiChat_context') || '{}');
+      const stored = JSON.parse(localStorage.getItem('aiChat_context') || '{}');
+      // Ensure all required fields exist with proper defaults
+      return {
+        lastTopic: stored.lastTopic || null,
+        pendingActions: Array.isArray(stored.pendingActions) ? stored.pendingActions : [],
+        userGoals: Array.isArray(stored.userGoals) ? stored.userGoals : []
+      };
     } catch {
       return { lastTopic: null, pendingActions: [], userGoals: [] };
     }
@@ -1183,7 +1189,7 @@ export default function AISchedulerChat() {
         setConversationContext(prev => ({
           ...prev,
           lastTopic: goal,
-          userGoals: [...new Set([...prev.userGoals, goal])].slice(-5)
+          userGoals: [...new Set([...(Array.isArray(prev.userGoals) ? prev.userGoals : []), goal])].slice(-5)
         }));
         trackAction(goal);
       } catch (contextError) {
