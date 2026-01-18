@@ -14,6 +14,7 @@ import './styles/animations.css';
 // Layouts
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Auth / Marketing pages
 import Landing from './pages/Landing';
@@ -217,11 +218,13 @@ function InnerApp() {
 // ======================
 function App() {
   return (
-    <ThemeProvider>
-      <Router>
-        <InnerApp />
-      </Router>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <Router>
+          <InnerApp />
+        </Router>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 
