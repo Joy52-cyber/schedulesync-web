@@ -6,6 +6,7 @@ const { applySchedulingRules } = require('../utils/schedulingRules');
 const { checkBookingConflicts, findAlternativeSlots, formatConflictMessage } = require('../services/conflictDetection');
 const { getAIResponse, getQuickResponse } = require('../services/aiAssistantService');
 const { getAttendeeHistory, getAttendeePreferences } = require('../services/attendeeProfileService');
+const { getBookingCount, getAverageDuration, getTopAttendees, getBusiestDays, getTrends } = require('../services/aiAnalyticsService');
 
 // Intent detection helpers
 const detectIntent = (message) => {
@@ -141,6 +142,18 @@ const detectIntent = (message) => {
   }
   if (/^(no|nope|cancel|nevermind|never mind|don't|dont)$/i.test(lowerMessage.trim())) {
     return 'confirm_no';
+  }
+
+  // ENHANCEMENT: Bulk cancel intent
+  if ((lowerMessage.includes('clear') || lowerMessage.includes('cancel all') || lowerMessage.includes('free up')) &&
+      (lowerMessage.includes('week') || lowerMessage.includes('day') || lowerMessage.includes('afternoon') || lowerMessage.includes('morning'))) {
+    return 'bulk_cancel';
+  }
+
+  // ENHANCEMENT: Bulk block intent
+  if ((lowerMessage.includes('no meetings') || lowerMessage.includes('block')) &&
+      (lowerMessage.includes('friday') || lowerMessage.includes('weekend') || lowerMessage.includes('day') || lowerMessage.includes('afternoon'))) {
+    return 'bulk_block';
   }
 
   return 'general';
@@ -363,6 +376,103 @@ function parseNaturalDate(text) {
   }
 
   return null;
+}
+
+// ENHANCEMENT: Parse bulk operation time range
+function parseBulkTimeRange(message) {
+  const lowerMsg = message.toLowerCase();
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // Next week
+  if (lowerMsg.includes('next week')) {
+    const nextMonday = new Date(today);
+    const daysUntilMonday = (8 - today.getDay()) % 7 || 7;
+    nextMonday.setDate(nextMonday.getDate() + daysUntilMonday);
+    const nextSunday = new Date(nextMonday);
+    nextSunday.setDate(nextSunday.getDate() + 6);
+    nextSunday.setHours(23, 59, 59);
+    return { start: nextMonday, end: nextSunday, label: 'next week' };
+  }
+
+  // This week
+  if (lowerMsg.includes('this week')) {
+    const monday = new Date(today);
+    const daysFromMonday = (today.getDay() + 6) % 7;
+    monday.setDate(monday.getDate() - daysFromMonday);
+    const sunday = new Date(monday);
+    sunday.setDate(sunday.getDate() + 6);
+    sunday.setHours(23, 59, 59);
+    return { start: monday, end: sunday, label: 'this week' };
+  }
+
+  // Tomorrow
+  if (lowerMsg.includes('tomorrow')) {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const endOfTomorrow = new Date(tomorrow);
+    endOfTomorrow.setHours(23, 59, 59);
+
+    // Check for time of day
+    if (lowerMsg.includes('afternoon')) {
+      tomorrow.setHours(12, 0, 0);
+      return { start: tomorrow, end: endOfTomorrow, label: 'tomorrow afternoon' };
+    } else if (lowerMsg.includes('morning')) {
+      tomorrow.setHours(0, 0, 0);
+      const noon = new Date(tomorrow);
+      noon.setHours(12, 0, 0);
+      return { start: tomorrow, end: noon, label: 'tomorrow morning' };
+    }
+    return { start: tomorrow, end: endOfTomorrow, label: 'tomorrow' };
+  }
+
+  // Today
+  if (lowerMsg.includes('today')) {
+    const startOfToday = new Date(today);
+    const endOfToday = new Date(today);
+    endOfToday.setHours(23, 59, 59);
+
+    if (lowerMsg.includes('afternoon')) {
+      startOfToday.setHours(12, 0, 0);
+      return { start: startOfToday, end: endOfToday, label: 'this afternoon' };
+    } else if (lowerMsg.includes('morning')) {
+      startOfToday.setHours(0, 0, 0);
+      const noon = new Date(today);
+      noon.setHours(12, 0, 0);
+      return { start: startOfToday, end: noon, label: 'this morning' };
+    }
+    return { start: now, end: endOfToday, label: 'today' };
+  }
+
+  return null;
+}
+
+// ENHANCEMENT: Detect attendee timezone
+async function detectAttendeeTimezone(attendeeEmail) {
+  try {
+    // Check if they're a TruCal user
+    const userCheck = await pool.query(
+      'SELECT timezone FROM users WHERE email = $1',
+      [attendeeEmail]
+    );
+    if (userCheck.rows.length > 0 && userCheck.rows[0].timezone) {
+      return { timezone: userCheck.rows[0].timezone, source: 'user_account' };
+    }
+
+    // Check attendee profiles
+    const profileCheck = await pool.query(
+      'SELECT timezone FROM attendee_profiles WHERE email = $1 AND timezone IS NOT NULL',
+      [attendeeEmail]
+    );
+    if (profileCheck.rows.length > 0 && profileCheck.rows[0].timezone) {
+      return { timezone: profileCheck.rows[0].timezone, source: 'profile' };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error detecting attendee timezone:', error);
+    return null;
+  }
 }
 
 // Parse time from natural language
@@ -707,13 +817,181 @@ router.post('/schedule', authenticateToken, async (req, res) => {
 
     console.log(`AI Intent detected: ${intent} for message: "${message.substring(0, 50)}..."`);
 
-    // Handle analytics intent
+    // ENHANCEMENT: Handle analytics intent with conversational queries
     if (intent === 'analytics') {
-      const stats = await getBookingAnalytics(client, userId);
+      const lowerMsg = message.toLowerCase();
+
+      // Detect time range
+      let timeRange = 'this month'; // default
+      if (lowerMsg.includes('last week')) timeRange = 'last week';
+      else if (lowerMsg.includes('this week')) timeRange = 'this week';
+      else if (lowerMsg.includes('last month')) timeRange = 'last month';
+      else if (lowerMsg.includes('this year')) timeRange = 'this year';
+      else if (lowerMsg.includes('last year')) timeRange = 'last year';
+
+      // Detect specific query type
+      let analyticsData;
+      let responseMessage;
+
+      if (lowerMsg.includes('how many') || lowerMsg.includes('count') || lowerMsg.includes('total')) {
+        // Booking count query
+        analyticsData = await getBookingCount(userId, timeRange);
+        responseMessage = `📊 **${analyticsData.timeRange} Bookings:**\n\n` +
+          `• **Total:** ${analyticsData.total} meeting${analyticsData.total !== 1 ? 's' : ''}\n` +
+          `• **Completed:** ${analyticsData.completed}\n` +
+          `• **Upcoming:** ${analyticsData.upcoming}\n` +
+          `• **Cancelled:** ${analyticsData.cancelled}`;
+      } else if (lowerMsg.includes('average') || lowerMsg.includes('duration') || lowerMsg.includes('long')) {
+        // Average duration query
+        analyticsData = await getAverageDuration(userId, timeRange);
+        responseMessage = `⏱️ **${analyticsData.timeRange} Meeting Duration:**\n\n` +
+          `• **Average:** ${analyticsData.average} minutes\n` +
+          `• **Shortest:** ${analyticsData.min} minutes\n` +
+          `• **Longest:** ${analyticsData.max} minutes`;
+      } else if (lowerMsg.includes('who') || lowerMsg.includes('most') || lowerMsg.includes('often') || lowerMsg.includes('top')) {
+        // Top attendees query
+        analyticsData = await getTopAttendees(userId, timeRange, 5);
+        const attendeeList = analyticsData.attendees.length > 0
+          ? analyticsData.attendees.map((a, i) => `${i + 1}. **${a.attendee_name || a.attendee_email}** (${a.meeting_count} meeting${a.meeting_count !== 1 ? 's' : ''})`).join('\n')
+          : 'No meetings with attendees yet.';
+        responseMessage = `👥 **${analyticsData.timeRange} Top Collaborators:**\n\n${attendeeList}`;
+      } else if (lowerMsg.includes('busiest') || lowerMsg.includes('busy day') || lowerMsg.includes('which day')) {
+        // Busiest days query
+        analyticsData = await getBusiestDays(userId, timeRange);
+        const dayList = analyticsData.days.length > 0
+          ? analyticsData.days.map((d, i) => `${i + 1}. **${d.day}:** ${d.count} meeting${d.count !== 1 ? 's' : ''}`).join('\n')
+          : 'No meetings scheduled yet.';
+        responseMessage = `📅 **${analyticsData.timeRange} Busiest Days:**\n\n${dayList}\n\n${analyticsData.busiest ? `🔥 **Busiest day:** ${analyticsData.busiest}` : ''}`;
+      } else if (lowerMsg.includes('trend') || lowerMsg.includes('compare') || lowerMsg.includes('up') || lowerMsg.includes('down')) {
+        // Trends query
+        analyticsData = await getTrends(userId, timeRange);
+        const trendEmoji = analyticsData.trend === 'up' ? '📈' : analyticsData.trend === 'down' ? '📉' : '➡️';
+        const changeText = analyticsData.change > 0 ? `+${analyticsData.change}` : analyticsData.change.toString();
+        responseMessage = `${trendEmoji} **Booking Trends:**\n\n` +
+          `• **${analyticsData.current.timeRange}:** ${analyticsData.current.total} meetings\n` +
+          `• **${analyticsData.previous.timeRange}:** ${analyticsData.previous.total} meetings\n\n` +
+          `**Change:** ${changeText} (${analyticsData.percentChange}%)`;
+      } else {
+        // General analytics - use existing function
+        const stats = await getBookingAnalytics(client, userId);
+        return res.json({
+          type: 'analytics',
+          message: formatAnalyticsResponse(stats),
+          data: { stats }
+        });
+      }
+
       return res.json({
         type: 'analytics',
-        message: formatAnalyticsResponse(stats),
-        data: { stats }
+        message: responseMessage,
+        data: analyticsData
+      });
+    }
+
+    // ENHANCEMENT: Handle bulk cancel intent
+    if (intent === 'bulk_cancel') {
+      const timeRange = parseBulkTimeRange(message);
+
+      if (!timeRange) {
+        return res.json({
+          type: 'clarification',
+          message: `I'd like to help you cancel multiple meetings, but I need to know the time range.\n\nTry:\n- "Clear next week"\n- "Cancel all meetings tomorrow"\n- "Free up this afternoon"`
+        });
+      }
+
+      const affected = await client.query(
+        `SELECT id, title, start_time, attendee_email, attendee_name
+         FROM bookings
+         WHERE user_id = $1
+           AND start_time >= $2
+           AND start_time < $3
+           AND status IN ('confirmed', 'pending_approval')
+         ORDER BY start_time`,
+        [userId, timeRange.start, timeRange.end]
+      );
+
+      if (affected.rows.length === 0) {
+        return res.json({
+          type: 'info',
+          message: `You don't have any meetings scheduled for ${timeRange.label}.`
+        });
+      }
+
+      // Store pending action for confirmation
+      await client.query(
+        `INSERT INTO ai_pending_actions (user_id, action_type, action_data, expires_at)
+         VALUES ($1, 'bulk_cancel_confirm', $2, NOW() + INTERVAL '5 minutes')
+         ON CONFLICT (user_id, action_type) DO UPDATE SET action_data = $2, expires_at = NOW() + INTERVAL '5 minutes'`,
+        [userId, JSON.stringify({ meetings: affected.rows, timeRange: timeRange.label })]
+      );
+
+      const meetingList = affected.rows.map((m, i) => {
+        const dateStr = new Date(m.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const timeStr = new Date(m.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        return `${i + 1}. **${m.title || 'Meeting'}** - ${dateStr} at ${timeStr} with ${m.attendee_email || m.attendee_name}`;
+      }).join('\n');
+
+      return res.json({
+        type: 'bulk_cancel_confirmation',
+        message: `⚠️ **Bulk Cancel** - This will cancel **${affected.rows.length} meeting${affected.rows.length !== 1 ? 's' : ''}** for ${timeRange.label}:\n\n${meetingList}\n\n**Reply "yes"** to confirm or **"no"** to cancel.`,
+        data: { meetings: affected.rows, timeRange: timeRange.label }
+      });
+    }
+
+    // ENHANCEMENT: Handle bulk block intent
+    if (intent === 'bulk_block') {
+      const lowerMsg = message.toLowerCase();
+      let blockRule = {
+        name: '',
+        trigger_type: 'day_of_week',
+        trigger_value: '',
+        action_type: 'block',
+        action_value: 'true',
+        is_active: true
+      };
+
+      // Parse day to block
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      for (const day of dayNames) {
+        if (lowerMsg.includes(day)) {
+          blockRule.trigger_value = day;
+          blockRule.name = `No meetings on ${day.charAt(0).toUpperCase() + day.slice(1)}s`;
+          break;
+        }
+      }
+
+      if (lowerMsg.includes('weekend')) {
+        // Create two rules for Saturday and Sunday
+        await client.query(
+          `INSERT INTO scheduling_rules (user_id, name, trigger_type, trigger_value, action_type, action_value, is_active)
+           VALUES ($1, 'No meetings on Saturdays', 'day_of_week', 'saturday', 'block', 'true', true),
+                  ($1, 'No meetings on Sundays', 'day_of_week', 'sunday', 'block', 'true', true)`,
+          [userId]
+        );
+
+        return res.json({
+          type: 'rule_created',
+          message: `✅ **Weekends are now blocked!**\n\nNo one can book meetings on Saturdays or Sundays.\n\nYou can manage this in Smart Rules.`
+        });
+      }
+
+      if (!blockRule.trigger_value) {
+        return res.json({
+          type: 'clarification',
+          message: `I'd like to block time for you, but I need to know which day.\n\nTry:\n- "No meetings on Fridays"\n- "Block Mondays"\n- "No meetings on weekends"`
+        });
+      }
+
+      // Create the blocking rule
+      await client.query(
+        `INSERT INTO scheduling_rules (user_id, name, trigger_type, trigger_value, action_type, action_value, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [userId, blockRule.name, blockRule.trigger_type, blockRule.trigger_value, blockRule.action_type, blockRule.action_value, blockRule.is_active]
+      );
+
+      return res.json({
+        type: 'rule_created',
+        message: `✅ **${blockRule.name}**\n\nThis rule is now active. No one can book meetings during this time.\n\nYou can manage this in Smart Rules.`
       });
     }
 
@@ -1619,6 +1897,36 @@ router.post('/schedule', authenticateToken, async (req, res) => {
       // No conflicts, proceed with booking
       let bookingMessage = `Great! I'll book this meeting:\n\n📅 **${bookingDetails.title}**\n🗓️ ${bookingDetails.date} at ${bookingDetails.time}\n👤 ${bookingDetails.attendeeEmail}\n⏱️ ${bookingDetails.duration} minutes`;
 
+      // ENHANCEMENT: Time Zone Handling - show both timezones if different
+      if (bookingDetails.attendeeEmail && parsedDate && parsedTime) {
+        const attendeeTimezone = await detectAttendeeTimezone(bookingDetails.attendeeEmail);
+        const userResult = await client.query('SELECT timezone FROM users WHERE id = $1', [userId]);
+        const userTimezone = userResult.rows[0]?.timezone || 'America/New_York';
+
+        if (attendeeTimezone && attendeeTimezone.timezone !== userTimezone) {
+          const startDateTime = new Date(parsedDate.date);
+          startDateTime.setHours(parsedTime.hours, parsedTime.minutes, 0, 0);
+
+          // Format times in both timezones
+          const userTime = startDateTime.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            timeZone: userTimezone,
+            timeZoneName: 'short'
+          });
+
+          const guestTime = startDateTime.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            timeZone: attendeeTimezone.timezone,
+            timeZoneName: 'short'
+          });
+
+          const attendeeName = bookingDetails.attendeeName || bookingDetails.attendeeEmail.split('@')[0];
+          bookingMessage += `\n\n🌍 **Time Zones:**\n• Your time: ${userTime}\n• ${attendeeName}'s time: ${guestTime}`;
+        }
+      }
+
       if (bookingDetails.appliedTemplate) {
         bookingMessage += `\n\n📋 **Template Applied:** ${bookingDetails.appliedTemplate}`;
         if (bookingDetails.preAgenda) {
@@ -1697,6 +2005,7 @@ router.post('/schedule', authenticateToken, async (req, res) => {
       ).catch(() => ({ rows: [] }));
 
       const context = {
+        userId: userId, // ENHANCEMENT: Pass userId for proactive suggestions
         personality: req.body.context?.personality || 'friendly',
         timezone: user.timezone || req.body.context?.timezone || 'America/New_York',
         tier: req.body.context?.tier || 'free',

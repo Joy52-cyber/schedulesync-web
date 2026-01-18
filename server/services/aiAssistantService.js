@@ -1,4 +1,5 @@
 const Anthropic = require('@anthropic-ai/sdk');
+const { getProactiveSuggestions } = require('./proactiveSuggestionsService');
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -15,6 +16,16 @@ const anthropic = new Anthropic({
  */
 async function getAIResponse(userMessage, conversationHistory = [], context = {}, userData = {}) {
   try {
+    // Get proactive suggestions if userId is available
+    if (context.userId && !userData.proactiveSuggestions) {
+      try {
+        userData.proactiveSuggestions = await getProactiveSuggestions(context.userId);
+      } catch (err) {
+        console.error('Error fetching proactive suggestions:', err);
+        userData.proactiveSuggestions = [];
+      }
+    }
+
     // Build system prompt with context
     const systemPrompt = buildSystemPrompt(context, userData);
 
@@ -52,7 +63,7 @@ async function getAIResponse(userMessage, conversationHistory = [], context = {}
  */
 function buildSystemPrompt(context, userData) {
   const { personality = 'friendly', timezone, tier, currentPage, userName } = context;
-  const { stats = {}, upcomingMeetings = [], eventTypes = [], templates = [], topAttendees = [], activeRules = [], attendeeContext = null } = userData;
+  const { stats = {}, upcomingMeetings = [], eventTypes = [], templates = [], topAttendees = [], activeRules = [], attendeeContext = null, proactiveSuggestions = [] } = userData;
 
   // Build insights section
   let insights = [];
@@ -115,6 +126,11 @@ ${attendeeContext.profile.notes ? `- Notes: ${attendeeContext.profile.notes}` : 
 ${attendeeContext.recentMeetings.length > 0 ? `- Recent Meetings: ${attendeeContext.recentMeetings.slice(0, 2).map(m => m.title || 'Meeting').join(', ')}` : ''}
 
 IMPORTANT: Mention this relationship context when booking! Say something like "You've met with ${attendeeContext.email} ${attendeeContext.profile.meeting_count} times before" and suggest times that match their pattern if available.
+` : ''}
+${proactiveSuggestions.length > 0 ? `**Proactive Suggestions:**
+${proactiveSuggestions.map(s => `- ${s.message}`).join('\n')}
+
+If the user seems idle or asks "what can you do?", mention these helpful suggestions to guide them.
 ` : ''}
 
 **Your Capabilities:**
