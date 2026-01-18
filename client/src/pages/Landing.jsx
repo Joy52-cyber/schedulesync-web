@@ -25,20 +25,20 @@ export default function Landing() {
     {
       icon: Sparkles,
       title: 'TruCal Assistant',
-      description: 'Natural language scheduling with ChatGPT integration. Just tell it what you need: "Schedule lunch with John next Tuesday" or "Find time for a 30-min call this week." AI handles the rest.',
+      description: 'Claude AI-powered scheduling with relationship intelligence. Knows who you meet often, your preferred meeting times, and suggests templates automatically. "You\'ve met with Sarah 5 times - she prefers Thursdays at 2pm." Proactive, personalized, powerful.',
       stat: 'All plans',
       color: 'from-blue-500 to-cyan-500',
-      demo: 'Natural language • Smart rules • Intelligent suggestions',
+      demo: 'Relationship tracking • Behavioral patterns • Smart templates • Proactive tips',
       isNew: true,
       badge: 'FEATURED'
     },
     {
       icon: Mail,
       title: 'TruCal Assistant (via email)',
-      description: 'CC schedule@mg.trucal.xyz on any email thread. Our AI proposes times, handles replies, and books automatically. Works with Gmail, Outlook, Apple Mail—any email client.',
+      description: 'Most intelligent email scheduling bot available. Detects meeting purpose ("to discuss Q1 project"), location ("at downtown office"), urgency ("ASAP"), and attendee relationships. Auto-applies meeting templates with agendas. CC schedule@mg.trucal.xyz - AI does the rest.',
       stat: 'All plans',
       color: 'from-purple-500 to-pink-500',
-      demo: 'Zero apps to install • AI handles back-and-forth • One-click booking',
+      demo: 'Relationship insights • Purpose extraction • Template matching • Urgency detection',
       isNew: true,
       badge: 'FEATURED'
     },
@@ -202,7 +202,7 @@ export default function Landing() {
           </h1>
 
           <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 max-w-3xl mx-auto mb-12 leading-relaxed">
-            ChatGPT-powered TruCal Assistant in your dashboard + TruCal Assistant via email. Natural language scheduling meets zero-friction booking.
+            Claude AI-powered scheduling with <strong>relationship intelligence</strong>, <strong>behavioral patterns</strong>, and <strong>smart template matching</strong>. The most intelligent scheduling platform ever built.
           </p>
 
           {/* Dual Feature Highlight */}
@@ -624,6 +624,136 @@ export default function Landing() {
                 ⚡ Instant
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= INTELLIGENCE SHOWCASE ================= */}
+      <section className="py-24 bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-green-600 to-emerald-600 text-white text-sm font-bold mb-6">
+              <Sparkles className="w-4 h-4" />
+              INTELLIGENCE FEATURES
+            </div>
+            <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
+              Not just smart. <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Intelligent.</span>
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              TruCal learns from every interaction, understands relationships, and gets smarter over time.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Relationship Intelligence */}
+            <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-green-200 hover:shadow-2xl transition-shadow">
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mb-4">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Relationship Intelligence</h3>
+              <div className="space-y-2 text-sm text-gray-700">
+                <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                  <p className="font-semibold text-green-800">💼 "You've met with Sarah <strong>5 times</strong> before. Regular collaborator! 🤝"</p>
+                </div>
+                <p className="text-gray-600 italic">• Tracks meeting history with every attendee</p>
+                <p className="text-gray-600 italic">• Shows last meeting date & total time spent</p>
+                <p className="text-gray-600 italic">• Identifies your top collaborators</p>
+              </div>
+            </div>
+
+            {/* Behavioral Patterns */}
+            <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-blue-200 hover:shadow-2xl transition-shadow">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mb-4">
+                <Clock className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Behavioral Patterns</h3>
+              <div className="space-y-2 text-sm text-gray-700">
+                <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                  <p className="font-semibold text-blue-800">💡 "John typically meets on <strong>Thursdays around 2:00 PM</strong>"</p>
+                </div>
+                <p className="text-gray-600 italic">• Detects busiest days & preferred times</p>
+                <p className="text-gray-600 italic">• Suggests optimal meeting slots</p>
+                <p className="text-gray-600 italic">• Warns about heavy weeks (10+ meetings)</p>
+              </div>
+            </div>
+
+            {/* Smart Template Matching */}
+            <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-purple-200 hover:shadow-2xl transition-shadow">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mb-4">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Smart Template Matching</h3>
+              <div className="space-y-2 text-sm text-gray-700">
+                <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                  <p className="font-semibold text-purple-800">📋 "I'll use the <strong>Sales Discovery Call</strong> template with pre-filled agenda"</p>
+                </div>
+                <p className="text-gray-600 italic">• Auto-detects meeting type from email</p>
+                <p className="text-gray-600 italic">• Applies agenda templates automatically</p>
+                <p className="text-gray-600 italic">• Creates action items for follow-up</p>
+              </div>
+            </div>
+
+            {/* Purpose Extraction */}
+            <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-orange-200 hover:shadow-2xl transition-shadow">
+              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center mb-4">
+                <FileText className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Purpose Extraction</h3>
+              <div className="space-y-2 text-sm text-gray-700">
+                <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
+                  <p className="font-semibold text-orange-800">📌 "Meeting purpose: <strong>discuss Q1 project roadmap</strong>"</p>
+                </div>
+                <p className="text-gray-600 italic">• AI extracts meeting purpose from email</p>
+                <p className="text-gray-600 italic">• Auto-fills booking notes</p>
+                <p className="text-gray-600 italic">• Shows purpose in calendar invites</p>
+              </div>
+            </div>
+
+            {/* Location & Urgency Detection */}
+            <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-indigo-200 hover:shadow-2xl transition-shadow">
+              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center mb-4">
+                <Zap className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Context Detection</h3>
+              <div className="space-y-2 text-sm text-gray-700">
+                <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+                  <p className="font-semibold text-indigo-800">🔥 "URGENT meeting request detected"</p>
+                  <p className="font-semibold text-indigo-800 mt-1">📍 "Location: downtown office"</p>
+                </div>
+                <p className="text-gray-600 italic">• Detects "ASAP" vs "flexible" timing</p>
+                <p className="text-gray-600 italic">• Extracts location from email text</p>
+                <p className="text-gray-600 italic">• Prioritizes urgent requests</p>
+              </div>
+            </div>
+
+            {/* Proactive Recommendations */}
+            <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-pink-200 hover:shadow-2xl transition-shadow">
+              <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-rose-500 rounded-xl flex items-center justify-center mb-4">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Proactive Tips</h3>
+              <div className="space-y-2 text-sm text-gray-700">
+                <div className="bg-pink-50 rounded-lg p-3 border border-pink-200">
+                  <p className="font-semibold text-pink-800">💡 "You have <strong>12 meetings</strong> this week. Consider adding buffer time."</p>
+                </div>
+                <p className="text-gray-600 italic">• Suggests buffer time during heavy weeks</p>
+                <p className="text-gray-600 italic">• Recommends recurring meetings</p>
+                <p className="text-gray-600 italic">• Prompts template creation</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center mt-12">
+            <button
+              onClick={() => navigate('/register')}
+              className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-full text-lg font-bold hover:shadow-xl transition-all transform hover:scale-105 flex items-center gap-2 mx-auto"
+            >
+              Experience the Intelligence
+              <ArrowRight className="w-5 h-5" />
+            </button>
+            <p className="text-sm text-gray-500 mt-4">
+              No other scheduling tool comes close to this level of AI intelligence.
+            </p>
           </div>
         </div>
       </section>
