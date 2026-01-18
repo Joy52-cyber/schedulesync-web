@@ -208,13 +208,18 @@ router.get('/action-items/my-tasks', authenticateToken, async (req, res) => {
 
     // Get action items assigned to this user
     const result = await pool.query(
-      `SELECT ai.*, b.title as booking_title, b.start_time, b.attendee_name,
+      `SELECT booking_action_items.*,
+              b.title as booking_title,
+              b.start_time,
+              b.attendee_name,
               u.name as host_name
-       FROM booking_action_items ai
-       JOIN bookings b ON ai.booking_id = b.id
+       FROM booking_action_items
+       JOIN bookings b ON booking_action_items.booking_id = b.id
        JOIN users u ON b.user_id = u.id
-       WHERE ai.assigned_to = $1 AND ai.completed = FALSE
-       ORDER BY ai.due_date ASC NULLS LAST, ai.created_at DESC`,
+       WHERE booking_action_items.assigned_to = $1
+         AND booking_action_items.completed = FALSE
+       ORDER BY booking_action_items.due_date ASC NULLS LAST,
+                booking_action_items.created_at DESC`,
       [userEmail]
     );
 

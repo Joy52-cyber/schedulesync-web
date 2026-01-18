@@ -221,17 +221,23 @@ async function getBehavioralPatterns(userId) {
       WHERE user_id = $1 AND status = 'confirmed'
     `, [userId]);
 
-    // Get meeting type distribution
-    const typeResult = await pool.query(`
-      SELECT
-        location_type,
-        COUNT(*) as count
-      FROM bookings
-      WHERE user_id = $1 AND status = 'confirmed' AND location_type IS NOT NULL
-      GROUP BY location_type
-      ORDER BY count DESC
-      LIMIT 3
-    `, [userId]);
+    // Get meeting type distribution - skip if column doesn't exist
+    let typeResult = { rows: [] };
+    try {
+      typeResult = await pool.query(`
+        SELECT
+          event_type,
+          COUNT(*) as count
+        FROM bookings
+        WHERE user_id = $1 AND status = 'confirmed' AND event_type IS NOT NULL
+        GROUP BY event_type
+        ORDER BY count DESC
+        LIMIT 3
+      `, [userId]);
+    } catch (error) {
+      // Column might not exist, skip this metric
+      console.log('Could not fetch meeting types:', error.message);
+    }
 
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const busiestDay = dayResult.rows[0] ? dayMap[dayResult.rows[0].dow] : null;
@@ -244,7 +250,7 @@ async function getBehavioralPatterns(userId) {
       preferredHourDisplay: preferredHour !== null ? formatHour(preferredHour) : null,
       avgDuration: durationResult.rows[0] ? Math.round(parseFloat(durationResult.rows[0].avg_duration_minutes)) : null,
       topMeetingTypes: typeResult.rows.map(row => ({
-        type: row.location_type,
+        type: row.event_type,
         count: parseInt(row.count),
       })),
     };
