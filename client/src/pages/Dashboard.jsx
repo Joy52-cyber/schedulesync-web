@@ -512,7 +512,7 @@ export default function Dashboard() {
               </button>
 
               <button
-                onClick={() => navigate('/my-links')}
+                onClick={() => navigate('/my-links?mode=quick')}
                 className="flex items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border-2 border-amber-200 rounded-2xl hover:border-amber-400 hover:shadow-xl hover:shadow-amber-100/50 transition-all text-left hover:-translate-y-1"
               >
                 <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">

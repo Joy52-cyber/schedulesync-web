@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Link2,
   Copy,
@@ -34,6 +34,10 @@ export default function MyLinks() {
   const navigate = useNavigate();
   const notify = useNotification();
   const { showUpgradeModal } = useUpgrade();
+  const [searchParams] = useSearchParams();
+
+  // Check if we're in "quick link only" mode
+  const isQuickMode = searchParams.get('mode') === 'quick';
 
   const [user, setUser] = useState(null);
   const [copied, setCopied] = useState('');
@@ -269,15 +273,29 @@ export default function MyLinks() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-            <Link2 className="h-8 w-8 text-purple-600" />
-            Booking Links
+            {isQuickMode ? (
+              <>
+                <Sparkles className="h-8 w-8 text-purple-600" />
+                Quick Link
+              </>
+            ) : (
+              <>
+                <Link2 className="h-8 w-8 text-purple-600" />
+                Booking Links
+              </>
+            )}
           </h1>
-          <p className="text-gray-600">Share your profile link or create quick links for specific meetings</p>
+          <p className="text-gray-600">
+            {isQuickMode
+              ? 'Create instant booking links for specific meetings'
+              : 'Share your profile link or create quick links for specific meetings'}
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
-          {/* Permanent Profile Link */}
+        <div className={`grid grid-cols-1 ${isQuickMode ? '' : 'lg:grid-cols-2'} gap-8`}>
+
+          {/* Permanent Profile Link - Hidden in quick mode */}
+          {!isQuickMode && (
           <div className="bg-white/80 backdrop-blur-xl rounded-2xl border-2 border-white/20 p-6 shadow-lg hover:shadow-2xl hover:shadow-blue-200/30 transition-all hover:-translate-y-1">
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-3 mb-2">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -350,10 +368,12 @@ export default function MyLinks() {
               </div>
             )}
           </div>
+          )}
 
           {/* Quick Links */}
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl border-2 border-white/20 p-6 shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 transition-all hover:-translate-y-1">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-3 mb-2">
+          <div className={`bg-white/80 backdrop-blur-xl rounded-2xl border-2 border-white/20 p-6 shadow-lg hover:shadow-2xl hover:shadow-purple-200/30 transition-all hover:-translate-y-1 ${isQuickMode ? 'max-w-2xl mx-auto' : ''}`}>
+            <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Sparkles className="h-5 w-5 text-white" />
               </div>
@@ -362,6 +382,16 @@ export default function MyLinks() {
                 <span className="ml-2 px-2 py-0.5 bg-purple-200 text-purple-700 text-xs font-bold rounded-full">PRO</span>
               )}
             </h2>
+            {isQuickMode && (
+              <button
+                onClick={() => navigate('/my-links')}
+                className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+              >
+                <Link2 className="h-4 w-4" />
+                View All Links
+              </button>
+            )}
+            </div>
             <p className="text-gray-600 text-sm mb-4">
               Create instant booking links for specific meetings
             </p>
@@ -645,7 +675,7 @@ export default function MyLinks() {
 
         {/* Recent Quick Links */}
         {magicLinks.length > 0 && (
-          <div className="mt-8 bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl p-6 border-2 border-white/20 hover:shadow-2xl hover:shadow-purple-200/30 transition-all">
+          <div className={`mt-8 bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl p-6 border-2 border-white/20 hover:shadow-2xl hover:shadow-purple-200/30 transition-all ${isQuickMode ? 'max-w-2xl mx-auto' : ''}`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-purple-600" />
@@ -770,8 +800,8 @@ export default function MyLinks() {
           </div>
         )}
 
-        {/* Premium Upgrade Card */}
-        {user?.tier === 'free' && (
+        {/* Premium Upgrade Card - Hidden in quick mode */}
+        {!isQuickMode && user?.tier === 'free' && (
           <div className="mt-8">
             <UpgradeCard variant="default" />
           </div>
@@ -779,7 +809,7 @@ export default function MyLinks() {
 
         {/* Empty state */}
         {magicLinks.length === 0 && (
-          <div className="mt-8 bg-white/60 backdrop-blur-xl rounded-2xl border-2 border-dashed border-purple-300 p-8 text-center shadow-lg">
+          <div className={`mt-8 bg-white/60 backdrop-blur-xl rounded-2xl border-2 border-dashed border-purple-300 p-8 text-center shadow-lg ${isQuickMode ? 'max-w-2xl mx-auto' : ''}`}>
             <Sparkles className="h-12 w-12 text-purple-400 mx-auto mb-3" />
             <h3 className="font-semibold text-gray-900 mb-1">No quick links yet</h3>
             <p className="text-sm text-gray-600">
