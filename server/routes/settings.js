@@ -231,14 +231,45 @@ router.get('/usage', authenticateToken, async (req, res) => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const usage = await pool.query(`
-      SELECT
-        (SELECT COUNT(*) FROM ai_queries WHERE user_id = $1 AND created_at >= $2) as ai_used,
-        (SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND created_at >= $2) as bookings_used
-    `, [req.user.id, startOfMonth]);
+    // Check if ai_queries table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = 'ai_queries'
+      );
+    `);
 
-    const aiUsed = parseInt(usage.rows[0]?.ai_used) || 0;
-    const bookingsUsed = parseInt(usage.rows[0]?.bookings_used) || 0;
+    let aiUsed = 0;
+    let bookingsUsed = 0;
+
+    // Query ai_queries only if table exists
+    if (tableCheck.rows[0].exists) {
+      try {
+        const usage = await pool.query(`
+          SELECT
+            (SELECT COUNT(*) FROM ai_queries WHERE user_id = $1 AND created_at >= $2) as ai_used,
+            (SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND created_at >= $2) as bookings_used
+        `, [req.user.id, startOfMonth]);
+
+        aiUsed = parseInt(usage.rows[0]?.ai_used) || 0;
+        bookingsUsed = parseInt(usage.rows[0]?.bookings_used) || 0;
+      } catch (queryError) {
+        // If query fails, just count bookings
+        const bookings = await pool.query(
+          'SELECT COUNT(*) as count FROM bookings WHERE user_id = $1 AND created_at >= $2',
+          [req.user.id, startOfMonth]
+        );
+        bookingsUsed = parseInt(bookings.rows[0]?.count) || 0;
+      }
+    } else {
+      // If ai_queries table doesn't exist, just count bookings
+      const bookings = await pool.query(
+        'SELECT COUNT(*) as count FROM bookings WHERE user_id = $1 AND created_at >= $2',
+        [req.user.id, startOfMonth]
+      );
+      bookingsUsed = parseInt(bookings.rows[0]?.count) || 0;
+    }
+
     const aiLimit = planLimits[tier]?.ai_queries || 10;
     const bookingsLimit = planLimits[tier]?.bookings || 50;
 
@@ -253,7 +284,16 @@ router.get('/usage', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Get usage error:', error);
-    res.status(500).json({ error: 'Failed to get usage' });
+    // Return safe defaults instead of error
+    res.json({
+      ai_queries_used: 0,
+      ai_queries_limit: 10,
+      bookings_used: 0,
+      monthly_bookings: 0,
+      bookings_limit: 50,
+      subscription_tier: 'free',
+      tier: 'free'
+    });
   }
 });
 
@@ -279,30 +319,67 @@ router.get('/limits', authenticateToken, async (req, res) => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const usage = await pool.query(`
-      SELECT
-        (SELECT COUNT(*) FROM ai_queries WHERE user_id = $1 AND created_at >= $2) as ai_used,
-        (SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND created_at >= $2) as bookings_used,
-        (SELECT COUNT(*) FROM event_types WHERE user_id = $1) as event_types_count,
-        (SELECT COUNT(*) FROM quick_links WHERE user_id = $1 AND created_at >= $2) as quick_links_used
-    `, [req.user.id, startOfMonth]);
+    // Initialize usage with defaults
+    const usageData = {
+      ai_used: 0,
+      bookings_used: 0,
+      event_types_count: 0,
+      quick_links_used: 0
+    };
 
-    const u = usage.rows[0] || {};
+    // Check table existence and query safely
+    try {
+      const tableChecks = await pool.query(`
+        SELECT
+          (SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'ai_queries')) as has_ai_queries,
+          (SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'quick_links')) as has_quick_links
+      `);
+
+      const { has_ai_queries, has_quick_links } = tableChecks.rows[0];
+
+      // Build query dynamically based on table existence
+      const subqueries = [];
+      if (has_ai_queries) {
+        subqueries.push('(SELECT COUNT(*) FROM ai_queries WHERE user_id = $1 AND created_at >= $2) as ai_used');
+      }
+      subqueries.push('(SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND created_at >= $2) as bookings_used');
+      subqueries.push('(SELECT COUNT(*) FROM event_types WHERE user_id = $1) as event_types_count');
+      if (has_quick_links) {
+        subqueries.push('(SELECT COUNT(*) FROM quick_links WHERE user_id = $1 AND created_at >= $2) as quick_links_used');
+      }
+
+      const usage = await pool.query(
+        `SELECT ${subqueries.join(', ')}`,
+        [req.user.id, startOfMonth]
+      );
+
+      // Merge results with defaults
+      Object.assign(usageData, usage.rows[0] || {});
+    } catch (queryError) {
+      console.error('Error querying usage data:', queryError.message);
+      // Use default values if query fails
+    }
+
     const limits = planLimits[tier] || planLimits.free;
 
     res.json({
       tier,
       limits,
       usage: {
-        ai_queries: parseInt(u.ai_used) || 0,
-        bookings: parseInt(u.bookings_used) || 0,
-        event_types: parseInt(u.event_types_count) || 0,
-        quick_links: parseInt(u.quick_links_used) || 0
+        ai_queries: parseInt(usageData.ai_used) || 0,
+        bookings: parseInt(usageData.bookings_used) || 0,
+        event_types: parseInt(usageData.event_types_count) || 0,
+        quick_links: parseInt(usageData.quick_links_used) || 0
       }
     });
   } catch (error) {
     console.error('Get limits error:', error);
-    res.status(500).json({ error: 'Failed to get limits' });
+    // Return safe defaults instead of error
+    res.json({
+      tier: 'free',
+      limits: { ai_queries: 10, bookings: 50, event_types: 2, quick_links: 3 },
+      usage: { ai_queries: 0, bookings: 0, event_types: 0, quick_links: 0 }
+    });
   }
 });
 
