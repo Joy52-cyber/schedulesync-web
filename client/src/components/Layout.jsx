@@ -16,6 +16,7 @@ import {
   ChevronDown,
   BarChart3,
   Users2,
+  FileText,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -66,6 +67,7 @@ export default function Layout() {
   const mainNavigation = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, walkthrough: "dashboard-nav" },
     { name: "Event Types", path: "/events", icon: Clock, walkthrough: "events-nav" },
+    { name: "Templates", path: "/meeting-templates", icon: FileText, walkthrough: "templates-nav" },
     { name: "Bookings", path: "/bookings", icon: Calendar, walkthrough: "bookings-nav" },
     { name: "Relationships", path: "/relationships", icon: Users2, walkthrough: "relationships-nav" },
     { name: "Analytics", path: "/analytics", icon: BarChart3, walkthrough: "analytics-nav" },
