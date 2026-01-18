@@ -2,6 +2,7 @@
 const router = express.Router();
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const { getDashboardIntelligence } = require('../services/dashboardIntelligenceService');
 
 router.get('/stats', authenticateToken, async (req, res) => {
   const client = await pool.connect();
@@ -82,6 +83,20 @@ router.get('/stats', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch dashboard data' });
   } finally {
     client.release();
+  }
+});
+
+/**
+ * GET /dashboard/intelligence
+ * Get AI-powered dashboard intelligence (alerts, insights, recommendations)
+ */
+router.get('/intelligence', authenticateToken, async (req, res) => {
+  try {
+    const intelligence = await getDashboardIntelligence(req.user.id);
+    res.json(intelligence);
+  } catch (error) {
+    console.error('Error fetching dashboard intelligence:', error);
+    res.status(500).json({ error: 'Failed to fetch intelligence data' });
   }
 });
 

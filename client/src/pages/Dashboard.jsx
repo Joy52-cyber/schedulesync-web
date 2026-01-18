@@ -33,6 +33,7 @@ import api, {
 import ActionItemsWidget from '../components/ActionItemsWidget';
 import GroupScheduler from '../components/GroupScheduler';
 import SmartSuggestions from '../components/SmartSuggestions';
+import DashboardIntelligence from '../components/DashboardIntelligence';
 import { useNotification } from '../contexts/NotificationContext';
 // import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal'; // UNUSED
 // import { useWalkthrough } from '../context/WalkthroughContext'; // UNUSED
@@ -491,6 +492,9 @@ export default function Dashboard() {
             {/* STEP 3: Warning Banners */}
             <LimitWarningBanner />
             <ConflictWarningBanner />
+
+            {/* Dashboard Intelligence */}
+            <DashboardIntelligence />
 
             {/* STEP 2: Quick Actions */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
