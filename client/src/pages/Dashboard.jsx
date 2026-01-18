@@ -651,8 +651,8 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* Group Scheduler Modal - TESTING: commenting out to see if this is the issue */}
-      {false && showGroupScheduler && (
+      {/* Group Scheduler Modal */}
+      {showGroupScheduler && (
         <GroupScheduler
           onClose={() => setShowGroupScheduler(false)}
           onBookingCreated={(booking) => {

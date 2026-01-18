@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, Users, Clock, Globe, Search, Calendar, Loader2, Plus, Check } from 'lucide-react';
-import { api } from '../utils/api';
+import api from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 
 export default function GroupScheduler({ onClose, onBookingCreated }) {
