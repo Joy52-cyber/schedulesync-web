@@ -33,7 +33,7 @@ import RescheduleSuggestions from '../components/RescheduleSuggestions';
 import ActionItemsWidget from '../components/ActionItemsWidget';
 import GroupScheduler from '../components/GroupScheduler';
 import { useNotification } from '../contexts/NotificationContext';
-import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal';
+// import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal'; // DISABLED - testing if this causes crash
 import { useWalkthrough } from '../context/WalkthroughContext';
 import { WalkthroughPrompt } from '../components/Walkthrough';
 import UpgradeCard from '../components/UpgradeCard';
