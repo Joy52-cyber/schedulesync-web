@@ -225,28 +225,28 @@ export function NotificationProvider({ children }) {
     info,
     warning,
     notify,
-    
+
     // Advanced methods
     confirm,
     prompt,
-    
+
     // Booking methods
     bookingCreated,
     bookingCancelled,
     bookingUpdated,
     paymentSuccess,
     paymentFailed,
-    
+
     // Team methods
     teamInvite,
     teamMemberAdded,
-    
+
     // Calendar methods
     calendarSynced,
     calendarSyncFailed,
-    
+
     // State
-    notifications,
+    notifications: toasts,
   };
 
   return (
