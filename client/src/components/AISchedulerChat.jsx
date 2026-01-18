@@ -1165,10 +1165,10 @@ export default function AISchedulerChat() {
       // Add type checking for message
       if (!message || typeof message !== 'string' || !message.trim() || loading) return;
 
-      if (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit) {
+      if (!isUnlimited && usage && usage.ai_queries_used >= usage.ai_queries_limit) {
         setChatHistory(prev => [...prev, {
           role: 'assistant',
-          content: `Looks like you've used all ${usage.ai_queries_limit} AI queries this month!\n\nUpgrade to Pro for unlimited queries – I'll be here whenever you need me!\n\n[Upgrade to Pro](/billing)`,
+          content: `Looks like you've used all ${usage.ai_queries_limit || 10} AI queries this month!\n\nUpgrade to Pro for unlimited queries – I'll be here whenever you need me!\n\n[Upgrade to Pro](/billing)`,
           timestamp: new Date()
         }]);
         return;
@@ -1448,17 +1448,37 @@ export default function AISchedulerChat() {
     if (!pendingBooking) return;
     setLoading(true);
     try {
+      // Validate date and time
+      if (!pendingBooking.date || !pendingBooking.time) {
+        throw new Error('Missing date or time');
+      }
+
       const startDateTime = new Date(`${pendingBooking.date}T${pendingBooking.time}`);
-      const endDateTime = new Date(startDateTime.getTime() + pendingBooking.duration * 60000);
+
+      // Check if date is valid
+      if (isNaN(startDateTime.getTime())) {
+        throw new Error('Invalid date or time format');
+      }
+
+      const endDateTime = new Date(startDateTime.getTime() + (pendingBooking.duration || 30) * 60000);
       const allAttendees = pendingBooking.attendees || [pendingBooking.attendee_email];
+
+      // Validate attendees array
+      const validAttendees = allAttendees.filter(email => email && typeof email === 'string' && email.includes('@'));
+      if (validAttendees.length === 0) {
+        throw new Error('No valid email addresses');
+      }
+
+      const firstAttendee = validAttendees[0];
+      const attendeeName = firstAttendee.includes('@') ? firstAttendee.split('@')[0] : firstAttendee;
 
       await api.post('/chatgpt/book-meeting', {
         title: pendingBooking.title || 'Meeting',
         start_time: startDateTime.toISOString(),
         end_time: endDateTime.toISOString(),
-        attendees: allAttendees,
-        attendee_email: allAttendees[0],
-        attendee_name: allAttendees[0].split('@')[0],
+        attendees: validAttendees,
+        attendee_email: firstAttendee,
+        attendee_name: attendeeName,
         notes: pendingBooking.notes || '',
         team_id: pendingBooking.team_id || null
       });
