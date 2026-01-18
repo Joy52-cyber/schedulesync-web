@@ -12,9 +12,12 @@ import {
   Clock,
   AlertCircle,
   Sparkles,
-  MapPin
+  MapPin,
+  FileText,
+  CheckSquare,
+  Users
 } from 'lucide-react';
-import { bookings } from '../utils/api';
+import api, { bookings } from '../utils/api';
 
 export default function ManageBooking() {
   const { token } = useParams();
@@ -25,6 +28,9 @@ export default function ManageBooking() {
   const [processing, setProcessing] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [meetingContext, setMeetingContext] = useState(null);
+  const [actionItems, setActionItems] = useState([]);
+  const [loadingContext, setLoadingContext] = useState(false);
 
   useEffect(() => {
     loadBooking();
@@ -35,12 +41,40 @@ export default function ManageBooking() {
       setError(null);
       const response = await bookings.getManagementDetails(token);
       console.log('📋 Booking data loaded:', response.data);
-      setBooking(response.data.booking);
+      const bookingData = response.data.booking;
+      setBooking(bookingData);
+
+      // Load meeting context and action items if booking ID exists
+      if (bookingData?.id) {
+        loadMeetingContext(bookingData.id);
+      }
     } catch (err) {
       console.error('Error loading booking:', err);
       setError(err.response?.data?.error || 'Failed to load booking');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMeetingContext = async (bookingId) => {
+    try {
+      setLoadingContext(true);
+
+      // Load meeting context (agenda, attendee history)
+      const contextPromise = api.get(`/bookings/${bookingId}/context`).catch(() => ({ data: null }));
+
+      // Load action items
+      const actionItemsPromise = api.get(`/bookings/${bookingId}/action-items`).catch(() => ({ data: [] }));
+
+      const [contextRes, actionItemsRes] = await Promise.all([contextPromise, actionItemsPromise]);
+
+      setMeetingContext(contextRes.data);
+      setActionItems(actionItemsRes.data || []);
+    } catch (err) {
+      console.error('Error loading meeting context:', err);
+      // Silently fail - these are optional features
+    } finally {
+      setLoadingContext(false);
     }
   };
 
@@ -342,6 +376,106 @@ export default function ManageBooking() {
             )}
           </div>
         </div>
+
+        {/* Meeting Agenda */}
+        {meetingContext?.generated_agenda && (
+          <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-green-100 mb-6">
+            <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-6">
+              <div className="flex items-center gap-3 text-white">
+                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <FileText className="h-6 w-6" />
+                </div>
+                <h3 className="text-2xl font-bold">Meeting Agenda</h3>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
+                {meetingContext.generated_agenda}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Attendee History */}
+        {meetingContext?.attendeeHistory && meetingContext.attendeeHistory.meeting_count > 1 && (
+          <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-blue-100 mb-6">
+            <div className="bg-gradient-to-r from-blue-500 to-indigo-500 p-6">
+              <div className="flex items-center gap-3 text-white">
+                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <Users className="h-6 w-6" />
+                </div>
+                <h3 className="text-2xl font-bold">Meeting History</h3>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="flex items-center gap-2 text-gray-700">
+                <Calendar className="h-5 w-5 text-blue-600" />
+                <p className="text-lg">
+                  You've met with <strong>{booking.organizer_name}</strong>{' '}
+                  <strong className="text-blue-600">{meetingContext.attendeeHistory.meeting_count} times</strong>.
+                </p>
+              </div>
+              {meetingContext.attendeeHistory.last_meeting_date && (
+                <p className="text-gray-600 mt-2 ml-7">
+                  Last meeting: {new Date(meetingContext.attendeeHistory.last_meeting_date).toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Action Items */}
+        {actionItems.length > 0 && (
+          <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-purple-100 mb-6">
+            <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-6">
+              <div className="flex items-center gap-3 text-white">
+                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <CheckSquare className="h-6 w-6" />
+                </div>
+                <h3 className="text-2xl font-bold">Action Items</h3>
+              </div>
+            </div>
+            <div className="p-6 space-y-3">
+              {actionItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200"
+                >
+                  <div className={`mt-0.5 flex-shrink-0 ${item.completed ? 'opacity-50' : ''}`}>
+                    {item.completed ? (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <div className="h-5 w-5 border-2 border-gray-400 rounded"></div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className={`text-gray-900 ${item.completed ? 'line-through text-gray-500' : ''}`}>
+                      {item.description}
+                    </p>
+                    {(item.assigned_to || item.due_date) && (
+                      <div className="flex items-center gap-3 mt-1 text-sm text-gray-600">
+                        {item.assigned_to && <span>Assigned to: {item.assigned_to}</span>}
+                        {item.due_date && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            Due: {new Date(item.due_date).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Premium Actions - Only show for upcoming, non-cancelled bookings */}
         {!isCancelled && !isPast && (
