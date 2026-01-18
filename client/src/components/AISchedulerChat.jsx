@@ -917,18 +917,26 @@ export default function AISchedulerChat() {
         tier: currentTier,
         recentPages: getRecentPages(),
         frequentActions: getFrequentActions(),
-        lastTopic: conversationContext.lastTopic,
-        pendingActions: conversationContext.pendingActions,
-        userGoals: conversationContext.userGoals,
+        lastTopic: conversationContext?.lastTopic || '',
+        pendingActions: conversationContext?.pendingActions || [],
+        userGoals: conversationContext?.userGoals || [],
         queryCount: getTotalQueries(),
         currentPage: location?.pathname || '/'
       };
     } catch (error) {
       console.error('Error building context payload:', error);
+      // Return same structure with safe defaults
       return {
         personality,
         timezone: currentTimezone,
-        tier: currentTier
+        tier: currentTier,
+        recentPages: [],
+        frequentActions: [],
+        lastTopic: '',
+        pendingActions: [],
+        userGoals: [],
+        queryCount: 0,
+        currentPage: location?.pathname || '/'
       };
     }
   };
@@ -1128,6 +1136,7 @@ export default function AISchedulerChat() {
   // ============================================================================
 
   const parseTimezoneFromMessage = (msg) => {
+    if (!msg || typeof msg !== 'string') return null;
     const lowerMsg = msg.toLowerCase();
     const timezonePatterns = [
       { pattern: /eastern|new york|est|edt/i, value: 'America/New_York' },
@@ -1153,7 +1162,8 @@ export default function AISchedulerChat() {
 
   const handleSend = async () => {
     try {
-      if (!message || !message.trim() || loading) return;
+      // Add type checking for message
+      if (!message || typeof message !== 'string' || !message.trim() || loading) return;
 
       if (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit) {
         setChatHistory(prev => [...prev, {
@@ -1414,6 +1424,23 @@ export default function AISchedulerChat() {
     } finally {
       setLoading(false);
       setIsTyping(false);
+    }
+  };
+
+  // Safe wrapper for handleSend to prevent page crashes from event handlers
+  const safeHandleSend = async () => {
+    try {
+      await handleSend();
+    } catch (error) {
+      console.error('Critical error in handleSend:', error);
+      setLoading(false);
+      setIsTyping(false);
+      // Show user-friendly error without crashing
+      setChatHistory(prev => [...prev, {
+        role: 'assistant',
+        content: "I encountered an error. Please try again or refresh the page.",
+        timestamp: new Date()
+      }]);
     }
   };
 
@@ -1809,18 +1836,18 @@ export default function AISchedulerChat() {
                   onKeyPress={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      if (!loading && message.trim() && (isUnlimited || usage.ai_queries_used < usage.ai_queries_limit)) {
-                        handleSend();
+                      if (!loading && message && typeof message === 'string' && message.trim() && (isUnlimited || usage?.ai_queries_used < usage?.ai_queries_limit)) {
+                        safeHandleSend();
                       }
                     }
                   }}
                   placeholder="Type a message..."
                   className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                  disabled={loading || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
+                  disabled={loading || (!isUnlimited && usage?.ai_queries_used >= usage?.ai_queries_limit)}
                 />
                 <button
-                  onClick={handleSend}
-                  disabled={loading || !message.trim() || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
+                  onClick={safeHandleSend}
+                  disabled={loading || !message || typeof message !== 'string' || !message.trim() || (!isUnlimited && usage?.ai_queries_used >= usage?.ai_queries_limit)}
                   className="p-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-xl transition-colors"
                 >
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
