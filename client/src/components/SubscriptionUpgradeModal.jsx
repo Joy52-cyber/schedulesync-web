@@ -1,8 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+// Don't load Stripe at module level - causes crashes if key is missing
+// Load it lazily only when component renders
+let stripePromise = null;
+const getStripePromise = () => {
+  if (!stripePromise) {
+    const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+    if (key) {
+      stripePromise = loadStripe(key);
+    }
+  }
+  return stripePromise;
+};
 
 // Payment Form Component
 const PaymentForm = ({ plan, onSuccess, onCancel }) => {
@@ -289,8 +300,8 @@ const SubscriptionUpgradeModal = ({ isOpen, onClose, onSuccess, currentTier = 'f
                 <p className="text-sm text-gray-600">{selectedPlan.description}</p>
               </div>
 
-              <Elements stripe={stripePromise}>
-                <PaymentForm 
+              <Elements stripe={getStripePromise()}>
+                <PaymentForm
                   plan={selectedPlan}
                   onSuccess={handlePaymentSuccess}
                   onCancel={handleBack}
