@@ -716,7 +716,14 @@ export default function Dashboard() {
                         <div
                           key={booking.id}
                           className="flex items-center justify-between p-5 rounded-2xl border-2 border-gray-200 hover:border-purple-400 hover:shadow-xl hover:shadow-purple-100/50 transition-all cursor-pointer hover:-translate-y-1 bg-gradient-to-br from-white to-purple-50/20"
-                          onClick={() => navigate(`/bookings/${booking.id}`)}
+                          onClick={() => {
+                            // Navigate to manage page if token exists, otherwise go to bookings list
+                            if (booking.manage_token) {
+                              navigate(`/manage/${booking.manage_token}`);
+                            } else {
+                              navigate('/bookings');
+                            }
+                          }}
                         >
                           <div className="flex items-center gap-4 flex-1">
                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
