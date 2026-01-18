@@ -1101,6 +1101,19 @@ export default function AISchedulerChat() {
     }
   }, [isOpen]);
 
+  // Listen for custom event to open the chat from Dashboard button
+  useEffect(() => {
+    const handleOpenChat = () => {
+      setIsOpen(true);
+    };
+
+    window.addEventListener('openAIChat', handleOpenChat);
+
+    return () => {
+      window.removeEventListener('openAIChat', handleOpenChat);
+    };
+  }, []);
+
   // ============================================================================
   // MESSAGE HANDLING
   // ============================================================================
