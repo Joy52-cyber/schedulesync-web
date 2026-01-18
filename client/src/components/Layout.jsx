@@ -92,9 +92,17 @@ export default function Layout() {
 
   const handleLogout = () => {
     try {
+      // Clear all localStorage items first
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      localStorage.removeItem("aiChat_context");
+      localStorage.removeItem("aiChat_history");
+
+      // Call logout to clear auth state
       logout();
-      // Use window.location for full page reload to clear all state
-      window.location.href = "/";
+
+      // Use replace instead of href to avoid history issues
+      window.location.replace("/");
     } catch (error) {
       console.error('Logout error:', error);
       // Force redirect even if logout fails
