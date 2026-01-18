@@ -192,10 +192,11 @@ export const payments = {
 // AI
 // ============================================
 export const ai = {
-  schedule: (message, history) =>
+  schedule: (message, history, context) =>
     api.post('/ai/schedule', {
       message,
       conversationHistory: history,
+      context: context || {}
     }),
   confirm: (data) => api.post('/ai/schedule/confirm', data),
   suggest: (preferences) => api.post('/ai/suggest', { preferences }),
@@ -205,10 +206,11 @@ export const ai = {
 // AI SCHEDULER (Alias for AISchedulerChat component)
 // ============================================
 export const aiScheduler = {
-  sendMessage: async (message, history = []) => {
+  sendMessage: async (message, history = [], context = {}) => {
     return api.post('/ai/schedule', {
       message,
-      conversationHistory: history
+      conversationHistory: history,
+      context: context
     });
   },
 

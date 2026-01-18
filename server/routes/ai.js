@@ -4,6 +4,7 @@ const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { applySchedulingRules } = require('../utils/schedulingRules');
 const { checkBookingConflicts, findAlternativeSlots, formatConflictMessage } = require('../services/conflictDetection');
+const { getAIResponse, getQuickResponse } = require('../services/aiAssistantService');
 
 // Intent detection helpers
 const detectIntent = (message) => {
@@ -1493,11 +1494,66 @@ router.post('/schedule', authenticateToken, async (req, res) => {
       });
     }
 
-    // Default general response
-    return res.json({
-      type: 'general',
-      message: `I can help you with:\n\n- 📊 **Analytics** - "Show my booking stats"\n- 🔗 **Links** - "What's my booking link?"\n- 📅 **Schedule** - "Show upcoming meetings"\n- ⚡ **Quick Links** - "Create a quick link"\n- 🎯 **Smart Rules** - "Create a rule for @company.com"\n- 📧 **Book Meeting** - "Book a demo with john@example.com"\n\nWhat would you like to do?`
-    });
+    // Default general response - Use Claude AI for natural conversation
+    try {
+      // Get user data for context
+      const userResult = await client.query(
+        'SELECT id, name, email, timezone FROM users WHERE id = $1',
+        [userId]
+      );
+      const user = userResult.rows[0];
+
+      // Get basic stats for AI context
+      const stats = await getBookingAnalytics(client, userId);
+
+      // Get upcoming meetings count
+      const upcomingResult = await client.query(
+        'SELECT COUNT(*) as count FROM bookings WHERE user_id = $1 AND start_time > NOW() AND status != \'cancelled\'',
+        [userId]
+      );
+
+      // Get event types
+      const eventTypesResult = await client.query(
+        'SELECT id, title FROM event_types WHERE user_id = $1 AND is_active = TRUE LIMIT 5',
+        [userId]
+      );
+
+      const context = {
+        personality: req.body.context?.personality || 'friendly',
+        timezone: user.timezone || req.body.context?.timezone || 'America/New_York',
+        tier: req.body.context?.tier || 'free',
+        currentPage: req.body.context?.currentPage || 'Dashboard',
+        userName: user.name
+      };
+
+      const userData = {
+        stats: {
+          total_bookings: stats.total,
+          this_month: stats.thisMonth
+        },
+        upcomingMeetings: Array(parseInt(upcomingResult.rows[0].count) || 0).fill({}),
+        eventTypes: eventTypesResult.rows
+      };
+
+      // Use Claude AI for natural conversation
+      const aiResponse = await getAIResponse(message, history || [], context, userData);
+
+      return res.json({
+        type: aiResponse.actionType || 'general',
+        message: aiResponse.message,
+        data: aiResponse.actionData || {},
+        modelUsed: aiResponse.modelUsed
+      });
+
+    } catch (aiError) {
+      console.error('Claude AI error, falling back to default response:', aiError);
+
+      // Fallback to simple response if Claude fails
+      return res.json({
+        type: 'general',
+        message: `I can help you with:\n\n- 📊 **Analytics** - "Show my booking stats"\n- 🔗 **Links** - "What's my booking link?"\n- 📅 **Schedule** - "Show upcoming meetings"\n- ⚡ **Quick Links** - "Create a quick link"\n- 🎯 **Smart Rules** - "Create a rule for @company.com"\n- 📧 **Book Meeting** - "Book a demo with john@example.com"\n\nWhat would you like to do?`
+      });
+    }
 
   } catch (error) {
     console.error('AI schedule error:', error);
