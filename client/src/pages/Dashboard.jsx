@@ -28,20 +28,20 @@ import api, {
   timezone as timezoneApi,
   chatgptIntegration,
 } from '../utils/api';
-import PreferencesInsights from '../components/PreferencesInsights';
-import RescheduleSuggestions from '../components/RescheduleSuggestions';
-import ActionItemsWidget from '../components/ActionItemsWidget';
+// import PreferencesInsights from '../components/PreferencesInsights'; // UNUSED
+// import RescheduleSuggestions from '../components/RescheduleSuggestions'; // UNUSED
+// import ActionItemsWidget from '../components/ActionItemsWidget'; // UNUSED
 import GroupScheduler from '../components/GroupScheduler';
 import { useNotification } from '../contexts/NotificationContext';
-// import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal'; // DISABLED - testing if this causes crash
-import { useWalkthrough } from '../context/WalkthroughContext';
-import { WalkthroughPrompt } from '../components/Walkthrough';
-import UpgradeCard from '../components/UpgradeCard';
+// import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal'; // UNUSED
+// import { useWalkthrough } from '../context/WalkthroughContext'; // UNUSED
+// import { WalkthroughPrompt } from '../components/Walkthrough'; // UNUSED
+// import UpgradeCard from '../components/UpgradeCard'; // UNUSED
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const notify = useNotification();
-  const { showPrompt, startWalkthrough, dismissPrompt } = useWalkthrough();
+  // const { showPrompt, startWalkthrough, dismissPrompt } = useWalkthrough(); // UNUSED
 
   const [stats, setStats] = useState({
     totalBookings: 0,
