@@ -533,62 +533,119 @@ export default function Dashboard() {
               </button>
             </div>
 
-          {/* Simple Stats Display */}
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-8 shadow-xl border border-white/20">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">✅ Dashboard Working!</h2>
+            {/* STEP 4: Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl hover:shadow-blue-200/50 transition-all hover:-translate-y-1">
+                <div className="flex items-center justify-between mb-3">
+                  <Calendar className="h-8 w-8 opacity-80" />
+                  <div className="text-3xl font-bold">{stats.todayBookings}</div>
+                </div>
+                <div className="text-blue-100 text-sm font-medium">Today's Bookings</div>
+              </div>
 
-          <div className="space-y-4">
-            <div className="p-4 bg-purple-50 rounded-lg">
-              <h2 className="font-semibold text-lg mb-2">User Info</h2>
-              <p className="text-gray-700">Name: {user?.name || 'Unknown'}</p>
-              <p className="text-gray-700">Email: {user?.email || 'Unknown'}</p>
-              <p className="text-gray-700">Timezone: {timezone || 'Not set'}</p>
+              <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl hover:shadow-purple-200/50 transition-all hover:-translate-y-1">
+                <div className="flex items-center justify-between mb-3">
+                  <Clock className="h-8 w-8 opacity-80" />
+                  <div className="text-3xl font-bold">{stats.upcomingBookings}</div>
+                </div>
+                <div className="text-purple-100 text-sm font-medium">Upcoming</div>
+              </div>
+
+              <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl hover:shadow-green-200/50 transition-all hover:-translate-y-1">
+                <div className="flex items-center justify-between mb-3">
+                  <CheckCircle2 className="h-8 w-8 opacity-80" />
+                  <div className="text-3xl font-bold">{stats.totalBookings}</div>
+                </div>
+                <div className="text-green-100 text-sm font-medium">Total Bookings</div>
+              </div>
+
+              <div className="bg-gradient-to-br from-orange-500 to-red-500 text-white rounded-2xl p-6 shadow-xl hover:shadow-2xl hover:shadow-orange-200/50 transition-all hover:-translate-y-1">
+                <div className="flex items-center justify-between mb-3">
+                  <Globe className="h-8 w-8 opacity-80" />
+                  <div className="text-3xl font-bold">{stats.activeTeams}</div>
+                </div>
+                <div className="text-orange-100 text-sm font-medium">Active Teams</div>
+              </div>
             </div>
 
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <h2 className="font-semibold text-lg mb-2">Booking Stats</h2>
-              <p className="text-gray-700">Total Bookings: {stats.totalBookings}</p>
-              <p className="text-gray-700">Upcoming Bookings: {stats.upcomingBookings}</p>
-              <p className="text-gray-700">Today's Bookings: {stats.todayBookings}</p>
-              <p className="text-gray-700">Active Teams: {stats.activeTeams}</p>
-            </div>
+            {/* STEP 4: Event Types Section */}
+            <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-white/20 shadow-xl">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <Calendar className="w-5 h-5 text-gray-600" />
+                  <h2 className="text-lg font-bold text-gray-900">Event Types</h2>
+                </div>
+                <button
+                  onClick={() => navigate('/events/new')}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-purple-200/50 transition-all hover:-translate-y-0.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create Event Type
+                </button>
+              </div>
 
-            <div className="p-4 bg-green-50 rounded-lg">
-              <h2 className="font-semibold text-lg mb-2">Event Types</h2>
-              <p className="text-gray-700">Total Event Types: {eventTypes.length}</p>
-              {eventTypes.length > 0 && (
-                <ul className="mt-2 space-y-1">
-                  {eventTypes.slice(0, 3).map(et => (
-                    <li key={et.id} className="text-sm text-gray-600">• {et.title}</li>
+              {eventTypes.length === 0 ? (
+                <div className="text-center py-10">
+                  <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 font-medium">No event types yet</p>
+                  <button
+                    onClick={() => navigate('/events/new')}
+                    className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700"
+                  >
+                    Create Your First Event Type
+                  </button>
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {eventTypes.slice(0, 4).map((event) => (
+                    <div
+                      key={event.id}
+                      onClick={() => navigate(`/events/${event.id}`)}
+                      className="group p-5 bg-gradient-to-br from-white to-purple-50/30 border-2 border-gray-200 rounded-2xl hover:border-purple-400 hover:shadow-xl hover:shadow-purple-100/50 transition-all cursor-pointer hover:-translate-y-1"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <h3 className="font-bold text-gray-900 text-lg mb-1 group-hover:text-purple-600 transition-colors">
+                            {event.title}
+                          </h3>
+                          {event.description && (
+                            <p className="text-sm text-gray-600 line-clamp-2 mb-2">{event.description}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          <span>{event.duration} min</span>
+                        </div>
+                        {event.location_type && (
+                          <div className="flex items-center gap-1">
+                            {event.location_type === 'video' ? (
+                              <Video className="w-4 h-4" />
+                            ) : (
+                              <Globe className="w-4 h-4" />
+                            )}
+                            <span className="capitalize">{event.location_type}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   ))}
-                </ul>
+                </div>
+              )}
+
+              {eventTypes.length > 4 && (
+                <div className="mt-4 text-center">
+                  <button
+                    onClick={() => navigate('/event-types')}
+                    className="text-purple-600 hover:text-purple-700 font-semibold text-sm flex items-center gap-1 mx-auto"
+                  >
+                    View all {eventTypes.length} event types
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
               )}
             </div>
-
-            <div className="p-4 bg-yellow-50 rounded-lg">
-              <h2 className="font-semibold text-lg mb-2">System Check</h2>
-              <p className="text-gray-700">Loading: {loading ? 'Yes' : 'No'}</p>
-              <p className="text-gray-700">Current Time: {new Date().toLocaleString()}</p>
-              <p className="text-gray-700">ChatGPT Configured: {chatgptConfigured ? 'Yes' : 'No'}</p>
-            </div>
-
-            <div className="mt-6 flex gap-3">
-              <button
-                onClick={() => navigate('/event-types')}
-                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium"
-              >
-                Manage Event Types
-              </button>
-              <button
-                onClick={() => navigate('/settings')}
-                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium"
-              >
-                Settings
-              </button>
-            </div>
-          </div>
-
-          </div>
 
           </div>
         </div>
