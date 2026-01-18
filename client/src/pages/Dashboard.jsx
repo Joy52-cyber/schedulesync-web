@@ -647,6 +647,132 @@ export default function Dashboard() {
               )}
             </div>
 
+            {/* STEP 5: Bookings List */}
+            <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-white/20 shadow-xl">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-gray-900">Your Bookings</h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setBookingFilter('upcoming')}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      bookingFilter === 'upcoming'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Upcoming
+                  </button>
+                  <button
+                    onClick={() => setBookingFilter('past')}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      bookingFilter === 'past'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Past
+                  </button>
+                </div>
+              </div>
+
+              {(() => {
+                if (!Array.isArray(bookings) || bookings.length === 0) {
+                  return (
+                    <div className="text-center py-8">
+                      <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500 font-medium">No bookings yet</p>
+                      <p className="text-sm text-gray-400 mt-1">Share your booking page to get started!</p>
+                    </div>
+                  );
+                }
+
+                const filteredBookings = bookings.filter((b) => {
+                  if (!b || !b.start_time) return false;
+                  try {
+                    const isPast = new Date(b.start_time) < new Date();
+                    return bookingFilter === 'past' ? isPast : !isPast;
+                  } catch (e) {
+                    return false;
+                  }
+                });
+
+                if (filteredBookings.length === 0) {
+                  return (
+                    <div className="text-center py-8">
+                      <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500 font-medium">
+                        {bookingFilter === 'upcoming' ? 'No upcoming bookings' : 'No past bookings'}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    {filteredBookings.slice(0, 5).map((booking) => {
+                      if (!booking || !booking.id) return null;
+
+                      return (
+                        <div
+                          key={booking.id}
+                          className="flex items-center justify-between p-5 rounded-2xl border-2 border-gray-200 hover:border-purple-400 hover:shadow-xl hover:shadow-purple-100/50 transition-all cursor-pointer hover:-translate-y-1 bg-gradient-to-br from-white to-purple-50/20"
+                          onClick={() => navigate(`/bookings/${booking.id}`)}
+                        >
+                          <div className="flex items-center gap-4 flex-1">
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                              booking.status === 'confirmed' ? 'bg-green-100' :
+                              booking.status === 'cancelled' ? 'bg-red-100' :
+                              'bg-gray-100'
+                            }`}>
+                              {booking.status === 'confirmed' ? (
+                                <CheckCircle2 className="w-6 h-6 text-green-600" />
+                              ) : booking.status === 'cancelled' ? (
+                                <XCircle className="w-6 h-6 text-red-600" />
+                              ) : (
+                                <AlertCircle className="w-6 h-6 text-gray-600" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="font-bold text-gray-900">{booking.title || 'Meeting'}</h3>
+                              <p className="text-sm text-gray-600">{booking.attendee_name || booking.attendee_email || 'Unknown'}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-semibold text-gray-900">
+                              {booking.start_time ? new Date(booking.start_time).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                              }) : 'N/A'}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {booking.start_time ? new Date(booking.start_time).toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                                hour12: true
+                              }) : ''}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              {bookings.length > 5 && (
+                <div className="mt-4 text-center">
+                  <button
+                    onClick={() => navigate('/bookings')}
+                    className="text-purple-600 hover:text-purple-700 font-semibold text-sm flex items-center gap-1 mx-auto"
+                  >
+                    View all bookings
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       </main>
