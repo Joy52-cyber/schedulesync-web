@@ -253,7 +253,7 @@ const MeetingListCard = ({ data }) => {
   return (
     <div className="mt-3 space-y-2">
       {meetings.slice(0, 4).map((meeting, i) => {
-        const startTime = new Date(meeting.start_time || meeting.date);
+        const startTime = new Date(meeting.start_time || meeting.date || new Date());
         return (
           <div key={i} className="flex items-center gap-3 bg-white rounded-lg p-3 border border-gray-200 shadow-sm">
             <div className="w-12 h-12 bg-purple-100 rounded-lg flex flex-col items-center justify-center">

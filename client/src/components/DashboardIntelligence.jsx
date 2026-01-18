@@ -132,7 +132,7 @@ export default function DashboardIntelligence() {
                       <p className="text-sm text-gray-600">{alert.message}</p>
                     </div>
                   </div>
-                  {alert.action && (
+                  {alert.action && alert.action.link && (
                     <button
                       onClick={() => navigate(alert.action.link)}
                       className={`w-full mt-3 px-4 py-2 bg-gradient-to-r ${colors.bg} text-white rounded-lg font-semibold text-sm hover:shadow-lg transition-all flex items-center justify-center gap-2`}
@@ -189,7 +189,7 @@ export default function DashboardIntelligence() {
                       <p className="text-sm text-gray-600">{rec.description}</p>
                     </div>
                   </div>
-                  {rec.action && (
+                  {rec.action && rec.action.link && (
                     <button
                       onClick={() => navigate(rec.action.link)}
                       className={`w-full mt-3 px-4 py-2 ${colors.lightBg} ${colors.text} rounded-lg font-semibold text-sm hover:shadow-md transition-all flex items-center justify-center gap-2 border ${colors.border}`}
