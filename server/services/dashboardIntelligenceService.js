@@ -10,36 +10,105 @@ const pool = require('../config/database');
  */
 async function getDashboardIntelligence(userId) {
   try {
-    // Run all intelligence functions independently with fallbacks
-    const [alerts, relationships, patterns, recommendations, weekAnalysis] = await Promise.allSettled([
-      getProactiveAlerts(userId),
-      getRelationshipInsights(userId),
-      getBehavioralPatterns(userId),
-      getActionableRecommendations(userId),
-      getWeekAnalysis(userId),
+    // Only fetch critical alerts (no recommendations, relationships, or patterns)
+    const [alerts] = await Promise.allSettled([
+      getCriticalAlerts(userId), // Changed to only get critical alerts
     ]);
 
     return {
       alerts: alerts.status === 'fulfilled' ? alerts.value : [],
-      relationships: relationships.status === 'fulfilled' ? relationships.value : [],
-      patterns: patterns.status === 'fulfilled' ? patterns.value : {},
-      recommendations: recommendations.status === 'fulfilled' ? recommendations.value : [],
-      weekAnalysis: weekAnalysis.status === 'fulfilled' ? weekAnalysis.value : {},
+      // Removed: relationships, patterns, recommendations, weekAnalysis
     };
   } catch (error) {
     console.error('Error getting dashboard intelligence:', error);
     return {
       alerts: [],
-      relationships: [],
-      patterns: {},
-      recommendations: [],
-      weekAnalysis: {},
     };
   }
 }
 
 /**
- * Get proactive alerts for the user
+ * Get CRITICAL alerts only (conflicts, limits, errors)
+ * Filters out informational alerts - only shows what needs immediate attention
+ */
+async function getCriticalAlerts(userId) {
+  const alerts = [];
+
+  try {
+    // Check for no active event types (CRITICAL)
+    const eventTypesResult = await pool.query(`
+      SELECT COUNT(*) as count FROM event_types WHERE user_id = $1
+    `, [userId]);
+
+    if (parseInt(eventTypesResult.rows[0].count) === 0) {
+      alerts.push({
+        type: 'no_event_types',
+        severity: 'error',
+        icon: 'alert-triangle',
+        title: 'No Event Types Created',
+        message: 'Create your first event type to start accepting bookings.',
+        action: { text: 'Create Event Type', link: '/events' },
+        color: 'red',
+      });
+    }
+
+    // Check for weekend bookings (WARNING)
+    const weekendResult = await pool.query(`
+      SELECT COUNT(*) as count
+      FROM bookings
+      WHERE user_id = $1
+        AND start_time >= date_trunc('week', CURRENT_DATE) + interval '5 days'
+        AND start_time < date_trunc('week', CURRENT_DATE) + interval '7 days'
+        AND status != 'cancelled'
+    `, [userId]);
+
+    if (parseInt(weekendResult.rows[0].count) > 0) {
+      alerts.push({
+        type: 'weekend_bookings',
+        severity: 'warning',
+        icon: 'alert-circle',
+        title: 'Weekend Meetings Scheduled',
+        message: `You have ${weekendResult.rows[0].count} meeting${parseInt(weekendResult.rows[0].count) === 1 ? '' : 's'} this weekend. Don't forget to rest!`,
+        action: null,
+        color: 'purple',
+      });
+    }
+
+    // Check for very heavy week (WARNING - 15+ meetings)
+    const thisWeekResult = await pool.query(`
+      SELECT COUNT(*) as count
+      FROM bookings
+      WHERE user_id = $1
+        AND start_time >= date_trunc('week', CURRENT_DATE)
+        AND start_time < date_trunc('week', CURRENT_DATE) + interval '1 week'
+        AND status != 'cancelled'
+    `, [userId]);
+
+    const thisWeekCount = parseInt(thisWeekResult.rows[0].count);
+
+    // Only alert if VERY heavy (15+), not just busy
+    if (thisWeekCount >= 15) {
+      alerts.push({
+        type: 'very_heavy_week',
+        severity: 'warning',
+        icon: 'alert-triangle',
+        title: 'Very Heavy Week',
+        message: `You have ${thisWeekCount} meetings this week. Consider rescheduling some to avoid burnout.`,
+        action: { text: 'View Calendar', link: '/bookings' },
+        color: 'orange',
+      });
+    }
+
+  } catch (error) {
+    console.error('Error getting critical alerts:', error);
+  }
+
+  return alerts;
+}
+
+/**
+ * Get proactive alerts for the user (DEPRECATED - keeping for reference)
+ * Use getCriticalAlerts() instead for dashboard
  */
 async function getProactiveAlerts(userId) {
   const alerts = [];

@@ -22,7 +22,6 @@ export default function DashboardIntelligence() {
   const [intelligence, setIntelligence] = useState(null);
   const [loading, setLoading] = useState(true);
   const [insightsExpanded, setInsightsExpanded] = useState(true);
-  const [recommendationsExpanded, setRecommendationsExpanded] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -37,11 +36,7 @@ export default function DashboardIntelligence() {
       console.error('Failed to load intelligence:', error);
       // Set empty intelligence data to prevent crashes
       setIntelligence({
-        alerts: [],
-        recommendations: [],
-        relationships: [],
-        patterns: {},
-        weekAnalysis: {}
+        alerts: []
       });
     } finally {
       setLoading(false);
@@ -64,7 +59,7 @@ export default function DashboardIntelligence() {
 
   if (!intelligence) return null;
 
-  const { alerts, recommendations } = intelligence;
+  const { alerts } = intelligence;
 
   // Icon mapping
   const iconMap = {
@@ -90,121 +85,67 @@ export default function DashboardIntelligence() {
     pink: { bg: 'from-pink-500 to-rose-500', border: 'border-pink-300', text: 'text-pink-800', lightBg: 'bg-pink-50' },
   };
 
+  // If no alerts, don't show anything (clean dashboard)
+  if (!alerts || alerts.length === 0) {
+    return null;
+  }
+
   return (
     <div className="space-y-6">
-      {/* Proactive Alerts - Most Important */}
-      {alerts && alerts.length > 0 && (
-        <div className="space-y-4">
-          <div
-            className="flex items-center justify-between cursor-pointer group"
-            onClick={() => setInsightsExpanded(!insightsExpanded)}
-          >
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <Sparkles className="h-6 w-6 text-purple-600" />
-              Insights & Alerts
-              <span className="text-sm font-normal text-gray-500 ml-2">({alerts.length})</span>
-            </h2>
-            <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-              {insightsExpanded ? (
-                <ChevronUp className="h-5 w-5 text-gray-600" />
-              ) : (
-                <ChevronDown className="h-5 w-5 text-gray-600" />
-              )}
-            </button>
-          </div>
-          {insightsExpanded && (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
-              {alerts.map((alert, idx) => {
-              const Icon = iconMap[alert.icon] || AlertCircle;
-              const colors = colorMap[alert.color] || colorMap.blue;
-
-              return (
-                <div
-                  key={idx}
-                  className={`bg-white/80 backdrop-blur-sm rounded-2xl p-5 border-2 ${colors.border} shadow-lg hover:shadow-xl transition-shadow`}
-                >
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${colors.bg} flex items-center justify-center flex-shrink-0`}>
-                      <Icon className="h-5 w-5 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-gray-900 mb-1">{alert.title}</h3>
-                      <p className="text-sm text-gray-600">{alert.message}</p>
-                    </div>
-                  </div>
-                  {alert.action && alert.action.link && (
-                    <button
-                      onClick={() => navigate(alert.action.link)}
-                      className={`w-full mt-3 px-4 py-2 bg-gradient-to-r ${colors.bg} text-white rounded-lg font-semibold text-sm hover:shadow-lg transition-all flex items-center justify-center gap-2`}
-                    >
-                      {alert.action.text}
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-            </div>
-          )}
+      {/* Critical Alerts Only */}
+      <div className="space-y-4">
+        <div
+          className="flex items-center justify-between cursor-pointer group"
+          onClick={() => setInsightsExpanded(!insightsExpanded)}
+        >
+          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <AlertTriangle className="h-6 w-6 text-orange-600" />
+            Critical Alerts
+            <span className="text-sm font-normal text-gray-500 ml-2">({alerts.length})</span>
+          </h2>
+          <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            {insightsExpanded ? (
+              <ChevronUp className="h-5 w-5 text-gray-600" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-gray-600" />
+            )}
+          </button>
         </div>
-      )}
+        {insightsExpanded && (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
+            {alerts.map((alert, idx) => {
+            const Icon = iconMap[alert.icon] || AlertCircle;
+            const colors = colorMap[alert.color] || colorMap.blue;
 
-      {/* Actionable Recommendations */}
-      {recommendations && recommendations.length > 0 && (
-        <div className="space-y-4">
-          <div
-            className="flex items-center justify-between cursor-pointer group"
-            onClick={() => setRecommendationsExpanded(!recommendationsExpanded)}
-          >
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <Zap className="h-6 w-6 text-yellow-600" />
-              Recommendations
-              <span className="text-sm font-normal text-gray-500 ml-2">({recommendations.length})</span>
-            </h2>
-            <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-              {recommendationsExpanded ? (
-                <ChevronUp className="h-5 w-5 text-gray-600" />
-              ) : (
-                <ChevronDown className="h-5 w-5 text-gray-600" />
-              )}
-            </button>
-          </div>
-          {recommendationsExpanded && (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
-              {recommendations.map((rec, idx) => {
-              const Icon = iconMap[rec.icon] || Info;
-              const colors = colorMap[rec.color] || colorMap.blue;
-
-              return (
-                <div
-                  key={idx}
-                  className={`bg-white/80 backdrop-blur-sm rounded-2xl p-5 border-2 ${colors.border} shadow-lg hover:shadow-xl transition-shadow`}
-                >
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${colors.bg} flex items-center justify-center flex-shrink-0`}>
-                      <Icon className="h-5 w-5 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-gray-900 mb-1">{rec.title}</h3>
-                      <p className="text-sm text-gray-600">{rec.description}</p>
-                    </div>
+            return (
+              <div
+                key={idx}
+                className={`bg-white/80 backdrop-blur-sm rounded-2xl p-5 border-2 ${colors.border} shadow-lg hover:shadow-xl transition-shadow`}
+              >
+                <div className="flex items-start gap-3 mb-3">
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${colors.bg} flex items-center justify-center flex-shrink-0`}>
+                    <Icon className="h-5 w-5 text-white" />
                   </div>
-                  {rec.action && rec.action.link && (
-                    <button
-                      onClick={() => navigate(rec.action.link)}
-                      className={`w-full mt-3 px-4 py-2 ${colors.lightBg} ${colors.text} rounded-lg font-semibold text-sm hover:shadow-md transition-all flex items-center justify-center gap-2 border ${colors.border}`}
-                    >
-                      {rec.action.text}
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  )}
+                  <div className="flex-1">
+                    <h3 className="font-bold text-gray-900 mb-1">{alert.title}</h3>
+                    <p className="text-sm text-gray-600">{alert.message}</p>
+                  </div>
                 </div>
-              );
-            })}
-            </div>
-          )}
-        </div>
-      )}
+                {alert.action && alert.action.link && (
+                  <button
+                    onClick={() => navigate(alert.action.link)}
+                    className={`w-full mt-3 px-4 py-2 bg-gradient-to-r ${colors.bg} text-white rounded-lg font-semibold text-sm hover:shadow-lg transition-all flex items-center justify-center gap-2`}
+                  >
+                    {alert.action.text}
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
