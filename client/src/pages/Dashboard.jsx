@@ -30,7 +30,7 @@ import api, {
 } from '../utils/api';
 // import PreferencesInsights from '../components/PreferencesInsights'; // UNUSED
 // import RescheduleSuggestions from '../components/RescheduleSuggestions'; // UNUSED
-// import ActionItemsWidget from '../components/ActionItemsWidget'; // UNUSED
+import ActionItemsWidget from '../components/ActionItemsWidget';
 import GroupScheduler from '../components/GroupScheduler';
 import { useNotification } from '../contexts/NotificationContext';
 // import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal'; // UNUSED
@@ -772,6 +772,9 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
+
+            {/* STEP 6: Action Items Widget */}
+            <ActionItemsWidget />
 
           </div>
         </div>
