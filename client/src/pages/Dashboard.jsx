@@ -433,439 +433,65 @@ export default function Dashboard() {
     );
   }
 
-  // Full dashboard enabled - but keeping 6 components disabled for debugging
+  // MINIMAL DASHBOARD - Testing base functionality
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
-      {/* Animated Background Blobs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+    <div className="min-h-screen w-full bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 p-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-2xl p-8 shadow-xl border-2 border-purple-200">
+          <h1 className="text-3xl font-bold text-gray-900 mb-6">✅ Dashboard Loaded Successfully!</h1>
+
+          <div className="space-y-4">
+            <div className="p-4 bg-purple-50 rounded-lg">
+              <h2 className="font-semibold text-lg mb-2">User Info</h2>
+              <p className="text-gray-700">Name: {user?.name || 'Unknown'}</p>
+              <p className="text-gray-700">Email: {user?.email || 'Unknown'}</p>
+              <p className="text-gray-700">Timezone: {timezone || 'Not set'}</p>
+            </div>
+
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <h2 className="font-semibold text-lg mb-2">Booking Stats</h2>
+              <p className="text-gray-700">Total Bookings: {stats.totalBookings}</p>
+              <p className="text-gray-700">Upcoming Bookings: {stats.upcomingBookings}</p>
+              <p className="text-gray-700">Today's Bookings: {stats.todayBookings}</p>
+              <p className="text-gray-700">Active Teams: {stats.activeTeams}</p>
+            </div>
+
+            <div className="p-4 bg-green-50 rounded-lg">
+              <h2 className="font-semibold text-lg mb-2">Event Types</h2>
+              <p className="text-gray-700">Total Event Types: {eventTypes.length}</p>
+              {eventTypes.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {eventTypes.slice(0, 3).map(et => (
+                    <li key={et.id} className="text-sm text-gray-600">• {et.title}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="p-4 bg-yellow-50 rounded-lg">
+              <h2 className="font-semibold text-lg mb-2">System Check</h2>
+              <p className="text-gray-700">Loading: {loading ? 'Yes' : 'No'}</p>
+              <p className="text-gray-700">Current Time: {new Date().toLocaleString()}</p>
+              <p className="text-gray-700">ChatGPT Configured: {chatgptConfigured ? 'Yes' : 'No'}</p>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => navigate('/event-types')}
+                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium"
+              >
+                Manage Event Types
+              </button>
+              <button
+                onClick={() => navigate('/settings')}
+                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium"
+              >
+                Settings
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-lg relative z-10">
-        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center shadow-xl">
-                <Calendar className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-gray-500 text-sm">
-                  Welcome back{user?.name ? `, ${user.name}` : ''}!
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  const event = new CustomEvent('openAIChat');
-                  window.dispatchEvent(event);
-                }}
-                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 transition-all font-semibold flex items-center gap-2 hover:-translate-y-0.5"
-              >
-                <Bot className="h-4 w-4" />
-                TruCal Assistant
-              </button>
-
-              <button
-                onClick={() => navigate('/availability')}
-                className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:shadow-2xl hover:shadow-green-200/50 transition-all font-semibold flex items-center gap-2 hover:-translate-y-0.5"
-              >
-                <Clock className="h-4 w-4" />
-                Availability
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-   
-      <main className="w-full">
-        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-8">
-          <div className="space-y-6">
-            
-            {/* TEMPORARILY DISABLED FOR DEBUGGING */}
-            {false && showPrompt && (
-              <WalkthroughPrompt 
-                onStart={startWalkthrough} 
-                onDismiss={dismissPrompt} 
-              />
-            )}
-            
-            <LimitWarningBanner />
-            <ConflictWarningBanner />
-
-            {/* QUICK ACTIONS - NOW AT TOP */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 relative z-10">
-              <button
-                onClick={handleShareCalendar}
-                className="flex items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border-2 border-purple-200 rounded-2xl hover:border-purple-400 hover:shadow-xl hover:shadow-purple-100/50 transition-all text-left hover:-translate-y-1"
-              >
-                <div className="w-14 h-14 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
-                  {copiedLink ? <Check className="w-6 h-6 text-white" /> : <Share2 className="w-6 h-6 text-white" />}
-                </div>
-                <div>
-                  <div className="font-bold text-gray-900 text-lg">{copiedLink ? 'Copied!' : 'Your Booking Page'}</div>
-                  <div className="text-sm text-gray-600">Share with anyone</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => navigate('/my-links')}
-                className="flex items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border-2 border-amber-200 rounded-2xl hover:border-amber-400 hover:shadow-xl hover:shadow-amber-100/50 transition-all text-left hover:-translate-y-1"
-              >
-                <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
-                  <Sparkles className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <div className="font-bold text-gray-900 text-lg">Quick Link</div>
-                  <div className="text-sm text-gray-600">Create instant booking link</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setShowGroupScheduler(true)}
-                className="flex items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border-2 border-green-200 rounded-2xl hover:border-green-400 hover:shadow-xl hover:shadow-green-100/50 transition-all text-left hover:-translate-y-1"
-              >
-                <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg">
-                  <Users className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <div className="font-bold text-gray-900 text-lg">Group Meeting</div>
-                  <div className="text-sm text-gray-600">Schedule with multiple people</div>
-                </div>
-              </button>
-            </div>
-
-            {/* Reschedule Suggestions */}
-            <div className="mt-6">
-              {/* TEMPORARILY DISABLED FOR DEBUGGING */}
-              {/* <RescheduleSuggestions /> */}
-            </div>
-
-            {/* Two Column Layout */}
-            <div className="grid lg:grid-cols-3 gap-6">
-              
-              {/* Left Column (2/3) */}
-              <div className="lg:col-span-2 space-y-6">
-                
-                {/* Event Types Grid */}
-                <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-white/20 shadow-xl relative z-10">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                      <Calendar className="w-5 h-5 text-gray-600" />
-                      <h2 className="text-lg font-bold text-gray-900">Event Types</h2>
-                    </div>
-                    <button
-                      onClick={() => navigate('/events/new')}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-purple-200/50 transition-all hover:-translate-y-0.5"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Create Event Type
-                    </button>
-                  </div>
-
-                  {eventTypes.length === 0 ? (
-                    <div className="text-center py-10">
-                      <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-500 font-medium">No event types yet</p>
-                      <button 
-                        onClick={() => navigate('/events/new')}
-                        className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700"
-                      >
-                        Create Your First Event Type
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid md:grid-cols-2 gap-4">
-                      {eventTypes.map((event, idx) => (
-                        <div
-                          key={event.id}
-                          className="group p-5 border-2 border-gray-200 rounded-2xl hover:border-purple-400 hover:shadow-xl hover:shadow-purple-100/50 transition-all cursor-pointer hover:-translate-y-1 bg-gradient-to-br from-white to-purple-50/20"
-                          onClick={() => navigate(`/events/${event.id}`)}
-                        >
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-xl ${colorMap[getEventColor(idx)]} flex items-center justify-center shadow-md`}>
-                                <Clock className="w-5 h-5 text-white" />
-                              </div>
-                              <div>
-                                <h3 className="font-bold text-gray-900">{event.name}</h3>
-                                <p className="text-sm text-gray-500">{event.duration} min</p>
-                              </div>
-                            </div>
-                            <button 
-                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/events/${event.id}/edit`);
-                              }}
-                            >
-                              <Settings className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-600">{event.booking_count || 0} bookings</span>
-                            <button 
-                              className="text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (!user?.username) {
-                                  notify.error('Please set your username in Settings');
-                                  return;
-                                }
-                                const link = `${window.location.origin}/${user.username}/${event.slug || event.id}`;
-                                navigator.clipboard.writeText(link);
-                                notify.success('Link copied!');
-                              }}
-                            >
-                              <Copy className="w-3 h-3" />
-                              Copy
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* MERGED: Bookings Section (Stats + List) */}
-                <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-white/20 shadow-xl relative z-10">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                      <BarChart3 className="w-5 h-5 text-gray-600" />
-                      <h2 className="text-lg font-bold text-gray-900">Bookings</h2>
-                    </div>
-                    <button
-                      onClick={() => navigate('/bookings')}
-                      className="text-sm font-medium text-purple-600 hover:text-purple-700 flex items-center gap-1"
-                    >
-                      View All <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  {/* Filter Tabs */}
-                  <div className="flex items-center gap-2 mb-6">
-                    <button
-                      onClick={() => setBookingFilter('upcoming')}
-                      className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                        bookingFilter === 'upcoming'
-                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-200/50'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      Upcoming
-                    </button>
-                    <button
-                      onClick={() => setBookingFilter('past')}
-                      className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                        bookingFilter === 'past'
-                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-200/50'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      Past
-                    </button>
-                  </div>
-
-                  {/* Bookings List */}
-                  {(() => {
-                    const filteredBookings = recentBookings.filter(b => {
-                      const isPast = new Date(b.start_time) < new Date();
-                      return bookingFilter === 'past' ? isPast : !isPast;
-                    });
-
-                    if (filteredBookings.length === 0) {
-                      return (
-                        <div className="text-center py-8">
-                          <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                          <p className="text-gray-500 font-medium">
-                            {bookingFilter === 'upcoming' ? 'No upcoming bookings' : 'No past bookings'}
-                          </p>
-                          <p className="text-gray-400 text-sm mt-1">
-                            {bookingFilter === 'upcoming' ? 'Share your booking link to get started' : 'Your completed bookings will appear here'}
-                          </p>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="space-y-3">
-                        {filteredBookings.slice(0, 5).map((booking) => (
-                        <div
-                          key={booking.id}
-                          className="flex items-center justify-between p-5 rounded-2xl border-2 border-gray-200 hover:border-purple-400 hover:shadow-xl hover:shadow-purple-100/50 transition-all cursor-pointer hover:-translate-y-1 bg-gradient-to-br from-white to-purple-50/20"
-                          onClick={() => navigate('/bookings')}
-                        >
-                          <div className="flex items-center gap-4 flex-1 min-w-0">
-                            <div className="h-14 w-14 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg">
-                              {booking.attendee_name?.charAt(0)?.toUpperCase() || 'G'}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <p className="text-gray-900 font-bold truncate">{booking.attendee_name}</p>
-                                <span className={`text-xs font-semibold px-2 py-1 rounded-full border flex items-center gap-1 ${getStatusColor(booking.status)}`}>
-                                  {getStatusIcon(booking.status)} {booking.status}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 text-gray-600 text-sm">
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  {new Date(booking.start_time).toLocaleDateString()}
-                                </span>
-                                <span className="text-gray-400">•</span>
-                                <span>{new Date(booking.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
-                                {booking.meet_link && new Date(booking.start_time) > new Date() && (
-                                  <>
-                                    <span className="text-gray-400">•</span>
-                                    <a
-                                      href={booking.meet_link}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                                    >
-                                      <Video className="h-3 w-3" />
-                                      Join
-                                    </a>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        ))}
-                        {filteredBookings.length > 5 && (
-                          <button
-                            onClick={() => navigate('/bookings')}
-                            className="w-full text-center text-sm text-blue-600 hover:text-blue-700 font-medium py-2"
-                          >
-                            View all bookings →
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-
-              </div>
-
-              {/* Right Column (1/3) */}
-              <div className="space-y-6">
-                
-                {/* This Week Calendar */}
-                {upcomingWeek.length > 0 && (
-                  <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-white/20 shadow-xl relative z-10">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                      <Calendar className="w-5 h-5" />
-                      This Week
-                    </h2>
-
-                    <div className="space-y-3">
-                      {upcomingWeek.map((day, idx) => (
-                        <div
-                          key={idx}
-                          className={`flex items-center justify-between p-4 rounded-xl shadow-sm ${
-                            day.isToday
-                              ? 'bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300 shadow-purple-100'
-                              : 'bg-gray-50 border border-gray-200'
-                          }`}
-                        >
-                          <div>
-                            <div className={`font-semibold ${day.isToday ? 'text-purple-900' : 'text-gray-900'}`}>
-                              {day.day}
-                            </div>
-                            <div className="text-xs text-gray-500">{day.date}</div>
-                          </div>
-                          <div className={`text-2xl font-bold ${day.isToday ? 'text-purple-600' : 'text-gray-600'}`}>
-                            {day.count}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Action Items Widget */}
-                {/* TEMPORARILY DISABLED FOR DEBUGGING */}
-                {/* <ActionItemsWidget /> */}
-
-                {/* Timezone */}
-                <div className="bg-white/80 backdrop-blur-xl rounded-2xl border border-white/20 px-5 py-4 shadow-xl relative z-10">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-50 rounded-lg">
-                      <Globe className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 text-sm">Your Timezone</h3>
-                      <p className="text-xs text-gray-600">
-                        {(() => {
-                          let tz = timezone;
-                          if (typeof tz === 'string' && tz.includes('{')) {
-                            try {
-                              const parsed = JSON.parse(tz);
-                              tz = parsed.timezone;
-                            } catch {}
-                          } else if (tz && typeof tz === 'object' && tz.timezone) {
-                            tz = tz.timezone;
-                          }
-                          return getTimezoneName(tz);
-                        })()}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => navigate('/settings')}
-                      className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                    >
-                      Change
-                    </button>
-                  </div>
-                </div>
-
-                {/* AI Preferences Insights */}
-                {/* TEMPORARILY DISABLED FOR DEBUGGING */}
-                {/* <PreferencesInsights /> */}
-
-                {/* Premium Upgrade Card - Right Column */}
-                {/* TEMPORARILY DISABLED FOR DEBUGGING */}
-                {/* {currentTier === 'free' && (
-                  <UpgradeCard variant="default" />
-                )} */}
-
-              </div>
-
-            </div>
-
-            {/* Premium Upgrade Card - Bottom (for non-free users or as additional CTA) */}
-            {/* TEMPORARILY DISABLED FOR DEBUGGING */}
-            {/* {currentTier === 'free' && !limitStatus.status?.inGracePeriod && !limitStatus.status?.overGraceLimit && eventTypes.length > 0 && (
-              <UpgradeCard variant="power" className="relative z-10" />
-            )} */}
-
-          </div>
-        </div>
-      </main>
-
-      {/* TEST 1: Re-enabling SubscriptionUpgradeModal (only renders when showUpgradeModal=true) */}
-      <SubscriptionUpgradeModal
-        isOpen={showUpgradeModal}
-        onClose={() => setShowUpgradeModal(false)}
-        currentTier={currentTier}
-      />
-
-      {showGroupScheduler && (
-        <GroupScheduler
-          onClose={() => setShowGroupScheduler(false)}
-          onBookingCreated={(booking) => {
-            setShowGroupScheduler(false);
-            notify.success('Group meeting scheduled successfully!');
-            loadAllData(); // Reload dashboard data
-          }}
-        />
-      )}
     </div>
   );
 }
