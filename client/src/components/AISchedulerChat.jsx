@@ -910,18 +910,27 @@ export default function AISchedulerChat() {
   // ============================================================================
 
   const buildContextPayload = () => {
-    return {
-      personality,
-      timezone: currentTimezone,
-      tier: currentTier,
-      recentPages: getRecentPages(),
-      frequentActions: getFrequentActions(),
-      lastTopic: conversationContext.lastTopic,
-      pendingActions: conversationContext.pendingActions,
-      userGoals: conversationContext.userGoals,
-      queryCount: getTotalQueries(),
-      currentPage: location.pathname
-    };
+    try {
+      return {
+        personality,
+        timezone: currentTimezone,
+        tier: currentTier,
+        recentPages: getRecentPages(),
+        frequentActions: getFrequentActions(),
+        lastTopic: conversationContext.lastTopic,
+        pendingActions: conversationContext.pendingActions,
+        userGoals: conversationContext.userGoals,
+        queryCount: getTotalQueries(),
+        currentPage: location?.pathname || '/'
+      };
+    } catch (error) {
+      console.error('Error building context payload:', error);
+      return {
+        personality,
+        timezone: currentTimezone,
+        tier: currentTier
+      };
+    }
   };
 
   // ============================================================================
@@ -1301,15 +1310,27 @@ export default function AISchedulerChat() {
         // Use streaming for longer responses
         if (finalMessage.length > 100) {
           setIsTyping(false);
-          await streamResponse(finalMessage, (text) => {
+          try {
+            await streamResponse(finalMessage, (text) => {
+              setChatHistory(prev => [...prev, {
+                role: 'assistant',
+                content: text,
+                timestamp: new Date(),
+                data: responseData.data,
+                responseType: responseType
+              }]);
+            });
+          } catch (streamError) {
+            console.error('Streaming error:', streamError);
+            // Fallback to non-streaming
             setChatHistory(prev => [...prev, {
               role: 'assistant',
-              content: text,
+              content: finalMessage,
               timestamp: new Date(),
               data: responseData.data,
               responseType: responseType
             }]);
-          });
+          }
         } else {
           setChatHistory(prev => [...prev, {
             role: 'assistant',
@@ -1323,15 +1344,30 @@ export default function AISchedulerChat() {
 
     } catch (error) {
       console.error('AI chat error:', error);
-      if (refreshUsage) refreshUsage();
+      if (refreshUsage) {
+        try {
+          refreshUsage();
+        } catch (e) {
+          console.error('Error refreshing usage:', e);
+        }
+      }
 
-      const errorInfo = handleError(error);
-      setChatHistory(prev => [...prev, {
-        role: 'assistant',
-        content: errorInfo.message,
-        timestamp: new Date(),
-        errorSuggestions: errorInfo.suggestions
-      }]);
+      try {
+        const errorInfo = handleError(error);
+        setChatHistory(prev => [...prev, {
+          role: 'assistant',
+          content: errorInfo.message,
+          timestamp: new Date(),
+          errorSuggestions: errorInfo.suggestions
+        }]);
+      } catch (e) {
+        console.error('Error handling error:', e);
+        setChatHistory(prev => [...prev, {
+          role: 'assistant',
+          content: "Something went wrong. Please try again.",
+          timestamp: new Date()
+        }]);
+      }
     } finally {
       setLoading(false);
       setIsTyping(false);
