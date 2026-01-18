@@ -1,0 +1,21 @@
+Please do this step-by-step and tell me what happens at EACH step:
+
+STEP 1: Go to https://schedulesync-web-production.up.railway.app
+        What do you see? (Login page? Dashboard? Something else?)
+
+STEP 2: If you see a login page, click "Sign in with Google"
+        What happens? (Redirects to Google? Shows error? Something else?)
+
+STEP 3: After signing in with Google, what URL are you on?
+        Copy the EXACT URL from your address bar
+
+STEP 4: Describe EXACTLY what you see on the screen:
+        - Is there a sidebar with navigation links?
+        - Is there a header that says "Dashboard"?
+        - Is there a purple/pink gradient background?
+        - Is the page completely white?
+        - Is there an error message?
+        - Something else?
+
+STEP 5: Press F12, click Console tab, press Ctrl+A to select all, then Ctrl+C to copy
+        Paste EVERYTHING here (even if it looks empty, paste it)

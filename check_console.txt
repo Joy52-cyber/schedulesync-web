@@ -1,0 +1,30 @@
+IMPORTANT: How to Check Browser Console
+========================================
+
+1. Open https://schedulesync-web-production.up.railway.app in your browser
+
+2. Press F12 (or Ctrl+Shift+I on Windows, Cmd+Option+I on Mac)
+
+3. You'll see a panel open at the bottom or side - this is DevTools
+
+4. Click the "Console" tab (not Elements, not Network)
+
+5. Look for:
+   ✅ Blue/black messages (normal logs)
+   ❌ RED messages (errors) 
+   ⚠️ Yellow messages (warnings)
+
+6. The console should show:
+   - [Dashboard] Component mounted...
+   - OR red error messages
+   
+7. If you see NOTHING at all (completely empty console):
+   - Click the filter icon (looks like a funnel)
+   - Make sure all message types are enabled
+   - Refresh the page (Ctrl+R)
+
+What to share with me:
+======================
+- Take a screenshot of the Console tab
+- Or copy ALL text from the Console (right-click → "Save as...")
+- Tell me if it's completely empty or has messages

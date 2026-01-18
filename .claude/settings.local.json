@@ -9,7 +9,14 @@
       "Bash(node:*)",
       "Bash(find:*)",
       "Bash(railway run:*)",
-      "Bash(railway link:*)"
+      "Bash(railway link:*)",
+      "Bash(railway login:*)",
+      "Bash(echo:*)",
+      "Bash(psql:*)",
+      "Bash(railway status:*)",
+      "Bash(curl:*)",
+      "Bash(grep:*)",
+      "Bash(railway logs:*)"
     ]
   }
 }
