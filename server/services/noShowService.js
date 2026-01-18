@@ -18,8 +18,7 @@ async function detectNoShows() {
     // - Have no summary sent (indicates meeting may not have happened)
     // - Haven't been handled yet
     const result = await pool.query(
-      `SELECT b.*, u.email as user_email, u.name as user_name, u.timezone,
-              u.logo_url, u.accent_color
+      `SELECT b.*, u.email as user_email, u.name as user_name, u.timezone
        FROM bookings b
        JOIN users u ON b.user_id = u.id
        WHERE b.status = 'confirmed'
@@ -29,6 +28,12 @@ async function detectNoShows() {
          AND b.no_show_handled = FALSE`,
       []
     );
+
+    // Add default values for missing columns
+    result.rows.forEach(row => {
+      row.logo_url = null;
+      row.accent_color = '#6366f1'; // Default purple color
+    });
 
     console.log(`Found ${result.rows.length} potential no-shows`);
 

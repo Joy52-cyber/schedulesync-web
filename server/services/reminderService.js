@@ -25,8 +25,6 @@ async function sendBookingReminders() {
         u.email as host_email,
         u.name as host_name,
         u.timezone as host_timezone,
-        u.logo_url,
-        u.accent_color,
         rs.enabled as reminders_enabled,
         rs.send_to_host,
         rs.send_to_guest,
@@ -45,6 +43,12 @@ async function sendBookingReminders() {
         AND (rs.enabled IS NULL OR rs.enabled = true)
       ORDER BY b.start_time ASC
     `, [now, futureWindow]);
+
+    // Add default values for missing columns
+    bookingsResult.rows.forEach(row => {
+      row.logo_url = null;
+      row.accent_color = '#6366f1'; // Default purple color
+    });
 
     console.log(`📅 Found ${bookingsResult.rows.length} upcoming bookings`);
 

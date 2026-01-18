@@ -204,8 +204,7 @@ ${summary}`
 async function sendMeetingSummaryEmail(bookingId) {
   try {
     const bookingResult = await pool.query(
-      `SELECT b.*, u.email as user_email, u.name as user_name, u.timezone,
-              u.logo_url, u.accent_color
+      `SELECT b.*, u.email as user_email, u.name as user_name, u.timezone
        FROM bookings b
        JOIN users u ON b.user_id = u.id
        WHERE b.id = $1`,
@@ -216,6 +215,10 @@ async function sendMeetingSummaryEmail(bookingId) {
       console.log(`Booking ${bookingId} not found`);
       return false;
     }
+
+    // Add default values for missing columns
+    bookingResult.rows[0].logo_url = null;
+    bookingResult.rows[0].accent_color = '#6366f1'; // Default purple color
 
     const booking = bookingResult.rows[0];
 
