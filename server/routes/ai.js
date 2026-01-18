@@ -2313,7 +2313,7 @@ async function createQuickLinkFromFlow(client, res, userId, data) {
       summary += `⏰ **Expires:** ${new Date(data.expiresAt).toLocaleDateString()}\n`;
     }
 
-    summary += `\n🔗 **Your link:**`;
+    summary += `\n🔗 **Your link:**\n\`${link}\`\n\nCopy and share this link with your guest!`;
 
     return res.json({
       type: 'quicklink_created',
