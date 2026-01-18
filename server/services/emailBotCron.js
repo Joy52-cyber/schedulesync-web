@@ -242,8 +242,11 @@ async function checkExpiredSlots() {
     const now = DateTime.now();
 
     for (const thread of result.rows) {
-      const proposedData = JSON.parse(thread.proposed_slots);
-      const slots = proposedData.slots || [];
+      // Handle both JSON string and already-parsed JSONB object
+      const proposedData = typeof thread.proposed_slots === 'string'
+        ? JSON.parse(thread.proposed_slots)
+        : thread.proposed_slots;
+      const slots = proposedData?.slots || [];
 
       // Check if all slots expired
       const allExpired = slots.every(slot => {

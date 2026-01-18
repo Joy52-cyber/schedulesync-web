@@ -1571,7 +1571,7 @@ export default function AISchedulerChat() {
           <button
             key={i}
             onClick={() => {
-              if (sug.action === 'retry') handleSend();
+              if (sug.action === 'retry') safeHandleSend();
               else if (sug.action === 'refresh') window.location.reload();
               else if (sug.action === 'navigate') window.location.href = sug.path;
               else handleQuickAction(sug.action);
