@@ -8,6 +8,7 @@ const { sendEmail, sendTemplatedEmail } = require('./email');
 const { createCalendarEvent } = require('./calendarService');
 const { parseRecurrenceFromNaturalLanguage, generateRRule, formatRecurrenceText } = require('./recurrenceService');
 const { checkBookingConflicts, findAlternativeSlots, formatConflictMessage } = require('./conflictDetection');
+const { generateProactiveSuggestions } = require('./aiAssistantService');
 const crypto = require('crypto');
 const FormData = require('form-data');
 const Mailgun = require('mailgun.js');
@@ -36,6 +37,189 @@ const mg = mailgun.client({
 // Bot name (email will be dynamic per user)
 const BOT_NAME = 'TruCal Assistant';
 const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || 'mg.trucal.xyz';
+
+/**
+ * Get user intelligence data for personalized email responses
+ */
+async function getUserIntelligence(userId, guestEmail = null) {
+  try {
+    // Get user's booking stats
+    const statsResult = await pool.query(`
+      SELECT
+        COUNT(*) as total_bookings,
+        COUNT(*) FILTER (WHERE start_time >= date_trunc('month', CURRENT_DATE)) as this_month,
+        COUNT(*) FILTER (WHERE start_time >= date_trunc('week', CURRENT_DATE)) as this_week,
+        COUNT(*) FILTER (WHERE start_time > NOW() AND status = 'confirmed') as upcoming
+      FROM bookings
+      WHERE user_id = $1
+    `, [userId]);
+
+    // Get behavioral patterns
+    const patternsResult = await pool.query(`
+      SELECT
+        EXTRACT(DOW FROM start_time) as dow,
+        COUNT(*) as count
+      FROM bookings
+      WHERE user_id = $1 AND status = 'confirmed'
+      GROUP BY EXTRACT(DOW FROM start_time)
+      ORDER BY count DESC
+      LIMIT 1
+    `, [userId]);
+
+    const hourPatternsResult = await pool.query(`
+      SELECT
+        EXTRACT(HOUR FROM start_time) as hour,
+        COUNT(*) as count
+      FROM bookings
+      WHERE user_id = $1 AND status = 'confirmed'
+      GROUP BY EXTRACT(HOUR FROM start_time)
+      ORDER BY count DESC
+      LIMIT 1
+    `, [userId]);
+
+    // Get meeting templates
+    const templatesResult = await pool.query(`
+      SELECT id, name, description, duration, pre_agenda
+      FROM meeting_templates
+      WHERE (user_id = $1 OR is_public = TRUE)
+      LIMIT 10
+    `, [userId]).catch(() => ({ rows: [] }));
+
+    // Get attendee relationship data if guestEmail provided
+    let attendeeData = null;
+    if (guestEmail) {
+      const attendeeResult = await pool.query(`
+        SELECT
+          attendee_email,
+          COUNT(*) as meeting_count,
+          MAX(start_time) as last_meeting_date,
+          SUM(EXTRACT(EPOCH FROM (end_time - start_time)) / 60) as total_minutes
+        FROM bookings
+        WHERE user_id = $1 AND LOWER(attendee_email) = LOWER($2) AND status != 'cancelled'
+        GROUP BY attendee_email
+      `, [userId, guestEmail]).catch(() => ({ rows: [] }));
+
+      if (attendeeResult.rows.length > 0) {
+        attendeeData = attendeeResult.rows[0];
+      }
+    }
+
+    // Get top attendees
+    const topAttendeesResult = await pool.query(`
+      SELECT attendee_email, COUNT(*) as meeting_count
+      FROM bookings
+      WHERE user_id = $1 AND status != 'cancelled'
+      GROUP BY attendee_email
+      ORDER BY meeting_count DESC
+      LIMIT 5
+    `, [userId]).catch(() => ({ rows: [] }));
+
+    // Get active smart rules
+    const rulesResult = await pool.query(`
+      SELECT id, name, trigger_type, action_type
+      FROM scheduling_rules
+      WHERE user_id = $1 AND is_active = TRUE
+      LIMIT 5
+    `, [userId]).catch(() => ({ rows: [] }));
+
+    const stats = statsResult.rows[0];
+    const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const popularDay = patternsResult.rows[0] ? dayMap[patternsResult.rows[0].dow] : null;
+    const popularHour = hourPatternsResult.rows[0] ? parseInt(hourPatternsResult.rows[0].hour) : null;
+
+    return {
+      stats: {
+        total_bookings: parseInt(stats.total_bookings) || 0,
+        this_month: parseInt(stats.this_month) || 0,
+        this_week: parseInt(stats.this_week) || 0,
+        upcoming: parseInt(stats.upcoming) || 0,
+        popular_day: popularDay,
+        popular_hour: popularHour
+      },
+      templates: templatesResult.rows,
+      attendeeData,
+      topAttendees: topAttendeesResult.rows,
+      activeRules: rulesResult.rows
+    };
+  } catch (error) {
+    console.error('Error gathering user intelligence:', error);
+    return {
+      stats: { total_bookings: 0, this_month: 0, this_week: 0, upcoming: 0 },
+      templates: [],
+      attendeeData: null,
+      topAttendees: [],
+      activeRules: []
+    };
+  }
+}
+
+/**
+ * Get personality instructions based on user preference
+ */
+function getPersonalityStyle(personality = 'friendly') {
+  const styles = {
+    friendly: {
+      greeting: (name) => `Hi ${name}! 👋`,
+      intro: "I'm helping coordinate a meeting",
+      tone: 'warm and conversational'
+    },
+    professional: {
+      greeting: (name) => `Good day${name ? ' ' + name : ''},`,
+      intro: "I am coordinating a meeting on behalf of",
+      tone: 'formal and concise'
+    },
+    concise: {
+      greeting: (name) => name || 'Hello',
+      intro: "Meeting request from",
+      tone: 'brief and direct'
+    }
+  };
+  return styles[personality] || styles.friendly;
+}
+
+/**
+ * Detect meeting template based on email content and intent
+ */
+function detectMeetingTemplate(intent, subject, body, templates) {
+  const text = `${subject} ${body}`.toLowerCase();
+
+  // Template matching keywords
+  const templateMatchers = {
+    'sales': ['sales', 'pitch', 'demo', 'prospect', 'lead'],
+    '1-on-1': ['1-on-1', '1:1', 'one-on-one', 'check-in', 'sync', 'catch up'],
+    'demo': ['demo', 'walkthrough', 'presentation', 'show'],
+    'standup': ['standup', 'stand-up', 'daily', 'scrum'],
+    'kickoff': ['kickoff', 'kick-off', 'planning', 'project start'],
+    'support': ['support', 'help', 'issue', 'problem', 'bug']
+  };
+
+  // Check meeting type from intent first
+  if (intent.meetingType) {
+    const matchingTemplate = templates.find(t =>
+      t.name.toLowerCase().includes(intent.meetingType)
+    );
+    if (matchingTemplate) {
+      console.log(`📋 Template matched from intent: ${matchingTemplate.name}`);
+      return matchingTemplate;
+    }
+  }
+
+  // Check text against template matchers
+  for (const [type, keywords] of Object.entries(templateMatchers)) {
+    if (keywords.some(keyword => text.includes(keyword))) {
+      const matchingTemplate = templates.find(t =>
+        t.name.toLowerCase().includes(type) ||
+        keywords.some(k => t.name.toLowerCase().includes(k))
+      );
+      if (matchingTemplate) {
+        console.log(`📋 Template matched from keywords: ${matchingTemplate.name}`);
+        return matchingTemplate;
+      }
+    }
+  }
+
+  return null;
+}
 
 /**
  * Process an inbound email to the bot
@@ -316,13 +500,13 @@ async function storeMessage(threadId, direction, emailData) {
 }
 
 /**
- * Parse intent from email content using AI (Claude)
+ * Parse intent from email content using AI (Claude) - ENHANCED
  */
 async function parseEmailIntentWithAI(subject, body, from) {
   try {
     const response = await anthropic.messages.create({
       model: 'claude-3-5-haiku-20241022',
-      max_tokens: 1024,
+      max_tokens: 1536,
       system: `You are a scheduling assistant. Parse the user's email to extract scheduling intent. Return ONLY valid JSON with no additional text:
 {
   "action": "schedule" | "select_time" | "reschedule" | "cancel",
@@ -330,19 +514,52 @@ async function parseEmailIntentWithAI(subject, body, from) {
   "preferences": <array of strings like "morning", "afternoon", "evening", "monday", "tuesday", etc., or specific dates>,
   "timeSlot": <ISO datetime string if selecting a specific time, or null>,
   "timezone": <detected timezone like "America/New_York" or null>,
-  "meetingType": <detected type: "coffee", "lunch", "call", "video", "zoom", "phone", "in-person", "quick", or null>,
+  "meetingType": <detected type: "coffee", "lunch", "call", "video", "zoom", "phone", "in-person", "quick", "sales", "demo", "1-on-1", "standup", "kickoff", "support", or null>,
   "locationType": <"in-person" | "phone" | "video" | null>,
+  "location": <specific location if mentioned, e.g., "downtown office", "Starbucks on Main St", null>,
   "isRecurring": <boolean, true if this is a recurring meeting>,
-  "recurrencePattern": <string describing the recurrence like "every Monday", "bi-weekly on Tuesdays", "monthly", or null>
+  "recurrencePattern": <string describing the recurrence like "every Monday", "bi-weekly on Tuesdays", "monthly", or null>,
+  "additionalAttendees": <array of email addresses mentioned, or empty array>,
+  "meetingPurpose": <brief summary of meeting purpose extracted from subject/body, or null>,
+  "urgency": <"urgent" | "normal" | "flexible" based on language used>
 }
 
-Meeting Type Detection:
+Meeting Type Detection (EXTENDED):
 - "coffee" → {meetingType: "coffee", duration: 30, locationType: "in-person", preferences: ["morning", "afternoon"]}
 - "lunch" → {meetingType: "lunch", duration: 60, locationType: "in-person", preferences: ["11:00-14:00"]}
 - "quick call" → {meetingType: "quick", duration: 15, locationType: "phone"}
 - "zoom meeting" → {meetingType: "zoom", duration: 60, locationType: "video"}
 - "phone call" → {meetingType: "call", duration: 30, locationType: "phone"}
 - "in person" → {locationType: "in-person"}
+- "sales call/pitch" → {meetingType: "sales", duration: 30, preferences: ["morning", "afternoon"]}
+- "demo/walkthrough" → {meetingType: "demo", duration: 45, locationType: "video"}
+- "1-on-1/check-in" → {meetingType: "1-on-1", duration: 30}
+- "standup/daily" → {meetingType: "standup", duration: 15, preferences: ["morning"]}
+- "kickoff/planning" → {meetingType: "kickoff", duration: 60}
+- "support call" → {meetingType: "support", duration: 30}
+
+Multiple Attendees Detection:
+- "meeting with John and Sarah" → {additionalAttendees: ["john", "sarah"]}
+- "cc john@company.com" → {additionalAttendees: ["john@company.com"]}
+- Look for email addresses in body text
+
+Meeting Purpose Extraction:
+- "to discuss the Q1 project" → {meetingPurpose: "discuss Q1 project"}
+- "about the new feature" → {meetingPurpose: "new feature"}
+- Extract main topic/reason for meeting from subject or body
+
+Urgency Detection:
+- "ASAP", "urgent", "immediately", "today" → {urgency: "urgent"}
+- "when you have time", "no rush", "eventually" → {urgency: "flexible"}
+- Default → {urgency: "normal"}
+
+Location Detection:
+- "at the downtown office" → {location: "downtown office", locationType: "in-person"}
+- "Starbucks on Main St" → {location: "Starbucks on Main St", locationType: "in-person"}
+
+Complex Time Ranges:
+- "next Tuesday after 2pm but before 5pm" → {preferences: ["tuesday", "14:00-17:00"]}
+- "mornings only, between 9-11" → {preferences: ["morning", "09:00-11:00"]}
 
 Recurring Meeting Detection:
 - "every Monday at 2pm" → {isRecurring: true, recurrencePattern: "every Monday", preferences: ["monday", "14:00"]}
@@ -352,11 +569,11 @@ Recurring Meeting Detection:
 - "every weekday at 9am" → {isRecurring: true, recurrencePattern: "every weekday", preferences: ["monday","tuesday","wednesday","thursday","friday", "09:00"]}
 
 Examples:
-- "Let's grab coffee next Tuesday" → {"action": "schedule", "meetingType": "coffee", "duration": 30, "preferences": ["tuesday", "morning"], "isRecurring": false}
-- "Can we do a quick 15-min call?" → {"action": "schedule", "meetingType": "quick", "duration": 15, "locationType": "phone", "isRecurring": false}
-- "Weekly team sync every Monday at 10am" → {"action": "schedule", "duration": 60, "isRecurring": true, "recurrencePattern": "every Monday", "preferences": ["monday", "10:00"]}
-- "Zoom call next week" → {"action": "schedule", "meetingType": "zoom", "duration": 60, "locationType": "video", "isRecurring": false}
-- "confirm: 2024-01-22T10:00" → {"action": "select_time", "timeSlot": "2024-01-22T10:00", "isRecurring": false}`,
+- "Let's grab coffee next Tuesday to discuss the Q1 project" → {"action": "schedule", "meetingType": "coffee", "duration": 30, "preferences": ["tuesday", "morning"], "meetingPurpose": "discuss Q1 project", "urgency": "normal"}
+- "URGENT: Need a quick 15-min call with John ASAP" → {"action": "schedule", "meetingType": "quick", "duration": 15, "locationType": "phone", "additionalAttendees": ["john"], "urgency": "urgent"}
+- "Weekly team sync every Monday at 10am with Sarah and Mike" → {"action": "schedule", "duration": 60, "isRecurring": true, "recurrencePattern": "every Monday", "preferences": ["monday", "10:00"], "additionalAttendees": ["sarah", "mike"]}
+- "Sales demo next week for Acme Corp" → {"action": "schedule", "meetingType": "sales", "duration": 30, "meetingPurpose": "demo for Acme Corp", "preferences": ["next_week"]}
+- "Zoom call next Tuesday after 2pm to review the prototype" → {"action": "schedule", "meetingType": "zoom", "duration": 60, "locationType": "video", "preferences": ["tuesday", "14:00-17:00"], "meetingPurpose": "review prototype"}`,
       messages: [{
         role: 'user',
         content: `Subject: ${subject}\n\nBody: ${body}`
@@ -364,7 +581,7 @@ Examples:
     });
 
     const parsed = JSON.parse(response.content[0].text);
-    console.log('🤖 Claude parsed intent:', parsed);
+    console.log('🤖 Claude parsed intent (enhanced):', parsed);
 
     // Parse recurrence pattern if detected
     let recurrence = null;
@@ -383,8 +600,12 @@ Examples:
       timezone: parsed.timezone || null,
       meetingType: parsed.meetingType || null,
       locationType: parsed.locationType || null,
+      location: parsed.location || null,
       isRecurring: parsed.isRecurring || false,
-      recurrence: recurrence
+      recurrence: recurrence,
+      additionalAttendees: parsed.additionalAttendees || [],
+      meetingPurpose: parsed.meetingPurpose || null,
+      urgency: parsed.urgency || 'normal'
     };
   } catch (error) {
     console.error('AI intent parsing error:', error.message);
@@ -586,7 +807,7 @@ async function getMutualAvailableSlots(userIds, duration, preferences, maxSlots 
 }
 
 /**
- * Propose available times to the thread participants
+ * Propose available times to the thread participants - ENHANCED WITH INTELLIGENCE
  */
 async function proposeAvailableTimes(thread, user, settings, intent) {
   // Get user's availability
@@ -605,8 +826,19 @@ async function proposeAvailableTimes(thread, user, settings, intent) {
     console.log(`🔄 Recurring meeting: ${formatRecurrenceText(intent.recurrence)}`);
   }
 
-  // Check for multi-participant scheduling
+  // **NEW: Get guest email for intelligence gathering**
   const participants = thread.participants || [];
+  const guest = participants.find(p => p.email !== user.email);
+  const guestEmail = guest?.email;
+
+  // **NEW: Gather user intelligence data**
+  console.log('🧠 Gathering user intelligence for personalized response...');
+  const intelligence = await getUserIntelligence(user.id, guestEmail);
+
+  // **NEW: Detect matching meeting template**
+  const matchedTemplate = detectMeetingTemplate(intent, thread.subject, '', intelligence.templates);
+
+  // Check for multi-participant scheduling
   const trucalParticipants = await identifyTruCalParticipants(participants, user.id);
 
   let slots;
@@ -628,23 +860,36 @@ async function proposeAvailableTimes(thread, user, settings, intent) {
     };
   }
 
-  // Store proposed slots, guest timezone, meeting metadata, participant info, and recurrence in thread
+  // **NEW: Generate proactive suggestions**
+  const suggestions = generateProactiveSuggestions({
+    stats: intelligence.stats,
+    upcomingMeetings: [],
+    templates: intelligence.templates,
+    topAttendees: intelligence.topAttendees,
+    activeRules: intelligence.activeRules
+  });
+
+  // Store proposed slots, guest timezone, meeting metadata, participant info, recurrence, and intelligence in thread
   await pool.query(
     'UPDATE email_bot_threads SET proposed_slots = $1, updated_at = NOW() WHERE id = $2',
     [JSON.stringify({
       slots: slots,
       meetingType: meetingType,
       locationType: locationType,
+      location: intent.location || null,
       duration: duration,
       trucalParticipants: trucalParticipants.map(p => ({ id: p.id, email: p.email, name: p.name })),
       isRecurring: intent.isRecurring || false,
-      recurrence: intent.recurrence || null
+      recurrence: intent.recurrence || null,
+      meetingPurpose: intent.meetingPurpose || null,
+      matchedTemplate: matchedTemplate ? { id: matchedTemplate.id, name: matchedTemplate.name } : null,
+      urgency: intent.urgency || 'normal'
     }), thread.id]
   );
 
   return {
     subject: `Re: ${thread.subject}`,
-    body: generateProposalEmail(user, thread, slots, settings, guestTimezone, meetingType)
+    body: generateProposalEmail(user, thread, slots, settings, guestTimezone, meetingType, intelligence, matchedTemplate, suggestions, intent)
   };
 }
 
@@ -1135,26 +1380,116 @@ function getDayLabelLuxon(slotDateTime, nowDateTime) {
 }
 
 /**
- * Generate the proposal email body
+ * Generate the proposal email body - ENHANCED WITH INTELLIGENCE
  */
-function generateProposalEmail(user, thread, slots, settings, guestTimezone = null, meetingType = null) {
+function generateProposalEmail(user, thread, slots, settings, guestTimezone = null, meetingType = null, intelligence = null, matchedTemplate = null, suggestions = [], intent = {}) {
   const participants = thread.participants || [];
-  const guestName = participants.find(p => p.email !== user.email)?.name?.split(' ')[0] || 'there';
+  const guest = participants.find(p => p.email !== user.email);
+  const guestName = guest?.name?.split(' ')[0] || 'there';
   const bookingBaseUrl = process.env.FRONTEND_URL || 'https://trucal.xyz';
   const duration = settings.default_duration || 30;
 
-  // Customize intro based on meeting type
-  let intro = settings.intro_message || "I'm helping {{hostName}} schedule a meeting with you.";
+  // **NEW: Get personality style**
+  const personality = settings.personality || 'friendly';
+  const style = getPersonalityStyle(personality);
+
+  // **NEW: Build personalized greeting**
+  let greeting = style.greeting(guestName);
+
+  // **NEW: Relationship intelligence - check if they've met before**
+  let relationshipNote = '';
+  if (intelligence?.attendeeData && intelligence.attendeeData.meeting_count > 0) {
+    const count = intelligence.attendeeData.meeting_count;
+    const lastMeeting = new Date(intelligence.attendeeData.last_meeting_date);
+    const daysSince = Math.floor((Date.now() - lastMeeting.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (count === 1) {
+      relationshipNote = `<p style="font-size: 14px; color: #6366f1; background-color: #eef2ff; padding: 12px; border-radius: 8px; margin: 12px 0;">💼 You've met with ${user.name} once before${daysSince < 30 ? ` (${daysSince} days ago)` : ''}.</p>`;
+    } else {
+      relationshipNote = `<p style="font-size: 14px; color: #6366f1; background-color: #eef2ff; padding: 12px; border-radius: 8px; margin: 12px 0;">💼 You've met with ${user.name} <strong>${count} times</strong> before. ${count > 5 ? 'Regular collaborator! 🤝' : ''}</p>`;
+    }
+  }
+
+  // **NEW: Behavioral pattern insights**
+  let behavioralNote = '';
+  if (intelligence?.stats) {
+    const { popular_day, popular_hour } = intelligence.stats;
+    if (popular_day && popular_hour !== null) {
+      const hour = popular_hour;
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+      behavioralNote = `<p style="font-size: 13px; color: #71717a; font-style: italic; margin: 8px 0;">💡 ${user.name} typically meets on ${popular_day}s around ${displayHour}:00 ${ampm}</p>`;
+    }
+  }
+
+  // **NEW: Heavy week warning**
+  let weeklyWarning = '';
+  if (intelligence?.stats && intelligence.stats.this_week > 10) {
+    weeklyWarning = `<p style="font-size: 13px; color: #f59e0b; background-color: #fffbeb; padding: 10px; border-radius: 6px; margin: 8px 0;">⚠️ ${user.name} has ${intelligence.stats.this_week} meetings this week. Consider next week if not urgent.</p>`;
+  }
+
+  // **NEW: Template-based agenda preview**
+  let agendaNote = '';
+  if (matchedTemplate && matchedTemplate.pre_agenda) {
+    agendaNote = `
+      <div style="background-color: #f0fdf4; border-left: 4px solid: #10b981; padding: 16px; margin: 16px 0; border-radius: 8px;">
+        <h3 style="margin: 0 0 8px 0; font-size: 15px; color: #047857;">📋 Meeting Agenda</h3>
+        <p style="margin: 0; font-size: 13px; color: #065f46; white-space: pre-wrap;">${matchedTemplate.pre_agenda.split('\n').slice(0, 5).join('\n')}</p>
+        <p style="margin: 8px 0 0 0; font-size: 12px; color: #10b981;"><em>Using "${matchedTemplate.name}" template</em></p>
+      </div>
+    `;
+  }
+
+  // **NEW: Proactive suggestions section**
+  let suggestionsNote = '';
+  if (suggestions && suggestions.length > 0) {
+    const suggestionItems = suggestions.map(s =>
+      `<li style="font-size: 13px; color: #64748b; margin: 4px 0;">${s.message}</li>`
+    ).join('');
+    suggestionsNote = `
+      <div style="background-color: #fefce8; border-radius: 8px; padding: 14px; margin: 12px 0;">
+        <p style="margin: 0 0 6px 0; font-size: 14px; font-weight: 600; color: #854d0e;">💡 Proactive Tips</p>
+        <ul style="margin: 0; padding-left: 20px;">${suggestionItems}</ul>
+      </div>
+    `;
+  }
+
+  // **NEW: Meeting purpose from AI extraction**
+  let purposeNote = '';
+  if (intent.meetingPurpose) {
+    purposeNote = `<p style="font-size: 14px; color: #18181b; margin: 8px 0;"><strong>Purpose:</strong> ${intent.meetingPurpose}</p>`;
+  }
+
+  // **NEW: Location info**
+  let locationNote = '';
+  if (intent.location) {
+    locationNote = `<p style="font-size: 14px; color: #18181b; margin: 8px 0;"><strong>📍 Location:</strong> ${intent.location}</p>`;
+  }
+
+  // **NEW: Urgency indicator**
+  let urgencyNote = '';
+  if (intent.urgency === 'urgent') {
+    urgencyNote = `<p style="font-size: 14px; color: #dc2626; background-color: #fef2f2; padding: 10px; border-radius: 6px; margin: 12px 0;"><strong>🔥 Urgent Meeting Request</strong></p>`;
+  } else if (intent.urgency === 'flexible') {
+    urgencyNote = `<p style="font-size: 13px; color: #71717a; font-style: italic; margin: 8px 0;">⏰ Flexible timing - choose what works best for you</p>`;
+  }
+
+  // Customize intro based on meeting type and personality
+  let intro = settings.intro_message || style.intro;
 
   if (meetingType && !settings.intro_message) {
-    // Use default message, but customize based on meeting type
+    // Use personality-appropriate intros
     const meetingTypeIntros = {
-      'coffee': "I'm helping {{hostName}} schedule a coffee chat with you. ☕",
-      'lunch': "I'm helping {{hostName}} schedule a lunch meeting with you. 🍽️",
-      'quick': "I'm helping {{hostName}} schedule a quick call with you. 📞",
-      'call': "I'm helping {{hostName}} schedule a call with you. 📞",
-      'video': "I'm helping {{hostName}} schedule a video meeting with you. 🎥",
-      'zoom': "I'm helping {{hostName}} schedule a Zoom call with you. 💻"
+      'coffee': personality === 'friendly' ? "I'm helping {{hostName}} schedule a coffee chat with you. ☕" : "{{hostName}} would like to schedule a coffee meeting with you.",
+      'lunch': personality === 'friendly' ? "I'm helping {{hostName}} schedule a lunch meeting with you. 🍽️" : "{{hostName}} requests a lunch meeting.",
+      'quick': personality === 'friendly' ? "I'm helping {{hostName}} schedule a quick call with you. 📞" : "{{hostName}} requests a brief call.",
+      'call': "{{hostName}} would like to schedule a call with you. 📞",
+      'video': "{{hostName}} would like to schedule a video meeting with you. 🎥",
+      'zoom': "{{hostName}} would like to schedule a Zoom call with you. 💻",
+      'sales': "{{hostName}} would like to schedule a sales call with you. 💼",
+      'demo': "{{hostName}} would like to schedule a product demo with you. 🎯",
+      '1-on-1': "{{hostName}} would like to schedule a 1-on-1 check-in. 🗣️",
+      'support': "{{hostName}} would like to schedule a support call. 🛟"
     };
     intro = meetingTypeIntros[meetingType] || intro;
   }
@@ -1164,12 +1499,27 @@ function generateProposalEmail(user, thread, slots, settings, guestTimezone = nu
   // Add timezone note if guest timezone is detected
   let timezoneNote = '';
   if (guestTimezone) {
-    timezoneNote = `<p style="font-size: 12px; color: #71717a; margin-top: 12px;">Times shown in both your timezone and ${user.name}'s timezone for convenience.</p>`;
+    timezoneNote = `<p style="font-size: 12px; color: #71717a; margin-top: 12px;">🌍 Times shown in both your timezone and ${user.name}'s timezone for convenience.</p>`;
   }
+
+  // **NEW: Combine all intelligent notes**
+  const fullIntroMessage = `
+    ${greeting ? `<p style="font-size: 16px; font-weight: 600; margin-bottom: 12px;">${greeting}</p>` : ''}
+    ${intro}
+    ${urgencyNote}
+    ${relationshipNote}
+    ${purposeNote}
+    ${locationNote}
+    ${behavioralNote}
+    ${weeklyWarning}
+    ${timezoneNote}
+    ${agendaNote}
+    ${suggestionsNote}
+  `;
 
   return generatePickATimeEmail({
     guestName,
-    introMessage: intro + (timezoneNote ? `\n${timezoneNote}` : ''),
+    introMessage: fullIntroMessage,
     duration,
     slots,
     baseUrl: bookingBaseUrl,
@@ -1276,10 +1626,13 @@ async function handleTimeSelection(thread, user, intent) {
   const endTime = new Date(selectedTime);
   endTime.setMinutes(endTime.getMinutes() + duration);
 
-  // Check if this is a recurring meeting
+  // Check if this is a recurring meeting and extract metadata
   const proposedData = thread.proposed_slots ? JSON.parse(thread.proposed_slots) : {};
   const isRecurring = proposedData.isRecurring || false;
   const recurrence = proposedData.recurrence || null;
+  const meetingPurpose = proposedData.meetingPurpose || null;
+  const matchedTemplate = proposedData.matchedTemplate || null;
+  const location = proposedData.location || null;
 
   // Check for booking conflicts BEFORE creating the booking
   const conflictCheck = await checkBookingConflicts(
@@ -1329,6 +1682,25 @@ async function handleTimeSelection(thread, user, intent) {
     };
   }
 
+  // **NEW: Build meeting title with purpose**
+  let meetingTitle = matchedTemplate
+    ? matchedTemplate.name
+    : meetingPurpose
+      ? `${meetingPurpose}`
+      : `Meeting with ${guest.name || guest.email}`;
+
+  // **NEW: Build meeting notes with template agenda and location**
+  let meetingNotes = thread.subject || '';
+  if (meetingPurpose) {
+    meetingNotes += `\n\nPurpose: ${meetingPurpose}`;
+  }
+  if (location) {
+    meetingNotes += `\n\nLocation: ${location}`;
+  }
+  if (matchedTemplate) {
+    meetingNotes += `\n\n--- Template: ${matchedTemplate.name} ---`;
+  }
+
   // Create booking in database first
   const manageToken = crypto.randomBytes(32).toString('hex');
 
@@ -1344,19 +1716,21 @@ async function handleTimeSelection(thread, user, intent) {
     booking = await pool.query(`
       INSERT INTO bookings (
         user_id, title, attendee_name, attendee_email,
-        start_time, end_time, status, manage_token, source,
+        start_time, end_time, status, manage_token, source, notes, location,
         is_recurring, recurrence_rule, recurrence_end_date,
         recurrence_frequency, recurrence_interval, recurrence_days_of_week
-      ) VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', $7, 'email_bot', $8, $9, $10, $11, $12, $13)
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', $7, 'email_bot', $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
     `, [
       user.id,
-      `Meeting with ${guest.name || guest.email}`,
+      meetingTitle,
       guest.name || guest.email.split('@')[0],
       guest.email,
       selectedTime,
       endTime,
       manageToken,
+      meetingNotes,
+      location,
       true, // is_recurring
       rrule, // recurrence_rule
       recurrenceEndDate, // recurrence_end_date
@@ -1369,21 +1743,76 @@ async function handleTimeSelection(thread, user, intent) {
     booking = await pool.query(`
       INSERT INTO bookings (
         user_id, title, attendee_name, attendee_email,
-        start_time, end_time, status, manage_token, source
-      ) VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', $7, 'email_bot')
+        start_time, end_time, status, manage_token, source, notes, location
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', $7, 'email_bot', $8, $9)
       RETURNING *
     `, [
       user.id,
-      `Meeting with ${guest.name || guest.email}`,
+      meetingTitle,
       guest.name || guest.email.split('@')[0],
       guest.email,
       selectedTime,
       endTime,
-      manageToken
+      manageToken,
+      meetingNotes,
+      location
     ]);
   }
 
   const bookingRecord = booking.rows[0];
+
+  // **NEW: Apply template - create meeting context and action items**
+  if (matchedTemplate) {
+    console.log(`📋 Applying template "${matchedTemplate.name}" to booking ${bookingRecord.id}`);
+
+    // Try to get full template data
+    try {
+      const templateResult = await pool.query(
+        'SELECT * FROM meeting_templates WHERE id = $1',
+        [matchedTemplate.id]
+      ).catch(() => ({ rows: [] }));
+
+      if (templateResult.rows.length > 0) {
+        const fullTemplate = templateResult.rows[0];
+
+        // Create meeting context with template agenda
+        if (fullTemplate.pre_agenda) {
+          await pool.query(`
+            INSERT INTO meeting_context (booking_id, generated_agenda, created_at)
+            VALUES ($1, $2, NOW())
+            ON CONFLICT (booking_id) DO UPDATE SET generated_agenda = EXCLUDED.generated_agenda
+          `, [bookingRecord.id, fullTemplate.pre_agenda]).catch(err => {
+            console.log('⚠️ Could not create meeting_context:', err.message);
+          });
+        }
+
+        // Create default action items from template
+        if (fullTemplate.default_action_items) {
+          const actionItems = typeof fullTemplate.default_action_items === 'string'
+            ? JSON.parse(fullTemplate.default_action_items)
+            : fullTemplate.default_action_items;
+
+          for (const item of actionItems) {
+            await pool.query(`
+              INSERT INTO booking_action_items (
+                booking_id, description, assigned_to, due_date, created_at
+              ) VALUES ($1, $2, $3, $4, NOW())
+            `, [
+              bookingRecord.id,
+              item.description,
+              item.assigned_to === 'host' ? user.email : guest.email,
+              endTime // Due after the meeting
+            ]).catch(err => {
+              console.log('⚠️ Could not create action item:', err.message);
+            });
+          }
+          console.log(`✅ Created ${actionItems.length} action items from template`);
+        }
+      }
+    } catch (error) {
+      console.log('⚠️ Error applying template:', error.message);
+    }
+  }
 
   // Create calendar event with Google Meet/Teams link
   console.log('📅 Creating calendar event for booking:', bookingRecord.id);
