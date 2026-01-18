@@ -148,10 +148,13 @@ export default function Dashboard() {
       }
 
       // Count bookings per day
+      const todayStartOfDay = new Date(today);
+      todayStartOfDay.setHours(0, 0, 0, 0);
+
       (data.recentBookings || []).forEach(booking => {
         const bookingDate = new Date(booking.start_time);
         const dayIndex = bookingDate.getDay();
-        if (week[dayIndex] && bookingDate >= new Date(today.setHours(0,0,0,0))) {
+        if (week[dayIndex] && bookingDate >= todayStartOfDay) {
           week[dayIndex].count++;
         }
       });

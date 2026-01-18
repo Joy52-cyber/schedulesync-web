@@ -1305,7 +1305,9 @@ export default function AISchedulerChat() {
         try {
           const lowerMessage = aiMessage.toLowerCase();
           if (lowerMessage.includes('booking') || lowerMessage.includes('meeting')) {
-            if (responseData?.data?.bookings?.length > 0) responseType = 'meeting_list';
+            if (Array.isArray(responseData?.data?.bookings) && responseData.data.bookings.length > 0) {
+              responseType = 'meeting_list';
+            }
           }
           if (lowerMessage.includes('stat') || lowerMessage.includes('total')) {
             if (responseData?.data?.stats) responseType = 'analytics';
