@@ -124,14 +124,32 @@ async function analyzeBookingPatterns(userId) {
  * @param {object} patternData - Pattern data
  */
 async function upsertPattern(userId, patternType, patternData) {
-  await pool.query(`
-    INSERT INTO booking_patterns (user_id, pattern_type, pattern_data, last_calculated)
-    VALUES ($1, $2, $3, NOW())
-    ON CONFLICT (user_id, pattern_type)
-    DO UPDATE SET
-      pattern_data = $3,
-      last_calculated = NOW()
-  `, [userId, patternType, JSON.stringify(patternData)]);
+  try {
+    // Check if table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = 'booking_patterns'
+      );
+    `);
+
+    if (!tableCheck.rows[0].exists) {
+      console.log('booking_patterns table does not exist yet, skipping pattern storage');
+      return;
+    }
+
+    await pool.query(`
+      INSERT INTO booking_patterns (user_id, pattern_type, pattern_data, last_calculated)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (user_id, pattern_type)
+      DO UPDATE SET
+        pattern_data = $3,
+        last_calculated = NOW()
+    `, [userId, patternType, JSON.stringify(patternData)]);
+  } catch (error) {
+    console.error('Error upserting pattern:', error);
+    // Silently fail - this is an enhancement feature
+  }
 }
 
 /**
@@ -140,18 +158,35 @@ async function upsertPattern(userId, patternType, patternData) {
  * @returns {Promise<object>} - Patterns object
  */
 async function getBookingPatterns(userId) {
-  const result = await pool.query(`
-    SELECT pattern_type, pattern_data
-    FROM booking_patterns
-    WHERE user_id = $1
-  `, [userId]);
+  try {
+    // Check if table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = 'booking_patterns'
+      );
+    `);
 
-  const patterns = {};
-  result.rows.forEach(row => {
-    patterns[row.pattern_type] = row.pattern_data;
-  });
+    if (!tableCheck.rows[0].exists) {
+      return {};
+    }
 
-  return patterns;
+    const result = await pool.query(`
+      SELECT pattern_type, pattern_data
+      FROM booking_patterns
+      WHERE user_id = $1
+    `, [userId]);
+
+    const patterns = {};
+    result.rows.forEach(row => {
+      patterns[row.pattern_type] = row.pattern_data;
+    });
+
+    return patterns;
+  } catch (error) {
+    console.error('Error getting booking patterns:', error);
+    return {};
+  }
 }
 
 /**

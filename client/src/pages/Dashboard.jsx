@@ -32,6 +32,7 @@ import api, {
 // import RescheduleSuggestions from '../components/RescheduleSuggestions'; // UNUSED
 import ActionItemsWidget from '../components/ActionItemsWidget';
 import GroupScheduler from '../components/GroupScheduler';
+import SmartSuggestions from '../components/SmartSuggestions';
 import { useNotification } from '../contexts/NotificationContext';
 // import SubscriptionUpgradeModal from '../components/SubscriptionUpgradeModal'; // UNUSED
 // import { useWalkthrough } from '../context/WalkthroughContext'; // UNUSED
@@ -835,6 +836,18 @@ export default function Dashboard() {
                   <p className="text-gray-500 text-sm">No meetings scheduled this week</p>
                 </div>
               )}
+            </div>
+
+            {/* STEP 8: Smart Suggestions */}
+            <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-white/20 shadow-xl">
+              <SmartSuggestions
+                duration={30}
+                timezone={timezone}
+                onSelectSlot={(slot) => {
+                  console.log('Selected smart suggestion:', slot);
+                  notify.success(`Selected: ${new Date(slot.start).toLocaleString()}`);
+                }}
+              />
             </div>
 
           </div>
