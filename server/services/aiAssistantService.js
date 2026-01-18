@@ -52,7 +52,35 @@ async function getAIResponse(userMessage, conversationHistory = [], context = {}
  */
 function buildSystemPrompt(context, userData) {
   const { personality = 'friendly', timezone, tier, currentPage, userName } = context;
-  const { stats = {}, upcomingMeetings = [], eventTypes = [] } = userData;
+  const { stats = {}, upcomingMeetings = [], eventTypes = [], templates = [], topAttendees = [], activeRules = [] } = userData;
+
+  // Build insights section
+  let insights = [];
+
+  if (stats.popular_day) {
+    insights.push(`Your busiest day is ${stats.popular_day}`);
+  }
+
+  if (stats.popular_hour !== null && stats.popular_hour !== undefined) {
+    const hour = stats.popular_hour;
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+    insights.push(`You typically meet at ${displayHour}:00 ${ampm}`);
+  }
+
+  if (topAttendees.length > 0) {
+    const topPerson = topAttendees[0];
+    insights.push(`You meet most often with ${topPerson.attendee_email} (${topPerson.meeting_count} meetings)`);
+  }
+
+  if (stats.this_week > 10) {
+    insights.push(`Heavy week ahead with ${stats.this_week} meetings`);
+  }
+
+  const upcomingDetails = upcomingMeetings.map(m => {
+    const date = new Date(m.start_time);
+    return `- ${m.title || 'Meeting'} with ${m.attendee_email || m.attendee_name} on ${date.toLocaleDateString()}`;
+  }).join('\n');
 
   let prompt = `You are TruCal Assistant, a helpful AI scheduling assistant integrated into the TruCal scheduling platform.
 
@@ -67,9 +95,16 @@ function buildSystemPrompt(context, userData) {
 **User's Scheduling Data:**
 - Total Bookings (all-time): ${stats.total_bookings || 0}
 - This Month: ${stats.this_month || 0}
+- This Week: ${stats.this_week || 0}
+- Upcoming: ${stats.upcoming || 0}
 - Active Event Types: ${eventTypes.length || 0}
-- Upcoming Meetings: ${upcomingMeetings.length || 0}
-- Meeting Templates Available: ${userData.templates?.length || 0}
+- Meeting Templates Available: ${templates.length || 0}
+- Active Smart Rules: ${activeRules.length || 0}
+
+${insights.length > 0 ? `**Behavioral Insights:**\n${insights.map(i => `- ${i}`).join('\n')}\n` : ''}
+${upcomingMeetings.length > 0 ? `**Upcoming Meetings:**\n${upcomingDetails}\n` : ''}
+${templates.length > 0 ? `**Available Templates:** ${templates.map(t => t.name).join(', ')}\n` : ''}
+${topAttendees.length > 0 ? `**Frequent Collaborators:** ${topAttendees.map(a => `${a.attendee_email} (${a.meeting_count})`).join(', ')}\n` : ''}
 
 **Your Capabilities:**
 1. **Scheduling**: Help book meetings, find available times, create quick links
@@ -95,12 +130,44 @@ function buildSystemPrompt(context, userData) {
 9. If you need more info, ask specific questions
 10. Detect and highlight conflicts or issues
 
+**Proactive Intelligence:**
+- If user asks about availability, check their upcoming meetings and suggest optimal times
+- If user books with a frequent collaborator, mention the relationship ("You've met with them ${X} times")
+- If it's a sales/demo meeting type, suggest the appropriate template
+- If user's week is heavy, suggest they might want to block time or add buffer rules
+- When showing stats, highlight interesting patterns (busiest day, favorite times)
+- If user mentions a specific day, check if they have any rules blocking that day
+- Suggest templates that match the meeting type being discussed
+- If user has no upcoming meetings, proactively suggest sharing their booking link
+
 **Special Instructions:**
-- For booking requests: Extract email, date, time, duration → Ask for confirmation
-- For analytics: Provide actual numbers from user data
+- For booking requests: Extract email, date, time, duration → Check if attendee is a frequent collaborator → Mention relationship if exists → Ask for confirmation
+- For analytics: Provide actual numbers from user data → Highlight patterns and insights
 - For links: Return the full URL format
 - For cancellations/reschedules: Require explicit confirmation
-- For template suggestions: Match meeting type to appropriate template
+- For template suggestions: Match meeting type to appropriate template:
+  * "sales", "demo", "pitch" → Sales Discovery Call template
+  * "1-on-1", "check-in", "sync" → Weekly 1-on-1 template
+  * "demo", "walkthrough", "presentation" → Product Demo template
+  * "standup", "daily", "quick sync" → Team Standup template
+  * "kickoff", "planning", "project start" → Project Kickoff template
+  * "support", "help", "issue" → Customer Support Call template
+
+**Relationship Intelligence:**
+When user mentions an email address, check topAttendees list:
+- If found: "You've met with [email] [count] times before!"
+- Suggest: "Would you like to use the same meeting format as last time?"
+- If it's their #1 collaborator: "That's your most frequent meeting partner!"
+
+**Time Intelligence:**
+- If user asks about "tomorrow" and it's their popular day: "Tomorrow is [Day], typically your busiest day!"
+- If they try to book at an unusual hour (not their popular_hour): "You usually meet at [X]:00, but [requested time] works too!"
+- If this week is particularly busy: "You have [X] meetings this week, more than usual. Want me to help reorganize?"
+
+**Template Auto-Matching Examples:**
+- User: "Book a sales call with john@acme.com" → Suggest: "I'll use the **Sales Discovery Call** template (30 min) with a pre-filled agenda. Sound good?"
+- User: "Schedule my weekly sync with Sarah" → Suggest: "Using your **Weekly 1-on-1** template for this!"
+- User: "Demo for prospects tomorrow" → Suggest: "I'll set this up with the **Product Demo** template (45 min with Q&A section)"
 
 **Format for Actions:**
 When you want to trigger an action or return structured data, use this format at the end of your response:
@@ -210,7 +277,64 @@ function getQuickResponse(intent, context) {
   return responses[intent] || null;
 }
 
+/**
+ * Generate proactive suggestions based on user context
+ * @param {Object} userData - User's scheduling data
+ * @returns {Array} - List of proactive suggestions
+ */
+function generateProactiveSuggestions(userData) {
+  const suggestions = [];
+  const { stats, upcomingMeetings, templates, topAttendees, activeRules } = userData;
+
+  // No upcoming meetings - suggest sharing link
+  if (stats.upcoming === 0 && stats.total_bookings > 0) {
+    suggestions.push({
+      type: 'share_link',
+      priority: 'high',
+      message: 'No upcoming meetings. Share your booking link to get booked!',
+      action: 'What\'s my booking link?'
+    });
+  }
+
+  // Heavy week - suggest buffer time
+  if (stats.this_week > 10 && activeRules.length === 0) {
+    suggestions.push({
+      type: 'add_buffer',
+      priority: 'medium',
+      message: `You have ${stats.this_week} meetings this week! Consider adding buffer time between meetings.`,
+      action: 'Add 15 min buffer after meetings'
+    });
+  }
+
+  // No templates but have meetings - suggest creating one
+  if (stats.total_bookings > 5 && templates.length === 0) {
+    suggestions.push({
+      type: 'create_template',
+      priority: 'low',
+      message: 'Save time by creating meeting templates for recurring meeting types!',
+      action: 'Show me available templates'
+    });
+  }
+
+  // Frequent collaborator - suggest optimizing
+  if (topAttendees.length > 0 && topAttendees[0].meeting_count > 5) {
+    const topPerson = topAttendees[0];
+    suggestions.push({
+      type: 'optimize_recurring',
+      priority: 'low',
+      message: `You meet often with ${topPerson.attendee_email}. Want to set up a recurring meeting?`,
+      action: `Book recurring with ${topPerson.attendee_email}`
+    });
+  }
+
+  return suggestions.sort((a, b) => {
+    const priority = { high: 3, medium: 2, low: 1 };
+    return priority[b.priority] - priority[a.priority];
+  }).slice(0, 2); // Return top 2 suggestions
+}
+
 module.exports = {
   getAIResponse,
-  getQuickResponse
+  getQuickResponse,
+  generateProactiveSuggestions
 };

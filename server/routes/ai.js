@@ -1518,6 +1518,43 @@ router.post('/schedule', authenticateToken, async (req, res) => {
         [userId]
       );
 
+      // Get meeting templates
+      const templatesResult = await client.query(
+        `SELECT id, name, description, duration FROM meeting_templates
+         WHERE (user_id = $1 OR is_public = TRUE) LIMIT 10`,
+        [userId]
+      ).catch(() => ({ rows: [] }));
+
+      // Get attendee insights (most frequent collaborators)
+      const attendeesResult = await client.query(
+        `SELECT attendee_email, COUNT(*) as meeting_count
+         FROM bookings
+         WHERE user_id = $1 AND status != 'cancelled'
+         GROUP BY attendee_email
+         ORDER BY meeting_count DESC
+         LIMIT 5`,
+        [userId]
+      ).catch(() => ({ rows: [] }));
+
+      // Get upcoming meetings with details for context
+      const upcomingMeetingsResult = await client.query(
+        `SELECT id, title, start_time, attendee_email, attendee_name
+         FROM bookings
+         WHERE user_id = $1 AND start_time > NOW() AND status != 'cancelled'
+         ORDER BY start_time ASC
+         LIMIT 5`,
+        [userId]
+      ).catch(() => ({ rows: [] }));
+
+      // Get smart rules if available
+      const rulesResult = await client.query(
+        `SELECT id, name, trigger_type, action_type, is_active
+         FROM scheduling_rules
+         WHERE user_id = $1 AND is_active = TRUE
+         LIMIT 5`,
+        [userId]
+      ).catch(() => ({ rows: [] }));
+
       const context = {
         personality: req.body.context?.personality || 'friendly',
         timezone: user.timezone || req.body.context?.timezone || 'America/New_York',
@@ -1529,10 +1566,17 @@ router.post('/schedule', authenticateToken, async (req, res) => {
       const userData = {
         stats: {
           total_bookings: stats.total,
-          this_month: stats.thisMonth
+          this_month: stats.thisMonth,
+          this_week: stats.thisWeek,
+          upcoming: stats.upcoming,
+          popular_day: stats.popularDay,
+          popular_hour: stats.popularHour
         },
-        upcomingMeetings: Array(parseInt(upcomingResult.rows[0].count) || 0).fill({}),
-        eventTypes: eventTypesResult.rows
+        upcomingMeetings: upcomingMeetingsResult.rows,
+        eventTypes: eventTypesResult.rows,
+        templates: templatesResult.rows,
+        topAttendees: attendeesResult.rows,
+        activeRules: rulesResult.rows
       };
 
       // Use Claude AI for natural conversation
