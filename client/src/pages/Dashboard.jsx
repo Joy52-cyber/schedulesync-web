@@ -433,12 +433,61 @@ export default function Dashboard() {
     );
   }
 
-  // MINIMAL DASHBOARD - Testing base functionality
+  // STEP 1: Add back basic UI structure (header, layout, animated blobs)
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-2xl p-8 shadow-xl border-2 border-purple-200">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">✅ Dashboard Loaded Successfully!</h1>
+    <div className="min-h-screen w-full bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+
+      {/* Header */}
+      <header className="bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-lg relative z-10">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center shadow-xl">
+                <Calendar className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+                <p className="text-gray-500 text-sm">
+                  Welcome back{user?.name ? `, ${user.name}` : ''}!
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  const event = new CustomEvent('openAIChat');
+                  window.dispatchEvent(event);
+                }}
+                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-2xl hover:shadow-purple-200/50 transition-all font-semibold flex items-center gap-2 hover:-translate-y-0.5"
+              >
+                <Bot className="h-4 w-4" />
+                TruCal Assistant
+              </button>
+
+              <button
+                onClick={() => navigate('/availability')}
+                className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:shadow-2xl hover:shadow-green-200/50 transition-all font-semibold flex items-center gap-2 hover:-translate-y-0.5"
+              >
+                <Clock className="h-4 w-4" />
+                Availability
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="w-full relative z-10">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-8">
+
+          {/* Simple Stats Display */}
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-8 shadow-xl border border-white/20">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">✅ Dashboard Working!</h2>
 
           <div className="space-y-4">
             <div className="p-4 bg-purple-50 rounded-lg">
@@ -490,8 +539,10 @@ export default function Dashboard() {
               </button>
             </div>
           </div>
+
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
