@@ -9,6 +9,9 @@ import {
   ArrowRight,
   Info,
   AlertCircle,
+  Calendar,
+  Users,
+  Clock,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
@@ -28,6 +31,14 @@ export default function DashboardIntelligence() {
       setIntelligence(response.data);
     } catch (error) {
       console.error('Failed to load intelligence:', error);
+      // Set empty intelligence data to prevent crashes
+      setIntelligence({
+        alerts: [],
+        recommendations: [],
+        relationships: [],
+        patterns: {},
+        weekAnalysis: {}
+      });
     } finally {
       setLoading(false);
     }
