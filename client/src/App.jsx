@@ -50,6 +50,7 @@ import BillingSettings from './pages/BillingSettings';
 import BillingPage from './pages/BillingPage';
 import Pricing from './pages/Pricing';
 import AttendeeProfiles from './pages/AttendeeProfiles';
+import MeetingTemplates from './pages/MeetingTemplates';
 
 // Team
 import Teams from './pages/Teams';
@@ -170,6 +171,7 @@ function InnerApp() {
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/availability" element={<Availability />} />
                 <Route path="/templates" element={<EmailTemplates />} />
+                <Route path="/meeting-templates" element={<MeetingTemplates />} />
                 <Route path="/rules" element={<SchedulingRules />} />
                 <Route path="/autonomous" element={<AutonomousSettings />} />
                 <Route path="/my-links" element={<MyLinks />} />

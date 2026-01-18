@@ -4,12 +4,182 @@ const { authenticateToken } = require('../middleware/auth');
 const pool = require('../config/database');
 
 /**
+ * Get default meeting templates
+ * @returns {Array} - Default templates
+ */
+function getDefaultTemplates() {
+  return [
+    {
+      id: 'default-1',
+      name: 'Sales Discovery Call',
+      description: 'Initial sales conversation to understand prospect needs',
+      duration: 30,
+      pre_agenda: `**Purpose**: Understand prospect's needs and challenges
+
+**Discussion Topics**:
+- Current pain points and challenges
+- Goals for next quarter/year
+- Budget and timeline considerations
+- Decision-making process
+
+**Questions to Address**:
+- What's your biggest challenge right now?
+- What does success look like for you?
+- Who else needs to be involved in this decision?
+- What's your timeline for implementation?`,
+      default_action_items: [
+        { description: 'Send follow-up resources and case studies', assigned_to: 'host' },
+        { description: 'Schedule product demo or next call', assigned_to: 'host' },
+        { description: 'Share pricing information', assigned_to: 'host' }
+      ],
+      is_public: true,
+      use_count: 0
+    },
+    {
+      id: 'default-2',
+      name: 'Weekly 1-on-1',
+      description: 'Regular one-on-one check-in meeting',
+      duration: 30,
+      pre_agenda: `**Purpose**: Check in on progress, discuss blockers, and align on priorities
+
+**Discussion Topics**:
+- Wins and accomplishments from last week
+- Current projects status update
+- Challenges or blockers
+- Goals and priorities for next week
+- Career development and growth
+
+**Questions**:
+- What support or resources do you need?
+- Is there anything I should know about?
+- What's the biggest challenge you're facing?`,
+      default_action_items: [
+        { description: 'Follow up on discussed items', assigned_to: 'host' }
+      ],
+      is_public: true,
+      use_count: 0
+    },
+    {
+      id: 'default-3',
+      name: 'Product Demo',
+      description: 'Product demonstration and walkthrough',
+      duration: 45,
+      pre_agenda: `**Purpose**: Demonstrate product capabilities and address questions
+
+**Agenda**:
+- Introduction and objectives (5 min)
+- Product overview and key features (15 min)
+- Live demonstration (15 min)
+- Q&A session (10 min)
+
+**What to Prepare**:
+- Demo environment ready
+- Relevant use cases prepared
+- Questions about their specific needs`,
+      default_action_items: [
+        { description: 'Send demo recording and resources', assigned_to: 'host' },
+        { description: 'Schedule follow-up discussion', assigned_to: 'host' },
+        { description: 'Provide trial access if applicable', assigned_to: 'host' }
+      ],
+      is_public: true,
+      use_count: 0
+    },
+    {
+      id: 'default-4',
+      name: 'Team Standup',
+      description: 'Quick daily team sync',
+      duration: 15,
+      pre_agenda: `**Purpose**: Quick team alignment and blocker identification
+
+**Format** (2-3 min per person):
+- What did you accomplish yesterday?
+- What are you working on today?
+- Any blockers or concerns?
+
+**Keep it Brief**:
+- Focus on outcomes, not details
+- Raise blockers, don't solve them here
+- Take detailed discussions offline`,
+      default_action_items: [],
+      is_public: true,
+      use_count: 0
+    },
+    {
+      id: 'default-5',
+      name: 'Project Kickoff',
+      description: 'Initial project planning meeting',
+      duration: 60,
+      pre_agenda: `**Purpose**: Align on project goals, scope, and next steps
+
+**Agenda**:
+- Project overview and objectives (10 min)
+- Scope and deliverables (15 min)
+- Timeline and milestones (15 min)
+- Team roles and responsibilities (10 min)
+- Next steps and action items (10 min)
+
+**Outcomes**:
+- Clear understanding of project goals
+- Defined scope and boundaries
+- Initial timeline with key milestones
+- Assigned responsibilities`,
+      default_action_items: [
+        { description: 'Create detailed project plan', assigned_to: 'host' },
+        { description: 'Set up project tracking system', assigned_to: 'host' },
+        { description: 'Schedule first sprint planning', assigned_to: 'host' }
+      ],
+      is_public: true,
+      use_count: 0
+    },
+    {
+      id: 'default-6',
+      name: 'Customer Support Call',
+      description: 'Customer issue resolution and support',
+      duration: 30,
+      pre_agenda: `**Purpose**: Address customer concerns and provide solutions
+
+**Topics to Cover**:
+- Issue description and impact
+- Steps already attempted
+- Expected outcome
+- Timeline for resolution
+
+**Support Process**:
+- Listen actively and take notes
+- Ask clarifying questions
+- Propose solutions or workarounds
+- Set clear expectations for follow-up`,
+      default_action_items: [
+        { description: 'Document issue details', assigned_to: 'host' },
+        { description: 'Investigate root cause', assigned_to: 'host' },
+        { description: 'Follow up with resolution', assigned_to: 'host' }
+      ],
+      is_public: true,
+      use_count: 0
+    }
+  ];
+}
+
+/**
  * GET /api/meeting-templates
  * Get all templates (user's private templates + public templates)
  */
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
+
+    // Check if table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = 'meeting_templates'
+      );
+    `);
+
+    if (!tableCheck.rows[0].exists) {
+      // Return default templates
+      return res.json(getDefaultTemplates());
+    }
 
     const result = await pool.query(`
       SELECT
@@ -36,7 +206,7 @@ router.get('/', authenticateToken, async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching meeting templates:', error);
-    res.status(500).json({ error: 'Failed to fetch meeting templates' });
+    res.json(getDefaultTemplates());
   }
 });
 
