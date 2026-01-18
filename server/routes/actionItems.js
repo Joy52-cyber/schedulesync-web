@@ -206,6 +206,19 @@ router.get('/action-items/my-tasks', authenticateToken, async (req, res) => {
       return res.json([]);
     }
 
+    // Check if assigned_to column exists
+    const columnCheck = await pool.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'booking_action_items'
+        AND column_name = 'assigned_to'
+    `);
+
+    if (columnCheck.rows.length === 0) {
+      // Column doesn't exist, return empty array
+      return res.json([]);
+    }
+
     // Get action items assigned to this user
     const result = await pool.query(
       `SELECT booking_action_items.*,

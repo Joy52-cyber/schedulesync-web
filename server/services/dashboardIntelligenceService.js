@@ -10,7 +10,8 @@ const pool = require('../config/database');
  */
 async function getDashboardIntelligence(userId) {
   try {
-    const intelligence = await Promise.all([
+    // Run all intelligence functions independently with fallbacks
+    const [alerts, relationships, patterns, recommendations, weekAnalysis] = await Promise.allSettled([
       getProactiveAlerts(userId),
       getRelationshipInsights(userId),
       getBehavioralPatterns(userId),
@@ -19,11 +20,11 @@ async function getDashboardIntelligence(userId) {
     ]);
 
     return {
-      alerts: intelligence[0],
-      relationships: intelligence[1],
-      patterns: intelligence[2],
-      recommendations: intelligence[3],
-      weekAnalysis: intelligence[4],
+      alerts: alerts.status === 'fulfilled' ? alerts.value : [],
+      relationships: relationships.status === 'fulfilled' ? relationships.value : [],
+      patterns: patterns.status === 'fulfilled' ? patterns.value : {},
+      recommendations: recommendations.status === 'fulfilled' ? recommendations.value : [],
+      weekAnalysis: weekAnalysis.status === 'fulfilled' ? weekAnalysis.value : {},
     };
   } catch (error) {
     console.error('Error getting dashboard intelligence:', error);
@@ -235,8 +236,7 @@ async function getBehavioralPatterns(userId) {
         LIMIT 3
       `, [userId]);
     } catch (error) {
-      // Column might not exist, skip this metric
-      console.log('Could not fetch meeting types:', error.message);
+      // Column might not exist, skip this metric silently
     }
 
     const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -314,27 +314,31 @@ async function getActionableRecommendations(userId) {
       });
     }
 
-    // Check for repeat meetings without recurrence
-    const repeatResult = await pool.query(`
-      SELECT attendee_email, COUNT(*) as count
-      FROM bookings
-      WHERE user_id = $1 AND status != 'cancelled' AND is_recurring = FALSE
-      GROUP BY attendee_email
-      HAVING COUNT(*) >= 4
-      LIMIT 1
-    `, [userId]);
+    // Check for repeat meetings without recurrence (skip if column doesn't exist)
+    try {
+      const repeatResult = await pool.query(`
+        SELECT attendee_email, COUNT(*) as count
+        FROM bookings
+        WHERE user_id = $1 AND status != 'cancelled'
+        GROUP BY attendee_email
+        HAVING COUNT(*) >= 4
+        LIMIT 1
+      `, [userId]);
 
-    if (repeatResult.rows.length > 0) {
-      const repeatAttendee = repeatResult.rows[0];
-      recommendations.push({
-        type: 'setup_recurring',
-        priority: 'medium',
-        icon: 'repeat',
-        title: 'Set Up Recurring Meeting',
-        description: `You've met with ${repeatAttendee.attendee_email} ${repeatAttendee.count} times. Consider a recurring meeting.`,
-        action: { text: 'Schedule Recurring', link: '/bookings' },
-        color: 'green',
-      });
+      if (repeatResult.rows.length > 0) {
+        const repeatAttendee = repeatResult.rows[0];
+        recommendations.push({
+          type: 'setup_recurring',
+          priority: 'medium',
+          icon: 'repeat',
+          title: 'Set Up Recurring Meeting',
+          description: `You've met with ${repeatAttendee.attendee_email} ${repeatAttendee.count} times. Consider a recurring meeting.`,
+          action: { text: 'Schedule Recurring', link: '/bookings' },
+          color: 'green',
+        });
+      }
+    } catch (error) {
+      // Skip if column doesn't exist
     }
 
     // Check if no meetings in next 7 days
