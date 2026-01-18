@@ -52,7 +52,7 @@ async function getAIResponse(userMessage, conversationHistory = [], context = {}
  */
 function buildSystemPrompt(context, userData) {
   const { personality = 'friendly', timezone, tier, currentPage, userName } = context;
-  const { stats = {}, upcomingMeetings = [], eventTypes = [], templates = [], topAttendees = [], activeRules = [] } = userData;
+  const { stats = {}, upcomingMeetings = [], eventTypes = [], templates = [], topAttendees = [], activeRules = [], attendeeContext = null } = userData;
 
   // Build insights section
   let insights = [];
@@ -105,6 +105,17 @@ ${insights.length > 0 ? `**Behavioral Insights:**\n${insights.map(i => `- ${i}`)
 ${upcomingMeetings.length > 0 ? `**Upcoming Meetings:**\n${upcomingDetails}\n` : ''}
 ${templates.length > 0 ? `**Available Templates:** ${templates.map(t => t.name).join(', ')}\n` : ''}
 ${topAttendees.length > 0 ? `**Frequent Collaborators:** ${topAttendees.map(a => `${a.attendee_email} (${a.meeting_count})`).join(', ')}\n` : ''}
+${attendeeContext ? `**Attendee Intelligence for ${attendeeContext.email}:**
+- Meeting History: You've met ${attendeeContext.profile.meeting_count} time(s)
+- Last Meeting: ${attendeeContext.profile.last_meeting_date ? new Date(attendeeContext.profile.last_meeting_date).toLocaleDateString() : 'Never'}
+${attendeeContext.preferences.hasPattern ? `- Preferred Days: ${attendeeContext.preferences.preferredDays.join(', ')}
+- Preferred Times: ${attendeeContext.preferences.preferredTimes.join(', ')}
+- Typical Duration: ${attendeeContext.preferences.averageDuration} minutes` : ''}
+${attendeeContext.profile.notes ? `- Notes: ${attendeeContext.profile.notes}` : ''}
+${attendeeContext.recentMeetings.length > 0 ? `- Recent Meetings: ${attendeeContext.recentMeetings.slice(0, 2).map(m => m.title || 'Meeting').join(', ')}` : ''}
+
+IMPORTANT: Mention this relationship context when booking! Say something like "You've met with ${attendeeContext.email} ${attendeeContext.profile.meeting_count} times before" and suggest times that match their pattern if available.
+` : ''}
 
 **Your Capabilities:**
 1. **Scheduling**: Help book meetings, find available times, create quick links

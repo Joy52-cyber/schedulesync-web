@@ -117,7 +117,8 @@ async function findAlternativeSlots(userId, requestedStart, duration, options = 
     maxDaysAhead = 14,
     eventTypeId = null,
     preferredDays = null, // ['monday', 'tuesday', etc.]
-    timeRange = null // 'morning', 'afternoon', 'evening'
+    timeRange = null, // 'morning', 'afternoon', 'evening'
+    attendeeEmail = null // ENHANCEMENT: For smart scheduling with attendee patterns
   } = options;
 
   try {
@@ -128,6 +129,17 @@ async function findAlternativeSlots(userId, requestedStart, duration, options = 
     );
 
     const userTimezone = userResult.rows[0]?.timezone || 'America/New_York';
+
+    // ENHANCEMENT: Get attendee preferences for smart scheduling
+    let attendeePreferences = null;
+    if (attendeeEmail) {
+      try {
+        const { getAttendeePreferences } = require('./attendeeProfileService');
+        attendeePreferences = await getAttendeePreferences(userId, attendeeEmail);
+      } catch (err) {
+        console.error('Error fetching attendee preferences:', err);
+      }
+    }
 
     // Get buffer time from event type
     let bufferBefore = 0;
@@ -224,15 +236,51 @@ async function findAlternativeSlots(userId, requestedStart, duration, options = 
           }
 
           if (!hasConflict) {
+            // ENHANCEMENT: Score this slot based on attendee patterns
+            let score = 0;
+            let reasons = [];
+
+            // Same day as requested = +15 points
+            if (slotStart.hasSame(DateTime.fromJSDate(requestedStart), 'day')) {
+              score += 15;
+              reasons.push('same day');
+            }
+
+            // Soon available (+10 if within 24 hours)
+            const hoursAway = slotStart.diff(DateTime.now(), 'hours').hours;
+            if (hoursAway <= 24) {
+              score += 10;
+              reasons.push('soon');
+            }
+
+            // Attendee preferences matching (+25 points)
+            if (attendeePreferences && attendeePreferences.hasPattern) {
+              const slotDay = slotStart.toFormat('EEEE');
+              const slotHour = slotStart.hour;
+              const slotTime = slotStart.toFormat('h:00 a');
+
+              if (attendeePreferences.preferredDays.includes(slotDay)) {
+                score += 15;
+                reasons.push(`${attendeePreferences.preferredDays.includes(slotDay) ? 'preferred day' : ''}`);
+              }
+
+              if (attendeePreferences.preferredTimes.includes(slotTime)) {
+                score += 10;
+                reasons.push('preferred time');
+              }
+            }
+
             alternatives.push({
               start: slotStart.toJSDate(),
               end: slotEnd.toJSDate(),
               startFormatted: slotStart.toFormat('EEE, MMM d \'at\' h:mm a'),
-              reason: 'available'
+              reason: reasons.length > 0 ? reasons.join(', ') : 'available',
+              score: score
             });
 
-            if (alternatives.length >= maxSlots) {
-              return alternatives;
+            if (alternatives.length >= maxSlots * 2) {
+              // Collect more slots than needed so we can sort and pick the best
+              break;
             }
           }
         }
@@ -241,7 +289,12 @@ async function findAlternativeSlots(userId, requestedStart, duration, options = 
       currentDate = currentDate.plus({ days: 1 }).startOf('day');
     }
 
-    return alternatives;
+    // ENHANCEMENT: Sort by score (highest first) and return top maxSlots
+    const sortedAlternatives = alternatives
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .slice(0, maxSlots);
+
+    return sortedAlternatives;
 
   } catch (error) {
     console.error('Error finding alternative slots:', error);

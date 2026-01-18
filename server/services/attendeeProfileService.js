@@ -263,11 +263,93 @@ async function getAttendeeStats(userId) {
   }
 }
 
+/**
+ * Get attendee's preferred meeting times and days
+ * @param {number} userId - The host user ID
+ * @param {string} attendeeEmail - The attendee's email
+ * @returns {Promise<object>} - Preferred days, times, and patterns
+ */
+async function getAttendeePreferences(userId, attendeeEmail) {
+  try {
+    // Get day and time patterns from completed meetings
+    const patterns = await pool.query(
+      `SELECT
+         EXTRACT(DOW FROM start_time) as day_of_week,
+         EXTRACT(HOUR FROM start_time) as hour_of_day,
+         COUNT(*) as frequency,
+         ROUND(AVG(EXTRACT(EPOCH FROM (end_time - start_time)) / 60)) as avg_duration_minutes
+       FROM bookings
+       WHERE user_id = $1
+         AND attendee_email = $2
+         AND status IN ('confirmed', 'completed')
+         AND start_time < NOW()
+       GROUP BY EXTRACT(DOW FROM start_time), EXTRACT(HOUR FROM start_time)
+       ORDER BY frequency DESC
+       LIMIT 5`,
+      [userId, attendeeEmail]
+    );
+
+    // Convert day numbers to names
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    // Get most common days
+    const dayFrequency = {};
+    patterns.rows.forEach(row => {
+      const day = dayNames[row.day_of_week];
+      dayFrequency[day] = (dayFrequency[day] || 0) + parseInt(row.frequency);
+    });
+
+    const preferredDays = Object.entries(dayFrequency)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([day]) => day);
+
+    // Get most common hours
+    const hourFrequency = {};
+    patterns.rows.forEach(row => {
+      const hour = parseInt(row.hour_of_day);
+      hourFrequency[hour] = (hourFrequency[hour] || 0) + parseInt(row.frequency);
+    });
+
+    const preferredHours = Object.entries(hourFrequency)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([hour]) => {
+        const h = parseInt(hour);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+        return `${displayHour}:00 ${ampm}`;
+      });
+
+    // Calculate average duration
+    const avgDuration = patterns.rows.length > 0
+      ? Math.round(patterns.rows.reduce((sum, r) => sum + parseFloat(r.avg_duration_minutes), 0) / patterns.rows.length)
+      : null;
+
+    return {
+      preferredDays,
+      preferredTimes: preferredHours,
+      averageDuration: avgDuration,
+      hasPattern: patterns.rows.length >= 2
+    };
+
+  } catch (error) {
+    console.error(`Error getting attendee preferences:`, error);
+    return {
+      preferredDays: [],
+      preferredTimes: [],
+      averageDuration: null,
+      hasPattern: false
+    };
+  }
+}
+
 module.exports = {
   updateAttendeeProfile,
   getAttendeeHistory,
   getAllAttendees,
   updateAttendeeNotes,
   enrichAttendeeProfile,
-  getAttendeeStats
+  getAttendeeStats,
+  getAttendeePreferences
 };

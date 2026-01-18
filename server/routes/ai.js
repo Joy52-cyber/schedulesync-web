@@ -5,6 +5,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { applySchedulingRules } = require('../utils/schedulingRules');
 const { checkBookingConflicts, findAlternativeSlots, formatConflictMessage } = require('../services/conflictDetection');
 const { getAIResponse, getQuickResponse } = require('../services/aiAssistantService');
+const { getAttendeeHistory, getAttendeePreferences } = require('../services/attendeeProfileService');
 
 // Intent detection helpers
 const detectIntent = (message) => {
@@ -144,6 +145,55 @@ const detectIntent = (message) => {
 
   return 'general';
 };
+
+// ENHANCEMENT: Auto-detect and apply meeting template based on keywords
+async function autoApplyMeetingTemplate(client, userId, message, bookingDetails) {
+  try {
+    // Get user's meeting templates
+    const templatesResult = await client.query(
+      'SELECT id, name, description, duration, pre_agenda, default_action_items FROM meeting_templates WHERE (user_id = $1 OR is_public = TRUE)',
+      [userId]
+    );
+
+    if (templatesResult.rows.length === 0) return null;
+
+    const lower = message.toLowerCase();
+
+    // Template keyword mapping
+    const templateKeywords = {
+      'Sales Discovery Call': ['sales call', 'sales meeting', 'sales', 'discovery call', 'sales discovery'],
+      'Weekly 1-on-1': ['1-on-1', '1:1', 'one on one', 'check-in', 'check in', 'weekly sync'],
+      'Interview': ['interview', 'candidate', 'hiring'],
+      'Product Demo': ['demo', 'demonstration', 'product demo', 'walkthrough'],
+      'Client Onboarding': ['onboarding', 'onboard', 'kickoff', 'kick-off'],
+      'Team Standup': ['standup', 'stand-up', 'daily sync', 'team sync'],
+      'Project Kickoff': ['project kickoff', 'kickoff meeting', 'project start'],
+      'Customer Support': ['support', 'support call', 'help', 'issue']
+    };
+
+    // Find matching template
+    for (const template of templatesResult.rows) {
+      const templateName = template.name;
+      const keywords = templateKeywords[templateName] || [templateName.toLowerCase()];
+
+      for (const keyword of keywords) {
+        if (lower.includes(keyword)) {
+          console.log(`🎯 Auto-applying template: ${templateName} for keyword "${keyword}"`);
+          return {
+            template,
+            matchedKeyword: keyword,
+            applied: true
+          };
+        }
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error auto-applying meeting template:', error);
+    return null;
+  }
+}
 
 // Template suggestion for bookings based on intent
 async function suggestTemplateForBooking(client, userId, message, eventTypeName) {
@@ -576,12 +626,61 @@ const parseRuleFromMessage = (message) => {
   return rule;
 };
 
+// Command aliases for quick shortcuts
+const COMMAND_ALIASES = {
+  // Show commands
+  'show tomorrow': { intent: 'check_availability', params: { date: 'tomorrow' } },
+  'show today': { intent: 'check_availability', params: { date: 'today' } },
+  'show next week': { intent: 'check_availability', params: { date: 'next week' } },
+  'tomorrow': { intent: 'check_availability', params: { date: 'tomorrow' } },
+
+  // Free/availability commands
+  'free friday': { intent: 'check_availability', params: { date: 'friday' } },
+  'free tomorrow': { intent: 'check_availability', params: { date: 'tomorrow' } },
+  'free today': { intent: 'check_availability', params: { date: 'today' } },
+  'available': { intent: 'check_availability' },
+
+  // Link commands
+  'my link': { intent: 'get_link' },
+  'share link': { intent: 'get_link' },
+  'booking link': { intent: 'get_link' },
+
+  // Stats/analytics
+  'stats': { intent: 'analytics' },
+  'my stats': { intent: 'analytics' },
+  'how many': { intent: 'analytics' },
+
+  // Quick link
+  'quick link': { intent: 'create_quick_link' },
+
+  // Upcoming
+  'next meeting': { intent: 'upcoming' },
+  'upcoming': { intent: 'upcoming' },
+  'schedule': { intent: 'upcoming' }
+};
+
+function expandCommand(message) {
+  const lowerMessage = message.toLowerCase().trim();
+
+  for (const [command, expansion] of Object.entries(COMMAND_ALIASES)) {
+    if (lowerMessage === command || lowerMessage.startsWith(command + ' ')) {
+      return {
+        matched: true,
+        intent: expansion.intent,
+        params: expansion.params || {},
+        remainder: message.slice(command.length).trim()
+      };
+    }
+  }
+  return { matched: false };
+}
+
 // POST /api/ai/schedule - Main AI chat endpoint
 router.post('/schedule', authenticateToken, async (req, res) => {
   const client = await pool.connect();
   try {
     const userId = req.user.id;
-    const { message, history } = req.body;
+    let { message, history } = req.body;
 
     // Increment AI query usage
     await client.query(
@@ -589,7 +688,23 @@ router.post('/schedule', authenticateToken, async (req, res) => {
       [userId]
     );
 
-    const intent = detectIntent(message);
+    // ENHANCEMENT: Quick Commands - expand shortcuts
+    const commandExpansion = expandCommand(message);
+    let intent;
+    let commandParams = {};
+
+    if (commandExpansion.matched) {
+      intent = commandExpansion.intent;
+      commandParams = commandExpansion.params;
+      console.log(`🚀 Quick Command matched: "${message}" → ${intent}`);
+      // If there's additional text, append it to message for parsing
+      if (commandExpansion.remainder) {
+        message = message; // Keep original message for context
+      }
+    } else {
+      intent = detectIntent(message);
+    }
+
     console.log(`AI Intent detected: ${intent} for message: "${message.substring(0, 50)}..."`);
 
     // Handle analytics intent
@@ -1362,6 +1477,19 @@ router.post('/schedule', authenticateToken, async (req, res) => {
       // Parse booking details from message
       const bookingDetails = parseBookingDetails(message);
 
+      // ENHANCEMENT: Auto-apply meeting template based on keywords
+      const meetingTemplate = await autoApplyMeetingTemplate(client, userId, message, bookingDetails);
+      if (meetingTemplate && meetingTemplate.applied) {
+        // Apply template properties to booking
+        if (meetingTemplate.template.duration) {
+          bookingDetails.duration = meetingTemplate.template.duration;
+        }
+        bookingDetails.appliedTemplate = meetingTemplate.template.name;
+        bookingDetails.templateId = meetingTemplate.template.id;
+        bookingDetails.preAgenda = meetingTemplate.template.pre_agenda;
+        bookingDetails.defaultActionItems = meetingTemplate.template.default_action_items;
+      }
+
       // Check for template suggestion based on meeting type
       const templateSuggestion = await suggestTemplateForBooking(
         client,
@@ -1448,23 +1576,25 @@ router.post('/schedule', authenticateToken, async (req, res) => {
         );
 
         if (conflictCheck?.hasConflict) {
-          // Find alternative times
+          // ENHANCEMENT: Find alternative times with smart scheduling
           const alternatives = await findAlternativeSlots(
             userId,
             startDateTime,
             bookingDetails.duration || 30,
             {
               maxSlots: 5,
-              maxDaysAhead: 14
+              maxDaysAhead: 14,
+              attendeeEmail: bookingDetails.attendeeEmail // Pass attendee for smart suggestions
             }
           );
 
-          // Format alternatives for display
+          // Format alternatives for display with reasons
           const altList = alternatives.slice(0, 3).map((alt, i) => {
             const altDate = new Date(alt.start);
             const dateStr = altDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
             const timeStr = altDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-            return `**${i + 1}.** ${dateStr} at ${timeStr}`;
+            const reasonText = alt.reason && alt.reason !== 'available' ? ` (${alt.reason})` : '';
+            return `**${i + 1}.** ${dateStr} at ${timeStr}${reasonText}`;
           }).join('\n');
 
           const conflictTitle = conflictCheck.conflicts[0]?.title || 'another meeting';
@@ -1487,9 +1617,20 @@ router.post('/schedule', authenticateToken, async (req, res) => {
       }
 
       // No conflicts, proceed with booking
+      let bookingMessage = `Great! I'll book this meeting:\n\n📅 **${bookingDetails.title}**\n🗓️ ${bookingDetails.date} at ${bookingDetails.time}\n👤 ${bookingDetails.attendeeEmail}\n⏱️ ${bookingDetails.duration} minutes`;
+
+      if (bookingDetails.appliedTemplate) {
+        bookingMessage += `\n\n📋 **Template Applied:** ${bookingDetails.appliedTemplate}`;
+        if (bookingDetails.preAgenda) {
+          bookingMessage += `\n📝 Pre-filled agenda included`;
+        }
+      }
+
+      bookingMessage += `\n\nShall I confirm this booking?`;
+
       return res.json({
         type: 'booking_ready',
-        message: `Great! I'll book this meeting:\n\n📅 **${bookingDetails.title}**\n🗓️ ${bookingDetails.date} at ${bookingDetails.time}\n👤 ${bookingDetails.attendeeEmail}\n⏱️ ${bookingDetails.duration} minutes\n\nShall I confirm this booking?`,
+        message: bookingMessage,
         data: { booking: bookingDetails }
       });
     }
@@ -1578,6 +1719,28 @@ router.post('/schedule', authenticateToken, async (req, res) => {
         topAttendees: attendeesResult.rows,
         activeRules: rulesResult.rows
       };
+
+      // ENHANCEMENT: Attendee Intelligence - fetch attendee context if email mentioned
+      const emailMatch = message.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+      if (emailMatch) {
+        const attendeeEmail = emailMatch[1];
+        try {
+          const attendeeHistory = await getAttendeeHistory(userId, attendeeEmail);
+          if (attendeeHistory && attendeeHistory.profile.meeting_count > 0) {
+            const attendeePreferences = await getAttendeePreferences(userId, attendeeEmail);
+            userData.attendeeContext = {
+              email: attendeeEmail,
+              profile: attendeeHistory.profile,
+              recentMeetings: attendeeHistory.recentMeetings,
+              preferences: attendeePreferences
+            };
+            console.log(`✨ Attendee Intelligence: Found ${attendeeHistory.profile.meeting_count} previous meetings with ${attendeeEmail}`);
+          }
+        } catch (err) {
+          console.error('Error fetching attendee context:', err);
+          // Continue without attendee context if error
+        }
+      }
 
       // Use Claude AI for natural conversation
       const aiResponse = await getAIResponse(message, history || [], context, userData);
