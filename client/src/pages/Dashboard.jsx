@@ -776,6 +776,60 @@ export default function Dashboard() {
             {/* STEP 6: Action Items Widget */}
             <ActionItemsWidget />
 
+            {/* STEP 7: This Week's Schedule */}
+            <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-white/20 shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-purple-600" />
+                  This Week
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-5 gap-3">
+                {upcomingWeek.map((day, index) => (
+                  <div
+                    key={index}
+                    className={`text-center p-4 rounded-xl border-2 transition-all ${
+                      day.isToday
+                        ? 'border-purple-500 bg-purple-50 shadow-md'
+                        : day.count > 0
+                        ? 'border-blue-200 bg-blue-50 hover:border-blue-400'
+                        : 'border-gray-200 bg-gray-50'
+                    }`}
+                  >
+                    <div className={`text-xs font-semibold uppercase mb-1 ${
+                      day.isToday ? 'text-purple-600' : 'text-gray-600'
+                    }`}>
+                      {day.day}
+                    </div>
+                    <div className={`text-sm mb-2 ${
+                      day.isToday ? 'text-purple-900 font-bold' : 'text-gray-700'
+                    }`}>
+                      {day.date}
+                    </div>
+                    <div className={`text-2xl font-bold ${
+                      day.isToday
+                        ? 'text-purple-600'
+                        : day.count > 0
+                        ? 'text-blue-600'
+                        : 'text-gray-400'
+                    }`}>
+                      {day.count}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {day.count === 1 ? 'meeting' : 'meetings'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {upcomingWeek.every(day => day.count === 0) && (
+                <div className="text-center py-4 mt-2">
+                  <p className="text-gray-500 text-sm">No meetings scheduled this week</p>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       </main>
