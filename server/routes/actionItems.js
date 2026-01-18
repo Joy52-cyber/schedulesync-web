@@ -193,6 +193,19 @@ router.get('/action-items/my-tasks', authenticateToken, async (req, res) => {
   try {
     const userEmail = req.user.email;
 
+    // Check if table exists first
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = 'booking_action_items'
+      );
+    `);
+
+    // If table doesn't exist yet, return empty array
+    if (!tableCheck.rows[0].exists) {
+      return res.json([]);
+    }
+
     // Get action items assigned to this user
     const result = await pool.query(
       `SELECT ai.*, b.title as booking_title, b.start_time, b.attendee_name,
@@ -208,7 +221,8 @@ router.get('/action-items/my-tasks', authenticateToken, async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching user tasks:', error);
-    res.status(500).json({ error: 'Failed to fetch tasks' });
+    // Return empty array instead of error for better UX
+    res.json([]);
   }
 });
 
