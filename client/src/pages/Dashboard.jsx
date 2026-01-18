@@ -647,22 +647,12 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* STEP 5: Bookings List (SIMPLE VERSION - DEBUGGING) */}
-            <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-white/20 shadow-xl">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Your Bookings</h2>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-gray-700">Total bookings: {bookings?.length || 0}</p>
-                <p className="text-gray-700">Bookings is array: {Array.isArray(bookings) ? 'Yes' : 'No'}</p>
-                <p className="text-sm text-gray-500 mt-2">Filter: {bookingFilter}</p>
-              </div>
-            </div>
-
           </div>
         </div>
       </main>
 
-      {/* Group Scheduler Modal */}
-      {showGroupScheduler && (
+      {/* Group Scheduler Modal - TESTING: commenting out to see if this is the issue */}
+      {false && showGroupScheduler && (
         <GroupScheduler
           onClose={() => setShowGroupScheduler(false)}
           onBookingCreated={(booking) => {
