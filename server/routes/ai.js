@@ -1760,11 +1760,20 @@ async function createQuickLink(client, userId, message) {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7);
 
+  // Get user's first event type (or null if none)
+  const eventTypeResult = await client.query(
+    'SELECT id FROM event_types WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1',
+    [userId]
+  );
+  const eventTypeId = eventTypeResult.rows[0]?.id || null;
+
   const result = await client.query(
-    `INSERT INTO magic_links (user_id, token, duration_minutes, expires_at, is_active)
-     VALUES ($1, $2, $3, $4, true)
-     RETURNING *`,
-    [userId, token, duration, expiresAt]
+    `INSERT INTO magic_links (
+      created_by_user_id, token, event_type_id, expires_at, is_active, is_used,
+      usage_limit, usage_count, link_name, created_at
+    ) VALUES ($1, $2, $3, $4, true, false, 1, 0, $5, NOW())
+    RETURNING *`,
+    [userId, token, eventTypeId, expiresAt, `${duration}min Quick Link`]
   );
 
   const frontendUrl = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
@@ -1787,22 +1796,21 @@ async function createQuickLinkFromFlow(client, res, userId, data) {
   const frontendUrl = process.env.FRONTEND_URL || 'https://schedulesync-web-production.up.railway.app';
 
   try {
-    // Insert into magic_links table (which is what the booking system uses)
+    // Insert into magic_links table (using correct schema)
     await client.query(`
       INSERT INTO magic_links (
-        user_id, token, duration_minutes, expires_at, is_active,
-        max_uses, current_uses, attendee_name, name, event_type_id, team_id
-      ) VALUES ($1, $2, $3, $4, true, $5, 0, $6, $7, $8, $9)
+        created_by_user_id, token, event_type_id, expires_at, is_active, is_used,
+        usage_limit, usage_count, attendee_name, link_name, team_id, created_at
+      ) VALUES ($1, $2, $3, $4, true, false, $5, 0, $6, $7, $8, NOW())
     `, [
       userId,
       token,
-      data.duration || 30,
-      data.expiresAt || null,
-      data.usageLimit,
-      data.attendeeName,
-      data.name,
       data.eventTypeId,
-      data.teamId
+      data.expiresAt || null,
+      data.usageLimit || 1, // Default to 1 if not specified
+      data.attendeeName || null,
+      data.name || 'Quick Link',
+      data.teamId || null
     ]);
 
     // Clear pending action
