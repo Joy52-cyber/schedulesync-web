@@ -209,18 +209,29 @@ export default function Dashboard() {
   const loadUserProfile = async () => {
     try {
       const response = await auth.me();
-      const u = response.data.user || null;
+      const u = response?.data?.user || null;
       setUser(u);
-      
+
       const usageResponse = await api.user.usage();
-      setUser(prevUser => ({
-        ...prevUser,
-        usage: {
-          ai_queries_used: usageResponse.data.ai_queries_used,
-          ai_queries_limit: usageResponse.data.ai_queries_limit,
+      setUser(prevUser => {
+        // Add null check before spreading
+        if (!prevUser) {
+          return {
+            usage: {
+              ai_queries_used: usageResponse.data.ai_queries_used,
+              ai_queries_limit: usageResponse.data.ai_queries_limit,
+            }
+          };
         }
-      }));
-      
+        return {
+          ...prevUser,
+          usage: {
+            ai_queries_used: usageResponse.data.ai_queries_used,
+            ai_queries_limit: usageResponse.data.ai_queries_limit,
+          }
+        };
+      });
+
     } catch (error) {
       console.error('Profile load error:', error);
       notify.error('Failed to load profile');
@@ -307,9 +318,13 @@ export default function Dashboard() {
   };
 
   const LimitWarningBanner = () => {
+    // Add null checks for limitStatus
+    if (!limitStatus) return null;
+
     const { current_bookings, limits, status, tier } = limitStatus;
-    
-    if (tier !== 'free' || status.withinLimit) return null;
+
+    // Add null checks for nested properties
+    if (!status || tier !== 'free' || status.withinLimit) return null;
 
     if (status.overGraceLimit || status.hardBlocked) {
       return (
@@ -321,7 +336,7 @@ export default function Dashboard() {
                 You've exceeded your booking limit. New bookings are blocked.
               </p>
             </div>
-            <button 
+            <button
               onClick={() => navigate('/billing')}
               className="bg-white text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-50"
             >
@@ -333,16 +348,17 @@ export default function Dashboard() {
     }
 
     if (status.inGracePeriod) {
+      const remainingBookings = (limits?.grace || 0) - (current_bookings || 0);
       return (
         <div className="bg-gradient-to-r from-orange-500 to-yellow-500 text-white p-4 rounded-xl mb-6 border-2 border-orange-400">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-bold text-lg">⚠️ Over Booking Limit</h3>
               <p className="text-orange-100">
-                Grace period active. {limits.grace - current_bookings} bookings remaining.
+                Grace period active. {remainingBookings} bookings remaining.
               </p>
             </div>
-            <button 
+            <button
               onClick={() => navigate('/billing')}
               className="bg-white text-orange-600 px-4 py-2 rounded-lg font-bold"
             >
@@ -357,17 +373,32 @@ export default function Dashboard() {
   };
 
   const ConflictWarningBanner = () => {
-    if (!conflicts.hasConflicts || !showConflictBanner) return null;
+    // Check for conflicts with null safety
+    if (!conflicts?.hasConflicts || !showConflictBanner) return null;
+    if (!conflicts?.conflicts || !Array.isArray(conflicts.conflicts) || conflicts.conflicts.length === 0) return null;
 
     const firstConflict = conflicts.conflicts[0];
-    const firstConflictTime = new Date(firstConflict.booking1.startTime).toLocaleString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
+
+    // Safely access conflict data with both field name options
+    if (!firstConflict?.booking1 || !firstConflict?.booking2) return null;
+
+    // Handle both startTime and start_time field names
+    const startTimeValue = firstConflict.booking1.startTime || firstConflict.booking1.start_time;
+    if (!startTimeValue) return null;
+
+    let firstConflictTime = 'Unknown time';
+    try {
+      firstConflictTime = new Date(startTimeValue).toLocaleString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (error) {
+      console.error('Error formatting conflict time:', error);
+    }
 
     return (
       <div className="bg-gradient-to-r from-red-500 to-orange-500 text-white p-4 rounded-xl mb-6 border-2 border-red-300 shadow-lg">
@@ -379,12 +410,12 @@ export default function Dashboard() {
             <div>
               <h3 className="font-bold text-lg mb-1">⚠️ Scheduling Conflicts Detected</h3>
               <p className="text-red-100 mb-2">
-                You have {conflicts.count} double-booked time {conflicts.count === 1 ? 'slot' : 'slots'} in the next 7 days.
+                You have {conflicts.count || 0} double-booked time {conflicts.count === 1 ? 'slot' : 'slots'} in the next 7 days.
               </p>
               <div className="bg-white/10 rounded-lg p-3 mb-3">
                 <p className="text-sm font-semibold mb-1">Next conflict: {firstConflictTime}</p>
                 <p className="text-xs text-red-100">
-                  "{firstConflict.booking1.title}" conflicts with "{firstConflict.booking2.title}"
+                  "{firstConflict.booking1.title || 'Untitled'}" conflicts with "{firstConflict.booking2.title || 'Untitled'}"
                 </p>
               </div>
               <button

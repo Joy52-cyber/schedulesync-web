@@ -1152,106 +1152,117 @@ export default function AISchedulerChat() {
   };
 
   const handleSend = async () => {
-    if (!message || !message.trim() || loading) return;
+    try {
+      if (!message || !message.trim() || loading) return;
 
-    if (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit) {
-      setChatHistory(prev => [...prev, {
-        role: 'assistant',
-        content: `Looks like you've used all ${usage.ai_queries_limit} AI queries this month!\n\nUpgrade to Pro for unlimited queries – I'll be here whenever you need me!\n\n[Upgrade to Pro](/billing)`,
-        timestamp: new Date()
-      }]);
-      return;
-    }
-
-    const userMessage = message.trim();
-    const lowerMessage = userMessage.toLowerCase();
-
-    // Update conversation context with user's goal
-    const goal = extractGoal(userMessage);
-    setConversationContext(prev => ({
-      ...prev,
-      lastTopic: goal,
-      userGoals: [...new Set([...prev.userGoals, goal])].slice(-5)
-    }));
-
-    // Track action
-    trackAction(goal);
-
-    // Increment query count
-    incrementQueryCount();
-
-    // Hide proactive help after first message
-    setShowProactiveHelp(false);
-
-    const isTimezoneRequest =
-      lowerMessage.includes('timezone') ||
-      lowerMessage.includes('time zone') ||
-      lowerMessage.includes('change my time') ||
-      lowerMessage.includes('set my time') ||
-      lowerMessage.includes('update my time') ||
-      lowerMessage === 'tz' ||
-      lowerMessage.match(/^(my )?(current )?time\s*zone?$/i);
-
-    if (isTimezoneRequest) {
-      setMessage('');
-      setChatHistory(prev => [...prev, { role: 'user', content: userMessage, timestamp: new Date() }]);
-      const parsedTimezone = parseTimezoneFromMessage(userMessage);
-
-      if (parsedTimezone) {
-        await handleTimezoneChange(parsedTimezone);
-      } else {
-        const currentTzLabel = getTimezoneLabel(currentTimezone);
+      if (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit) {
         setChatHistory(prev => [...prev, {
           role: 'assistant',
-          content: `Your current timezone is **${currentTzLabel}** (${currentTimezone || 'Not set'}).\n\nSelect your new timezone below:`,
-          timestamp: new Date(),
-          showTimezoneSelector: true
+          content: `Looks like you've used all ${usage.ai_queries_limit} AI queries this month!\n\nUpgrade to Pro for unlimited queries – I'll be here whenever you need me!\n\n[Upgrade to Pro](/billing)`,
+          timestamp: new Date()
         }]);
-        setShowTimezoneSelector(true);
+        return;
       }
-      return;
-    }
 
-    if (lowerMessage.includes('what') && (lowerMessage.includes('timezone') || lowerMessage.includes('time zone'))) {
+      const userMessage = message.trim();
+      const lowerMessage = userMessage.toLowerCase();
+
+      // Update conversation context with user's goal
+      try {
+        const goal = extractGoal(userMessage);
+        setConversationContext(prev => ({
+          ...prev,
+          lastTopic: goal,
+          userGoals: [...new Set([...prev.userGoals, goal])].slice(-5)
+        }));
+        trackAction(goal);
+      } catch (contextError) {
+        console.error('Error updating context:', contextError);
+        // Continue anyway
+      }
+
+      // Increment query count
+      try {
+        incrementQueryCount();
+      } catch (countError) {
+        console.error('Error incrementing query count:', countError);
+      }
+
+      // Hide proactive help after first message
+      setShowProactiveHelp(false);
+
+      // Check for timezone requests
+      const isTimezoneRequest =
+        lowerMessage.includes('timezone') ||
+        lowerMessage.includes('time zone') ||
+        lowerMessage.includes('change my time') ||
+        lowerMessage.includes('set my time') ||
+        lowerMessage.includes('update my time') ||
+        lowerMessage === 'tz' ||
+        lowerMessage.match(/^(my )?(current )?time\s*zone?$/i);
+
+      if (isTimezoneRequest) {
+        setMessage('');
+        setChatHistory(prev => [...prev, { role: 'user', content: userMessage, timestamp: new Date() }]);
+        const parsedTimezone = parseTimezoneFromMessage(userMessage);
+
+        if (parsedTimezone) {
+          await handleTimezoneChange(parsedTimezone);
+        } else {
+          const currentTzLabel = getTimezoneLabel(currentTimezone);
+          setChatHistory(prev => [...prev, {
+            role: 'assistant',
+            content: `Your current timezone is **${currentTzLabel}** (${currentTimezone || 'Not set'}).\n\nSelect your new timezone below:`,
+            timestamp: new Date(),
+            showTimezoneSelector: true
+          }]);
+          setShowTimezoneSelector(true);
+        }
+        return;
+      }
+
+      if (lowerMessage.includes('what') && (lowerMessage.includes('timezone') || lowerMessage.includes('time zone'))) {
+        setMessage('');
+        setChatHistory(prev => [...prev,
+          { role: 'user', content: userMessage, timestamp: new Date() },
+          { role: 'assistant', content: `Your current timezone is **${getTimezoneLabel(currentTimezone)}** (${currentTimezone || 'Not set'}).\n\nWant to change it? Just say "Change my timezone".`, timestamp: new Date() }
+        ]);
+        return;
+      }
+
+      // Check for team feature requests
+      if (!hasTeamFeature() && (
+        lowerMessage.includes('create a team') ||
+        lowerMessage.includes('team scheduling') ||
+        lowerMessage.includes('book with team') ||
+        lowerMessage.includes('team booking link') ||
+        lowerMessage.includes('round robin') ||
+        lowerMessage.includes('collective booking')
+      )) {
+        setChatHistory(prev => [...prev,
+          { role: 'user', content: userMessage, timestamp: new Date() },
+          { role: 'assistant', content: `I'd love to help with team scheduling!\n\nThis is a Team plan feature ($25/month).\n\n[Check out the Team plan](/billing)`, timestamp: new Date() }
+        ]);
+        setMessage('');
+        return;
+      }
+
+      // Check for pro feature requests
+      if (!hasProFeature() && (lowerMessage.includes('send reminder') || lowerMessage.includes('send email') || lowerMessage.includes('email template'))) {
+        setChatHistory(prev => [...prev,
+          { role: 'user', content: userMessage, timestamp: new Date() },
+          { role: 'assistant', content: `Great idea to send emails!\n\nEmail features are part of Pro ($15/month).\n\n[Upgrade to Pro](/billing)`, timestamp: new Date() }
+        ]);
+        setMessage('');
+        return;
+      }
+
       setMessage('');
-      setChatHistory(prev => [...prev,
-        { role: 'user', content: userMessage, timestamp: new Date() },
-        { role: 'assistant', content: `Your current timezone is **${getTimezoneLabel(currentTimezone)}** (${currentTimezone || 'Not set'}).\n\nWant to change it? Just say "Change my timezone".`, timestamp: new Date() }
-      ]);
-      return;
-    }
+      setChatHistory(prev => [...prev, { role: 'user', content: userMessage, timestamp: new Date() }]);
 
-   if (!hasTeamFeature() && (
-    lowerMessage.includes('create a team') ||
-    lowerMessage.includes('team scheduling') ||
-    lowerMessage.includes('book with team') ||
-    lowerMessage.includes('team booking link') ||
-    lowerMessage.includes('round robin') ||
-    lowerMessage.includes('collective booking')
-  )) {
-    setChatHistory(prev => [...prev,
-      { role: 'user', content: userMessage, timestamp: new Date() },
-      { role: 'assistant', content: `I'd love to help with team scheduling!\n\nThis is a Team plan feature ($25/month).\n\n[Check out the Team plan](/billing)`, timestamp: new Date() }
-    ]);
-    setMessage('');
-    return;
-  }
+      setLoading(true);
+      setIsTyping(true);
 
-    if (!hasProFeature() && (lowerMessage.includes('send reminder') || lowerMessage.includes('send email') || lowerMessage.includes('email template'))) {
-      setChatHistory(prev => [...prev,
-        { role: 'user', content: userMessage, timestamp: new Date() },
-        { role: 'assistant', content: `Great idea to send emails!\n\nEmail features are part of Pro ($15/month).\n\n[Upgrade to Pro](/billing)`, timestamp: new Date() }
-      ]);
-      setMessage('');
-      return;
-    }
-
-    setMessage('');
-    setChatHistory(prev => [...prev, { role: 'user', content: userMessage, timestamp: new Date() }]);
-
-    setLoading(true);
-    setIsTyping(true);
-    try {
       let contextMessage = userMessage;
       if (pendingBooking) {
         contextMessage = `[Current pending booking: "${pendingBooking.title}" on ${pendingBooking.date} at ${pendingBooking.time} for ${pendingBooking.duration} minutes with ${pendingBooking.attendee_email}]\n\nUser says: ${userMessage}`;
@@ -1260,50 +1271,80 @@ export default function AISchedulerChat() {
       // Build enhanced context payload
       const contextPayload = buildContextPayload();
 
-      const response = await api.ai.schedule(contextMessage, chatHistory, contextPayload);
-      const responseData = response.data;
+      // Make API call with error handling
+      let response, responseData;
+      try {
+        response = await api.ai.schedule(contextMessage, chatHistory, contextPayload);
+        responseData = response?.data || {};
+      } catch (apiError) {
+        console.error('API call failed:', apiError);
+        throw apiError; // Re-throw to be caught by outer catch
+      }
 
       // Refresh global usage after AI query - updates both Dashboard and AI Chat
-      if (refreshUsage) refreshUsage();
+      try {
+        if (refreshUsage) refreshUsage();
+      } catch (refreshError) {
+        console.error('Error refreshing usage:', refreshError);
+        // Continue anyway
+      }
 
       // Extract quick actions from response
-      const aiMessage = responseData.message || responseData.response || '';
-      const extractedActions = extractQuickActions(aiMessage);
-      setQuickActions(extractedActions);
+      const aiMessage = responseData?.message || responseData?.response || '';
+      try {
+        const extractedActions = extractQuickActions(aiMessage);
+        setQuickActions(extractedActions);
+      } catch (actionError) {
+        console.error('Error extracting actions:', actionError);
+        // Continue anyway
+      }
 
       // Detect response type for rich cards
-      let responseType = responseData.type;
+      let responseType = responseData?.type;
       if (!responseType) {
-        if (aiMessage.toLowerCase().includes('booking') || aiMessage.toLowerCase().includes('meeting')) {
-          if (responseData.data?.bookings?.length > 0) responseType = 'meeting_list';
-        }
-        if (aiMessage.toLowerCase().includes('stat') || aiMessage.toLowerCase().includes('total')) {
-          if (responseData.data?.stats) responseType = 'analytics';
-        }
-        // Detect availability responses
-        if (aiMessage.toLowerCase().includes('availability') || aiMessage.toLowerCase().includes('available slots') ||
-            aiMessage.toLowerCase().includes('week at a glance')) {
-          if (responseData.data?.availability || responseData.data?.slots) responseType = 'availability';
+        try {
+          const lowerMessage = aiMessage.toLowerCase();
+          if (lowerMessage.includes('booking') || lowerMessage.includes('meeting')) {
+            if (responseData?.data?.bookings?.length > 0) responseType = 'meeting_list';
+          }
+          if (lowerMessage.includes('stat') || lowerMessage.includes('total')) {
+            if (responseData?.data?.stats) responseType = 'analytics';
+          }
+          // Detect availability responses
+          if (lowerMessage.includes('availability') || lowerMessage.includes('available slots') ||
+              lowerMessage.includes('week at a glance')) {
+            if (responseData?.data?.availability || responseData?.data?.slots) responseType = 'availability';
+          }
+        } catch (typeError) {
+          console.error('Error detecting response type:', typeError);
         }
       }
 
-      if (responseData.type === 'update_pending' && responseData.data?.updatedBooking) {
-        setPendingBooking(responseData.data.updatedBooking);
-        setChatHistory(prev => [...prev, { role: 'assistant', content: responseData.message, timestamp: new Date(), data: responseData.data }]);
-      } else if (responseData.type === 'confirmation' && responseData.data?.bookingData) {
-        const bookingData = responseData.data.bookingData;
-        setPendingBooking({
-          title: bookingData.title || 'Meeting',
-          date: bookingData.date,
-          time: bookingData.time,
-          attendees: bookingData.attendees || [bookingData.attendee_email],
-          attendee_email: bookingData.attendee_email || bookingData.attendees?.[0],
-          duration: bookingData.duration || 30,
-          notes: bookingData.notes || '',
-          team_id: bookingData.team_id || null,
-          team_name: bookingData.team_name || null
-        });
-        setChatHistory(prev => [...prev, { role: 'assistant', content: responseData.message, timestamp: new Date(), data: responseData.data }]);
+      if (responseData?.type === 'update_pending' && responseData?.data?.updatedBooking) {
+        try {
+          setPendingBooking(responseData.data.updatedBooking);
+          setChatHistory(prev => [...prev, { role: 'assistant', content: responseData.message || '', timestamp: new Date(), data: responseData.data }]);
+        } catch (updateError) {
+          console.error('Error updating pending booking:', updateError);
+        }
+      } else if (responseData?.type === 'confirmation' && responseData?.data?.bookingData) {
+        try {
+          const bookingData = responseData.data.bookingData;
+          setPendingBooking({
+            title: bookingData?.title || 'Meeting',
+            date: bookingData?.date,
+            time: bookingData?.time,
+            attendees: bookingData?.attendees || [bookingData?.attendee_email],
+            attendee_email: bookingData?.attendee_email || bookingData?.attendees?.[0],
+            duration: bookingData?.duration || 30,
+            notes: bookingData?.notes || '',
+            team_id: bookingData?.team_id || null,
+            team_name: bookingData?.team_name || null
+          });
+          setChatHistory(prev => [...prev, { role: 'assistant', content: responseData.message || '', timestamp: new Date(), data: responseData.data }]);
+        } catch (confirmError) {
+          console.error('Error setting confirmation booking:', confirmError);
+        }
       } else {
         const finalMessage = aiMessage || 'Got it! Let me know if you need anything else.';
 

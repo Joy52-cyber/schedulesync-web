@@ -12,6 +12,8 @@ import {
   Calendar,
   Users,
   Clock,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
@@ -19,6 +21,8 @@ import api from '../utils/api';
 export default function DashboardIntelligence() {
   const [intelligence, setIntelligence] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [insightsExpanded, setInsightsExpanded] = useState(true);
+  const [recommendationsExpanded, setRecommendationsExpanded] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -91,12 +95,26 @@ export default function DashboardIntelligence() {
       {/* Proactive Alerts - Most Important */}
       {alerts && alerts.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-purple-600" />
-            Insights & Alerts
-          </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {alerts.map((alert, idx) => {
+          <div
+            className="flex items-center justify-between cursor-pointer group"
+            onClick={() => setInsightsExpanded(!insightsExpanded)}
+          >
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <Sparkles className="h-6 w-6 text-purple-600" />
+              Insights & Alerts
+              <span className="text-sm font-normal text-gray-500 ml-2">({alerts.length})</span>
+            </h2>
+            <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              {insightsExpanded ? (
+                <ChevronUp className="h-5 w-5 text-gray-600" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-gray-600" />
+              )}
+            </button>
+          </div>
+          {insightsExpanded && (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
+              {alerts.map((alert, idx) => {
               const Icon = iconMap[alert.icon] || AlertCircle;
               const colors = colorMap[alert.color] || colorMap.blue;
 
@@ -126,19 +144,34 @@ export default function DashboardIntelligence() {
                 </div>
               );
             })}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Actionable Recommendations */}
       {recommendations && recommendations.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <Zap className="h-6 w-6 text-yellow-600" />
-            Recommendations
-          </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recommendations.map((rec, idx) => {
+          <div
+            className="flex items-center justify-between cursor-pointer group"
+            onClick={() => setRecommendationsExpanded(!recommendationsExpanded)}
+          >
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <Zap className="h-6 w-6 text-yellow-600" />
+              Recommendations
+              <span className="text-sm font-normal text-gray-500 ml-2">({recommendations.length})</span>
+            </h2>
+            <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              {recommendationsExpanded ? (
+                <ChevronUp className="h-5 w-5 text-gray-600" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-gray-600" />
+              )}
+            </button>
+          </div>
+          {recommendationsExpanded && (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
+              {recommendations.map((rec, idx) => {
               const Icon = iconMap[rec.icon] || Info;
               const colors = colorMap[rec.color] || colorMap.blue;
 
@@ -168,7 +201,8 @@ export default function DashboardIntelligence() {
                 </div>
               );
             })}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>
