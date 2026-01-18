@@ -15,7 +15,7 @@ import {
   Building,
   Briefcase,
 } from 'lucide-react';
-import { api } from '../utils/api';
+import api from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 
 export default function AttendeeProfiles() {

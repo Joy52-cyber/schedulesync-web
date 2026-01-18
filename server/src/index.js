@@ -64,6 +64,7 @@ const groupAvailabilityRoutes = require('../routes/groupAvailability');
 const meetingTemplatesRoutes = require('../routes/meetingTemplates');
 const smartSuggestionsRoutes = require('../routes/smartSuggestions');
 const calendarAnalyticsRoutes = require('../routes/calendarAnalytics');
+const attendeesRoutes = require('../routes/attendees');
 
 // API Routes - Integrations
 const slackRoutes = require('../routes/integrations/slack');
@@ -118,6 +119,7 @@ app.use('/api', groupAvailabilityRoutes);  // Group Availability and Team Assign
 app.use('/api/meeting-templates', meetingTemplatesRoutes);  // Meeting Templates
 app.use('/api/smart-suggestions', smartSuggestionsRoutes);  // Smart Scheduling Suggestions
 app.use('/api/calendar-analytics', calendarAnalyticsRoutes);  // Calendar Analytics
+app.use('/api', attendeesRoutes);  // Attendee Profiles and Relationship Insights
 
 // Register integration routes
 app.use('/api/integrations/slack', slackRoutes);  // Slack OAuth and Notifications
