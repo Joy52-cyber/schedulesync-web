@@ -1801,8 +1801,30 @@ export default function AISchedulerChat() {
             {/* Input */}
             <div className="p-3 sm:p-4 border-t border-gray-200 bg-white">
               <div className="flex items-center gap-2">
-                <input ref={inputRef} type="text" value={message} onChange={(e) => setMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} placeholder="Type a message..." className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm" disabled={loading || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)} />
-                <button onClick={handleSend} disabled={loading || !message.trim() || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)} className="p-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-xl transition-colors">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}</button>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (!loading && message.trim() && (isUnlimited || usage.ai_queries_used < usage.ai_queries_limit)) {
+                        handleSend();
+                      }
+                    }
+                  }}
+                  placeholder="Type a message..."
+                  className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                  disabled={loading || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={loading || !message.trim() || (!isUnlimited && usage.ai_queries_used >= usage.ai_queries_limit)}
+                  className="p-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-xl transition-colors"
+                >
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                </button>
               </div>
             </div>
           </>
