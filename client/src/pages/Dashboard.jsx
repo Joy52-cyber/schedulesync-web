@@ -849,12 +849,12 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* TEMPORARILY DISABLED FOR DEBUGGING */}
-      {/* <SubscriptionUpgradeModal
+      {/* TEST 1: Re-enabling SubscriptionUpgradeModal (only renders when showUpgradeModal=true) */}
+      <SubscriptionUpgradeModal
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
         currentTier={currentTier}
-      /> */}
+      />
 
       {showGroupScheduler && (
         <GroupScheduler
