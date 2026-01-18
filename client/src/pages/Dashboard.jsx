@@ -485,6 +485,50 @@ export default function Dashboard() {
       <main className="w-full relative z-10">
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-8">
 
+          <div className="space-y-6">
+
+            {/* STEP 2: Quick Actions */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <button
+                onClick={handleShareCalendar}
+                className="flex items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border-2 border-purple-200 rounded-2xl hover:border-purple-400 hover:shadow-xl hover:shadow-purple-100/50 transition-all text-left hover:-translate-y-1"
+              >
+                <div className="w-14 h-14 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
+                  {copiedLink ? <Check className="w-6 h-6 text-white" /> : <Share2 className="w-6 h-6 text-white" />}
+                </div>
+                <div>
+                  <div className="font-bold text-gray-900 text-lg">{copiedLink ? 'Copied!' : 'Your Booking Page'}</div>
+                  <div className="text-sm text-gray-600">Share with anyone</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => navigate('/my-links')}
+                className="flex items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border-2 border-amber-200 rounded-2xl hover:border-amber-400 hover:shadow-xl hover:shadow-amber-100/50 transition-all text-left hover:-translate-y-1"
+              >
+                <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <div className="font-bold text-gray-900 text-lg">Quick Link</div>
+                  <div className="text-sm text-gray-600">Create instant booking link</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setShowGroupScheduler(true)}
+                className="flex items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border-2 border-green-200 rounded-2xl hover:border-green-400 hover:shadow-xl hover:shadow-green-100/50 transition-all text-left hover:-translate-y-1"
+              >
+                <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <Globe className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <div className="font-bold text-gray-900 text-lg">Group Meeting</div>
+                  <div className="text-sm text-gray-600">Schedule with multiple people</div>
+                </div>
+              </button>
+            </div>
+
           {/* Simple Stats Display */}
           <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-8 shadow-xl border border-white/20">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">✅ Dashboard Working!</h2>
@@ -541,8 +585,22 @@ export default function Dashboard() {
           </div>
 
           </div>
+
+          </div>
         </div>
       </main>
+
+      {/* Group Scheduler Modal */}
+      {showGroupScheduler && (
+        <GroupScheduler
+          onClose={() => setShowGroupScheduler(false)}
+          onBookingCreated={(booking) => {
+            setShowGroupScheduler(false);
+            notify.success('Group meeting scheduled successfully!');
+            loadAllData();
+          }}
+        />
+      )}
     </div>
   );
 }
